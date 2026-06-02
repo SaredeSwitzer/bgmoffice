@@ -3,7 +3,11 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+// Allow the Netlify frontend (set ALLOWED_ORIGIN in Railway env vars)
+const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
+app.use(cors({ origin: allowedOrigin, credentials: true }));
+
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
