@@ -11,6 +11,7 @@ import ClientProfilePage from './pages/ClientProfilePage'
 import InstructorsPage from './pages/InstructorsPage'
 import InstructorProfilePage from './pages/InstructorProfilePage'
 import SettingsPage from './pages/SettingsPage'
+import RemindersPage from './pages/RemindersPage'
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
             {/* Default landing → My Tasks */}
             <Route index element={<Navigate to="/my-tasks" replace />} />
             <Route path="my-tasks" element={<MyTasksPage />} />
+            <Route path="reminders" element={<RemindersPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="cases/:id" element={<CaseDetailPage />} />
             <Route path="clients" element={<ClientsPage />} />
