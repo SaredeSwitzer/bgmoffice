@@ -274,9 +274,18 @@ function DelegatesSection() {
 
   return (
     <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
-      <SectionHeader title="Delegates" count={delegates.length} />
+      <SectionHeader title="Delegates" count={delegates.length + 1} />
 
       <div className="space-y-1 mb-4">
+        {/* Static "Anyone" entry — represents unassigned tasks */}
+        <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 border border-dashed border-gray-200">
+          <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-400">
+            —
+          </div>
+          <span className="flex-1 text-sm font-medium text-gray-400 italic">Anyone</span>
+          <span className="text-xs text-gray-400">Unassigned (built-in)</span>
+        </div>
+
         {delegates.map(d => (
           <div key={d.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50">
             {editingId === d.id ? (

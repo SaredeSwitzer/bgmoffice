@@ -22,7 +22,7 @@ function fmtShort(iso) {
 }
 
 function DelegateBadge({ name }) {
-  if (!name) return <span className="text-gray-400 text-xs italic">Unassigned</span>
+  if (!name) return <span className="text-gray-400 text-xs italic">Anyone</span>
   return (
     <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">
       {name}
@@ -218,7 +218,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted }) {
                   onChange={e => setEditForm(f => ({ ...f, delegate_id: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
                 >
-                  <option value="">Unassigned</option>
+                  <option value="">Anyone</option>
                   {delegates.map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}

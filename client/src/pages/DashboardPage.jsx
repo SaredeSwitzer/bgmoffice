@@ -11,7 +11,7 @@ function daysOpen(createdAt) {
 }
 
 function DelegateChip({ name }) {
-  if (!name) return <span className="text-gray-400 text-xs">—</span>
+  if (!name) return <span className="text-gray-400 text-xs italic">Anyone</span>
   return (
     <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
       {name}
@@ -76,21 +76,29 @@ function TaskRow({ item, onClick, isOwn }) {
 
 // ── Delegate filter bar ───────────────────────────────────────────────────────
 
+// Special sentinel values for the filter
+const FILTER_ALL    = 'all'
+const FILTER_ANYONE = '__anyone__'  // tasks with no delegate assigned
+
 function DelegateFilterBar({ delegates, active, onChange }) {
-  const filters = [{ id: 'all', name: 'All' }, ...delegates]
+  const filters = [
+    { key: FILTER_ALL,    label: 'All' },
+    { key: FILTER_ANYONE, label: 'Anyone' },
+    ...delegates.map(d => ({ key: d.name, label: d.name })),
+  ]
   return (
     <div className="flex flex-wrap gap-1.5">
-      {filters.map(d => (
+      {filters.map(({ key, label }) => (
         <button
-          key={d.id}
-          onClick={() => onChange(d.id === 'all' ? 'all' : d.name)}
+          key={key}
+          onClick={() => onChange(key)}
           className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-            active === (d.id === 'all' ? 'all' : d.name)
+            active === key
               ? 'bg-gray-900 text-white'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          {d.name}
+          {label}
         </button>
       ))}
     </div>
@@ -117,9 +125,11 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
   const displayItems = useMemo(() => {
     if (!showFilter) return items
 
-    // Filter: if a specific delegate is selected, show only their tasks
-    const filtered = activeFilter === 'all'
+    // Filter by selected pill
+    const filtered = activeFilter === FILTER_ALL
       ? items
+      : activeFilter === FILTER_ANYONE
+      ? items.filter(i => !i.delegate_name)
       : items.filter(i => i.delegate_name === activeFilter)
 
     // Sort: PRIORITY always first, then within each group own tasks float to top, then oldest first
@@ -129,7 +139,7 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
       if (aPriority !== bPriority) return aPriority - bPriority
 
       // When "All" is selected, float logged-in user's tasks to top within each priority tier
-      if (activeFilter === 'all' && myDelegateName) {
+      if (activeFilter === FILTER_ALL && myDelegateName) {
         const aOwn = a.delegate_name === myDelegateName ? 0 : 1
         const bOwn = b.delegate_name === myDelegateName ? 0 : 1
         if (aOwn !== bOwn) return aOwn - bOwn
@@ -144,7 +154,7 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
       <div className={`flex items-center gap-2 mb-3 pl-1 border-l-4 ${accentMap[accent] || accentMap.gray}`}>
         <h2 className="text-sm font-bold uppercase tracking-widest">{title}</h2>
         <span className="text-xs font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
-          {displayItems.length}{activeFilter !== 'all' && items.length !== displayItems.length ? ` of ${items.length}` : ''}
+          {displayItems.length}{activeFilter !== FILTER_ALL && items.length !== displayItems.length ? ` of ${items.length}` : ''}
         </span>
       </div>
 
@@ -160,7 +170,11 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
 
       {displayItems.length === 0 ? (
         <p className="text-sm text-gray-400 italic px-2 py-4">
-          {activeFilter !== 'all' ? `No open tasks assigned to ${activeFilter}.` : emptyMsg}
+          {activeFilter === FILTER_ANYONE
+            ? 'No open tasks without an assigned delegate.'
+            : activeFilter !== FILTER_ALL
+            ? `No open tasks assigned to ${activeFilter}.`
+            : emptyMsg}
         </p>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -180,7 +194,7 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
                 <TaskRow
                   key={item.id}
                   item={item}
-                  isOwn={activeFilter === 'all' && !!myDelegateName && item.delegate_name === myDelegateName}
+                  isOwn={activeFilter === FILTER_ALL && !!myDelegateName && item.delegate_name === myDelegateName}
                   onClick={() => onRowClick(item.case_id)}
                 />
               ))}
