@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import NavShell from './components/NavShell'
 import LoginPage from './pages/LoginPage'
+import MyTasksPage from './pages/MyTasksPage'
 import DashboardPage from './pages/DashboardPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import ClientsPage from './pages/ClientsPage'
@@ -24,7 +25,10 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<DashboardPage />} />
+            {/* Default landing → My Tasks */}
+            <Route index element={<Navigate to="/my-tasks" replace />} />
+            <Route path="my-tasks" element={<MyTasksPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />
             <Route path="cases/:id" element={<CaseDetailPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="clients/:id" element={<ClientProfilePage />} />
@@ -39,7 +43,7 @@ export default function App() {
               }
             />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/my-tasks" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

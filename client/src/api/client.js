@@ -27,6 +27,7 @@ export const api = {
 
   // Dashboard
   dashboard: () => request('/dashboard'),
+  myTasks: () => request('/dashboard/my-tasks'),
 
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),

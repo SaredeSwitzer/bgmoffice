@@ -62,6 +62,20 @@ function sortItems(items) {
   });
 }
 
+// My Tasks: open action items delegated to the logged-in user (matched by first name)
+router.get('/my-tasks', (req, res) => {
+  const firstName = req.user.name.split(' ')[0];
+  // Find delegate whose name matches (case-insensitive)
+  const delegate = db.prepare('SELECT * FROM delegates WHERE LOWER(name) = LOWER(?) LIMIT 1').get(firstName);
+  if (!delegate) return res.json({ tasks: [], delegate_name: null });
+
+  const items = db.prepare(BASE_SQL + ' AND d.id = ? ORDER BY ai.created_at ASC').all(delegate.id);
+  return res.json({
+    tasks: sortItems(attachLastNote(items)),
+    delegate_name: delegate.name,
+  });
+});
+
 router.get('/', (req, res) => {
   const allOpen = db.prepare(BASE_SQL + ' ORDER BY ai.created_at ASC').all();
   const withNotes = attachLastNote(allOpen);

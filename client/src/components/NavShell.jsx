@@ -1,12 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-const navItems = [
-  { to: '/',             label: 'Dashboard' },
-  { to: '/clients',      label: 'Clients' },
-  { to: '/instructors',  label: 'Instructors' },
-]
-
 export default function NavShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -24,16 +18,20 @@ export default function NavShell() {
           <div className="flex items-center gap-6">
             <span className="font-bold text-gray-900 text-lg tracking-tight">BGM Office</span>
             <nav className="flex gap-1">
-              {navItems.map(({ to, label }) => (
+              {[
+                { to: '/dashboard', label: 'Dashboard' },
+                { to: '/my-tasks',  label: 'My Tasks',  bold: true },
+                { to: '/clients',   label: 'Clients' },
+                { to: '/instructors', label: 'Instructors' },
+              ].map(({ to, label, bold }) => (
                 <NavLink
                   key={to}
                   to={to}
-                  end={to === '/'}
                   className={({ isActive }) =>
-                    `px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                    `px-3 py-1.5 rounded text-sm transition-colors ${
                       isActive
-                        ? 'bg-gray-100 text-gray-900'
-                        : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                        ? bold ? 'bg-gray-900 text-white font-semibold' : 'bg-gray-100 text-gray-900 font-medium'
+                        : bold ? 'text-gray-700 font-semibold hover:bg-gray-100' : 'text-gray-500 font-medium hover:text-gray-800 hover:bg-gray-50'
                     }`
                   }
                 >
