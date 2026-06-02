@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
+import AddReminderModal from '../components/AddReminderModal'
 
 export default function InstructorProfilePage() {
   const { id } = useParams()
@@ -14,6 +15,7 @@ export default function InstructorProfilePage() {
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [showNewCase, setShowNewCase] = useState(false)
+  const [showReminder, setShowReminder] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -161,18 +163,33 @@ export default function InstructorProfilePage() {
               {cases.length}
             </span>
           </h2>
-          <button
-            onClick={() => setShowNewCase(true)}
-            className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            + Open Case
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowReminder(true)}
+              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              + Reminder
+            </button>
+            <button
+              onClick={() => setShowNewCase(true)}
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              + Open Case
+            </button>
+          </div>
         </div>
         <CaseHistoryList cases={cases} />
       </section>
 
       {showNewCase && (
         <NewCaseModal instructorId={Number(id)} onClose={() => setShowNewCase(false)} />
+      )}
+      {showReminder && (
+        <AddReminderModal
+          instructorId={Number(id)}
+          defaultTitle={instructor ? `Follow up with ${instructor.name}` : ''}
+          onClose={() => setShowReminder(false)}
+        />
       )}
     </div>
   )

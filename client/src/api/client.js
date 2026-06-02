@@ -94,6 +94,12 @@ export const api = {
     request(`/settings/delegates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteDelegate: (id) => request(`/settings/delegates/${id}`, { method: 'DELETE' }),
 
+  // Reminders
+  getReminders: () => request('/reminders'),
+  createReminder: (data) => request('/reminders', { method: 'POST', body: JSON.stringify(data) }),
+  markReminderDone: (id) => request(`/reminders/${id}/done`, { method: 'PATCH' }),
+  deleteReminder: (id) => request(`/reminders/${id}`, { method: 'DELETE' }),
+
   getSettingsUsers: () => request('/settings/users'),
   createUser: (data) =>
     request('/settings/users', { method: 'POST', body: JSON.stringify(data) }),

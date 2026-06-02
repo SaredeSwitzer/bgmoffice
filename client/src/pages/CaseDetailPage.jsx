@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
+import AddReminderModal from '../components/AddReminderModal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -363,6 +364,7 @@ export default function CaseDetailPage() {
   const [delegates, setDelegates] = useState([])
   const [error, setError] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showReminderModal, setShowReminderModal] = useState(false)
   const [resolving, setResolving] = useState(false)
 
   useEffect(() => {
@@ -516,17 +518,25 @@ export default function CaseDetailPage() {
               {openItems.length} open
             </span>
           </h2>
-          {!isResolved && (
+          <div className="flex gap-2">
             <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
+              onClick={() => setShowReminderModal(true)}
+              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Action Item
+              + Reminder
             </button>
-          )}
+            {!isResolved && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Action Item
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -569,6 +579,14 @@ export default function CaseDetailPage() {
           delegates={delegates}
           onClose={() => setShowAddModal(false)}
           onAdded={handleItemAdded}
+        />
+      )}
+      {showReminderModal && (
+        <AddReminderModal
+          caseId={Number(id)}
+          clientId={caseData.client_id}
+          instructorId={caseData.instructor_id}
+          onClose={() => setShowReminderModal(false)}
         />
       )}
     </div>

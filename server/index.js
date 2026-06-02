@@ -19,6 +19,7 @@ app.use('/api/cases',        require('./routes/cases'));
 app.use('/api/action-items', require('./routes/actionItems'));
 app.use('/api/settings',     require('./routes/settings'));
 app.use('/api/dashboard',    require('./routes/dashboard'));
+app.use('/api/reminders',    require('./routes/reminders'));
 
 // Public read-only lookups (needed by forms before settings auth is checked)
 const db = require('./db');
