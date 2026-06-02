@@ -1,0 +1,3 @@
+# Provide build tools required by better-sqlite3's native C++ addon
+[phases.setup]
+nixPkgs = ["python3", "gcc", "gnumake"]
