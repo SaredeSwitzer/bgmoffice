@@ -20,7 +20,6 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  myTasks: () => request("/dashboard/my-tasks"),
   myTasks: () => request('/dashboard/my-tasks'),
 
   // Auth
@@ -30,7 +29,6 @@ export const api = {
 
   // Dashboard
   dashboard: () => request('/dashboard'),
-  myTasks: () => request('/dashboard/my-tasks'),
 
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
