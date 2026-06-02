@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node start.js",
     "build": "npm rebuild better-sqlite3 --build-from-source",
     "dev": "node --watch index.js",
     "seed": "node db/seed.js"
