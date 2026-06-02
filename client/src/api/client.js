@@ -20,6 +20,9 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  myTasks: () => request("/dashboard/my-tasks"),
+  myTasks: () => request('/dashboard/my-tasks'),
+
   // Auth
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
