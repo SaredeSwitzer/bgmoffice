@@ -4,7 +4,6 @@ import { api } from '../api/client'
 import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
-import AddReminderModal from '../components/AddReminderModal'
 
 function PrefCard({ pref, onDelete }) {
   const isLiked = pref.preference === 'liked'
@@ -106,7 +105,6 @@ export default function ClientProfilePage() {
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [showNewCase, setShowNewCase] = useState(false)
-  const [showReminder, setShowReminder] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -264,33 +262,18 @@ export default function ClientProfilePage() {
               {cases.length}
             </span>
           </h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowReminder(true)}
-              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              + Reminder
-            </button>
-            <button
-              onClick={() => setShowNewCase(true)}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              + Open Case
-            </button>
-          </div>
+          <button
+            onClick={() => setShowNewCase(true)}
+            className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            + Open Case
+          </button>
         </div>
         <CaseHistoryList cases={cases} />
       </section>
 
       {showNewCase && (
         <NewCaseModal clientId={Number(id)} onClose={() => setShowNewCase(false)} />
-      )}
-      {showReminder && (
-        <AddReminderModal
-          clientId={Number(id)}
-          defaultTitle={client ? `Follow up with ${client.name}` : ''}
-          onClose={() => setShowReminder(false)}
-        />
       )}
     </div>
   )

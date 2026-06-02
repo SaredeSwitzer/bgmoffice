@@ -1,31 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { RemindersProvider, useRemindersContext } from '../context/RemindersContext'
 
-function RemindersNavLink() {
-  const { overdueCount } = useRemindersContext()
-  return (
-    <NavLink
-      to="/reminders"
-      className={({ isActive }) =>
-        `relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-          isActive
-            ? 'bg-gray-100 text-gray-900'
-            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
-        }`
-      }
-    >
-      Reminders
-      {overdueCount > 0 && (
-        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-          {overdueCount > 9 ? '9+' : overdueCount}
-        </span>
-      )}
-    </NavLink>
-  )
-}
-
-function Shell() {
+export default function NavShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -43,9 +19,9 @@ function Shell() {
             <span className="font-bold text-gray-900 text-lg tracking-tight">BGM Office</span>
             <nav className="flex gap-1">
               {[
-                { to: '/dashboard',   label: 'Dashboard' },
-                { to: '/my-tasks',    label: 'My Tasks', bold: true },
-                { to: '/clients',     label: 'Clients' },
+                { to: '/dashboard', label: 'Dashboard' },
+                { to: '/my-tasks',  label: 'My Tasks',  bold: true },
+                { to: '/clients',   label: 'Clients' },
                 { to: '/instructors', label: 'Instructors' },
               ].map(({ to, label, bold }) => (
                 <NavLink
@@ -62,9 +38,6 @@ function Shell() {
                   {label}
                 </NavLink>
               ))}
-
-              <RemindersNavLink />
-
               {user?.role === 'admin' && (
                 <NavLink
                   to="/settings"
@@ -81,7 +54,6 @@ function Shell() {
               )}
             </nav>
           </div>
-
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500">
               <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 font-bold text-xs mr-1.5">
@@ -104,13 +76,5 @@ function Shell() {
         <Outlet />
       </main>
     </div>
-  )
-}
-
-export default function NavShell() {
-  return (
-    <RemindersProvider>
-      <Shell />
-    </RemindersProvider>
   )
 }

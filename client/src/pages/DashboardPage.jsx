@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
-import AddReminderModal from '../components/AddReminderModal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -214,7 +213,6 @@ export default function DashboardPage() {
   const [data, setData] = useState(null)
   const [delegates, setDelegates] = useState([])
   const [error, setError] = useState('')
-  const [showReminder, setShowReminder] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -238,17 +236,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-end">
-        <button
-          onClick={() => setShowReminder(true)}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          + Add Reminder
-        </button>
-      </div>
-
-      {showReminder && <AddReminderModal onClose={() => setShowReminder(false)} />}
-
       <SectionTable
         title="Open Tasks"
         items={data.open_tasks}
