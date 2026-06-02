@@ -368,6 +368,23 @@ function UsersSection() {
   const [newForm, setNewForm] = useState({ name: '', initials: '', email: '', password: '', role: 'staff' })
   const [saving, setSaving] = useState(false)
 
+  function autoInitials(name) {
+    return name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 3)
+  }
+
+  function handleNewNameChange(v) {
+    setNewForm(f => ({
+      ...f,
+      name: v,
+      // only auto-fill initials if user hasn't manually edited them
+      initials: f._initialsManuallySet ? f.initials : autoInitials(v),
+    }))
+  }
+
+  function handleNewInitialsChange(v) {
+    setNewForm(f => ({ ...f, initials: v.toUpperCase().slice(0, 3), _initialsManuallySet: true }))
+  }
+
   useEffect(() => {
     api.getSettingsUsers().then(setUsers)
   }, [])
@@ -389,7 +406,10 @@ function UsersSection() {
     e.preventDefault()
     setSaving(true)
     try {
-      const created = await api.createUser(newForm)
+      const { _initialsManuallySet, ...payload } = newForm
+      // fallback: if initials still empty, derive from name
+      if (!payload.initials) payload.initials = autoInitials(payload.name) || 'XX'
+      const created = await api.createUser(payload)
       setUsers(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
       setNewForm({ name: '', initials: '', email: '', password: '', role: 'staff' })
       setShowNew(false)
@@ -491,13 +511,16 @@ function UsersSection() {
         <form onSubmit={handleCreate} className="border border-gray-200 rounded-xl p-4 space-y-3">
           <h4 className="text-xs font-semibold text-gray-700">New User</h4>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-              <InlineInput required value={newForm.name} onChange={v => setNewForm(f => ({ ...f, name: v }))} className="w-full" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Initials *</label>
-              <InlineInput required value={newForm.initials} onChange={v => setNewForm(f => ({ ...f, initials: v.toUpperCase().slice(0,3) }))} placeholder="e.g. SS" className="w-full" />
+            {/* Name spans most of the row; initials auto-fills but stays editable */}
+            <div className="col-span-2 flex gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+                <InlineInput required value={newForm.name} onChange={handleNewNameChange} placeholder="Full name" className="w-full" />
+              </div>
+              <div className="w-24">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Initials</label>
+                <InlineInput value={newForm.initials} onChange={handleNewInitialsChange} placeholder="SS" className="w-full" />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
@@ -517,11 +540,11 @@ function UsersSection() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving}
+            <button type="submit" disabled={saving || !newForm.name.trim() || !newForm.email.trim() || !newForm.password.trim()}
               className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
               {saving ? 'Creating…' : 'Create User'}
             </button>
-            <button type="button" onClick={() => setShowNew(false)}
+            <button type="button" onClick={() => { setShowNew(false); setNewForm({ name: '', initials: '', email: '', password: '', role: 'staff' }) }}
               className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
               Cancel
             </button>
