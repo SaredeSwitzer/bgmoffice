@@ -1,1 +1,29 @@
 @import "tailwindcss";
+
+/* Push bottom nav above iPhone home indicator */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Responsive nav helpers ─────────────────────────────────────────────────
+   Using plain media queries instead of Tailwind responsive classes so they
+   are guaranteed to generate regardless of JIT purging behaviour.           */
+
+/* Mobile-only elements: visible below 640px, hidden above */
+.mobile-only { display: flex; }
+.bottom-nav  { display: flex; }
+
+/* Desktop-only elements: hidden below 640px, visible above */
+.desktop-nav { display: none !important; }
+
+@media (min-width: 640px) {
+  .mobile-only { display: none !important; }
+  .bottom-nav  { display: none !important; }
+  .desktop-nav { display: flex !important; }
+
+  /* More breathing room on desktop */
+  .main-content {
+    padding: 24px !important;
+    padding-bottom: 24px !important;
+  }
+}
