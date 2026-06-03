@@ -86,8 +86,10 @@ db.exec(`
   )
 `);
 
-// Idempotent column additions for existing DBs that predate these columns
-for (const sql of [
+// Idempotent column additions for existing DBs that predate these columns.
+// Each ALTER TABLE is attempted; "duplicate column" errors are silently
+// ignored. Any other error is logged so it shows up in Railway's deploy log.
+const migrations = [
   `ALTER TABLE reminders         ADD COLUMN action_item_id INTEGER REFERENCES action_items(id) ON DELETE SET NULL`,
   `ALTER TABLE reminders         ADD COLUMN delegate_name  TEXT`,
   `ALTER TABLE action_items      ADD COLUMN starred        INTEGER NOT NULL DEFAULT 0`,
@@ -97,14 +99,28 @@ for (const sql of [
   `ALTER TABLE client_instructor_prefs ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))`,
   `ALTER TABLE client_instructor_prefs ADD COLUMN created_by TEXT`,
   `ALTER TABLE action_items             ADD COLUMN created_by TEXT`,
-  `ALTER TABLE clients                  ADD COLUMN rate_per_class TEXT`,
-  `ALTER TABLE instructors              ADD COLUMN mailing_address TEXT`,
-  `ALTER TABLE instructors              ADD COLUMN ssn TEXT`,
-  `ALTER TABLE instructors              ADD COLUMN contract_signed INTEGER NOT NULL DEFAULT 0`,
-  `ALTER TABLE instructors              ADD COLUMN contract_signed_date TEXT`,
-  `ALTER TABLE instructors              ADD COLUMN photo_url TEXT`,
-]) {
-  try { db.exec(sql) } catch (_) { /* column already exists — safe to ignore */ }
+  // profile-expansion columns (added 2026-06)
+  `ALTER TABLE clients      ADD COLUMN rate_per_class      TEXT`,
+  `ALTER TABLE instructors  ADD COLUMN mailing_address     TEXT`,
+  `ALTER TABLE instructors  ADD COLUMN ssn                 TEXT`,
+  `ALTER TABLE instructors  ADD COLUMN contract_signed     INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE instructors  ADD COLUMN contract_signed_date TEXT`,
+  `ALTER TABLE instructors  ADD COLUMN photo_url           TEXT`,
+];
+
+for (const sql of migrations) {
+  try {
+    db.exec(sql);
+    // Extract "TABLE col" for a concise log line
+    const m = sql.match(/ALTER TABLE (\S+)\s+ADD COLUMN (\S+)/i);
+    if (m) console.log(`[migration] added column ${m[1]}.${m[2]}`);
+  } catch (err) {
+    if (/duplicate column/i.test(err.message)) {
+      // Already exists — expected on every boot after the first
+    } else {
+      console.error(`[migration] FAILED: ${sql.trim()}\n  ${err.message}`);
+    }
+  }
 }
 
 module.exports = db;
