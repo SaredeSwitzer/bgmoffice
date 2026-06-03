@@ -37,11 +37,11 @@ router.get('/:id', (req, res) => {
 
 // Create client
 router.post('/', (req, res) => {
-  const { name, phone, email, preferred_contact, notes } = req.body;
+  const { name, phone, email, preferred_contact, notes, rate_per_class } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
   const result = db.prepare(
-    'INSERT INTO clients (name, phone, email, preferred_contact, notes) VALUES (?, ?, ?, ?, ?)'
-  ).run(name, phone || null, email || null, preferred_contact || null, notes || null);
+    'INSERT INTO clients (name, phone, email, preferred_contact, notes, rate_per_class) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(name, phone || null, email || null, preferred_contact || null, notes || null, rate_per_class || null);
   res.status(201).json(db.prepare('SELECT * FROM clients WHERE id = ?').get(result.lastInsertRowid));
 });
 
@@ -49,10 +49,10 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
   if (!client) return res.status(404).json({ error: 'Client not found' });
-  const { name, phone, email, preferred_contact, notes } = req.body;
+  const { name, phone, email, preferred_contact, notes, rate_per_class } = req.body;
   db.prepare(
-    'UPDATE clients SET name=?, phone=?, email=?, preferred_contact=?, notes=? WHERE id=?'
-  ).run(name, phone || null, email || null, preferred_contact || null, notes || null, req.params.id);
+    'UPDATE clients SET name=?, phone=?, email=?, preferred_contact=?, notes=?, rate_per_class=? WHERE id=?'
+  ).run(name, phone || null, email || null, preferred_contact || null, notes || null, rate_per_class || null, req.params.id);
   res.json(db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id));
 });
 

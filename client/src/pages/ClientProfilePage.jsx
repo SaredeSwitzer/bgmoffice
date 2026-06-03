@@ -135,7 +135,7 @@ export default function ClientProfilePage() {
     ])
       .then(([c, cs, instr]) => {
         setClient(c)
-        setEditForm({ name: c.name, phone: c.phone || '', email: c.email || '', preferred_contact: c.preferred_contact || '', notes: c.notes || '' })
+        setEditForm({ name: c.name, phone: c.phone || '', email: c.email || '', preferred_contact: c.preferred_contact || '', notes: c.notes || '', rate_per_class: c.rate_per_class || '' })
         setCases(cs)
         setInstructors(instr)
       })
@@ -220,6 +220,11 @@ export default function ClientProfilePage() {
                   <option value="call">Call</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Rate Per Class</label>
+                <input value={editForm.rate_per_class} onChange={e => setEditForm(f => ({ ...f, rate_per_class: e.target.value }))}
+                  placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
                 <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
@@ -242,6 +247,11 @@ export default function ClientProfilePage() {
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <h1 className="text-xl font-bold text-gray-900">{client.name}</h1>
+                {client.rate_per_class && (
+                  <p className="text-sm font-semibold text-emerald-700 mt-1">
+                    💰 {client.rate_per_class} / class
+                  </p>
+                )}
                 {client.notes && <p className="text-sm text-gray-600 mt-1">{client.notes}</p>}
               </div>
               <div className="flex gap-2 flex-shrink-0">

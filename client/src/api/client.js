@@ -1,4 +1,9 @@
 const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api'
+const API_ROOT = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
+export function uploadsUrl(filename) {
+  return filename ? `${API_ROOT}/uploads/${filename}` : null
+}
 
 function getToken() {
   return localStorage.getItem('bgm_token')
@@ -48,6 +53,28 @@ export const api = {
   updateInstructor: (id, data) =>
     request(`/instructors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteInstructor: (id) => request(`/instructors/${id}`, { method: 'DELETE' }),
+  uploadInstructorPhoto: (id, file) => {
+    const token = getToken()
+    const fd = new FormData()
+    fd.append('photo', file)
+    return fetch(`${BASE}/instructors/${id}/photo`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
+  },
+  uploadInstructorDocument: (id, file) => {
+    const token = getToken()
+    const fd = new FormData()
+    fd.append('document', file)
+    return fetch(`${BASE}/instructors/${id}/documents`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
+  },
+  deleteInstructorDocument: (id, docId) =>
+    request(`/instructors/${id}/documents/${docId}`, { method: 'DELETE' }),
 
   // Cases
   getCases: (params = {}) => {
