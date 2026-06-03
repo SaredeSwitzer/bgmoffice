@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS action_items (
   delegate_id INTEGER REFERENCES delegates(id),
   status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
   initial_note TEXT,
+  created_by TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   resolved_at TEXT
 );

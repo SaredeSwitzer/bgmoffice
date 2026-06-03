@@ -182,7 +182,9 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
           <p className="text-xs text-gray-500 mt-1.5 italic whitespace-pre-wrap leading-relaxed">{reminder.notes}</p>
         )}
         {reminder.created_at && (
-          <p className="text-[10px] text-gray-400 mt-1">Added {fmt(reminder.created_at)}</p>
+          <p className="text-[10px] text-gray-400 mt-1">
+            Added {fmt(reminder.created_at)}{reminder.created_by ? ` — ${reminder.created_by}` : ''}
+          </p>
         )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">

@@ -18,7 +18,7 @@ const ACTION_TYPES_SQL = `
 function getItem(id) {
   const item = db.prepare(`
     SELECT ai.id, ai.case_id, ai.status, ai.initial_note,
-           ai.created_at, ai.resolved_at, ai.starred, ai.updated_at,
+           ai.created_at, ai.created_by, ai.resolved_at, ai.starred, ai.updated_at,
            d.id AS delegate_id, d.name AS delegate_name
     FROM action_items ai
     LEFT JOIN delegates d ON d.id = ai.delegate_id
@@ -57,8 +57,8 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'case_id and action_type_ids required' });
   }
   const result = db.prepare(
-    'INSERT INTO action_items (case_id, action_type_id, delegate_id, initial_note) VALUES (?, ?, ?, ?)'
-  ).run(case_id, action_type_ids[0] ?? null, delegate_id ?? null, initial_note ?? null);
+    'INSERT INTO action_items (case_id, action_type_id, delegate_id, initial_note, created_by) VALUES (?, ?, ?, ?, ?)'
+  ).run(case_id, action_type_ids[0] ?? null, delegate_id ?? null, initial_note ?? null, req.user.initials);
 
   setActionTypes(result.lastInsertRowid, action_type_ids);
   res.status(201).json(getItem(result.lastInsertRowid));
@@ -123,17 +123,15 @@ router.put('/:id/notes/:noteId', (req, res) => {
   res.json(db.prepare('SELECT * FROM follow_up_notes WHERE id = ?').get(req.params.noteId));
 });
 
-// Add follow-up note
+// Add follow-up note — author always taken from JWT, never trusted from body
 router.post('/:id/notes', (req, res) => {
-  const { text, author_initials } = req.body;
-  if (!text || !author_initials) {
-    return res.status(400).json({ error: 'text and author_initials required' });
-  }
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'text required' });
   const item = db.prepare('SELECT id FROM action_items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'Action item not found' });
   const result = db.prepare(
     'INSERT INTO follow_up_notes (action_item_id, text, author_initials) VALUES (?, ?, ?)'
-  ).run(req.params.id, text, author_initials);
+  ).run(req.params.id, text.trim(), req.user.initials);
   res.status(201).json(db.prepare('SELECT * FROM follow_up_notes WHERE id = ?').get(result.lastInsertRowid));
 });
 

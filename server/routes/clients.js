@@ -72,8 +72,8 @@ router.post('/:id/prefs', (req, res) => {
   db.prepare('DELETE FROM client_instructor_prefs WHERE client_id = ? AND instructor_id = ?')
     .run(req.params.id, instructor_id);
   const result = db.prepare(
-    'INSERT INTO client_instructor_prefs (client_id, instructor_id, preference, reason) VALUES (?, ?, ?, ?)'
-  ).run(req.params.id, instructor_id, preference, reason || null);
+    'INSERT INTO client_instructor_prefs (client_id, instructor_id, preference, reason, created_by) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.params.id, instructor_id, preference, reason || null, req.user.initials);
   res.status(201).json(db.prepare('SELECT * FROM client_instructor_prefs WHERE id = ?').get(result.lastInsertRowid));
 });
 

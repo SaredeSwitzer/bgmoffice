@@ -30,7 +30,9 @@ function PrefCard({ pref, onDelete }) {
           <p className="text-xs text-gray-600 italic whitespace-pre-wrap">"{pref.reason}"</p>
         )}
         {pref.created_at && (
-          <p className="text-[10px] text-gray-400 mt-0.5">{fmt(pref.created_at)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            {fmt(pref.created_at)}{pref.created_by ? ` — ${pref.created_by}` : ''}
+          </p>
         )}
       </div>
       <button onClick={() => onDelete(pref.id)} className="text-xs text-gray-400 hover:text-red-600 flex-shrink-0">

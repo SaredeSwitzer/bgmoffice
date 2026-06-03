@@ -26,7 +26,7 @@ const ACTION_TYPES_STMT = db.prepare(`
 function enrichCase(row) {
   if (!row) return null;
   const actionItems = db.prepare(`
-    SELECT ai.id, ai.status, ai.initial_note, ai.created_at, ai.resolved_at,
+    SELECT ai.id, ai.status, ai.initial_note, ai.created_at, ai.created_by, ai.resolved_at,
            ai.starred, ai.updated_at,
            d.id AS delegate_id, d.name AS delegate_name
     FROM action_items ai

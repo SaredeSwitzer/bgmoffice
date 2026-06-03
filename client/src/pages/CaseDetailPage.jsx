@@ -297,7 +297,6 @@ function NoteThread({ notes, onNoteEdited }) {
 // ── Add-note input ────────────────────────────────────────────────────────────
 
 function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
-  const { user } = useAuth()
   const [text, setText] = useState('')
   const [wantReminder, setWantReminder] = useState(false)
   const [reminderDate, setReminderDate] = useState('')
@@ -309,10 +308,7 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
     if (!text.trim()) return
     setSaving(true)
     try {
-      const note = await api.addNote(actionItemId, {
-        text: text.trim(),
-        author_initials: user.initials,
-      })
+      const note = await api.addNote(actionItemId, { text: text.trim() })
       onAdded(note)
 
       if (wantReminder && reminderDate) {
@@ -641,7 +637,9 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
             </form>
           ) : (
             <>
-              <p className="text-[10px] text-gray-400 mt-2">Created {fmt(item.created_at)}</p>
+              <p className="text-[10px] text-gray-400 mt-2">
+                Created {fmt(item.created_at)}{item.created_by ? ` — ${item.created_by}` : ''}
+              </p>
               {item.initial_note && (
                 <div className="mt-2">
                   <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 whitespace-pre-wrap leading-relaxed">
