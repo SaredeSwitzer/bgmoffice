@@ -88,9 +88,15 @@ export const api = {
   deleteReminder: (id) =>
     request(`/reminders/${id}`, { method: 'DELETE' }),
 
-  // Lookups
+  // Lookups + all-user action type management
   getActionTypes: () => request('/action-types'),
   getDelegates: () => request('/delegates'),
+  createActionTypeUser: (data) =>
+    request('/action-types', { method: 'POST', body: JSON.stringify(data) }),
+  updateActionTypeUser: (id, data) =>
+    request(`/action-types/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteActionTypeUser: (id) =>
+    request(`/action-types/${id}`, { method: 'DELETE' }),
 
   // Settings (admin)
   getSettingsActionTypes: () => request('/settings/action-types'),

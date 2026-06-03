@@ -53,6 +53,145 @@ function AutoTextarea({ value, onChange, placeholder, className, minRows = 2, on
   )
 }
 
+// ── Action Type Manager (inline panel, all users) ────────────────────────────
+
+const AT_COLORS = ['blue','green','purple','teal','orange','pink','yellow','red','indigo','amber','slate','gray']
+
+const COLOR_DOTS = {
+  blue: 'bg-blue-400', green: 'bg-green-400', purple: 'bg-purple-400',
+  teal: 'bg-teal-400', orange: 'bg-orange-400', pink: 'bg-pink-400',
+  yellow: 'bg-yellow-400', red: 'bg-red-400', indigo: 'bg-indigo-400',
+  amber: 'bg-amber-400', slate: 'bg-slate-400', gray: 'bg-gray-400',
+}
+
+function ActionTypeManager({ actionTypes, onRefresh }) {
+  const [editingId, setEditingId] = useState(null)
+  const [editName,  setEditName]  = useState('')
+  const [editColor, setEditColor] = useState('gray')
+  const [newName,   setNewName]   = useState('')
+  const [newColor,  setNewColor]  = useState('gray')
+  const [busy,      setBusy]      = useState(false)
+  const [error,     setError]     = useState('')
+
+  function startEdit(at) {
+    setEditingId(at.id)
+    setEditName(at.name)
+    setEditColor(at.color)
+    setError('')
+  }
+
+  async function saveEdit(id) {
+    if (!editName.trim()) return
+    setBusy(true); setError('')
+    try {
+      await api.updateActionTypeUser(id, { name: editName.trim(), color: editColor })
+      setEditingId(null)
+      await onRefresh()
+    } catch (e) { setError(e.message) }
+    finally { setBusy(false) }
+  }
+
+  async function handleDelete(id) {
+    if (!confirm('Delete this action type? It will be removed from any items that use it.')) return
+    setBusy(true); setError('')
+    try {
+      await api.deleteActionTypeUser(id)
+      await onRefresh()
+    } catch (e) { setError(e.message) }
+    finally { setBusy(false) }
+  }
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (!newName.trim()) return
+    setBusy(true); setError('')
+    try {
+      await api.createActionTypeUser({ name: newName.trim(), color: newColor })
+      setNewName(''); setNewColor('gray')
+      await onRefresh()
+    } catch (e) { setError(e.message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1.5">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Manage Action Types</p>
+
+      {error && <p className="text-xs text-red-600 mb-1">{error}</p>}
+
+      {actionTypes.map(at => (
+        <div key={at.id} className="flex items-center gap-2 group">
+          {editingId === at.id ? (
+            <>
+              <input
+                autoFocus
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(at.id) } if (e.key === 'Escape') setEditingId(null) }}
+                className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-400"
+              />
+              <select
+                value={editColor}
+                onChange={e => setEditColor(e.target.value)}
+                className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none"
+              >
+                {AT_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <button
+                onClick={() => saveEdit(at.id)}
+                disabled={busy || !editName.trim()}
+                className="text-xs text-green-700 font-medium disabled:opacity-50 hover:text-green-900"
+              >✓</button>
+              <button
+                onClick={() => setEditingId(null)}
+                className="text-xs text-gray-400 hover:text-gray-700"
+              >✕</button>
+            </>
+          ) : (
+            <>
+              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${COLOR_DOTS[at.color] || COLOR_DOTS.gray}`} />
+              <span className="flex-1 text-xs text-gray-700 truncate">{at.name}</span>
+              <button
+                onClick={() => startEdit(at)}
+                className="text-[10px] text-gray-300 group-hover:text-gray-500 hover:text-gray-700 transition-colors"
+                title="Edit"
+              >✏︎</button>
+              <button
+                onClick={() => handleDelete(at.id)}
+                disabled={busy}
+                className="text-[10px] text-gray-300 group-hover:text-red-400 hover:text-red-600 transition-colors disabled:opacity-40"
+                title="Delete"
+              >🗑</button>
+            </>
+          )}
+        </div>
+      ))}
+
+      {/* Add new */}
+      <form onSubmit={handleAdd} className="flex items-center gap-2 pt-2 mt-1 border-t border-gray-200">
+        <input
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          placeholder="New type name…"
+          className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-400"
+        />
+        <select
+          value={newColor}
+          onChange={e => setNewColor(e.target.value)}
+          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none"
+        >
+          {AT_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button
+          type="submit"
+          disabled={busy || !newName.trim()}
+          className="px-2.5 py-1 bg-gray-900 text-white text-xs rounded font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
+        >Add</button>
+      </form>
+    </div>
+  )
+}
+
 // ── Individual note with inline edit ─────────────────────────────────────────
 
 function NoteItem({ note, onEdited }) {
@@ -262,10 +401,11 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
 
 // ── Action Item Card ───────────────────────────────────────────────────────────
 
-function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, caseContext }) {
+function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, caseContext, onActionTypesUpdated }) {
   const [item, setItem] = useState(initItem)
   const [open, setOpen] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [showAtManager, setShowAtManager] = useState(false)
   const [showReminderForm, setShowReminderForm] = useState(false)
   const [reminderForm, setReminderForm] = useState({ title: '', remind_on: '', delegate_name: '' })
   const [reminderSaving, setReminderSaving] = useState(false)
@@ -424,12 +564,22 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
           {editing ? (
             <form onSubmit={saveEdit} className="mt-3 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Action Types
-                  {editForm.action_type_ids.length === 0 && (
-                    <span className="ml-2 text-red-500 font-normal">pick at least one</span>
-                  )}
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-gray-600">
+                    Action Types
+                    {editForm.action_type_ids.length === 0 && (
+                      <span className="ml-2 text-red-500 font-normal">pick at least one</span>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAtManager(v => !v)}
+                    title="Manage action types"
+                    className={`text-xs px-2 py-0.5 rounded transition-colors ${showAtManager ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    ⚙ Manage
+                  </button>
+                </div>
                 <div className="border border-gray-300 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
                   {actionTypes.map(at => (
                     <label key={at.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
@@ -448,6 +598,12 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                     </label>
                   ))}
                 </div>
+                {showAtManager && (
+                  <ActionTypeManager
+                    actionTypes={actionTypes}
+                    onRefresh={onActionTypesUpdated}
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Delegate</label>
@@ -552,13 +708,14 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
 
 // ── Add Action Item modal ──────────────────────────────────────────────────────
 
-function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded }) {
+function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, onActionTypesUpdated }) {
   const [form, setForm] = useState({
     action_type_ids: actionTypes[0] ? [actionTypes[0].id] : [],
     delegate_id: '',
     initial_note: '',
   })
   const [saving, setSaving] = useState(false)
+  const [showAtManager, setShowAtManager] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -584,12 +741,22 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded }
         <h3 className="font-bold text-gray-900 mb-4">Add Action Item</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Action Types
-              {form.action_type_ids.length === 0 && (
-                <span className="ml-2 text-red-500 font-normal">pick at least one</span>
-              )}
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-600">
+                Action Types
+                {form.action_type_ids.length === 0 && (
+                  <span className="ml-2 text-red-500 font-normal">pick at least one</span>
+                )}
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAtManager(v => !v)}
+                title="Manage action types"
+                className={`text-xs px-2 py-0.5 rounded transition-colors ${showAtManager ? 'bg-gray-200 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+              >
+                ⚙ Manage
+              </button>
+            </div>
             <div className="border border-gray-300 rounded-lg divide-y divide-gray-100 max-h-44 overflow-y-auto">
               {actionTypes.map(at => (
                 <label key={at.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
@@ -608,6 +775,12 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded }
                 </label>
               ))}
             </div>
+            {showAtManager && (
+              <ActionTypeManager
+                actionTypes={actionTypes}
+                onRefresh={onActionTypesUpdated}
+              />
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Delegate</label>
@@ -679,6 +852,12 @@ export default function CaseDetailPage() {
       })
       .catch(e => setError(e.message))
   }, [id])
+
+  // Refresh action types list (called after inline add/edit/delete)
+  async function refreshActionTypes() {
+    const at = await api.getActionTypes()
+    setActionTypes(at)
+  }
 
   async function handleResolveCase() {
     if (!confirm('Mark this entire case as resolved?')) return
@@ -838,6 +1017,7 @@ export default function CaseDetailPage() {
               delegates={delegates}
               onDeleted={handleItemDeleted}
               caseContext={caseData}
+              onActionTypesUpdated={refreshActionTypes}
             />
           ))}
           {openItems.length === 0 && (
@@ -857,6 +1037,7 @@ export default function CaseDetailPage() {
                   delegates={delegates}
                   onDeleted={handleItemDeleted}
                   caseContext={caseData}
+                  onActionTypesUpdated={refreshActionTypes}
                 />
               ))}
             </div>
@@ -871,6 +1052,7 @@ export default function CaseDetailPage() {
           delegates={delegates}
           onClose={() => setShowAddModal(false)}
           onAdded={handleItemAdded}
+          onActionTypesUpdated={refreshActionTypes}
         />
       )}
     </div>

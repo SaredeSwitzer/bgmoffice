@@ -31,12 +31,43 @@ app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/reminders',    require('./routes/reminders'));
 app.use('/api/reference',    require('./routes/reference'));
 
-// Public read-only lookups (needed by forms before settings auth is checked)
+// Action type lookups + all-user management (any authenticated user may edit)
 const db = require('./db');
 const { requireAuth } = require('./middleware/auth');
 app.get('/api/action-types', requireAuth, (req, res) =>
   res.json(db.prepare('SELECT * FROM action_types ORDER BY order_index ASC').all())
 );
+app.post('/api/action-types', requireAuth, (req, res) => {
+  const { name, color } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const maxOrder = db.prepare('SELECT MAX(order_index) AS m FROM action_types').get().m || 0;
+  try {
+    const result = db.prepare(
+      'INSERT INTO action_types (name, color, order_index) VALUES (?, ?, ?)'
+    ).run(name.toUpperCase().trim(), color || 'gray', maxOrder + 1);
+    res.status(201).json(db.prepare('SELECT * FROM action_types WHERE id = ?').get(result.lastInsertRowid));
+  } catch (e) {
+    res.status(400).json({ error: 'Action type name must be unique' });
+  }
+});
+app.put('/api/action-types/:id', requireAuth, (req, res) => {
+  const { name, color } = req.body;
+  const at = db.prepare('SELECT * FROM action_types WHERE id = ?').get(req.params.id);
+  if (!at) return res.status(404).json({ error: 'Not found' });
+  try {
+    db.prepare('UPDATE action_types SET name=?, color=? WHERE id=?')
+      .run(name.toUpperCase().trim(), color || at.color, req.params.id);
+    res.json(db.prepare('SELECT * FROM action_types WHERE id = ?').get(req.params.id));
+  } catch (e) {
+    res.status(400).json({ error: 'Action type name must be unique' });
+  }
+});
+app.delete('/api/action-types/:id', requireAuth, (req, res) => {
+  const result = db.prepare('DELETE FROM action_types WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true });
+});
+
 app.get('/api/delegates', requireAuth, (req, res) =>
   res.json(db.prepare('SELECT * FROM delegates ORDER BY name').all())
 );
