@@ -129,8 +129,8 @@ db.exec(`
   )
 `);
 
-// Seed default columns (once — idempotent via INSERT OR IGNORE on unique name+is_system)
-{
+// Seed default columns (once — idempotent via count check)
+try {
   const existingCols = db.prepare('SELECT COUNT(*) AS n FROM recruiting_columns WHERE is_system=1').get().n;
   if (existingCols === 0) {
     const ins = db.prepare('INSERT INTO recruiting_columns (name, field_key, display_order, is_system) VALUES (?,?,?,1)');
@@ -148,10 +148,12 @@ db.exec(`
     ].forEach(([name, field_key, order]) => ins.run(name, field_key, order));
     console.log('[seed] recruiting_columns: 10 default columns inserted');
   }
+} catch (err) {
+  console.error('[seed] recruiting_columns failed (non-fatal):', err.message);
 }
 
 // Seed 3 sample Sunday recruiting entries (once)
-{
+try {
   const existingEntries = db.prepare('SELECT COUNT(*) AS n FROM recruiting_entries').get().n;
   if (existingEntries === 0) {
     const ins = db.prepare(`
@@ -162,12 +164,13 @@ db.exec(`
     const e1 = ins.run('Sunday','May 24 and June 21 and July 5 and 12 @ 11:30am','Borough Park','Any Style','10-15 Seniors','Connections','1021 38th St Brooklyn NY 11219 basement',null,1,null,null,'SS');
     ins.run('Sunday','May 31 11:45-12:45 PM','Manalapan NJ','Yoga','approx 10-12','Muka - Friendship Circle Central NJ','33 Gordons Corner Manalapan NJ',null,0,null,'$100','SS');
     ins.run('Sunday','9:30-10:30 AM','Williamsburg','General Fitness','1 age 54','Ephraim Gross','76 Hughes st top floor','917-846-6723',1,null,'$125','SS');
-    // Seed notes for entry 1
     const insN = db.prepare('INSERT INTO recruiting_notes (entry_id, text, author_initials) VALUES (?,?,?)');
     insN.run(e1.lastInsertRowid, 'Called Connections coordinator — they confirmed 10 seniors attending, basement room available. Asked about wheelchair access.', 'SS');
     insN.run(e1.lastInsertRowid, 'Sent instructor availability for May 24 slot. Waiting on confirmation.', 'SS');
     console.log('[seed] recruiting_entries: 3 sample Sunday entries inserted');
   }
+} catch (err) {
+  console.error('[seed] recruiting_entries failed (non-fatal):', err.message);
 }
 
 // Idempotent column additions for existing DBs that predate these columns.

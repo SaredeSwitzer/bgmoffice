@@ -35,6 +35,7 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/api/auth',         require('./routes/auth'));
 app.use('/api/clients',      require('./routes/clients'));
 app.use('/api/instructors',  require('./routes/instructors'));
+console.log('[routes] /api/instructors registered (photo + document upload enabled)');
 app.use('/api/cases',        require('./routes/cases'));
 app.use('/api/action-items', require('./routes/actionItems'));
 app.use('/api/settings',     require('./routes/settings'));
