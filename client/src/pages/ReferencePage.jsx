@@ -163,22 +163,20 @@ function SectionCard({ section, isAdmin, onUpdated, onDeleted }) {
           <span className="text-xs text-gray-400 mr-2 hidden sm:block">
             Updated {fmtDate(section.updated_at)}
           </span>
-          {isAdmin && (
-            <>
-              <button
-                onClick={() => { setEditing(v => !v); setOpen(true) }}
-                className="px-2.5 py-1 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-2.5 py-1 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                Delete
-              </button>
-            </>
-          )}
+          <>
+            <button
+              onClick={() => { setEditing(v => !v); setOpen(true) }}
+              className="px-2.5 py-1 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              onClick={handleDelete}
+              className="px-2.5 py-1 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              Delete
+            </button>
+          </>
         </div>
       </div>
 

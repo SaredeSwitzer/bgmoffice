@@ -35,9 +35,8 @@ router.post('/', (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM reference_sections WHERE id = ?').get(result.lastInsertRowid));
 });
 
-// PUT update section (admin only)
+// PUT update section (any authenticated user)
 router.put('/:id', (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const row = db.prepare('SELECT id FROM reference_sections WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Section not found' });
 
@@ -63,9 +62,8 @@ router.patch('/reorder', (req, res) => {
   res.json({ ok: true });
 });
 
-// DELETE section (admin only)
+// DELETE section (any authenticated user)
 router.delete('/:id', (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const result = db.prepare('DELETE FROM reference_sections WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Section not found' });
   res.json({ success: true });
