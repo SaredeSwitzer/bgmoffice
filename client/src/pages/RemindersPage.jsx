@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useRemindersContext } from '../context/RemindersContext'
 import AddReminderModal from '../components/AddReminderModal'
 import FirstClassReminderModal from '../components/FirstClassReminderModal'
+import ResumingClassesModal from '../components/ResumingClassesModal'
 import SearchSelect from '../components/SearchSelect'
 
 function fmtDate(iso) {
@@ -305,6 +306,7 @@ export default function RemindersPage() {
   const [loading,     setLoading]     = useState(true)
   const [showAdd,        setShowAdd]        = useState(false)
   const [showFirstClass, setShowFirstClass] = useState(false)
+  const [showResuming,   setShowResuming]   = useState(false)
 
   function load() {
     return api.getReminders().then(({ overdue: o, upcoming: u }) => {
@@ -357,6 +359,12 @@ export default function RemindersPage() {
             🎓 First Class Follow-Up
           </button>
           <button
+            onClick={() => setShowResuming(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm"
+          >
+            🔄 Check In: Resuming
+          </button>
+          <button
             onClick={() => setShowAdd(true)}
             className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
           >
@@ -397,6 +405,9 @@ export default function RemindersPage() {
       )}
       {showFirstClass && (
         <FirstClassReminderModal onClose={() => { setShowFirstClass(false); load(); refreshBadge() }} />
+      )}
+      {showResuming && (
+        <ResumingClassesModal onClose={() => { setShowResuming(false); load(); refreshBadge() }} />
       )}
     </div>
   )
