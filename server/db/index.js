@@ -3,15 +3,16 @@ const path = require('path');
 const fs = require('fs');
 
 // DB path resolution:
-//   1. DB_PATH env var — explicit override, highest priority
-//   2. Railway auto-detected — uses the persistent volume path
-//      Railway always sets RAILWAY_ENVIRONMENT; volume must be mounted at /app/server/data
-//   3. Local fallback — db/bgmoffice.db next to this file
-const DB_PATH = process.env.DB_PATH
-  || (process.env.RAILWAY_ENVIRONMENT ? '/app/server/data/bgmoffice.db' : null)
-  || path.join(__dirname, 'bgmoffice.db');
+//   Production (NODE_ENV=production): ALWAYS /app/server/data/bgmoffice.db
+//     — this is the Railway persistent volume mount point
+//     — DB_PATH env var is ignored in production to avoid misconfiguration
+//   Local dev: db/bgmoffice.db next to this file
+const PRODUCTION = process.env.NODE_ENV === 'production';
+const DB_PATH = PRODUCTION
+  ? '/app/server/data/bgmoffice.db'
+  : (process.env.DB_PATH || path.join(__dirname, 'bgmoffice.db'));
 
-console.log(`[db] Using database at: ${DB_PATH}`);
+console.log(`[db] env=${process.env.NODE_ENV || 'development'} path=${DB_PATH}`);
 
 // Make sure the directory exists (Railway volume is mounted at /data but the
 // folder itself may not exist on first boot)

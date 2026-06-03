@@ -12,8 +12,7 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
-console.log('DB_PATH env:', process.env.DB_PATH || '(not set)');
-console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT || '(not set — local dev)');
+console.log('NODE_ENV:', process.env.NODE_ENV || '(not set — local dev)');
 console.log('Working directory:', process.cwd());
 
 const db = require('./db');           // migrations run here
