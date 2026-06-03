@@ -121,7 +121,7 @@ function ActionTypesSection() {
   }
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
       <SectionHeader title="Action Types" count={items.length} />
       <p className="text-xs text-gray-400 mb-4">Drag rows to reorder. Changes save on drop.</p>
 
@@ -273,7 +273,7 @@ function DelegatesSection() {
   }
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
       <SectionHeader title="Delegates" count={delegates.length + 1} />
 
       <div className="space-y-1 mb-4">
@@ -433,7 +433,7 @@ function UsersSection() {
   }
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
       <SectionHeader title="Users" count={users.length} />
 
       <div className="divide-y divide-gray-100 mb-4">
@@ -441,7 +441,7 @@ function UsersSection() {
           <div key={user.id} className={`py-3 ${!user.active ? 'opacity-50' : ''}`}>
             {editingId === user.id ? (
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
                     <InlineInput value={editForm.name} onChange={v => setEditForm(f => ({ ...f, name: v }))} className="w-full" />
@@ -519,7 +519,7 @@ function UsersSection() {
       {showNew ? (
         <form onSubmit={handleCreate} className="border border-gray-200 rounded-xl p-4 space-y-3">
           <h4 className="text-xs font-semibold text-gray-700">New User</h4>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Name spans most of the row; initials auto-fills but stays editable */}
             <div className="col-span-2 flex gap-3">
               <div className="flex-1">

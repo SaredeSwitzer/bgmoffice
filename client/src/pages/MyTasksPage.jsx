@@ -24,16 +24,16 @@ function MyTaskRow({ item, onClick }) {
           : 'hover:bg-gray-50'
       }`}
     >
-      <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+      <td className="px-3 py-2.5 text-sm text-gray-900 whitespace-nowrap">
         {item.client_name || <span className="text-gray-400">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+      <td className="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">
         {item.instructor_name || <span className="text-gray-400">—</span>}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-3 py-2.5">
         <ActionTypeBadge name={item.action_type_name} color={item.action_type_color} />
       </td>
-      <td className="px-4 py-3 whitespace-nowrap text-right">
+      <td className="px-3 py-2.5 whitespace-nowrap text-right">
         <span className={`text-xs font-semibold tabular-nums ${
           isPriority ? 'text-red-700' : isOverdue ? 'text-red-600' : 'text-gray-500'
         }`}>
@@ -44,9 +44,9 @@ function MyTaskRow({ item, onClick }) {
           {isPriority && <span className="ml-1 font-bold">↑</span>}
         </span>
       </td>
-      <td className="px-4 py-3 max-w-xs">
+      <td className="px-3 py-2.5 max-w-xs">
         {item.last_note ? (
-          <span className="text-xs text-gray-500 truncate block max-w-[220px]">
+          <span className="text-xs text-gray-500 truncate block max-w-[180px]">
             <span className="font-medium text-gray-700">{item.last_note.author_initials}:</span>{' '}
             {item.last_note.text}
           </span>
@@ -87,7 +87,7 @@ export default function MyTasksPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -98,7 +98,7 @@ export default function MyTasksPage() {
         </div>
 
         {/* Summary chips */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {priority.length > 0 && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
               ↑ {priority.length} priority
@@ -124,26 +124,28 @@ export default function MyTasksPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
-                <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Age</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Last note</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {tasks.map(item => (
-                <MyTaskRow
-                  key={item.id}
-                  item={item}
-                  onClick={() => navigate(`/cases/${item.case_id}`)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px]">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Age</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Last note</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {tasks.map(item => (
+                  <MyTaskRow
+                    key={item.id}
+                    item={item}
+                    onClick={() => navigate(`/cases/${item.case_id}`)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

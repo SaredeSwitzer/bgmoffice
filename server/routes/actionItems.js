@@ -8,7 +8,7 @@ router.use(requireAuth);
 function getItem(id) {
   const item = db.prepare(`
     SELECT
-      ai.id, ai.case_id, ai.status, ai.initial_note, ai.created_at, ai.resolved_at,
+      ai.id, ai.case_id, ai.status, ai.initial_note, ai.created_at, ai.resolved_at, ai.starred,
       at.id AS action_type_id, at.name AS action_type_name, at.color AS action_type_color,
       d.id  AS delegate_id,   d.name  AS delegate_name
     FROM action_items ai
@@ -43,6 +43,14 @@ router.put('/:id', (req, res) => {
   db.prepare(
     'UPDATE action_items SET action_type_id=?, delegate_id=?, initial_note=? WHERE id=?'
   ).run(action_type_id, delegate_id || null, initial_note || null, req.params.id);
+  res.json(getItem(req.params.id));
+});
+
+// Toggle starred
+router.patch('/:id/star', (req, res) => {
+  const { starred } = req.body;
+  const result = db.prepare('UPDATE action_items SET starred=? WHERE id=?').run(starred ? 1 : 0, req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Action item not found' });
   res.json(getItem(req.params.id));
 });
 

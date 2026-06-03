@@ -1,12 +1,27 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { useRemindersContext } from '../context/RemindersContext'
 
-export default function AddReminderModal({ onClose, clientId, instructorId, caseId, defaultTitle }) {
+export default function AddReminderModal({
+  onClose,
+  clientId, instructorId, caseId, actionItemId,
+  defaultTitle = '',
+  defaultDelegate = '',
+}) {
   const { refresh } = useRemindersContext()
-  const [form, setForm] = useState({ title: defaultTitle || '', notes: '', remind_on: '' })
+  const [delegates, setDelegates] = useState([])
+  const [form, setForm] = useState({
+    title:         defaultTitle,
+    notes:         '',
+    remind_on:     '',
+    delegate_name: defaultDelegate,
+  })
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [error,  setError]  = useState('')
+
+  useEffect(() => {
+    api.getDelegates().then(setDelegates).catch(() => {})
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -15,17 +30,19 @@ export default function AddReminderModal({ onClose, clientId, instructorId, case
     setError('')
     try {
       await api.createReminder({
-        title: form.title.trim(),
-        notes: form.notes.trim() || null,
-        remind_on: form.remind_on,
-        client_id: clientId || null,
-        instructor_id: instructorId || null,
-        case_id: caseId || null,
+        title:          form.title.trim(),
+        notes:          form.notes.trim() || null,
+        remind_on:      form.remind_on,
+        delegate_name:  form.delegate_name || null,
+        client_id:      clientId      || null,
+        instructor_id:  instructorId  || null,
+        case_id:        caseId        || null,
+        action_item_id: actionItemId  || null,
       })
       refresh()
       onClose()
-    } catch (e) {
-      setError(e.message)
+    } catch (err) {
+      setError(err.message)
       setSaving(false)
     }
   }
@@ -37,7 +54,9 @@ export default function AddReminderModal({ onClose, clientId, instructorId, case
           <h3 className="font-bold text-gray-900">Add Reminder</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">✕</button>
         </div>
+
         <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Title */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
             <input
@@ -48,6 +67,8 @@ export default function AddReminderModal({ onClose, clientId, instructorId, case
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
+
+          {/* Date */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Remind on *</label>
             <input
@@ -58,6 +79,23 @@ export default function AddReminderModal({ onClose, clientId, instructorId, case
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
+
+          {/* Delegate */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Delegated to</label>
+            <select
+              value={form.delegate_name}
+              onChange={e => setForm(f => ({ ...f, delegate_name: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+            >
+              <option value="">Anyone</option>
+              {delegates.map(d => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Notes */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
             <textarea
@@ -68,12 +106,14 @@ export default function AddReminderModal({ onClose, clientId, instructorId, case
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
+
           {error && <p className="text-xs text-red-600">{error}</p>}
+
           <div className="flex gap-2 pt-1">
             <button
               type="submit"
               disabled={saving || !form.title.trim() || !form.remind_on}
-              className="flex-1 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+              className="flex-1 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors"
             >
               {saving ? 'Saving…' : 'Add Reminder'}
             </button>

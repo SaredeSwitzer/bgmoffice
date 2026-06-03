@@ -53,9 +53,12 @@ function NoteThread({ notes }) {
 
 // ── Add-note input ─────────────────────────────────────────────────────────────
 
-function AddNoteInput({ actionItemId, onAdded }) {
+function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
   const { user } = useAuth()
   const [text, setText] = useState('')
+  const [wantReminder, setWantReminder] = useState(false)
+  const [reminderDate, setReminderDate] = useState('')
+  const [reminderDelegate, setReminderDelegate] = useState('')
   const [saving, setSaving] = useState(false)
   const ref = useRef(null)
 
@@ -69,7 +72,21 @@ function AddNoteInput({ actionItemId, onAdded }) {
         author_initials: user.initials,
       })
       onAdded(note)
+
+      if (wantReminder && reminderDate) {
+        await api.createReminder({
+          title: text.trim(),
+          remind_on: reminderDate,
+          delegate_name: reminderDelegate || null,
+          action_item_id: actionItemId,
+          case_id: caseId || null,
+        })
+      }
+
       setText('')
+      setWantReminder(false)
+      setReminderDate('')
+      setReminderDelegate('')
       ref.current?.focus()
     } finally {
       setSaving(false)
@@ -77,37 +94,103 @@ function AddNoteInput({ actionItemId, onAdded }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex gap-2 mt-3">
-      <input
-        ref={ref}
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder="Add a follow-up note…"
-        className="flex-1 border border-gray-300 rounded-full px-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
-      />
-      <button
-        type="submit"
-        disabled={saving || !text.trim()}
-        className="px-4 py-1.5 bg-gray-900 text-white text-sm rounded-full font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
-      >
-        Send
-      </button>
+    <form onSubmit={submit} className="mt-3 space-y-2">
+      <div className="flex gap-2">
+        <input
+          ref={ref}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Add a follow-up note…"
+          className="flex-1 border border-gray-300 rounded-full px-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+        />
+        <button
+          type="submit"
+          disabled={saving || !text.trim() || (wantReminder && !reminderDate)}
+          className="px-4 py-1.5 bg-gray-900 text-white text-sm rounded-full font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
+        >
+          Send
+        </button>
+      </div>
+
+      {/* Optional reminder row */}
+      <div className="flex flex-wrap items-center gap-2 pl-1">
+        <input
+          id={`reminder-check-${actionItemId}`}
+          type="checkbox"
+          checked={wantReminder}
+          onChange={e => setWantReminder(e.target.checked)}
+          className="w-3.5 h-3.5 rounded accent-gray-700"
+        />
+        <label htmlFor={`reminder-check-${actionItemId}`} className="text-xs text-gray-500 cursor-pointer">
+          Set reminder for follow-up
+        </label>
+        {wantReminder && (
+          <>
+            <input
+              type="date"
+              value={reminderDate}
+              onChange={e => setReminderDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300"
+            />
+            <select
+              value={reminderDelegate}
+              onChange={e => setReminderDelegate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300"
+            >
+              <option value="">Anyone</option>
+              {(delegates || []).map(d => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          </>
+        )}
+      </div>
     </form>
   )
 }
 
 // ── Action Item Card ───────────────────────────────────────────────────────────
 
-function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted }) {
+function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, caseContext }) {
   const [item, setItem] = useState(initItem)
   const [open, setOpen] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [showReminderForm, setShowReminderForm] = useState(false)
+  const [reminderForm, setReminderForm] = useState({ title: '', remind_on: '', delegate_name: '' })
+  const [reminderSaving, setReminderSaving] = useState(false)
   const [editForm, setEditForm] = useState({
     action_type_id: item.action_type_id,
     delegate_id: item.delegate_id || '',
     initial_note: item.initial_note || '',
   })
   const [saving, setSaving] = useState(false)
+
+  // Build a sensible default reminder title from the action item context
+  const defaultReminderTitle = [
+    item.action_type_name,
+    caseContext?.client_name || caseContext?.instructor_name,
+  ].filter(Boolean).join(' — ')
+
+  async function handleSaveReminder(e) {
+    e.preventDefault()
+    if (!reminderForm.title.trim() || !reminderForm.remind_on) return
+    setReminderSaving(true)
+    try {
+      await api.createReminder({
+        title: reminderForm.title.trim(),
+        remind_on: reminderForm.remind_on,
+        delegate_name: reminderForm.delegate_name || null,
+        action_item_id: item.id,
+        case_id: caseContext?.id || null,
+        client_id: caseContext?.client_id || null,
+        instructor_id: caseContext?.instructor_id || null,
+      })
+      setShowReminderForm(false)
+      setReminderForm({ title: '', remind_on: '', delegate_name: '' })
+    } finally {
+      setReminderSaving(false)
+    }
+  }
 
   function handleNoteAdded(note) {
     setItem(prev => ({ ...prev, notes: [...prev.notes, note] }))
@@ -133,6 +216,12 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleToggleStar() {
+    const newStarred = !item.starred
+    setItem(prev => ({ ...prev, starred: newStarred ? 1 : 0 }))
+    await api.starActionItem(item.id, newStarred)
   }
 
   async function handleDelete() {
@@ -176,6 +265,23 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted }) {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Star button */}
+          <button
+            onClick={e => { e.stopPropagation(); handleToggleStar() }}
+            title={item.starred ? 'Unstar' : 'Star this item'}
+            className={`text-lg leading-none transition-colors ${item.starred ? 'text-yellow-400 hover:text-yellow-500' : 'text-gray-200 hover:text-yellow-300'}`}
+          >
+            ★
+          </button>
+          {!isResolved && (
+            <button
+              onClick={e => { e.stopPropagation(); setShowReminderForm(v => !v); setReminderForm({ title: defaultReminderTitle, remind_on: '' }) }}
+              className="text-xs text-gray-400 hover:text-blue-600"
+              title="Set a reminder for this action item"
+            >
+              🔔 Remind
+            </button>
+          )}
           <button
             onClick={e => { e.stopPropagation(); setEditing(v => !v) }}
             className="text-xs text-gray-400 hover:text-gray-700"
@@ -251,9 +357,51 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted }) {
                   {item.initial_note}
                 </p>
               )}
+
+              {/* Inline Set Reminder form */}
+              {showReminderForm && (
+                <form onSubmit={handleSaveReminder} className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-3 py-3 space-y-2">
+                  <p className="text-xs font-semibold text-blue-700">🔔 Set Reminder</p>
+                  <input
+                    required
+                    value={reminderForm.title}
+                    onChange={e => setReminderForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="Reminder title…"
+                    className="w-full border border-blue-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <input
+                      required
+                      type="date"
+                      value={reminderForm.remind_on}
+                      onChange={e => setReminderForm(f => ({ ...f, remind_on: e.target.value }))}
+                      className="border border-blue-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                    <select
+                      value={reminderForm.delegate_name}
+                      onChange={e => setReminderForm(f => ({ ...f, delegate_name: e.target.value }))}
+                      className="border border-blue-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                    >
+                      <option value="">Anyone</option>
+                      {delegates.map(d => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
+                    <button type="submit" disabled={reminderSaving || !reminderForm.title.trim() || !reminderForm.remind_on}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-blue-700">
+                      {reminderSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button type="button" onClick={() => setShowReminderForm(false)}
+                      className="px-3 py-1.5 border border-blue-200 text-blue-600 text-xs rounded-lg hover:bg-blue-100">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
               <NoteThread notes={item.notes} />
               {!isResolved && (
-                <AddNoteInput actionItemId={item.id} onAdded={handleNoteAdded} />
+                <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} />
               )}
             </>
           )}
@@ -437,8 +585,8 @@ export default function CaseDetailPage() {
       </button>
 
       {/* Case header */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
-        <div className="flex items-start justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Case #{caseData.id}</span>
@@ -459,7 +607,7 @@ export default function CaseDetailPage() {
           </div>
 
           {/* Resolve / Reopen */}
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 self-start sm:self-auto">
             {isResolved ? (
               <button
                 onClick={handleReopenCase}
@@ -537,6 +685,7 @@ export default function CaseDetailPage() {
               actionTypes={actionTypes}
               delegates={delegates}
               onDeleted={handleItemDeleted}
+              caseContext={caseData}
             />
           ))}
           {openItems.length === 0 && (
@@ -555,6 +704,7 @@ export default function CaseDetailPage() {
                   actionTypes={actionTypes}
                   delegates={delegates}
                   onDeleted={handleItemDeleted}
+                  caseContext={caseData}
                 />
               ))}
             </div>

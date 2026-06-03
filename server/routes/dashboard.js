@@ -17,7 +17,6 @@ const INSTRUCTOR_FACING_TYPES = [
   'INSTRUCTOR AWAY - INFORM ALL CLIENTS',
 ];
 
-// Base query that returns enriched open action items
 const BASE_SQL = `
   SELECT
     ai.id,
@@ -25,6 +24,7 @@ const BASE_SQL = `
     ai.status,
     ai.initial_note,
     ai.created_at,
+    ai.starred,
     at.id    AS action_type_id,
     at.name  AS action_type_name,
     at.color AS action_type_color,
@@ -53,48 +53,42 @@ function attachLastNote(items) {
 }
 
 function sortItems(items) {
-  // PRIORITY pinned first (action_type_name === 'PRIORITY'), then oldest created_at first
+  // PRIORITY pinned first, then starred, then oldest first
   return items.sort((a, b) => {
     const aPriority = a.action_type_name === 'PRIORITY' ? 0 : 1;
     const bPriority = b.action_type_name === 'PRIORITY' ? 0 : 1;
     if (aPriority !== bPriority) return aPriority - bPriority;
+    const aStarred = a.starred ? 0 : 1;
+    const bStarred = b.starred ? 0 : 1;
+    if (aStarred !== bStarred) return aStarred - bStarred;
     return new Date(a.created_at) - new Date(b.created_at);
   });
 }
 
-// My Tasks: open action items delegated to the logged-in user (matched by first name)
 router.get('/my-tasks', (req, res) => {
   const firstName = req.user.name.split(' ')[0];
-  // Find delegate whose name matches (case-insensitive)
   const delegate = db.prepare('SELECT * FROM delegates WHERE LOWER(name) = LOWER(?) LIMIT 1').get(firstName);
   if (!delegate) return res.json({ tasks: [], delegate_name: null });
-
   const items = db.prepare(BASE_SQL + ' AND d.id = ? ORDER BY ai.created_at ASC').all(delegate.id);
-  return res.json({
-    tasks: sortItems(attachLastNote(items)),
-    delegate_name: delegate.name,
-  });
+  return res.json({ tasks: sortItems(attachLastNote(items)), delegate_name: delegate.name });
 });
 
 router.get('/', (req, res) => {
-  const allOpen = db.prepare(BASE_SQL + ' ORDER BY ai.created_at ASC').all();
-  const withNotes = attachLastNote(allOpen);
+  const allOpen = attachLastNote(
+    db.prepare(BASE_SQL + ' ORDER BY ai.created_at ASC').all()
+  );
 
-  const clientPlaceholders = CLIENT_FACING_TYPES.map(() => '?').join(',');
-  const instructorPlaceholders = INSTRUCTOR_FACING_TYPES.map(() => '?').join(',');
-
-  const clientItems = db.prepare(
-    BASE_SQL + ` AND at.name IN (${clientPlaceholders}) ORDER BY ai.created_at ASC`
-  ).all(...CLIENT_FACING_TYPES);
-
-  const instructorItems = db.prepare(
-    BASE_SQL + ` AND at.name IN (${instructorPlaceholders}) ORDER BY ai.created_at ASC`
-  ).all(...INSTRUCTOR_FACING_TYPES);
+  const cp = CLIENT_FACING_TYPES.map(() => '?').join(',');
+  const ip = INSTRUCTOR_FACING_TYPES.map(() => '?').join(',');
 
   res.json({
-    open_tasks:          sortItems(attachLastNote(allOpen)),
-    client_followups:    sortItems(attachLastNote(clientItems)),
-    instructor_followups: sortItems(attachLastNote(instructorItems)),
+    open_tasks:           sortItems(allOpen),
+    client_followups:     sortItems(attachLastNote(
+      db.prepare(BASE_SQL + ` AND at.name IN (${cp}) ORDER BY ai.created_at ASC`).all(...CLIENT_FACING_TYPES)
+    )),
+    instructor_followups: sortItems(attachLastNote(
+      db.prepare(BASE_SQL + ` AND at.name IN (${ip}) ORDER BY ai.created_at ASC`).all(...INSTRUCTOR_FACING_TYPES)
+    )),
   });
 });
 

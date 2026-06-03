@@ -32,20 +32,30 @@ function ReminderRow({ reminder, onDone, onDelete, isOverdue }) {
             <span className="text-xs font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">Overdue</span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
           <span className={`text-xs ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
             📅 {fmtDate(reminder.remind_on)}
           </span>
+          {reminder.delegate_name && (
+            <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">
+              👤 {reminder.delegate_name}
+            </span>
+          )}
           {reminder.client_name && (
-            <span className="text-xs text-gray-500">👤 {reminder.client_name}</span>
+            <span className="text-xs text-gray-500">Client: {reminder.client_name}</span>
           )}
           {reminder.instructor_name && (
-            <span className="text-xs text-gray-500">🏋️ {reminder.instructor_name}</span>
+            <span className="text-xs text-gray-500">Instructor: {reminder.instructor_name}</span>
+          )}
+          {reminder.action_item_id && (
+            <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full font-medium">
+              Action item
+            </span>
           )}
           {reminder.case_id && (
             <button
               onClick={() => navigate(`/cases/${reminder.case_id}`)}
-              className="text-xs text-blue-600 hover:underline"
+              className="text-xs text-blue-600 hover:underline font-medium"
             >
               View Case →
             </button>

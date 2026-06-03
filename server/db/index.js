@@ -24,17 +24,27 @@ db.exec(schema);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS reminders (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    title         TEXT    NOT NULL,
-    notes         TEXT,
-    remind_on     TEXT    NOT NULL,
-    status        TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','done')),
-    client_id     INTEGER REFERENCES clients(id) ON DELETE SET NULL,
-    instructor_id INTEGER REFERENCES instructors(id) ON DELETE SET NULL,
-    case_id       INTEGER REFERENCES cases(id) ON DELETE SET NULL,
-    created_by    TEXT    NOT NULL,
-    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    title          TEXT    NOT NULL,
+    notes          TEXT,
+    remind_on      TEXT    NOT NULL,
+    status         TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','done')),
+    client_id      INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+    instructor_id  INTEGER REFERENCES instructors(id) ON DELETE SET NULL,
+    case_id        INTEGER REFERENCES cases(id) ON DELETE SET NULL,
+    action_item_id INTEGER REFERENCES action_items(id) ON DELETE SET NULL,
+    created_by     TEXT    NOT NULL,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
   )
 `);
+
+// Idempotent column additions for existing DBs that predate these columns
+for (const sql of [
+  `ALTER TABLE reminders    ADD COLUMN action_item_id INTEGER REFERENCES action_items(id) ON DELETE SET NULL`,
+  `ALTER TABLE reminders    ADD COLUMN delegate_name  TEXT`,
+  `ALTER TABLE action_items ADD COLUMN starred        INTEGER NOT NULL DEFAULT 0`,
+]) {
+  try { db.exec(sql) } catch (_) { /* column already exists — safe to ignore */ }
+}
 
 module.exports = db;

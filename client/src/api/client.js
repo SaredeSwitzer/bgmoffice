@@ -67,6 +67,8 @@ export const api = {
     request(`/action-items/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   setActionItemStatus: (id, status) =>
     request(`/action-items/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  starActionItem: (id, starred) =>
+    request(`/action-items/${id}/star`, { method: 'PATCH', body: JSON.stringify({ starred }) }),
   deleteActionItem: (id) => request(`/action-items/${id}`, { method: 'DELETE' }),
   addNote: (actionItemId, data) =>
     request(`/action-items/${actionItemId}/notes`, { method: 'POST', body: JSON.stringify(data) }),
