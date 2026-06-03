@@ -158,15 +158,20 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
               👤 {reminder.delegate_name}
             </span>
           )}
-          {reminder.client_name && (
-            <span className="text-xs text-gray-500">Client: {reminder.client_name}</span>
+          {/* Client/instructor context — prefer case-derived name for action-item reminders */}
+          {(reminder.case_client_name || reminder.client_name) && (
+            <span className="text-xs text-gray-500">
+              Client: {reminder.case_client_name || reminder.client_name}
+            </span>
           )}
-          {reminder.instructor_name && (
-            <span className="text-xs text-gray-500">Instructor: {reminder.instructor_name}</span>
+          {(reminder.case_instructor_name || reminder.instructor_name) && (
+            <span className="text-xs text-gray-500">
+              Instructor: {reminder.case_instructor_name || reminder.instructor_name}
+            </span>
           )}
           {reminder.action_item_id && (
-            <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full font-medium">
-              Action item
+            <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full font-medium">
+              Action item #{reminder.action_item_id}
             </span>
           )}
           {reminder.case_id && (

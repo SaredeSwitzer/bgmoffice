@@ -14,13 +14,18 @@ router.get('/', (req, res) => {
   const rows = db.prepare(`
     SELECT
       r.*,
-      c.name  AS client_name,
-      i.name  AS instructor_name,
-      COALESCE(r.case_id, ai.case_id) AS resolved_case_id
+      c.name   AS client_name,
+      i.name   AS instructor_name,
+      COALESCE(r.case_id, ai.case_id) AS resolved_case_id,
+      cl2.name AS case_client_name,
+      i2.name  AS case_instructor_name
     FROM reminders r
-    LEFT JOIN clients      c  ON c.id  = r.client_id
-    LEFT JOIN instructors  i  ON i.id  = r.instructor_id
-    LEFT JOIN action_items ai ON ai.id = r.action_item_id
+    LEFT JOIN clients      c   ON c.id   = r.client_id
+    LEFT JOIN instructors  i   ON i.id   = r.instructor_id
+    LEFT JOIN action_items ai  ON ai.id  = r.action_item_id
+    LEFT JOIN cases        cas ON cas.id = COALESCE(r.case_id, ai.case_id)
+    LEFT JOIN clients      cl2 ON cl2.id = cas.client_id
+    LEFT JOIN instructors  i2  ON i2.id  = cas.instructor_id
     WHERE r.status = 'pending'
     ORDER BY r.remind_on ASC
   `).all();

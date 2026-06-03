@@ -35,6 +35,10 @@ function getItem(id) {
   item.notes = db.prepare(
     'SELECT * FROM follow_up_notes WHERE action_item_id = ? ORDER BY created_at ASC'
   ).all(id);
+  item.reminders = db.prepare(
+    `SELECT id, title, remind_on, delegate_name, status, created_by, created_at
+     FROM reminders WHERE action_item_id = ? AND status = 'pending' ORDER BY remind_on ASC`
+  ).all(id);
   return item;
 }
 

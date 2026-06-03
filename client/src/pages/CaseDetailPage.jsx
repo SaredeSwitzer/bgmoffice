@@ -22,6 +22,12 @@ function fmtShort(iso) {
   return `${date} ${time}`
 }
 
+function fmtDate(dateStr) {
+  if (!dateStr) return ''
+  const [y, m, d] = dateStr.split('-')
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function DelegateBadge({ name }) {
   if (!name) return <span className="text-gray-400 text-xs italic">Anyone</span>
   return (
@@ -395,6 +401,45 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
   )
 }
 
+// ── Linked reminder chip (shown inside action item card) ─────────────────────
+
+function LinkedReminderItem({ reminder, onDone }) {
+  const [loading, setLoading] = useState(false)
+  const today = new Date().toISOString().slice(0, 10)
+  const isOverdue = reminder.remind_on < today
+
+  async function handleDone() {
+    setLoading(true)
+    try { await api.markReminderDone(reminder.id); onDone(reminder.id) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg border text-xs ${
+      isOverdue ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'
+    }`}>
+      <div className="flex items-center gap-2 flex-wrap min-w-0">
+        <span className={`font-semibold whitespace-nowrap ${isOverdue ? 'text-red-700' : 'text-blue-700'}`}>
+          📅 {fmtDate(reminder.remind_on)}{isOverdue && <span className="ml-1 text-red-500">· overdue</span>}
+        </span>
+        <span className="text-gray-700 truncate">{reminder.title}</span>
+        {reminder.delegate_name && (
+          <span className="inline-flex items-center gap-1 bg-white/70 border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+            👤 {reminder.delegate_name}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={handleDone}
+        disabled={loading}
+        className="flex-shrink-0 px-2.5 py-1 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+      >
+        {loading ? '…' : '✓ Done'}
+      </button>
+    </div>
+  )
+}
+
 // ── Action Item Card ───────────────────────────────────────────────────────────
 
 function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, caseContext, onActionTypesUpdated }) {
@@ -422,7 +467,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
     if (!reminderForm.title.trim() || !reminderForm.remind_on) return
     setReminderSaving(true)
     try {
-      await api.createReminder({
+      const newReminder = await api.createReminder({
         title: reminderForm.title.trim(),
         remind_on: reminderForm.remind_on,
         delegate_name: reminderForm.delegate_name || null,
@@ -431,11 +476,16 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
         client_id: caseContext?.client_id || null,
         instructor_id: caseContext?.instructor_id || null,
       })
+      setItem(prev => ({ ...prev, reminders: [...(prev.reminders || []), newReminder] }))
       setShowReminderForm(false)
       setReminderForm({ title: '', remind_on: '', delegate_name: '' })
     } finally {
       setReminderSaving(false)
     }
+  }
+
+  function handleReminderDone(reminderId) {
+    setItem(prev => ({ ...prev, reminders: (prev.reminders || []).filter(r => r.id !== reminderId) }))
   }
 
   function handleNoteAdded(note) {
@@ -527,15 +577,13 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
           >
             {item.starred ? '★' : '☆'}
           </button>
-          {!isResolved && (
-            <button
-              onClick={e => { e.stopPropagation(); setShowReminderForm(v => !v); setReminderForm({ title: defaultReminderTitle, remind_on: '' }) }}
-              className="text-xs text-gray-400 hover:text-blue-600"
-              title="Set a reminder"
-            >
-              🔔 Remind
-            </button>
-          )}
+          <button
+            onClick={e => { e.stopPropagation(); setShowReminderForm(v => !v); setReminderForm({ title: defaultReminderTitle, remind_on: '' }) }}
+            className={`text-xs transition-colors ${showReminderForm ? 'text-blue-600' : 'text-gray-400 hover:text-blue-600'}`}
+            title="Set a reminder"
+          >
+            🔔 {(item.reminders || []).length > 0 ? `Remind (${item.reminders.length})` : 'Remind'}
+          </button>
           <button
             onClick={e => { e.stopPropagation(); setEditing(v => !v) }}
             className="text-xs text-gray-400 hover:text-gray-700"
@@ -690,6 +738,18 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                     </button>
                   </div>
                 </form>
+              )}
+
+              {/* Linked reminders list */}
+              {(item.reminders || []).length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                    Reminders ({item.reminders.length})
+                  </p>
+                  {item.reminders.map(r => (
+                    <LinkedReminderItem key={r.id} reminder={r} onDone={handleReminderDone} />
+                  ))}
+                </div>
               )}
 
               <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} />
