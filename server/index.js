@@ -4,9 +4,18 @@ const cors = require('cors');
 
 const app = express();
 
-// Allow the Netlify frontend (set ALLOWED_ORIGIN in Railway env vars)
-const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
-app.use(cors({ origin: allowedOrigin, credentials: true }));
+// Allow the Netlify frontend. ALLOWED_ORIGIN can be a comma-separated list.
+// Falls back to bgmoffice.netlify.app so it works even if the env var isn't set.
+const rawOrigins = process.env.ALLOWED_ORIGIN || 'https://bgmoffice.netlify.app';
+const allowedOrigins = rawOrigins.split(',').map(o => o.trim());
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no origin (curl, Postman, Railway health checks)
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 
 app.use(express.json());
 

@@ -73,6 +73,15 @@ export const api = {
   deleteNote: (actionItemId, noteId) =>
     request(`/action-items/${actionItemId}/notes/${noteId}`, { method: 'DELETE' }),
 
+  // Reminders
+  getReminders: () => request('/reminders'),
+  createReminder: (data) =>
+    request('/reminders', { method: 'POST', body: JSON.stringify(data) }),
+  markReminderDone: (id) =>
+    request(`/reminders/${id}/done`, { method: 'PATCH' }),
+  deleteReminder: (id) =>
+    request(`/reminders/${id}`, { method: 'DELETE' }),
+
   // Lookups
   getActionTypes: () => request('/action-types'),
   getDelegates: () => request('/delegates'),
