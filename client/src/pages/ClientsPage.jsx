@@ -11,8 +11,9 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
   const [newClient, setNewClient] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', preferred_contact: '', notes: '' })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '' })
   const [saving, setSaving] = useState(false)
+  const [createError, setCreateError] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -24,11 +25,14 @@ export default function ClientsPage() {
   async function handleCreate(e) {
     e.preventDefault()
     setSaving(true)
+    setCreateError('')
     try {
       const c = await api.createClient(form)
       setClients(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))
       setNewClient(false)
-      setForm({ name: '', phone: '', email: '', preferred_contact: '', notes: '' })
+      setForm({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '' })
+    } catch (err) {
+      setCreateError(err.message)
     } finally {
       setSaving(false)
     }
@@ -76,12 +80,18 @@ export default function ClientsPage() {
                 <option value="call">Call</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Rate Per Class</label>
+              <input value={form.rate_per_class} onChange={e => setForm(f => ({ ...f, rate_per_class: e.target.value }))}
+                placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
             </div>
           </div>
+          {createError && <p className="text-xs text-red-600">{createError}</p>}
           <div className="flex gap-2">
             <button type="submit" disabled={saving}
               className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">

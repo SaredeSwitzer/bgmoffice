@@ -74,6 +74,18 @@ db.exec(`
   )
 `);
 
+// instructor_documents table (added post-initial-schema)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS instructor_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    instructor_id INTEGER NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
+    uploaded_by TEXT NOT NULL
+  )
+`);
+
 // Idempotent column additions for existing DBs that predate these columns
 for (const sql of [
   `ALTER TABLE reminders         ADD COLUMN action_item_id INTEGER REFERENCES action_items(id) ON DELETE SET NULL`,
@@ -85,6 +97,12 @@ for (const sql of [
   `ALTER TABLE client_instructor_prefs ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))`,
   `ALTER TABLE client_instructor_prefs ADD COLUMN created_by TEXT`,
   `ALTER TABLE action_items             ADD COLUMN created_by TEXT`,
+  `ALTER TABLE clients                  ADD COLUMN rate_per_class TEXT`,
+  `ALTER TABLE instructors              ADD COLUMN mailing_address TEXT`,
+  `ALTER TABLE instructors              ADD COLUMN ssn TEXT`,
+  `ALTER TABLE instructors              ADD COLUMN contract_signed INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE instructors              ADD COLUMN contract_signed_date TEXT`,
+  `ALTER TABLE instructors              ADD COLUMN photo_url TEXT`,
 ]) {
   try { db.exec(sql) } catch (_) { /* column already exists — safe to ignore */ }
 }

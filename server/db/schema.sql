@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS clients (
   email TEXT,
   preferred_contact TEXT CHECK(preferred_contact IN ('text','email','whatsapp','call')),
   notes TEXT,
+  rate_per_class TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -30,7 +31,21 @@ CREATE TABLE IF NOT EXISTS instructors (
   style TEXT,
   notes TEXT,
   pay_rate TEXT,
+  mailing_address TEXT,
+  ssn TEXT,
+  contract_signed INTEGER NOT NULL DEFAULT 0,
+  contract_signed_date TEXT,
+  photo_url TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS instructor_documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  instructor_id INTEGER NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
+  uploaded_by TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS client_instructor_prefs (
