@@ -38,6 +38,19 @@ db.exec(`
   )
 `);
 
+// Reference (internal wiki) sections
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reference_sections (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    title         TEXT    NOT NULL,
+    content       TEXT    NOT NULL DEFAULT '',
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_by    TEXT    NOT NULL,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // Idempotent column additions for existing DBs that predate these columns
 for (const sql of [
   `ALTER TABLE reminders    ADD COLUMN action_item_id INTEGER REFERENCES action_items(id) ON DELETE SET NULL`,

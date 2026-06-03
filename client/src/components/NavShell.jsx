@@ -20,7 +20,8 @@ function Shell() {
     { to: '/my-tasks',    label: 'My Tasks' },
     { to: '/clients',     label: 'Clients' },
     { to: '/instructors', label: 'Instructors' },
-    { to: '/reminders',   label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
+    { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
+    { to: '/reference',  label: 'Reference' },
     ...(user?.role === 'admin' ? [{ to: '/settings', label: 'Settings' }] : []),
   ]
 

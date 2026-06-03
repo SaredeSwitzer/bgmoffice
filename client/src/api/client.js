@@ -105,6 +105,17 @@ export const api = {
     request(`/settings/delegates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteDelegate: (id) => request(`/settings/delegates/${id}`, { method: 'DELETE' }),
 
+  // Reference (internal wiki)
+  getReference: () => request('/reference'),
+  createReferenceSection: (data) =>
+    request('/reference', { method: 'POST', body: JSON.stringify(data) }),
+  updateReferenceSection: (id, data) =>
+    request(`/reference/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteReferenceSection: (id) =>
+    request(`/reference/${id}`, { method: 'DELETE' }),
+  reorderReferenceSections: (items) =>
+    request('/reference/reorder', { method: 'PATCH', body: JSON.stringify({ items }) }),
+
   getSettingsUsers: () => request('/settings/users'),
   createUser: (data) =>
     request('/settings/users', { method: 'POST', body: JSON.stringify(data) }),
