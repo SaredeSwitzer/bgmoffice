@@ -5,44 +5,76 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const ACTION_TYPES_SQL = `
+  SELECT at.id, at.name, at.color, at.order_index
+  FROM action_item_action_types aiat
+  JOIN action_types at ON at.id = aiat.action_type_id
+  WHERE aiat.action_item_id = ?
+  ORDER BY at.order_index ASC
+`;
+
 function getItem(id) {
   const item = db.prepare(`
-    SELECT
-      ai.id, ai.case_id, ai.status, ai.initial_note, ai.created_at, ai.resolved_at, ai.starred,
-      at.id AS action_type_id, at.name AS action_type_name, at.color AS action_type_color,
-      d.id  AS delegate_id,   d.name  AS delegate_name
+    SELECT ai.id, ai.case_id, ai.status, ai.initial_note,
+           ai.created_at, ai.resolved_at, ai.starred, ai.updated_at,
+           d.id AS delegate_id, d.name AS delegate_name
     FROM action_items ai
-    JOIN action_types at ON at.id = ai.action_type_id
     LEFT JOIN delegates d ON d.id = ai.delegate_id
     WHERE ai.id = ?
   `).get(id);
   if (!item) return null;
+
+  item.action_types = db.prepare(ACTION_TYPES_SQL).all(id);
+  // Legacy single-value fields kept for any code still reading them
+  item.action_type_id    = item.action_types[0]?.id    ?? null;
+  item.action_type_name  = item.action_types.map(a => a.name).join(', ');
+  item.action_type_color = item.action_types[0]?.color ?? 'gray';
+
   item.notes = db.prepare(
     'SELECT * FROM follow_up_notes WHERE action_item_id = ? ORDER BY created_at ASC'
   ).all(id);
   return item;
 }
 
-// Create action item on a case
+function setActionTypes(itemId, actionTypeIds) {
+  db.prepare('DELETE FROM action_item_action_types WHERE action_item_id = ?').run(itemId);
+  if (actionTypeIds?.length) {
+    const ins = db.prepare(
+      'INSERT OR IGNORE INTO action_item_action_types (action_item_id, action_type_id) VALUES (?, ?)'
+    );
+    db.transaction(() => actionTypeIds.forEach(atId => ins.run(itemId, atId)))();
+  }
+}
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+// Create action item
 router.post('/', (req, res) => {
-  const { case_id, action_type_id, delegate_id, initial_note } = req.body;
-  if (!case_id || !action_type_id) {
-    return res.status(400).json({ error: 'case_id and action_type_id required' });
+  const { case_id, action_type_ids, delegate_id, initial_note } = req.body;
+  if (!case_id || !action_type_ids?.length) {
+    return res.status(400).json({ error: 'case_id and action_type_ids required' });
   }
   const result = db.prepare(
     'INSERT INTO action_items (case_id, action_type_id, delegate_id, initial_note) VALUES (?, ?, ?, ?)'
-  ).run(case_id, action_type_id, delegate_id || null, initial_note || null);
+  ).run(case_id, action_type_ids[0] ?? null, delegate_id ?? null, initial_note ?? null);
+
+  setActionTypes(result.lastInsertRowid, action_type_ids);
   res.status(201).json(getItem(result.lastInsertRowid));
 });
 
-// Update action item (delegate, note, action type)
+// Update action item
 router.put('/:id', (req, res) => {
   const item = db.prepare('SELECT id FROM action_items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'Action item not found' });
-  const { action_type_id, delegate_id, initial_note } = req.body;
+
+  const { action_type_ids, delegate_id, initial_note } = req.body;
   db.prepare(
     `UPDATE action_items SET action_type_id=?, delegate_id=?, initial_note=?, updated_at=datetime('now') WHERE id=?`
-  ).run(action_type_id, delegate_id || null, initial_note || null, req.params.id);
+  ).run(action_type_ids?.[0] ?? null, delegate_id ?? null, initial_note ?? null, req.params.id);
+
+  setActionTypes(req.params.id, action_type_ids ?? []);
   res.json(getItem(req.params.id));
 });
 

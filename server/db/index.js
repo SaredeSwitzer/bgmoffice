@@ -46,6 +46,21 @@ db.exec(`
   )
 `);
 
+// Junction table: one action item can have multiple action types
+db.exec(`
+  CREATE TABLE IF NOT EXISTS action_item_action_types (
+    action_item_id INTEGER NOT NULL REFERENCES action_items(id) ON DELETE CASCADE,
+    action_type_id INTEGER NOT NULL REFERENCES action_types(id) ON DELETE CASCADE,
+    PRIMARY KEY (action_item_id, action_type_id)
+  )
+`);
+
+// One-time data migration: copy existing single action_type_id into junction table
+db.exec(`
+  INSERT OR IGNORE INTO action_item_action_types (action_item_id, action_type_id)
+  SELECT id, action_type_id FROM action_items WHERE action_type_id IS NOT NULL
+`);
+
 // Reference (internal wiki) sections
 db.exec(`
   CREATE TABLE IF NOT EXISTS reference_sections (

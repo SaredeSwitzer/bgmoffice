@@ -58,15 +58,13 @@ function SortTh({ label, col, sortCol, sortDir, onSort, className = '' }) {
 function TaskRow({ item, onClick, isOwn, onStar }) {
   const days = daysOpen(item.created_at)
   const isOverdue = days > 7
-  const isPriority = item.action_type_name === 'PRIORITY'
+  const actionTypes = item.action_types || []
 
   return (
     <tr
       onClick={onClick}
       className={`cursor-pointer transition-colors hover:bg-gray-50 ${
-        isPriority
-          ? 'bg-red-50 hover:bg-red-100'
-          : item.starred
+        item.starred
           ? 'bg-yellow-50/60 hover:bg-yellow-50'
           : isOwn
           ? 'bg-blue-50/40 hover:bg-blue-50'
@@ -85,18 +83,20 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
         {item.instructor_name || <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        <ActionTypeBadge name={item.action_type_name} color={item.action_type_color} />
+        <div className="flex flex-wrap gap-1">
+          {actionTypes.length > 0
+            ? actionTypes.map(at => <ActionTypeBadge key={at.id} name={at.name} color={at.color} />)
+            : <span className="text-gray-300 text-xs">—</span>
+          }
+        </div>
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap">
         <DelegateChip name={item.delegate_name} />
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap text-right">
-        <span className={`text-xs font-semibold tabular-nums ${
-          isPriority ? 'text-red-700' : isOverdue ? 'text-amber-700' : 'text-gray-500'
-        }`}>
+        <span className={`text-xs font-semibold tabular-nums ${isOverdue ? 'text-amber-700' : 'text-gray-500'}`}>
           {days}d
-          {isOverdue && !isPriority && <span className="ml-1 text-amber-600 font-bold">!</span>}
-          {isPriority && <span className="ml-1 text-red-600 font-bold">↑</span>}
+          {isOverdue && <span className="ml-1 text-amber-600 font-bold">!</span>}
         </span>
       </td>
       <td className="px-3 py-2.5 max-w-xs">
@@ -140,11 +140,12 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
   const [sortCol,          setSortCol]          = useState(null)
   const [sortDir,          setSortDir]          = useState('asc')
 
-  // Unique action types present in this section
-  const availableActionTypes = useMemo(() =>
-    [...new Map(items.map(i => [i.action_type_name, { name: i.action_type_name }])).values()]
-      .sort((a, b) => a.name.localeCompare(b.name))
-  , [items])
+  // Unique action types across all items in this section
+  const availableActionTypes = useMemo(() => {
+    const map = new Map()
+    items.forEach(i => (i.action_types || []).forEach(at => map.set(at.name, at)))
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [items])
 
   function handleSort(col) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -159,9 +160,9 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
     else if (delegateFilter === FILTER_STARRED) filtered = filtered.filter(i => i.starred)
     else if (delegateFilter !== FILTER_ALL) filtered = filtered.filter(i => i.delegate_name === delegateFilter)
 
-    // Action type filter
+    // Action type filter — match if item has ANY type matching the filter
     if (actionTypeFilter !== FILTER_ALL)
-      filtered = filtered.filter(i => i.action_type_name === actionTypeFilter)
+      filtered = filtered.filter(i => (i.action_types || []).some(at => at.name === actionTypeFilter))
 
     // Age filter
     if (ageFilter === 'overdue') filtered = filtered.filter(i => daysOpen(i.created_at) > 7)
@@ -169,12 +170,12 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
 
     // Sort
     filtered.sort((a, b) => {
-      // Fixed tiers: PRIORITY → starred → rest
-      const tierA = a.action_type_name === 'PRIORITY' ? 0 : a.starred ? 1 : 2
-      const tierB = b.action_type_name === 'PRIORITY' ? 0 : b.starred ? 1 : 2
+      // Starred first, then rest
+      const tierA = a.starred ? 0 : 1
+      const tierB = b.starred ? 0 : 1
       if (tierA !== tierB) return tierA - tierB
 
-      // Within own-tasks tier (All view)
+      // Within All view: own tasks float up
       if (delegateFilter === FILTER_ALL && myDelegateName) {
         const ownA = a.delegate_name === myDelegateName ? 0 : 1
         const ownB = b.delegate_name === myDelegateName ? 0 : 1
@@ -190,7 +191,7 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
       if (sortCol === 'age')        cmp = new Date(a.created_at) - new Date(b.created_at)
       if (cmp !== 0) return sortDir === 'asc' ? cmp : -cmp
 
-      // Default secondary: oldest first
+      // Default: oldest first
       return new Date(a.created_at) - new Date(b.created_at)
     })
 

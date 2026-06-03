@@ -15,21 +15,32 @@ const CASE_SELECT = `
   LEFT JOIN instructors i  ON i.id  = c.instructor_id
 `;
 
+const ACTION_TYPES_STMT = db.prepare(`
+  SELECT at.id, at.name, at.color, at.order_index
+  FROM action_item_action_types aiat
+  JOIN action_types at ON at.id = aiat.action_type_id
+  WHERE aiat.action_item_id = ?
+  ORDER BY at.order_index ASC
+`);
+
 function enrichCase(row) {
   if (!row) return null;
   const actionItems = db.prepare(`
-    SELECT
-      ai.id, ai.status, ai.initial_note, ai.created_at, ai.resolved_at,
-      at.id AS action_type_id, at.name AS action_type_name, at.color AS action_type_color,
-      d.id  AS delegate_id,   d.name  AS delegate_name
+    SELECT ai.id, ai.status, ai.initial_note, ai.created_at, ai.resolved_at,
+           ai.starred, ai.updated_at,
+           d.id AS delegate_id, d.name AS delegate_name
     FROM action_items ai
-    JOIN action_types at ON at.id = ai.action_type_id
     LEFT JOIN delegates d ON d.id = ai.delegate_id
     WHERE ai.case_id = ?
     ORDER BY ai.created_at ASC
   `).all(row.id);
 
   for (const item of actionItems) {
+    item.action_types = ACTION_TYPES_STMT.all(item.id);
+    // Legacy single-value shim
+    item.action_type_id    = item.action_types[0]?.id    ?? null;
+    item.action_type_name  = item.action_types.map(a => a.name).join(', ');
+    item.action_type_color = item.action_types[0]?.color ?? 'gray';
     item.notes = db.prepare(
       'SELECT * FROM follow_up_notes WHERE action_item_id = ? ORDER BY created_at ASC'
     ).all(item.id);

@@ -269,7 +269,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
   const [reminderForm, setReminderForm] = useState({ title: '', remind_on: '', delegate_name: '' })
   const [reminderSaving, setReminderSaving] = useState(false)
   const [editForm, setEditForm] = useState({
-    action_type_id: item.action_type_id,
+    action_type_ids: (item.action_types || []).map(at => at.id),
     delegate_id: item.delegate_id || '',
     initial_note: item.initial_note || '',
   })
@@ -323,7 +323,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
     setSaving(true)
     try {
       const updated = await api.updateActionItem(item.id, {
-        action_type_id: Number(editForm.action_type_id),
+        action_type_ids: editForm.action_type_ids.map(Number),
         delegate_id: editForm.delegate_id ? Number(editForm.delegate_id) : null,
         initial_note: editForm.initial_note,
       })
@@ -372,7 +372,9 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
         </button>
 
         <div className="flex-1 flex flex-wrap items-center gap-2 min-w-0">
-          <ActionTypeBadge name={item.action_type_name} color={item.action_type_color} />
+          {(item.action_types || []).map(at => (
+            <ActionTypeBadge key={at.id} name={at.name} color={at.color} />
+          ))}
           <DelegateBadge name={item.delegate_name} />
           {isResolved && (
             <span className="text-xs text-green-600 font-medium">Resolved {fmtShort(item.resolved_at)}</span>
@@ -421,16 +423,30 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
           {editing ? (
             <form onSubmit={saveEdit} className="mt-3 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Action Type</label>
-                <select
-                  value={editForm.action_type_id}
-                  onChange={e => setEditForm(f => ({ ...f, action_type_id: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
-                >
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Action Types
+                  {editForm.action_type_ids.length === 0 && (
+                    <span className="ml-2 text-red-500 font-normal">pick at least one</span>
+                  )}
+                </label>
+                <div className="border border-gray-300 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
                   {actionTypes.map(at => (
-                    <option key={at.id} value={at.id}>{at.name}</option>
+                    <label key={at.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editForm.action_type_ids.includes(at.id)}
+                        onChange={() => setEditForm(f => ({
+                          ...f,
+                          action_type_ids: f.action_type_ids.includes(at.id)
+                            ? f.action_type_ids.filter(id => id !== at.id)
+                            : [...f.action_type_ids, at.id],
+                        }))}
+                        className="w-3.5 h-3.5 accent-gray-700"
+                      />
+                      <ActionTypeBadge name={at.name} color={at.color} size="xs" />
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Delegate</label>
@@ -456,7 +472,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                 />
               </div>
               <div className="flex gap-2">
-                <button type="submit" disabled={saving}
+                <button type="submit" disabled={saving || editForm.action_type_ids.length === 0}
                   className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg font-medium disabled:opacity-50">
                   Save
                 </button>
@@ -536,7 +552,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
 
 function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded }) {
   const [form, setForm] = useState({
-    action_type_id: actionTypes[0]?.id || '',
+    action_type_ids: actionTypes[0] ? [actionTypes[0].id] : [],
     delegate_id: '',
     initial_note: '',
   })
@@ -544,11 +560,12 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded }
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!form.action_type_ids.length) return
     setSaving(true)
     try {
       const item = await api.createActionItem({
         case_id: caseId,
-        action_type_id: Number(form.action_type_id),
+        action_type_ids: form.action_type_ids.map(Number),
         delegate_id: form.delegate_id ? Number(form.delegate_id) : null,
         initial_note: form.initial_note,
       })
@@ -565,17 +582,30 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded }
         <h3 className="font-bold text-gray-900 mb-4">Add Action Item</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Action Type</label>
-            <select
-              value={form.action_type_id}
-              onChange={e => setForm(f => ({ ...f, action_type_id: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              required
-            >
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Action Types
+              {form.action_type_ids.length === 0 && (
+                <span className="ml-2 text-red-500 font-normal">pick at least one</span>
+              )}
+            </label>
+            <div className="border border-gray-300 rounded-lg divide-y divide-gray-100 max-h-44 overflow-y-auto">
               {actionTypes.map(at => (
-                <option key={at.id} value={at.id}>{at.name}</option>
+                <label key={at.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.action_type_ids.includes(at.id)}
+                    onChange={() => setForm(f => ({
+                      ...f,
+                      action_type_ids: f.action_type_ids.includes(at.id)
+                        ? f.action_type_ids.filter(id => id !== at.id)
+                        : [...f.action_type_ids, at.id],
+                    }))}
+                    className="w-3.5 h-3.5 accent-gray-700"
+                  />
+                  <ActionTypeBadge name={at.name} color={at.color} size="xs" />
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Delegate</label>
@@ -603,7 +633,7 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded }
           <div className="flex gap-3 pt-1">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || form.action_type_ids.length === 0}
               className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors"
             >
               {saving ? 'Adding…' : 'Add Action Item'}

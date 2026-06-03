@@ -22,7 +22,6 @@ const SHORT_LABELS = {
   'FOLLOW UP ON BLAST RESPONSES':                       'BLAST RESPONSES',
   'ADD TO RECRUITING / SEND BLAST':                     'SEND BLAST',
   'INSTRUCTOR AWAY - INFORM ALL CLIENTS':               'INSTR AWAY',
-  'PRIORITY':                                           'PRIORITY',
   'UPDATE CALENDAR ENTRY':                              'UPDATE CALENDAR',
   'UPDATE USAEPAY':                                     'UPDATE USAEPAY',
   'UPDATE JOTFORM':                                     'UPDATE JOTFORM',

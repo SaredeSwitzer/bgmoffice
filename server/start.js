@@ -37,12 +37,11 @@ if (userCount === 0) {
       { name: 'FOLLOW UP ON BLAST RESPONSES',                         color: 'orange', order_index: 5 },
       { name: 'ADD TO RECRUITING / SEND BLAST',                       color: 'pink',   order_index: 6 },
       { name: 'INSTRUCTOR AWAY - INFORM ALL CLIENTS',                 color: 'yellow', order_index: 7 },
-      { name: 'PRIORITY',                                             color: 'red',    order_index: 8 },
-      { name: 'UPDATE CALENDAR ENTRY',                                color: 'indigo', order_index: 9 },
-      { name: 'UPDATE USAEPAY',                                       color: 'amber',  order_index: 10 },
-      { name: 'UPDATE JOTFORM',                                       color: 'slate',  order_index: 11 },
+      { name: 'UPDATE CALENDAR ENTRY',                                color: 'indigo', order_index: 8 },
+      { name: 'UPDATE USAEPAY',                                       color: 'amber',  order_index: 9 },
+      { name: 'UPDATE JOTFORM',                                       color: 'slate',  order_index: 10 },
     ].forEach(at => insertAT.run(at));
-    console.log('  ✓ 11 action types');
+    console.log('  ✓ 10 action types (PRIORITY removed — use star/urgent instead)');
 
     // Delegates
     const insertD = db.prepare('INSERT INTO delegates (name) VALUES (?)');
