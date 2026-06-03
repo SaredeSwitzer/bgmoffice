@@ -1,6 +1,14 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
-const cors = require('cors');
+const cors    = require('cors');
+const path    = require('path');
+const fs      = require('fs');
+
+// Uploads directory — must be on the persistent volume in production
+const UPLOADS_DIR = process.env.NODE_ENV === 'production'
+  ? '/app/server/data/uploads'
+  : path.join(__dirname, 'db', 'uploads');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const app = express();
 
@@ -21,6 +29,9 @@ app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
+// Serve uploaded files (photos, documents)
+app.use('/uploads', express.static(UPLOADS_DIR));
+
 app.use('/api/auth',         require('./routes/auth'));
 app.use('/api/clients',      require('./routes/clients'));
 app.use('/api/instructors',  require('./routes/instructors'));
@@ -30,6 +41,7 @@ app.use('/api/settings',     require('./routes/settings'));
 app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/reminders',    require('./routes/reminders'));
 app.use('/api/reference',    require('./routes/reference'));
+app.use('/api/recruiting',   require('./routes/recruiting'));
 
 // Action type lookups + all-user management (any authenticated user may edit)
 const db = require('./db');

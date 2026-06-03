@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
@@ -121,6 +121,7 @@ export default function ClientProfilePage() {
   const [client, setClient] = useState(null)
   const [cases, setCases] = useState([])
   const [instructors, setInstructors] = useState([])
+  const [recruitingEntries, setRecruitingEntries] = useState([])
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
@@ -132,12 +133,14 @@ export default function ClientProfilePage() {
       api.getClient(id),
       api.getCases({ client_id: id }),
       api.getInstructors(),
+      api.getRecruitingByClient(id),
     ])
-      .then(([c, cs, instr]) => {
+      .then(([c, cs, instr, recr]) => {
         setClient(c)
         setEditForm({ name: c.name, phone: c.phone || '', email: c.email || '', preferred_contact: c.preferred_contact || '', notes: c.notes || '', rate_per_class: c.rate_per_class || '' })
         setCases(cs)
         setInstructors(instr)
+        setRecruitingEntries(recr)
       })
       .catch(e => setError(e.message))
   }, [id])
@@ -282,6 +285,42 @@ export default function ClientProfilePage() {
           <AddPrefForm clientId={id} instructors={instructors} onAdded={handlePrefAdded} />
         </div>
       </section>
+
+      {/* Recruiting History */}
+      {recruitingEntries.length > 0 && (
+        <section>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-3 pl-1 border-l-4 border-gray-300">
+            Recruiting History
+            <span className="ml-2 text-xs font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+              {recruitingEntries.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {recruitingEntries.map(entry => (
+              <div key={entry.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                      <span className="font-semibold text-gray-700">{entry.day_of_week}</span>
+                      {entry.time_slot && <span>{entry.time_slot}</span>}
+                      {entry.neighborhood && <span>· {entry.neighborhood}</span>}
+                      {entry.style && <span>· {entry.style}</span>}
+                      {entry.participants && <span>· {entry.participants}</span>}
+                    </div>
+                    {entry.address && <p className="text-xs text-gray-400 mt-0.5">{entry.address}</p>}
+                  </div>
+                  <Link
+                    to="/recruiting"
+                    className="text-xs text-blue-600 hover:underline flex-shrink-0"
+                  >
+                    View →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Case history */}
       <section>

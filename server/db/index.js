@@ -86,6 +86,90 @@ db.exec(`
   )
 `);
 
+// ── Recruiting tables ─────────────────────────────────────────────────────────
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS recruiting_columns (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT    NOT NULL,
+    field_key     TEXT,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    is_system     INTEGER NOT NULL DEFAULT 0
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS recruiting_entries (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    day_of_week    TEXT    NOT NULL CHECK(day_of_week IN ('Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday')),
+    time_slot      TEXT,
+    neighborhood   TEXT,
+    style          TEXT,
+    participants   TEXT,
+    client_name    TEXT,
+    client_id      INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+    address        TEXT,
+    phone          TEXT,
+    waiver_signed  INTEGER NOT NULL DEFAULT 0,
+    instructor_info TEXT,
+    client_rate    TEXT,
+    extra_data     TEXT,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+    created_by     TEXT
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS recruiting_notes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id        INTEGER NOT NULL REFERENCES recruiting_entries(id) ON DELETE CASCADE,
+    text            TEXT    NOT NULL,
+    author_initials TEXT    NOT NULL,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+// Seed default columns (once — idempotent via INSERT OR IGNORE on unique name+is_system)
+{
+  const existingCols = db.prepare('SELECT COUNT(*) AS n FROM recruiting_columns WHERE is_system=1').get().n;
+  if (existingCols === 0) {
+    const ins = db.prepare('INSERT INTO recruiting_columns (name, field_key, display_order, is_system) VALUES (?,?,?,1)');
+    [
+      ['Time',                    'time_slot',       0],
+      ['Neighborhood',            'neighborhood',    1],
+      ['Style',                   'style',           2],
+      ['Participants & Ages',     'participants',    3],
+      ['Client Name',             'client_name',     4],
+      ['Address',                 'address',         5],
+      ['Phone',                   'phone',           6],
+      ['Waiver Signed?',          'waiver_signed',   7],
+      ['Instructor(s) / Rate',    'instructor_info', 8],
+      ['Client Rate / Payment',   'client_rate',     9],
+    ].forEach(([name, field_key, order]) => ins.run(name, field_key, order));
+    console.log('[seed] recruiting_columns: 10 default columns inserted');
+  }
+}
+
+// Seed 3 sample Sunday recruiting entries (once)
+{
+  const existingEntries = db.prepare('SELECT COUNT(*) AS n FROM recruiting_entries').get().n;
+  if (existingEntries === 0) {
+    const ins = db.prepare(`
+      INSERT INTO recruiting_entries
+        (day_of_week, time_slot, neighborhood, style, participants, client_name, address, phone, waiver_signed, instructor_info, client_rate, created_by)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+    `);
+    const e1 = ins.run('Sunday','May 24 and June 21 and July 5 and 12 @ 11:30am','Borough Park','Any Style','10-15 Seniors','Connections','1021 38th St Brooklyn NY 11219 basement',null,1,null,null,'SS');
+    ins.run('Sunday','May 31 11:45-12:45 PM','Manalapan NJ','Yoga','approx 10-12','Muka - Friendship Circle Central NJ','33 Gordons Corner Manalapan NJ',null,0,null,'$100','SS');
+    ins.run('Sunday','9:30-10:30 AM','Williamsburg','General Fitness','1 age 54','Ephraim Gross','76 Hughes st top floor','917-846-6723',1,null,'$125','SS');
+    // Seed notes for entry 1
+    const insN = db.prepare('INSERT INTO recruiting_notes (entry_id, text, author_initials) VALUES (?,?,?)');
+    insN.run(e1.lastInsertRowid, 'Called Connections coordinator — they confirmed 10 seniors attending, basement room available. Asked about wheelchair access.', 'SS');
+    insN.run(e1.lastInsertRowid, 'Sent instructor availability for May 24 slot. Waiting on confirmation.', 'SS');
+    console.log('[seed] recruiting_entries: 3 sample Sunday entries inserted');
+  }
+}
+
 // Idempotent column additions for existing DBs that predate these columns.
 // Each ALTER TABLE is attempted; "duplicate column" errors are silently
 // ignored. Any other error is logged so it shows up in Railway's deploy log.

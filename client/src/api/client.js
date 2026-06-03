@@ -125,6 +125,27 @@ export const api = {
   deleteActionTypeUser: (id) =>
     request(`/action-types/${id}`, { method: 'DELETE' }),
 
+  // Recruiting
+  getRecruiting: (q) => request(`/recruiting${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  getRecruitingByClient: (clientId) => request(`/recruiting/client/${clientId}`),
+  createRecruitingEntry: (data) =>
+    request('/recruiting/entries', { method: 'POST', body: JSON.stringify(data) }),
+  updateRecruitingEntry: (id, data) =>
+    request(`/recruiting/entries/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRecruitingEntry: (id) =>
+    request(`/recruiting/entries/${id}`, { method: 'DELETE' }),
+  addRecruitingNote: (entryId, data) =>
+    request(`/recruiting/entries/${entryId}/notes`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteRecruitingNote: (entryId, noteId) =>
+    request(`/recruiting/entries/${entryId}/notes/${noteId}`, { method: 'DELETE' }),
+  getRecruitingColumns: () => request('/recruiting/columns'),
+  addRecruitingColumn: (data) =>
+    request('/recruiting/columns', { method: 'POST', body: JSON.stringify(data) }),
+  updateRecruitingColumn: (id, data) =>
+    request(`/recruiting/columns/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRecruitingColumn: (id) =>
+    request(`/recruiting/columns/${id}`, { method: 'DELETE' }),
+
   // Settings (admin)
   getSettingsActionTypes: () => request('/settings/action-types'),
   createActionType: (data) =>
