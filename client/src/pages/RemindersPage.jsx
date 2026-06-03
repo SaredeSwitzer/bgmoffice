@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useRemindersContext } from '../context/RemindersContext'
 import AddReminderModal from '../components/AddReminderModal'
+import FirstClassReminderModal from '../components/FirstClassReminderModal'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -265,7 +266,8 @@ export default function RemindersPage() {
   const [upcoming,  setUpcoming]  = useState([])
   const [delegates, setDelegates] = useState([])
   const [loading,   setLoading]   = useState(true)
-  const [showAdd,   setShowAdd]   = useState(false)
+  const [showAdd,        setShowAdd]        = useState(false)
+  const [showFirstClass, setShowFirstClass] = useState(false)
 
   function load() {
     return api.getReminders().then(({ overdue: o, upcoming: u }) => {
@@ -304,14 +306,22 @@ export default function RemindersPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-gray-900">Reminders</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          + Add Reminder
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowFirstClass(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-lg hover:bg-teal-700 transition-colors shadow-sm"
+          >
+            🎓 First Class Follow-Up
+          </button>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            + Add Reminder
+          </button>
+        </div>
       </div>
 
       <Section
@@ -339,6 +349,9 @@ export default function RemindersPage() {
 
       {showAdd && (
         <AddReminderModal onClose={() => { setShowAdd(false); load(); refreshBadge() }} />
+      )}
+      {showFirstClass && (
+        <FirstClassReminderModal onClose={() => { setShowFirstClass(false); load(); refreshBadge() }} />
       )}
     </div>
   )
