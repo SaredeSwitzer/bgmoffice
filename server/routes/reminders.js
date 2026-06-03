@@ -71,24 +71,50 @@ router.post('/', (req, res) => {
   );
 });
 
-// ── PUT /:id — edit title, notes, date, delegate ─────────────────────────────
+// Helper: fetch a reminder with joined client/instructor names
+function getReminderFull(id) {
+  return db.prepare(`
+    SELECT r.*,
+      c.name  AS client_name,
+      i.name  AS instructor_name,
+      cl2.name AS case_client_name,
+      i2.name  AS case_instructor_name,
+      COALESCE(r.case_id, ai.case_id) AS resolved_case_id
+    FROM reminders r
+    LEFT JOIN clients      c   ON c.id   = r.client_id
+    LEFT JOIN instructors  i   ON i.id   = r.instructor_id
+    LEFT JOIN action_items ai  ON ai.id  = r.action_item_id
+    LEFT JOIN cases        cas ON cas.id = COALESCE(r.case_id, ai.case_id)
+    LEFT JOIN clients      cl2 ON cl2.id = cas.client_id
+    LEFT JOIN instructors  i2  ON i2.id  = cas.instructor_id
+    WHERE r.id = ?
+  `).get(id);
+}
+
+// ── PUT /:id — edit title, notes, date, delegate, client, instructor ──────────
 router.put('/:id', (req, res) => {
   const reminder = db.prepare('SELECT * FROM reminders WHERE id = ?').get(req.params.id);
   if (!reminder) return res.status(404).json({ error: 'Not found' });
   if (reminder.created_by !== req.user.initials && req.user.role !== 'admin')
     return res.status(403).json({ error: 'Not authorized' });
 
-  const { title, notes, remind_on, delegate_name } = req.body;
+  const { title, notes, remind_on, delegate_name, client_id, instructor_id } = req.body;
   if (!title?.trim() || !remind_on)
     return res.status(400).json({ error: 'title and remind_on required' });
 
   db.prepare(`
     UPDATE reminders
-    SET title=?, notes=?, remind_on=?, delegate_name=?, updated_at=datetime('now')
+    SET title=?, notes=?, remind_on=?, delegate_name=?, client_id=?, instructor_id=?,
+        updated_at=datetime('now')
     WHERE id=?
-  `).run(title.trim(), notes || null, remind_on, delegate_name || null, req.params.id);
+  `).run(
+    title.trim(), notes || null, remind_on, delegate_name || null,
+    client_id || null, instructor_id || null,
+    req.params.id
+  );
 
-  res.json(db.prepare('SELECT * FROM reminders WHERE id = ?').get(req.params.id));
+  const updated = getReminderFull(req.params.id);
+  res.json({ ...updated, case_id: updated.resolved_case_id });
 });
 
 // ── PATCH /:id/done ───────────────────────────────────────────────────────────

@@ -1,82 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { useRemindersContext } from '../context/RemindersContext'
-
-// ── Searchable combobox ───────────────────────────────────────────────────────
-
-function SearchSelect({ label, options, value, onChange, placeholder }) {
-  const [query,  setQuery]  = useState(value?.name || '')
-  const [open,   setOpen]   = useState(false)
-  const containerRef = useRef(null)
-
-  // Keep display text in sync if parent clears the value
-  useEffect(() => { setQuery(value?.name || '') }, [value])
-
-  const filtered = options
-    .filter(o => o.name.toLowerCase().includes(query.toLowerCase()))
-    .slice(0, 10)
-
-  function handleSelect(o) {
-    onChange(o)
-    setQuery(o.name)
-    setOpen(false)
-  }
-
-  function handleBlur(e) {
-    // Only close if focus moves outside the container
-    if (!containerRef.current?.contains(e.relatedTarget)) {
-      setOpen(false)
-      // If the typed text doesn't match the selected item, clear selection
-      if (!value || query !== value.name) {
-        onChange(null)
-        setQuery('')
-      }
-    }
-  }
-
-  return (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label} *</label>
-      <div ref={containerRef} className="relative" onBlur={handleBlur}>
-        <input
-          value={query}
-          onChange={e => { setQuery(e.target.value); onChange(null); setOpen(true) }}
-          onFocus={() => setOpen(true)}
-          placeholder={placeholder}
-          autoComplete="off"
-          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
-            value ? 'border-gray-300 focus:ring-teal-300' : 'border-gray-300 focus:ring-gray-300'
-          }`}
-        />
-        {value && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-500 text-xs font-bold pointer-events-none">✓</span>
-        )}
-        {open && filtered.length > 0 && (
-          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-44 overflow-y-auto">
-            {filtered.map(o => (
-              <button
-                key={o.id}
-                type="button"
-                tabIndex={0}
-                onMouseDown={() => handleSelect(o)}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-teal-50 hover:text-teal-900 ${
-                  value?.id === o.id ? 'bg-teal-50 text-teal-800 font-medium' : 'text-gray-800'
-                }`}
-              >
-                {o.name}
-              </button>
-            ))}
-          </div>
-        )}
-        {open && query.length > 0 && filtered.length === 0 && (
-          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs text-gray-400 italic">
-            No results for "{query}"
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+import SearchSelect from './SearchSelect'
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
@@ -164,19 +89,21 @@ export default function FirstClassReminderModal({ onClose }) {
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <SearchSelect
-            label="Client"
+            label="Client" required
             options={clients}
             value={client}
             onChange={setClient}
             placeholder="Search clients…"
+            clearable={false}
           />
 
           <SearchSelect
-            label="Instructor"
+            label="Instructor" required
             options={instructors}
             value={instructor}
             onChange={setInstructor}
             placeholder="Search instructors…"
+            clearable={false}
           />
 
           <div>

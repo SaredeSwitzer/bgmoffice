@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useRemindersContext } from '../context/RemindersContext'
 import AddReminderModal from '../components/AddReminderModal'
 import FirstClassReminderModal from '../components/FirstClassReminderModal'
+import SearchSelect from '../components/SearchSelect'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -27,13 +28,13 @@ function fmtShort(iso) {
 
 // ── Reminder row with inline edit ─────────────────────────────────────────────
 
-function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegates }) {
+function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
   const [form, setForm] = useState({
     title:         reminder.title,
     notes:         reminder.notes || '',
@@ -41,7 +42,23 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
     delegate_name: reminder.delegate_name || '',
   })
 
-  const canEdit = user?.role === 'admin' || user?.initials === reminder.created_by
+  // Derive initial client/instructor objects from the reminder's stored IDs + names
+  const initClient = useMemo(() =>
+    reminder.client_id
+      ? { id: reminder.client_id, name: reminder.client_name || reminder.case_client_name || '' }
+      : null,
+  [reminder.client_id, reminder.client_name, reminder.case_client_name])
+
+  const initInstructor = useMemo(() =>
+    reminder.instructor_id
+      ? { id: reminder.instructor_id, name: reminder.instructor_name || reminder.case_instructor_name || '' }
+      : null,
+  [reminder.instructor_id, reminder.instructor_name, reminder.case_instructor_name])
+
+  const [editClient,     setEditClient]     = useState(initClient)
+  const [editInstructor, setEditInstructor] = useState(initInstructor)
+
+  const canEdit  = user?.role === 'admin' || user?.initials === reminder.created_by
   const wasEdited = reminder.updated_at
 
   async function handleDone() {
@@ -60,6 +77,8 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
         notes:         form.notes.trim() || null,
         remind_on:     form.remind_on,
         delegate_name: form.delegate_name || null,
+        client_id:     editClient?.id     || null,
+        instructor_id: editInstructor?.id || null,
       })
       onUpdated(updated)
       setEditing(false)
@@ -73,7 +92,7 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
   if (editing) {
     return (
       <div className={`px-4 py-3 rounded-xl border ${isOverdue ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
-        <form onSubmit={handleSave} className="space-y-2">
+        <form onSubmit={handleSave} className="space-y-2.5">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
             <input
@@ -108,6 +127,20 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
               </select>
             </div>
           </div>
+          <SearchSelect
+            label="Client (optional)"
+            options={clients}
+            value={editClient}
+            onChange={setEditClient}
+            placeholder="Search clients…"
+          />
+          <SearchSelect
+            label="Instructor (optional)"
+            options={instructors}
+            value={editInstructor}
+            onChange={setEditInstructor}
+            placeholder="Search instructors…"
+          />
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
             <textarea
@@ -227,7 +260,7 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, isOverdue, delegates }) {
+function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors }) {
   const accentClass = accent === 'red' ? 'border-red-400 text-red-700' : 'border-blue-400 text-blue-700'
   return (
     <section>
@@ -250,6 +283,8 @@ function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, 
               onDelete={onDelete}
               onUpdated={onUpdated}
               delegates={delegates}
+              clients={clients}
+              instructors={instructors}
             />
           ))}
         </div>
@@ -262,10 +297,12 @@ function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, 
 
 export default function RemindersPage() {
   const { refresh: refreshBadge } = useRemindersContext()
-  const [overdue,   setOverdue]   = useState([])
-  const [upcoming,  setUpcoming]  = useState([])
-  const [delegates, setDelegates] = useState([])
-  const [loading,   setLoading]   = useState(true)
+  const [overdue,     setOverdue]     = useState([])
+  const [upcoming,    setUpcoming]    = useState([])
+  const [delegates,   setDelegates]   = useState([])
+  const [clients,     setClients]     = useState([])
+  const [instructors, setInstructors] = useState([])
+  const [loading,     setLoading]     = useState(true)
   const [showAdd,        setShowAdd]        = useState(false)
   const [showFirstClass, setShowFirstClass] = useState(false)
 
@@ -277,8 +314,12 @@ export default function RemindersPage() {
   }
 
   useEffect(() => {
-    Promise.all([load(), api.getDelegates().then(setDelegates)])
-      .finally(() => setLoading(false))
+    Promise.all([
+      load(),
+      api.getDelegates().then(setDelegates),
+      api.getClients().then(setClients),
+      api.getInstructors().then(setInstructors),
+    ]).finally(() => setLoading(false))
   }, [])
 
   async function handleDone(id) {
@@ -334,6 +375,8 @@ export default function RemindersPage() {
         onDelete={handleDelete}
         onUpdated={handleUpdated}
         delegates={delegates}
+        clients={clients}
+        instructors={instructors}
       />
       <Section
         title="Upcoming"
@@ -345,6 +388,8 @@ export default function RemindersPage() {
         onDelete={handleDelete}
         onUpdated={handleUpdated}
         delegates={delegates}
+        clients={clients}
+        instructors={instructors}
       />
 
       {showAdd && (

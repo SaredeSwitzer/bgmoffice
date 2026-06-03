@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { useRemindersContext } from '../context/RemindersContext'
+import SearchSelect from './SearchSelect'
 
 export default function AddReminderModal({
   onClose,
@@ -9,7 +10,11 @@ export default function AddReminderModal({
   defaultDelegate = '',
 }) {
   const { refresh } = useRemindersContext()
-  const [delegates, setDelegates] = useState([])
+  const [clients,     setClients]     = useState([])
+  const [instructors, setInstructors] = useState([])
+  const [delegates,   setDelegates]   = useState([])
+  const [client,      setClient]      = useState(null)
+  const [instructor,  setInstructor]  = useState(null)
   const [form, setForm] = useState({
     title:         defaultTitle,
     notes:         '',
@@ -20,8 +25,17 @@ export default function AddReminderModal({
   const [error,  setError]  = useState('')
 
   useEffect(() => {
-    api.getDelegates().then(setDelegates).catch(() => {})
-  }, [])
+    Promise.all([api.getClients(), api.getInstructors(), api.getDelegates()])
+      .then(([c, i, d]) => {
+        setClients(c)
+        setInstructors(i)
+        setDelegates(d)
+        // Pre-select if IDs were passed in as props
+        if (clientId)     setClient(c.find(x => x.id === Number(clientId)) || null)
+        if (instructorId) setInstructor(i.find(x => x.id === Number(instructorId)) || null)
+      })
+      .catch(() => {})
+  }, [clientId, instructorId])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -34,8 +48,8 @@ export default function AddReminderModal({
         notes:          form.notes.trim() || null,
         remind_on:      form.remind_on,
         delegate_name:  form.delegate_name || null,
-        client_id:      clientId      || null,
-        instructor_id:  instructorId  || null,
+        client_id:      client?.id        || clientId     || null,
+        instructor_id:  instructor?.id    || instructorId || null,
         case_id:        caseId        || null,
         action_item_id: actionItemId  || null,
       })
@@ -49,7 +63,7 @@ export default function AddReminderModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-gray-900">Add Reminder</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">✕</button>
@@ -79,6 +93,24 @@ export default function AddReminderModal({
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
+
+          {/* Client (optional) */}
+          <SearchSelect
+            label="Client (optional)"
+            options={clients}
+            value={client}
+            onChange={setClient}
+            placeholder="Search clients…"
+          />
+
+          {/* Instructor (optional) */}
+          <SearchSelect
+            label="Instructor (optional)"
+            options={instructors}
+            value={instructor}
+            onChange={setInstructor}
+            placeholder="Search instructors…"
+          />
 
           {/* Delegate */}
           <div>
