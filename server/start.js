@@ -3,6 +3,19 @@
 // 2. If the DB is brand new (no users), seeds essential config data
 // 3. Then starts the Express server
 
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+  process.exit(1);
+});
+
+console.log('DB_PATH env:', process.env.DB_PATH || '(not set, using default)');
+console.log('Working directory:', process.cwd());
+console.log('__dirname:', __dirname);
+
 const db = require('./db');           // migrations run here
 const bcrypt = require('bcryptjs');
 
