@@ -72,6 +72,8 @@ export const api = {
   deleteActionItem: (id) => request(`/action-items/${id}`, { method: 'DELETE' }),
   addNote: (actionItemId, data) =>
     request(`/action-items/${actionItemId}/notes`, { method: 'POST', body: JSON.stringify(data) }),
+  updateNote: (actionItemId, noteId, data) =>
+    request(`/action-items/${actionItemId}/notes/${noteId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteNote: (actionItemId, noteId) =>
     request(`/action-items/${actionItemId}/notes/${noteId}`, { method: 'DELETE' }),
 
@@ -79,6 +81,8 @@ export const api = {
   getReminders: () => request('/reminders'),
   createReminder: (data) =>
     request('/reminders', { method: 'POST', body: JSON.stringify(data) }),
+  updateReminder: (id, data) =>
+    request(`/reminders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   markReminderDone: (id) =>
     request(`/reminders/${id}/done`, { method: 'PATCH' }),
   deleteReminder: (id) =>

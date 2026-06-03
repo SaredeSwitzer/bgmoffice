@@ -41,7 +41,7 @@ router.put('/:id', (req, res) => {
   if (!item) return res.status(404).json({ error: 'Action item not found' });
   const { action_type_id, delegate_id, initial_note } = req.body;
   db.prepare(
-    'UPDATE action_items SET action_type_id=?, delegate_id=?, initial_note=? WHERE id=?'
+    `UPDATE action_items SET action_type_id=?, delegate_id=?, initial_note=?, updated_at=datetime('now') WHERE id=?`
   ).run(action_type_id, delegate_id || null, initial_note || null, req.params.id);
   res.json(getItem(req.params.id));
 });
@@ -73,6 +73,22 @@ router.delete('/:id', (req, res) => {
   const result = db.prepare('DELETE FROM action_items WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Action item not found' });
   res.json({ success: true });
+});
+
+// Edit a follow-up note (own note or admin)
+router.put('/:id/notes/:noteId', (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'text required' });
+  const note = db.prepare(
+    'SELECT * FROM follow_up_notes WHERE id = ? AND action_item_id = ?'
+  ).get(req.params.noteId, req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  if (note.author_initials !== req.user.initials && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Not authorized' });
+  db.prepare(
+    `UPDATE follow_up_notes SET text=?, updated_at=datetime('now') WHERE id=?`
+  ).run(text.trim(), req.params.noteId);
+  res.json(db.prepare('SELECT * FROM follow_up_notes WHERE id = ?').get(req.params.noteId));
 });
 
 // Add follow-up note

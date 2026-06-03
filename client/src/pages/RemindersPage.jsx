@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import { useRemindersContext } from '../context/RemindersContext'
 import AddReminderModal from '../components/AddReminderModal'
 
@@ -10,13 +11,118 @@ function fmtDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function ReminderRow({ reminder, onDone, onDelete, isOverdue }) {
+function fmtShort(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// ── Reminder row with inline edit ─────────────────────────────────────────────
+
+function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegates }) {
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
+  const [form, setForm] = useState({
+    title:         reminder.title,
+    notes:         reminder.notes || '',
+    remind_on:     reminder.remind_on,
+    delegate_name: reminder.delegate_name || '',
+  })
+
+  const canEdit = user?.role === 'admin' || user?.initials === reminder.created_by
+  const wasEdited = reminder.updated_at
 
   async function handleDone() {
     setLoading(true)
     await onDone(reminder.id)
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+    if (!form.title.trim() || !form.remind_on) return
+    setError('')
+    setSaving(true)
+    try {
+      const updated = await api.updateReminder(reminder.id, {
+        title:         form.title.trim(),
+        notes:         form.notes.trim() || null,
+        remind_on:     form.remind_on,
+        delegate_name: form.delegate_name || null,
+      })
+      onUpdated(updated)
+      setEditing(false)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className={`px-4 py-3 rounded-xl border ${isOverdue ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
+        <form onSubmit={handleSave} className="space-y-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
+            <input
+              required
+              value={form.title}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Date *</label>
+              <input
+                required
+                type="date"
+                value={form.remind_on}
+                onChange={e => setForm(f => ({ ...f, remind_on: e.target.value }))}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Delegated to</label>
+              <select
+                value={form.delegate_name}
+                onChange={e => setForm(f => ({ ...f, delegate_name: e.target.value }))}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
+              >
+                <option value="">Anyone</option>
+                {delegates.map(d => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              rows={3}
+              placeholder="Optional details…"
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-gray-300"
+            />
+          </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving || !form.title.trim() || !form.remind_on}
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" onClick={() => { setEditing(false); setError('') }}
+              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    )
   }
 
   return (
@@ -30,6 +136,9 @@ function ReminderRow({ reminder, onDone, onDelete, isOverdue }) {
           </span>
           {isOverdue && (
             <span className="text-xs font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">Overdue</span>
+          )}
+          {wasEdited && (
+            <span className="text-xs text-gray-400 italic">· edited {fmtShort(reminder.updated_at)}</span>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
@@ -62,10 +171,19 @@ function ReminderRow({ reminder, onDone, onDelete, isOverdue }) {
           )}
         </div>
         {reminder.notes && (
-          <p className="text-xs text-gray-500 mt-1 italic">{reminder.notes}</p>
+          <p className="text-xs text-gray-500 mt-1.5 italic whitespace-pre-wrap leading-relaxed">{reminder.notes}</p>
         )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
+        {canEdit && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs text-gray-400 hover:text-gray-700"
+            title="Edit reminder"
+          >
+            Edit
+          </button>
+        )}
         <button
           onClick={handleDone}
           disabled={loading}
@@ -88,7 +206,9 @@ function ReminderRow({ reminder, onDone, onDelete, isOverdue }) {
   )
 }
 
-function Section({ title, accent, items, emptyMsg, onDone, onDelete, isOverdue }) {
+// ── Section ───────────────────────────────────────────────────────────────────
+
+function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, isOverdue, delegates }) {
   const accentClass = accent === 'red' ? 'border-red-400 text-red-700' : 'border-blue-400 text-blue-700'
   return (
     <section>
@@ -103,7 +223,15 @@ function Section({ title, accent, items, emptyMsg, onDone, onDelete, isOverdue }
       ) : (
         <div className="space-y-2">
           {items.map(r => (
-            <ReminderRow key={r.id} reminder={r} isOverdue={isOverdue} onDone={onDone} onDelete={onDelete} />
+            <ReminderRow
+              key={r.id}
+              reminder={r}
+              isOverdue={isOverdue}
+              onDone={onDone}
+              onDelete={onDelete}
+              onUpdated={onUpdated}
+              delegates={delegates}
+            />
           ))}
         </div>
       )}
@@ -111,12 +239,15 @@ function Section({ title, accent, items, emptyMsg, onDone, onDelete, isOverdue }
   )
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function RemindersPage() {
   const { refresh: refreshBadge } = useRemindersContext()
-  const [overdue, setOverdue] = useState([])
-  const [upcoming, setUpcoming] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showAdd, setShowAdd] = useState(false)
+  const [overdue,   setOverdue]   = useState([])
+  const [upcoming,  setUpcoming]  = useState([])
+  const [delegates, setDelegates] = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [showAdd,   setShowAdd]   = useState(false)
 
   function load() {
     return api.getReminders().then(({ overdue: o, upcoming: u }) => {
@@ -125,7 +256,10 @@ export default function RemindersPage() {
     })
   }
 
-  useEffect(() => { load().finally(() => setLoading(false)) }, [])
+  useEffect(() => {
+    Promise.all([load(), api.getDelegates().then(setDelegates)])
+      .finally(() => setLoading(false))
+  }, [])
 
   async function handleDone(id) {
     await api.markReminderDone(id)
@@ -138,6 +272,12 @@ export default function RemindersPage() {
     await api.deleteReminder(id)
     await load()
     refreshBadge()
+  }
+
+  function handleUpdated(updated) {
+    const patch = list => list.map(r => r.id === updated.id ? { ...r, ...updated } : r)
+    setOverdue(patch)
+    setUpcoming(patch)
   }
 
   if (loading) return (
@@ -164,6 +304,8 @@ export default function RemindersPage() {
         isOverdue
         onDone={handleDone}
         onDelete={handleDelete}
+        onUpdated={handleUpdated}
+        delegates={delegates}
       />
       <Section
         title="Upcoming"
@@ -173,6 +315,8 @@ export default function RemindersPage() {
         isOverdue={false}
         onDone={handleDone}
         onDelete={handleDelete}
+        onUpdated={handleUpdated}
+        delegates={delegates}
       />
 
       {showAdd && (

@@ -66,6 +66,26 @@ router.post('/', (req, res) => {
   );
 });
 
+// ── PUT /:id — edit title, notes, date, delegate ─────────────────────────────
+router.put('/:id', (req, res) => {
+  const reminder = db.prepare('SELECT * FROM reminders WHERE id = ?').get(req.params.id);
+  if (!reminder) return res.status(404).json({ error: 'Not found' });
+  if (reminder.created_by !== req.user.initials && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Not authorized' });
+
+  const { title, notes, remind_on, delegate_name } = req.body;
+  if (!title?.trim() || !remind_on)
+    return res.status(400).json({ error: 'title and remind_on required' });
+
+  db.prepare(`
+    UPDATE reminders
+    SET title=?, notes=?, remind_on=?, delegate_name=?, updated_at=datetime('now')
+    WHERE id=?
+  `).run(title.trim(), notes || null, remind_on, delegate_name || null, req.params.id);
+
+  res.json(db.prepare('SELECT * FROM reminders WHERE id = ?').get(req.params.id));
+});
+
 // ── PATCH /:id/done ───────────────────────────────────────────────────────────
 router.patch('/:id/done', (req, res) => {
   db.prepare(`UPDATE reminders SET status = 'done' WHERE id = ?`).run(req.params.id);

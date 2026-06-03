@@ -54,9 +54,12 @@ db.exec(`
 
 // Idempotent column additions for existing DBs that predate these columns
 for (const sql of [
-  `ALTER TABLE reminders    ADD COLUMN action_item_id INTEGER REFERENCES action_items(id) ON DELETE SET NULL`,
-  `ALTER TABLE reminders    ADD COLUMN delegate_name  TEXT`,
-  `ALTER TABLE action_items ADD COLUMN starred        INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE reminders         ADD COLUMN action_item_id INTEGER REFERENCES action_items(id) ON DELETE SET NULL`,
+  `ALTER TABLE reminders         ADD COLUMN delegate_name  TEXT`,
+  `ALTER TABLE action_items      ADD COLUMN starred        INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE follow_up_notes   ADD COLUMN updated_at     TEXT`,
+  `ALTER TABLE reminders         ADD COLUMN updated_at     TEXT`,
+  `ALTER TABLE action_items      ADD COLUMN updated_at     TEXT`,
 ]) {
   try { db.exec(sql) } catch (_) { /* column already exists — safe to ignore */ }
 }

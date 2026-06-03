@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -30,28 +30,131 @@ function DelegateBadge({ name }) {
   )
 }
 
-// ── Follow-up thread (WhatsApp style) ─────────────────────────────────────────
+// ── Auto-expanding textarea ───────────────────────────────────────────────────
 
-function NoteThread({ notes }) {
+function AutoTextarea({ value, onChange, placeholder, className, minRows = 2, onKeyDown }) {
+  const ref = useRef(null)
+  useLayoutEffect(() => {
+    if (!ref.current) return
+    ref.current.style.height = 'auto'
+    ref.current.style.height = `${ref.current.scrollHeight}px`
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      rows={minRows}
+      className={`resize-none overflow-hidden ${className}`}
+    />
+  )
+}
+
+// ── Individual note with inline edit ─────────────────────────────────────────
+
+function NoteItem({ note, onEdited }) {
+  const { user } = useAuth()
+  const [editing, setEditing] = useState(false)
+  const [text, setText]       = useState(note.text)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
+
+  const canEdit = user?.role === 'admin' || user?.initials === note.author_initials
+  const wasEdited = note.updated_at && note.updated_at !== note.created_at
+
+  async function handleSave() {
+    if (!text.trim()) return
+    setError('')
+    setSaving(true)
+    try {
+      const updated = await api.updateNote(note.action_item_id, note.id, { text: text.trim() })
+      onEdited(updated)
+      setEditing(false)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Escape') { setText(note.text); setEditing(false) }
+  }
+
+  return (
+    <div className="flex gap-2 items-start group">
+      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+        {note.author_initials}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2">
+          {editing ? (
+            <AutoTextarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              minRows={2}
+              className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+            />
+          ) : (
+            <p className="text-sm text-gray-800 leading-snug whitespace-pre-wrap">{note.text}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 px-1">
+          <p className="text-[10px] text-gray-400">
+            {fmtShort(note.created_at)}
+            {wasEdited && <span className="ml-1 italic">· edited</span>}
+          </p>
+          {editing ? (
+            <>
+              {error && <span className="text-[10px] text-red-500">{error}</span>}
+              <button
+                onClick={handleSave}
+                disabled={saving || !text.trim()}
+                className="text-[10px] font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => { setText(note.text); setEditing(false); setError('') }}
+                className="text-[10px] text-gray-400 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            canEdit && (
+              <button
+                onClick={() => setEditing(true)}
+                className="text-[10px] text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Edit note"
+              >
+                ✏︎ edit
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Follow-up thread ──────────────────────────────────────────────────────────
+
+function NoteThread({ notes, onNoteEdited }) {
   if (!notes.length) return null
   return (
-    <div className="space-y-2 mt-3">
+    <div className="space-y-3 mt-3">
       {notes.map(n => (
-        <div key={n.id} className="flex gap-2 items-start">
-          <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
-            {n.author_initials}
-          </div>
-          <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2 max-w-lg">
-            <p className="text-sm text-gray-800 leading-snug">{n.text}</p>
-            <p className="text-[10px] text-gray-400 mt-1">{fmtShort(n.created_at)}</p>
-          </div>
-        </div>
+        <NoteItem key={n.id} note={n} onEdited={onNoteEdited} />
       ))}
     </div>
   )
 }
 
-// ── Add-note input ─────────────────────────────────────────────────────────────
+// ── Add-note input ────────────────────────────────────────────────────────────
 
 function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
   const { user } = useAuth()
@@ -60,7 +163,6 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
   const [reminderDate, setReminderDate] = useState('')
   const [reminderDelegate, setReminderDelegate] = useState('')
   const [saving, setSaving] = useState(false)
-  const ref = useRef(null)
 
   async function submit(e) {
     e.preventDefault()
@@ -87,26 +189,34 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
       setWantReminder(false)
       setReminderDate('')
       setReminderDelegate('')
-      ref.current?.focus()
     } finally {
       setSaving(false)
     }
   }
 
+  function handleKeyDown(e) {
+    // Ctrl+Enter or Cmd+Enter submits; plain Enter adds a newline
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      submit(e)
+    }
+  }
+
   return (
     <form onSubmit={submit} className="mt-3 space-y-2">
-      <div className="flex gap-2">
-        <input
-          ref={ref}
+      <div className="flex gap-2 items-end">
+        <AutoTextarea
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder="Add a follow-up note…"
-          className="flex-1 border border-gray-300 rounded-full px-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+          onKeyDown={handleKeyDown}
+          placeholder="Add a follow-up note… (Ctrl+Enter to send)"
+          minRows={1}
+          className="flex-1 border border-gray-300 rounded-2xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
         />
         <button
           type="submit"
           disabled={saving || !text.trim() || (wantReminder && !reminderDate)}
-          className="px-4 py-1.5 bg-gray-900 text-white text-sm rounded-full font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
+          className="flex-shrink-0 px-4 py-2 bg-gray-900 text-white text-sm rounded-full font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
         >
           Send
         </button>
@@ -165,7 +275,6 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
   })
   const [saving, setSaving] = useState(false)
 
-  // Build a sensible default reminder title from the action item context
   const defaultReminderTitle = [
     item.action_type_name,
     caseContext?.client_name || caseContext?.instructor_name,
@@ -196,6 +305,13 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
     setItem(prev => ({ ...prev, notes: [...prev.notes, note] }))
   }
 
+  function handleNoteEdited(updatedNote) {
+    setItem(prev => ({
+      ...prev,
+      notes: prev.notes.map(n => n.id === updatedNote.id ? updatedNote : n),
+    }))
+  }
+
   async function toggleStatus() {
     const next = item.status === 'open' ? 'resolved' : 'open'
     const updated = await api.setActionItemStatus(item.id, next)
@@ -218,19 +334,20 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
     }
   }
 
-  async function handleToggleStar() {
-    const newStarred = !item.starred
-    setItem(prev => ({ ...prev, starred: newStarred ? 1 : 0 }))
-    await api.starActionItem(item.id, newStarred)
-  }
-
   async function handleDelete() {
     if (!confirm('Delete this action item?')) return
     await api.deleteActionItem(item.id)
     onDeleted(item.id)
   }
 
+  async function handleToggleStar() {
+    const newStarred = !item.starred
+    setItem(prev => ({ ...prev, starred: newStarred ? 1 : 0 }))
+    await api.starActionItem(item.id, newStarred)
+  }
+
   const isResolved = item.status === 'resolved'
+  const wasEdited = item.updated_at && item.updated_at !== item.created_at
 
   return (
     <div className={`rounded-xl border transition-colors ${isResolved ? 'border-gray-200 bg-gray-50 opacity-70' : 'border-gray-200 bg-white shadow-sm'}`}>
@@ -239,14 +356,12 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
         className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
         onClick={() => setOpen(o => !o)}
       >
-        {/* Status toggle — stop propagation so click doesn't collapse card */}
+        {/* Status toggle */}
         <button
           onClick={e => { e.stopPropagation(); toggleStatus() }}
           title={isResolved ? 'Reopen' : 'Mark resolved'}
           className={`flex-shrink-0 w-5 h-5 rounded-full border-2 transition-colors ${
-            isResolved
-              ? 'bg-green-500 border-green-500'
-              : 'border-gray-400 hover:border-green-500'
+            isResolved ? 'bg-green-500 border-green-500' : 'border-gray-400 hover:border-green-500'
           }`}
         >
           {isResolved && (
@@ -277,7 +392,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
             <button
               onClick={e => { e.stopPropagation(); setShowReminderForm(v => !v); setReminderForm({ title: defaultReminderTitle, remind_on: '' }) }}
               className="text-xs text-gray-400 hover:text-blue-600"
-              title="Set a reminder for this action item"
+              title="Set a reminder"
             >
               🔔 Remind
             </button>
@@ -332,11 +447,12 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Initial Note</label>
-                <textarea
+                <AutoTextarea
                   value={editForm.initial_note}
                   onChange={e => setEditForm(f => ({ ...f, initial_note: e.target.value }))}
-                  rows={2}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none"
+                  minRows={3}
+                  placeholder="Describe what needs to be done…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
                 />
               </div>
               <div className="flex gap-2">
@@ -353,9 +469,14 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
           ) : (
             <>
               {item.initial_note && (
-                <p className="mt-3 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
-                  {item.initial_note}
-                </p>
+                <div className="mt-3">
+                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 whitespace-pre-wrap leading-relaxed">
+                    {item.initial_note}
+                  </p>
+                  {wasEdited && (
+                    <p className="text-[10px] text-gray-400 mt-1 px-1 italic">edited {fmtShort(item.updated_at)}</p>
+                  )}
+                </div>
               )}
 
               {/* Inline Set Reminder form */}
@@ -399,7 +520,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                 </form>
               )}
 
-              <NoteThread notes={item.notes} />
+              <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} />
               {!isResolved && (
                 <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} />
               )}
@@ -471,12 +592,12 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded }
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Initial Note</label>
-            <textarea
+            <AutoTextarea
               value={form.initial_note}
               onChange={e => setForm(f => ({ ...f, initial_note: e.target.value }))}
-              rows={3}
+              minRows={3}
               placeholder="Describe what needs to be done…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
             />
           </div>
           <div className="flex gap-3 pt-1">
@@ -606,7 +727,6 @@ export default function CaseDetailPage() {
             )}
           </div>
 
-          {/* Resolve / Reopen */}
           <div className="flex-shrink-0 self-start sm:self-auto">
             {isResolved ? (
               <button
