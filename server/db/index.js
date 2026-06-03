@@ -2,9 +2,10 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-// In production (Railway), volume is mounted at /app/server/data so the DB lives there.
-// Locally it falls back to a data/ folder next to db/.
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'bgmoffice.db');
+// In production (Railway), DB_PATH env var points to the persistent volume:
+//   /app/server/data/bgmoffice.db
+// Locally it falls back to the db/ folder where the dev database lives.
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'bgmoffice.db');
 
 // Make sure the directory exists (Railway volume is mounted at /data but the
 // folder itself may not exist on first boot)

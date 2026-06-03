@@ -108,12 +108,14 @@ function SectionEditor({ initial, onSave, onCancel, saving }) {
 // ── Individual section card ────────────────────────────────────────────────────
 
 function SectionCard({ section, isAdmin, onUpdated, onDeleted }) {
-  const [open, setOpen]       = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [saving, setSaving]   = useState(false)
-  const [preview, setPreview] = useState(true)
+  const [open, setOpen]         = useState(true)
+  const [editing, setEditing]   = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [preview, setPreview]   = useState(true)
 
   async function handleSave(data) {
+    setSaveError('')
     setSaving(true)
     try {
       const updated = await api.updateReferenceSection(section.id, {
@@ -122,6 +124,8 @@ function SectionCard({ section, isAdmin, onUpdated, onDeleted }) {
       })
       onUpdated(updated)
       setEditing(false)
+    } catch (e) {
+      setSaveError(e.message || 'Failed to save. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -200,10 +204,13 @@ function SectionCard({ section, isAdmin, onUpdated, onDeleted }) {
                   Preview
                 </button>
               </div>
+              {saveError && (
+                <p className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{saveError}</p>
+              )}
               <SectionEditor
                 initial={section}
                 onSave={handleSave}
-                onCancel={() => setEditing(false)}
+                onCancel={() => { setEditing(false); setSaveError('') }}
                 saving={saving}
               />
             </div>
@@ -231,12 +238,13 @@ export default function ReferencePage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
 
-  const [sections, setSections] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState('')
-  const [adding, setAdding]     = useState(false)
-  const [saving, setSaving]     = useState(false)
-  const [search, setSearch]     = useState('')
+  const [sections, setSections]   = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState('')
+  const [addError, setAddError]   = useState('')
+  const [adding, setAdding]       = useState(false)
+  const [saving, setSaving]       = useState(false)
+  const [search, setSearch]       = useState('')
 
   useEffect(() => {
     api.getReference()
@@ -246,11 +254,14 @@ export default function ReferencePage() {
   }, [])
 
   async function handleAdd(data) {
+    setAddError('')
     setSaving(true)
     try {
       const created = await api.createReferenceSection(data)
       setSections(prev => [...prev, created])
       setAdding(false)
+    } catch (e) {
+      setAddError(e.message || 'Failed to save section. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -318,9 +329,12 @@ export default function ReferencePage() {
       {adding && (
         <div className="bg-white rounded-xl border border-gray-300 shadow-sm px-5 py-5">
           <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-4">New Section</h2>
+          {addError && (
+            <p className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addError}</p>
+          )}
           <SectionEditor
             onSave={handleAdd}
-            onCancel={() => setAdding(false)}
+            onCancel={() => { setAdding(false); setAddError('') }}
             saving={saving}
           />
         </div>
