@@ -200,14 +200,15 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
 
 // ── Individual note with inline edit ─────────────────────────────────────────
 
-function NoteItem({ note, onEdited }) {
+function NoteItem({ note, onEdited, onDeleted }) {
   const { user } = useAuth()
-  const [editing, setEditing] = useState(false)
-  const [text, setText]       = useState(note.text)
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState('')
+  const [editing,  setEditing]  = useState(false)
+  const [text,     setText]     = useState(note.text)
+  const [saving,   setSaving]   = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error,    setError]    = useState('')
 
-  const canEdit = user?.role === 'admin' || user?.initials === note.author_initials
+  const canEdit   = user?.role === 'admin' || user?.initials === note.author_initials
   const wasEdited = note.updated_at && note.updated_at !== note.created_at
 
   async function handleSave() {
@@ -222,6 +223,17 @@ function NoteItem({ note, onEdited }) {
       setError(e.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm('Delete this note?')) return
+    setDeleting(true)
+    try {
+      await api.deleteNote(note.action_item_id, note.id)
+      onDeleted(note.id)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -272,13 +284,24 @@ function NoteItem({ note, onEdited }) {
             </>
           ) : (
             canEdit && (
-              <button
-                onClick={() => setEditing(true)}
-                className="text-[10px] text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Edit note"
-              >
-                ✏︎ edit
-              </button>
+              <span className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-[10px] text-gray-300 hover:text-gray-600"
+                  title="Edit note"
+                >
+                  ✏︎ edit
+                </button>
+                <span className="text-gray-200">·</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="text-[10px] text-gray-300 hover:text-red-500 disabled:opacity-50"
+                  title="Delete note"
+                >
+                  {deleting ? '…' : '🗑 delete'}
+                </button>
+              </span>
             )
           )}
         </div>
@@ -289,12 +312,12 @@ function NoteItem({ note, onEdited }) {
 
 // ── Follow-up thread ──────────────────────────────────────────────────────────
 
-function NoteThread({ notes, onNoteEdited }) {
+function NoteThread({ notes, onNoteEdited, onNoteDeleted }) {
   if (!notes.length) return null
   return (
     <div className="space-y-3 mt-3">
       {notes.map(n => (
-        <NoteItem key={n.id} note={n} onEdited={onNoteEdited} />
+        <NoteItem key={n.id} note={n} onEdited={onNoteEdited} onDeleted={onNoteDeleted} />
       ))}
     </div>
   )
@@ -499,6 +522,10 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
     }))
   }
 
+  function handleNoteDeleted(noteId) {
+    setItem(prev => ({ ...prev, notes: prev.notes.filter(n => n.id !== noteId) }))
+  }
+
   async function toggleStatus() {
     const next = item.status === 'open' ? 'resolved' : 'open'
     const updated = await api.setActionItemStatus(item.id, next)
@@ -686,7 +713,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
           ) : (
             <>
               <p className="text-[10px] text-gray-400 mt-2">
-                Created {fmt(item.created_at)}{item.created_by ? ` — ${item.created_by}` : ''}
+                Created by {item.created_by || '—'} — {fmt(item.created_at)}
               </p>
               {item.initial_note && (
                 <div className="mt-2">
@@ -752,7 +779,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                 </div>
               )}
 
-              <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} />
+              <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} onNoteDeleted={handleNoteDeleted} />
               {!isResolved && (
                 <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} />
               )}
