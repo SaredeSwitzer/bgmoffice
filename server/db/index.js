@@ -82,6 +82,7 @@ for (const sql of [
   `ALTER TABLE follow_up_notes   ADD COLUMN updated_at     TEXT`,
   `ALTER TABLE reminders         ADD COLUMN updated_at     TEXT`,
   `ALTER TABLE action_items      ADD COLUMN updated_at     TEXT`,
+  `ALTER TABLE client_instructor_prefs ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))`,
 ]) {
   try { db.exec(sql) } catch (_) { /* column already exists — safe to ignore */ }
 }

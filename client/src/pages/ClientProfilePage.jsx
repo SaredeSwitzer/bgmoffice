@@ -5,6 +5,14 @@ import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
 
+function fmt(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${date} ${time}`
+}
+
 function PrefCard({ pref, onDelete }) {
   const isLiked = pref.preference === 'liked'
   return (
@@ -18,7 +26,12 @@ function PrefCard({ pref, onDelete }) {
           </span>
           <span className="text-sm font-semibold text-gray-900">{pref.instructor_name}</span>
         </div>
-        {pref.reason && <p className="text-xs text-gray-600 italic">"{pref.reason}"</p>}
+        {pref.reason && (
+          <p className="text-xs text-gray-600 italic whitespace-pre-wrap">"{pref.reason}"</p>
+        )}
+        {pref.created_at && (
+          <p className="text-[10px] text-gray-400 mt-0.5">{fmt(pref.created_at)}</p>
+        )}
       </div>
       <button onClick={() => onDelete(pref.id)} className="text-xs text-gray-400 hover:text-red-600 flex-shrink-0">
         ✕
@@ -77,8 +90,13 @@ function AddPrefForm({ clientId, instructors, onAdded }) {
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">Reason (optional)</label>
-          <input value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="e.g. Too intense, felt rushed" />
+          <textarea
+            value={form.reason}
+            onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
+            rows={3}
+            placeholder="e.g. Too intense, felt rushed…"
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-y"
+          />
         </div>
       </div>
       <div className="flex gap-2">

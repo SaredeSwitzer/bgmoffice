@@ -28,10 +28,10 @@ function StarButton({ starred, onToggle, size = 'sm' }) {
       onClick={e => { e.stopPropagation(); onToggle() }}
       title={starred ? 'Unstar' : 'Star this item'}
       className={`transition-colors ${sz} leading-none ${
-        starred ? 'text-yellow-400 hover:text-yellow-500' : 'text-gray-200 hover:text-yellow-300'
+        starred ? 'text-yellow-400 hover:text-yellow-500' : 'text-gray-300 hover:text-yellow-300'
       }`}
     >
-      ★
+      {starred ? '★' : '☆'}
     </button>
   )
 }

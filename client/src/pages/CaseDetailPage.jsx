@@ -9,16 +9,17 @@ import ActionTypeBadge from '../components/ActionTypeBadge'
 function fmt(iso) {
   if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
-  })
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${date} ${time}`
 }
 
 function fmtShort(iso) {
   if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${date} ${time}`
 }
 
 function DelegateBadge({ name }) {
@@ -104,7 +105,7 @@ function NoteItem({ note, onEdited }) {
         </div>
         <div className="flex items-center gap-2 mt-0.5 px-1">
           <p className="text-[10px] text-gray-400">
-            {fmtShort(note.created_at)}
+            {fmt(note.created_at)} — {note.author_initials}
             {wasEdited && <span className="ml-1 italic">· edited</span>}
           </p>
           {editing ? (
@@ -386,9 +387,9 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
           <button
             onClick={e => { e.stopPropagation(); handleToggleStar() }}
             title={item.starred ? 'Unstar' : 'Star this item'}
-            className={`text-lg leading-none transition-colors ${item.starred ? 'text-yellow-400 hover:text-yellow-500' : 'text-gray-200 hover:text-yellow-300'}`}
+            className={`text-lg leading-none transition-colors ${item.starred ? 'text-yellow-400 hover:text-yellow-500' : 'text-gray-300 hover:text-yellow-300'}`}
           >
-            ★
+            {item.starred ? '★' : '☆'}
           </button>
           {!isResolved && (
             <button
@@ -484,13 +485,14 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
             </form>
           ) : (
             <>
+              <p className="text-[10px] text-gray-400 mt-2">Created {fmt(item.created_at)}</p>
               {item.initial_note && (
-                <div className="mt-3">
+                <div className="mt-2">
                   <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 whitespace-pre-wrap leading-relaxed">
                     {item.initial_note}
                   </p>
                   {wasEdited && (
-                    <p className="text-[10px] text-gray-400 mt-1 px-1 italic">edited {fmtShort(item.updated_at)}</p>
+                    <p className="text-[10px] text-gray-400 mt-1 px-1 italic">edited {fmt(item.updated_at)}</p>
                   )}
                 </div>
               )}

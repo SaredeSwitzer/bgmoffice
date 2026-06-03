@@ -11,9 +11,17 @@ function fmtDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function fmt(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${date} ${time}`
+}
+
 function fmtShort(iso) {
   if (!iso) return ''
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return fmt(iso)
 }
 
 // ── Reminder row with inline edit ─────────────────────────────────────────────
@@ -172,6 +180,9 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
         </div>
         {reminder.notes && (
           <p className="text-xs text-gray-500 mt-1.5 italic whitespace-pre-wrap leading-relaxed">{reminder.notes}</p>
+        )}
+        {reminder.created_at && (
+          <p className="text-[10px] text-gray-400 mt-1">Added {fmt(reminder.created_at)}</p>
         )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">

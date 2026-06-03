@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS client_instructor_prefs (
   client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   instructor_id INTEGER NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
   preference TEXT NOT NULL CHECK(preference IN ('liked','disliked')),
-  reason TEXT
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS action_types (
