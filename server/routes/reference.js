@@ -13,9 +13,8 @@ router.get('/', (req, res) => {
   res.json(sections);
 });
 
-// POST new section (admin only)
+// POST new section (any authenticated user)
 router.post('/', (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const { title, content, display_order } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'title required' });
 

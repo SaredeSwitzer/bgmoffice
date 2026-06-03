@@ -286,7 +286,7 @@ export default function ReferencePage() {
           <h1 className="text-2xl font-bold text-gray-900">Reference</h1>
           <p className="text-sm text-gray-500 mt-0.5">Internal handbook — policies, pricing, and guidelines.</p>
         </div>
-        {isAdmin && !adding && (
+        {!adding && (
           <button
             onClick={() => setAdding(true)}
             className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors self-start sm:self-auto"
@@ -335,9 +335,7 @@ export default function ReferencePage() {
             <div className="space-y-2">
               <p className="text-4xl">📖</p>
               <p className="text-gray-500 font-medium">No reference sections yet.</p>
-              {isAdmin && (
-                <p className="text-sm text-gray-400">Click "Add Section" to create your team's first handbook entry.</p>
-              )}
+              <p className="text-sm text-gray-400">Click "Add Section" to create your team's first handbook entry.</p>
             </div>
           )}
         </div>

@@ -134,15 +134,11 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
     blue:  'border-blue-400 text-blue-700',
   }
 
-  const [delegateFilter,   setDelegateFilter]   = useState(() => myDelegateName || FILTER_ALL)
+  const [delegateFilter,   setDelegateFilter]   = useState(FILTER_ALL)
   const [actionTypeFilter, setActionTypeFilter] = useState(FILTER_ALL)
   const [ageFilter,        setAgeFilter]        = useState(FILTER_ALL)
   const [sortCol,          setSortCol]          = useState(null)
   const [sortDir,          setSortDir]          = useState('asc')
-
-  useEffect(() => {
-    if (myDelegateName) setDelegateFilter(myDelegateName)
-  }, [myDelegateName])
 
   // Unique action types present in this section
   const availableActionTypes = useMemo(() =>
@@ -208,12 +204,12 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
     ...delegates.map(d => ({ key: d.name, label: d.name })),
   ]
 
-  const hasFilters = delegateFilter !== (myDelegateName || FILTER_ALL)
+  const hasFilters = delegateFilter !== FILTER_ALL
     || actionTypeFilter !== FILTER_ALL
     || ageFilter !== FILTER_ALL
 
   function resetFilters() {
-    setDelegateFilter(myDelegateName || FILTER_ALL)
+    setDelegateFilter(FILTER_ALL)
     setActionTypeFilter(FILTER_ALL)
     setAgeFilter(FILTER_ALL)
   }
