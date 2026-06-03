@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node start.js",
+    "migrate": "node -e \"console.log('migrations handled at startup')\"",
     "build": "npm rebuild better-sqlite3 --build-from-source",
     "dev": "node --watch index.js",
     "seed": "node db/seed.js"
