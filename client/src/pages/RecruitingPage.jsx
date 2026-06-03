@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import SearchSelect from '../components/SearchSelect'
+import PhoneLink from '../components/PhoneLink'
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
@@ -454,7 +455,10 @@ function EntryCard({ entry, columns, clients, onUpdated, onDeleted }) {
                   return (
                     <div key={col.id} className={col.field_key === 'address' ? 'col-span-2' : ''}>
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{col.name}</p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{val || <span className="text-gray-300">—</span>}</p>
+                      {col.field_key === 'phone' && val
+                        ? <PhoneLink phone={val} />
+                        : <p className="text-sm text-gray-800 whitespace-pre-wrap">{val || <span className="text-gray-300">—</span>}</p>
+                      }
                     </div>
                   )
                 })}

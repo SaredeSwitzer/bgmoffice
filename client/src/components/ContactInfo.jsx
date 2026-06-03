@@ -1,3 +1,5 @@
+import PhoneLink from './PhoneLink'
+
 const CONTACT_LABELS = { text: 'Text', email: 'Email', whatsapp: 'WhatsApp', call: 'Call' }
 const CONTACT_COLORS = {
   text:     'bg-sky-100 text-sky-700',
@@ -12,7 +14,7 @@ export default function ContactInfo({ phone, email, preferred_contact }) {
       {phone && (
         <div>
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Phone</p>
-          <a href={`tel:${phone}`} className="text-gray-800 hover:text-blue-600">{phone}</a>
+          <PhoneLink phone={phone} />
         </div>
       )}
       {email && (
