@@ -2,10 +2,16 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-// In production (Railway), DB_PATH env var points to the persistent volume:
-//   /app/server/data/bgmoffice.db
-// Locally it falls back to the db/ folder where the dev database lives.
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'bgmoffice.db');
+// DB path resolution:
+//   1. DB_PATH env var — explicit override, highest priority
+//   2. Railway auto-detected — uses the persistent volume path
+//      Railway always sets RAILWAY_ENVIRONMENT; volume must be mounted at /app/server/data
+//   3. Local fallback — db/bgmoffice.db next to this file
+const DB_PATH = process.env.DB_PATH
+  || (process.env.RAILWAY_ENVIRONMENT ? '/app/server/data/bgmoffice.db' : null)
+  || path.join(__dirname, 'bgmoffice.db');
+
+console.log(`[db] Using database at: ${DB_PATH}`);
 
 // Make sure the directory exists (Railway volume is mounted at /data but the
 // folder itself may not exist on first boot)

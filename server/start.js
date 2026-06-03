@@ -12,9 +12,9 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
-console.log('DB_PATH env:', process.env.DB_PATH || '(not set, using default)');
+console.log('DB_PATH env:', process.env.DB_PATH || '(not set)');
+console.log('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT || '(not set — local dev)');
 console.log('Working directory:', process.cwd());
-console.log('__dirname:', __dirname);
 
 const db = require('./db');           // migrations run here
 const bcrypt = require('bcryptjs');
@@ -70,6 +70,17 @@ if (userCount === 0) {
   console.log('Seeding complete.');
 } else {
   console.log(`Database ready (${userCount} users found).`);
+}
+
+// ── Emergency admin password reset ───────────────────────────────────────────
+// Set RESET_ADMIN_PASSWORD=newpassword in Railway env vars, deploy once,
+// then remove the env var. Never leave it set permanently.
+if (process.env.RESET_ADMIN_PASSWORD) {
+  const newHash = bcrypt.hashSync(process.env.RESET_ADMIN_PASSWORD, 10);
+  const result = db.prepare(
+    `UPDATE users SET password_hash=? WHERE role='admin'`
+  ).run(newHash);
+  console.log(`[reset] Admin password updated for ${result.changes} account(s). Remove RESET_ADMIN_PASSWORD env var now.`);
 }
 
 // ── Start the server ──────────────────────────────────────────────────────────
