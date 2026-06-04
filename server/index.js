@@ -25,9 +25,59 @@ app.use(cors({
   credentials: true,
 }));
 
+// Stripe webhook needs raw body — register BEFORE express.json()
+app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const db = require('./db');
+  const webhookSecret =
+    db.prepare("SELECT value FROM app_settings WHERE key='stripe_webhook_secret'").get()?.value ||
+    process.env.STRIPE_WEBHOOK_SECRET;
+  const secretKey =
+    db.prepare("SELECT value FROM app_settings WHERE key='stripe_secret_key'").get()?.value ||
+    process.env.STRIPE_SECRET_KEY;
+
+  if (!secretKey) return res.status(503).json({ error: 'Stripe not configured' });
+  const stripe = require('stripe')(secretKey);
+
+  let event;
+  try {
+    if (webhookSecret) {
+      event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], webhookSecret);
+    } else {
+      event = JSON.parse(req.body.toString());
+      console.warn('[stripe webhook] No webhook secret set — skipping signature verification');
+    }
+  } catch (err) {
+    console.error('[stripe webhook] signature error:', err.message);
+    return res.status(400).json({ error: `Webhook Error: ${err.message}` });
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    const pi = event.data.object;
+    const invoiceId = pi.metadata?.invoice_id;
+    if (invoiceId) {
+      db.prepare(
+        "UPDATE invoices SET status='paid', paid_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND status != 'paid'"
+      ).run(invoiceId);
+      console.log(`[stripe webhook] Invoice ${invoiceId} marked paid`);
+    }
+  }
+
+  res.json({ received: true });
+});
+
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+// Public: Stripe publishable key (safe to expose to browser)
+app.get('/api/settings/stripe-public', (req, res) => {
+  const db = require('./db');
+  const key =
+    db.prepare("SELECT value FROM app_settings WHERE key='stripe_publishable_key'").get()?.value ||
+    process.env.STRIPE_PUBLISHABLE_KEY ||
+    '';
+  res.json({ publishable_key: key });
+});
 
 // Serve uploaded files (photos, documents)
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -43,6 +93,7 @@ app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/reminders',    require('./routes/reminders'));
 app.use('/api/reference',    require('./routes/reference'));
 app.use('/api/recruiting',   require('./routes/recruiting'));
+app.use('/api/invoices',     require('./routes/invoices'));
 app.use('/api/tasks',        require('./routes/tasks'));
 
 // Action type lookups + all-user management (any authenticated user may edit)

@@ -180,6 +180,25 @@ export const api = {
   reorderReferenceSections: (items) =>
     request('/reference/reorder', { method: 'PATCH', body: JSON.stringify({ items }) }),
 
+  // Invoices
+  getInvoices: (params = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([,v]) => v)).toString()
+    return request(`/invoices${q ? `?${q}` : ''}`)
+  },
+  getInvoice: (id) => request(`/invoices/${id}`),
+  createInvoice: (data) => request('/invoices', { method: 'POST', body: JSON.stringify(data) }),
+  updateInvoice: (id, data) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  setInvoiceStatus: (id, status) => request(`/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deleteInvoice: (id) => request(`/invoices/${id}`, { method: 'DELETE' }),
+
+  // Public invoice (no auth needed — used by payment page)
+  getPublicInvoice: (id) => fetch(`${BASE}/invoices/public/${id}`).then(r => r.json()),
+  createPaymentIntent: (id) => fetch(`${BASE}/invoices/public/${id}/pay`, { method: 'POST' }).then(r => r.json()),
+
+  // Stripe settings (admin)
+  getStripeSettings: () => request('/settings/stripe'),
+  saveStripeSettings: (data) => request('/settings/stripe', { method: 'POST', body: JSON.stringify(data) }),
+
   getSettingsUsers: () => request('/settings/users'),
   createUser: (data) =>
     request('/settings/users', { method: 'POST', body: JSON.stringify(data) }),

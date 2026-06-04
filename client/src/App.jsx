@@ -15,6 +15,9 @@ import RemindersPage from './pages/RemindersPage'
 import ReferencePage from './pages/ReferencePage'
 import RecruitingPage from './pages/RecruitingPage'
 import TasksPage from './pages/TasksPage'
+import InvoicesPage from './pages/InvoicesPage'
+import InvoiceDetailPage from './pages/InvoiceDetailPage'
+import PaymentPage from './pages/PaymentPage'
 
 export default function App() {
   return (
@@ -22,6 +25,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          {/* Public payment page — no auth */}
+          <Route path="/pay/:id" element={<PaymentPage />} />
           <Route
             element={
               <ProtectedRoute>
@@ -36,6 +41,8 @@ export default function App() {
             <Route path="reference" element={<ReferencePage />} />
             <Route path="recruiting" element={<RecruitingPage />} />
             <Route path="tasks" element={<TasksPage />} />
+            <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="invoices/:id" element={<InvoiceDetailPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="cases/:id" element={<CaseDetailPage />} />
             <Route path="clients" element={<ClientsPage />} />

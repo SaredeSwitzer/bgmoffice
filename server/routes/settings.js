@@ -111,4 +111,26 @@ router.patch('/users/:id/active', (req, res) => {
   res.json(db.prepare('SELECT id, name, initials, email, role, active FROM users WHERE id = ?').get(req.params.id));
 });
 
+// ── Stripe settings ───────────────────────────────────────────────────────────
+
+router.get('/stripe', (req, res) => {
+  const pub = db.prepare("SELECT value FROM app_settings WHERE key='stripe_publishable_key'").get()?.value || '';
+  const hasSecret = !!(
+    db.prepare("SELECT value FROM app_settings WHERE key='stripe_secret_key'").get()?.value ||
+    process.env.STRIPE_SECRET_KEY
+  );
+  res.json({ publishable_key: pub, secret_key_set: hasSecret });
+});
+
+router.post('/stripe', (req, res) => {
+  const { publishable_key, secret_key, webhook_secret } = req.body;
+  const upsert = db.prepare(
+    "INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
+  );
+  if (publishable_key !== undefined) upsert.run('stripe_publishable_key', publishable_key);
+  if (secret_key) upsert.run('stripe_secret_key', secret_key);
+  if (webhook_secret) upsert.run('stripe_webhook_secret', webhook_secret);
+  res.json({ ok: true });
+});
+
 module.exports = router;

@@ -571,12 +571,105 @@ function UsersSection() {
   )
 }
 
+// ── STRIPE SETTINGS ───────────────────────────────────────────────────────────
+
+function StripeSection() {
+  const [status, setStatus] = useState({ publishable_key: '', secret_key_set: false })
+  const [form, setForm] = useState({ publishable_key: '', secret_key: '', webhook_secret: '' })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    api.getStripeSettings().then(s => {
+      setStatus(s)
+      setForm(f => ({ ...f, publishable_key: s.publishable_key || '' }))
+    })
+  }, [])
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await api.saveStripeSettings({
+        publishable_key: form.publishable_key,
+        ...(form.secret_key ? { secret_key: form.secret_key } : {}),
+        ...(form.webhook_secret ? { webhook_secret: form.webhook_secret } : {}),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+      const updated = await api.getStripeSettings()
+      setStatus(updated)
+      setForm(f => ({ ...f, secret_key: '', webhook_secret: '' }))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
+      <SectionHeader title="Stripe Payment Settings" />
+      <p className="text-xs text-gray-400 mb-4">
+        Enter your Stripe API keys to enable online invoice payments.
+        Find these in your <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Stripe Dashboard → API Keys</a>.
+      </p>
+      <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Publishable Key <span className="text-gray-400 font-normal">(starts with pk_)</span>
+          </label>
+          <InlineInput
+            value={form.publishable_key}
+            onChange={v => setForm(f => ({ ...f, publishable_key: v }))}
+            placeholder="pk_live_…"
+            className="w-full font-mono text-xs"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Secret Key <span className="text-gray-400 font-normal">(starts with sk_ — leave blank to keep current)</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <InlineInput
+              value={form.secret_key}
+              onChange={v => setForm(f => ({ ...f, secret_key: v }))}
+              placeholder={status.secret_key_set ? '•••••••••••••••• (set)' : 'sk_live_…'}
+              className="flex-1 font-mono text-xs"
+            />
+            {status.secret_key_set && (
+              <span className="text-xs text-green-600 font-medium whitespace-nowrap">✓ Set</span>
+            )}
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Webhook Secret <span className="text-gray-400 font-normal">(starts with whsec_ — for auto-marking invoices paid)</span>
+          </label>
+          <InlineInput
+            value={form.webhook_secret}
+            onChange={v => setForm(f => ({ ...f, webhook_secret: v }))}
+            placeholder="whsec_…"
+            className="w-full font-mono text-xs"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Webhook URL: <span className="font-mono">{window.location.origin.replace('localhost:5173', 'your-railway-domain')}/api/invoices/webhook</span>
+          </p>
+        </div>
+        <button type="submit" disabled={saving}
+          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          {saving ? 'Saving…' : saved ? '✓ Saved!' : 'Save Stripe Settings'}
+        </button>
+      </form>
+    </section>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+      <StripeSection />
       <ActionTypesSection />
       <DelegatesSection />
       <UsersSection />

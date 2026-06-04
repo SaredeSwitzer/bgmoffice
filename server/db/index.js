@@ -180,6 +180,41 @@ try {
   console.error('[seed] recruiting_entries failed (non-fatal):', err.message);
 }
 
+// App-wide key/value settings (e.g. Stripe keys)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+// Invoices
+db.exec(`
+  CREATE TABLE IF NOT EXISTS invoices (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_number           TEXT    NOT NULL UNIQUE,
+    client_id                INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+    instructor_id            INTEGER REFERENCES instructors(id) ON DELETE SET NULL,
+    status                   TEXT    NOT NULL DEFAULT 'draft'
+                               CHECK(status IN ('draft','sent','paid','overdue')),
+    line_items               TEXT    NOT NULL DEFAULT '[]',
+    subtotal                 REAL    NOT NULL DEFAULT 0,
+    tax_rate                 REAL    NOT NULL DEFAULT 0,
+    tax_amount               REAL    NOT NULL DEFAULT 0,
+    total                    REAL    NOT NULL DEFAULT 0,
+    notes                    TEXT,
+    invoice_date             TEXT,
+    due_date                 TEXT,
+    stripe_payment_intent_id TEXT,
+    stripe_client_secret     TEXT,
+    paid_at                  TEXT,
+    created_by               TEXT    NOT NULL,
+    created_at               TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at               TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // Standalone tasks (not linked to client/instructor)
 db.exec(`
   CREATE TABLE IF NOT EXISTS standalone_tasks (
