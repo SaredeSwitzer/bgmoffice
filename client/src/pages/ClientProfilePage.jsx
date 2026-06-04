@@ -443,7 +443,7 @@ export default function ClientProfilePage() {
       </section>
 
       {showNewCase && (
-        <NewCaseModal clientId={Number(id)} onClose={() => setShowNewCase(false)} />
+        <NewCaseModal clientId={Number(id)} clientName={client.name} onClose={() => setShowNewCase(false)} />
       )}
     </div>
   )

@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 
-export default function NewCaseModal({ clientId, instructorId, onClose }) {
+// When clientId/instructorId are pre-supplied (opened from a profile page) we
+// lock those fields and show a read-only chip.  This avoids a race condition
+// where the async client/instructor list hasn't loaded yet, the <select> shows
+// "None" visually, and the user accidentally clears the pre-filled value.
+export default function NewCaseModal({ clientId, clientName, instructorId, instructorName, onClose }) {
   const navigate = useNavigate()
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
@@ -13,10 +17,13 @@ export default function NewCaseModal({ clientId, instructorId, onClose }) {
   })
   const [saving, setSaving] = useState(false)
 
+  // Only fetch lists for fields that are NOT pre-locked
   useEffect(() => {
-    Promise.all([api.getClients(), api.getInstructors()])
-      .then(([c, i]) => { setClients(c); setInstructors(i) })
-  }, [])
+    const fetches = []
+    if (!clientId)     fetches.push(api.getClients().then(setClients))
+    if (!instructorId) fetches.push(api.getInstructors().then(setInstructors))
+    Promise.all(fetches)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -48,28 +55,47 @@ export default function NewCaseModal({ clientId, instructorId, onClose }) {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
             />
           </div>
+
+          {/* Client — locked chip when pre-filled, dropdown otherwise */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Client</label>
-            <select
-              value={form.client_id}
-              onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="">None</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            {clientId ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+                <span className="text-gray-400 text-xs">🔒</span>
+                {clientName || `Client #${clientId}`}
+              </div>
+            ) : (
+              <select
+                value={form.client_id}
+                onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">None</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
           </div>
+
+          {/* Instructor — locked chip when pre-filled, dropdown otherwise */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Instructor</label>
-            <select
-              value={form.instructor_id}
-              onChange={e => setForm(f => ({ ...f, instructor_id: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="">None</option>
-              {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-            </select>
+            {instructorId ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+                <span className="text-gray-400 text-xs">🔒</span>
+                {instructorName || `Instructor #${instructorId}`}
+              </div>
+            ) : (
+              <select
+                value={form.instructor_id}
+                onChange={e => setForm(f => ({ ...f, instructor_id: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">None</option>
+                {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+            )}
           </div>
+
           <div className="flex gap-3 pt-1">
             <button type="submit" disabled={saving}
               className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors">

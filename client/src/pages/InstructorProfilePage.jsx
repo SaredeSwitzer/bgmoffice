@@ -419,7 +419,7 @@ export default function InstructorProfilePage() {
       </section>
 
       {showNewCase && (
-        <NewCaseModal instructorId={Number(id)} onClose={() => setShowNewCase(false)} />
+        <NewCaseModal instructorId={Number(id)} instructorName={instructor.name} onClose={() => setShowNewCase(false)} />
       )}
     </div>
   )
