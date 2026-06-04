@@ -195,6 +195,15 @@ export const api = {
   getPublicInvoice: (id) => fetch(`${BASE}/invoices/public/${id}`).then(r => r.json()),
   createPaymentIntent: (id) => fetch(`${BASE}/invoices/public/${id}/pay`, { method: 'POST' }).then(r => r.json()),
 
+  // Class packages
+  getClientPackages: (clientId) => request(`/packages/client/${clientId}`),
+  getRecentlyCompletedPackages: () => request('/packages/completed-recent'),
+  createPackage: (data) => request('/packages', { method: 'POST', body: JSON.stringify(data) }),
+  updatePackage: (id, data) => request(`/packages/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePackage: (id) => request(`/packages/${id}`, { method: 'DELETE' }),
+  logSession: (packageId, data) => request(`/packages/${packageId}/sessions`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteSession: (packageId, sessionId) => request(`/packages/${packageId}/sessions/${sessionId}`, { method: 'DELETE' }),
+
   // Stripe settings (admin)
   getStripeSettings: () => request('/settings/stripe'),
   saveStripeSettings: (data) => request('/settings/stripe', { method: 'POST', body: JSON.stringify(data) }),

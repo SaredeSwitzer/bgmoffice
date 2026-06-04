@@ -215,6 +215,34 @@ db.exec(`
   )
 `);
 
+// Class packages
+db.exec(`
+  CREATE TABLE IF NOT EXISTS client_packages (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id     INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    instructor_id INTEGER REFERENCES instructors(id) ON DELETE SET NULL,
+    total_classes INTEGER NOT NULL,
+    classes_used  INTEGER NOT NULL DEFAULT 0,
+    status        TEXT    NOT NULL DEFAULT 'active'
+                    CHECK(status IN ('active','completed','cancelled')),
+    start_date    TEXT,
+    notes         TEXT,
+    created_by    TEXT    NOT NULL,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS package_sessions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    package_id   INTEGER NOT NULL REFERENCES client_packages(id) ON DELETE CASCADE,
+    session_date TEXT    NOT NULL,
+    notes        TEXT,
+    created_by   TEXT    NOT NULL,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // Standalone tasks (not linked to client/instructor)
 db.exec(`
   CREATE TABLE IF NOT EXISTS standalone_tasks (

@@ -365,12 +365,13 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState([])
   const [showNewTask, setShowNewTask] = useState(false)
   const [taskSaving, setTaskSaving] = useState(false)
+  const [completedPackages, setCompletedPackages] = useState([])
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
-    Promise.all([api.dashboard(), api.getDelegates(), api.getTasks('open')])
-      .then(([d, dels, ts]) => { setData(d); setDelegates(dels); setTasks(ts) })
+    Promise.all([api.dashboard(), api.getDelegates(), api.getTasks('open'), api.getRecentlyCompletedPackages()])
+      .then(([d, dels, ts, pkgs]) => { setData(d); setDelegates(dels); setTasks(ts); setCompletedPackages(pkgs) })
       .catch(e => setError(e.message))
   }, [])
 
@@ -415,6 +416,38 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* Recently completed packages banner */}
+      {completedPackages.length > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl px-5 py-4">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-green-700 mb-3">
+            🎉 Packages Completed (Last 7 Days)
+            <span className="ml-2 text-xs font-semibold bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+              {completedPackages.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {completedPackages.map(pkg => (
+              <div key={pkg.id} className="flex items-center justify-between gap-3 bg-white border border-green-100 rounded-xl px-4 py-2.5">
+                <div>
+                  <span className="text-sm font-semibold text-gray-800">{pkg.client_name}</span>
+                  <span className="text-xs text-gray-500 ml-2">{pkg.total_classes}-class package</span>
+                  {pkg.instructor_name && <span className="text-xs text-gray-400 ml-2">w/ {pkg.instructor_name}</span>}
+                  {pkg.last_session && (
+                    <span className="text-xs text-gray-400 ml-2">
+                      — last session {new Date(pkg.last_session + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => navigate(`/clients/${pkg.client_id}`)}
+                    className="text-xs text-blue-600 hover:underline">View client →</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Standalone Tasks widget */}
       <div className="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
