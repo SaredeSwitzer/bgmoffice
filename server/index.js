@@ -77,6 +77,14 @@ app.put('/api/action-types/:id', requireAuth, (req, res) => {
   }
 });
 app.delete('/api/action-types/:id', requireAuth, (req, res) => {
+  const usageCount = db.prepare(
+    'SELECT COUNT(*) AS n FROM action_item_action_types WHERE action_type_id = ?'
+  ).get(req.params.id)?.n || 0;
+  if (usageCount > 0) {
+    return res.status(409).json({
+      error: `This action type is being used by ${usageCount} action item${usageCount !== 1 ? 's' : ''} and cannot be deleted.`
+    });
+  }
   const result = db.prepare('DELETE FROM action_types WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
   res.json({ success: true });

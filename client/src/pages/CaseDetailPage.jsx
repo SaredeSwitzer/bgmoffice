@@ -98,7 +98,7 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
   }
 
   async function handleDelete(id) {
-    if (!confirm('Delete this action type? It will be removed from any items that use it.')) return
+    if (!confirm('Delete this action type?')) return
     setBusy(true); setError('')
     try {
       await api.deleteActionTypeUser(id)
@@ -796,7 +796,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
 
 function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, onActionTypesUpdated }) {
   const [form, setForm] = useState({
-    action_type_ids: actionTypes[0] ? [actionTypes[0].id] : [],
+    action_type_ids: [],
     delegate_id: '',
     initial_note: '',
   })
@@ -804,7 +804,7 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, 
   const [showAtManager, setShowAtManager] = useState(false)
 
   async function handleSubmit(e) {
-    e.preventDefault()
+    if (e?.preventDefault) e.preventDefault()
     if (!form.action_type_ids.length) return
     setSaving(true)
     try {
@@ -823,9 +823,12 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, 
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h3 className="font-bold text-gray-900 mb-4">Add Action Item</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh]">
+        <div className="px-6 pt-6 pb-2 flex-shrink-0">
+          <h3 className="font-bold text-gray-900">Add Action Item</h3>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 pb-2">
+        <form onSubmit={handleSubmit} className="space-y-4 pb-2">
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-medium text-gray-600">
@@ -891,23 +894,26 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, 
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-          <div className="flex gap-3 pt-1">
-            <button
-              type="submit"
-              disabled={saving || form.action_type_ids.length === 0}
-              className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors"
-            >
-              {saving ? 'Adding…' : 'Add Action Item'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-          </div>
         </form>
+        </div>
+        {/* Sticky footer with action buttons */}
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving || form.action_type_ids.length === 0}
+            className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors"
+          >
+            {saving ? 'Adding…' : 'Add Action Item'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   )
