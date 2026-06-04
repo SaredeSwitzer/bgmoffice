@@ -6,6 +6,7 @@ import { useRemindersContext } from '../context/RemindersContext'
 import AddReminderModal from '../components/AddReminderModal'
 import FirstClassReminderModal from '../components/FirstClassReminderModal'
 import ResumingClassesModal from '../components/ResumingClassesModal'
+import InstructorCheckInModal from '../components/InstructorCheckInModal'
 import SearchSelect from '../components/SearchSelect'
 
 function fmtDate(iso) {
@@ -306,7 +307,8 @@ export default function RemindersPage() {
   const [loading,     setLoading]     = useState(true)
   const [showAdd,        setShowAdd]        = useState(false)
   const [showFirstClass, setShowFirstClass] = useState(false)
-  const [showResuming,   setShowResuming]   = useState(false)
+  const [showResuming,      setShowResuming]      = useState(false)
+  const [showInstructorCheckIn, setShowInstructorCheckIn] = useState(false)
 
   function load() {
     return api.getReminders().then(({ overdue: o, upcoming: u }) => {
@@ -365,6 +367,12 @@ export default function RemindersPage() {
             🔄 Check In: Resuming
           </button>
           <button
+            onClick={() => setShowInstructorCheckIn(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            👤 Instructor Check-In
+          </button>
+          <button
             onClick={() => setShowAdd(true)}
             className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
           >
@@ -408,6 +416,9 @@ export default function RemindersPage() {
       )}
       {showResuming && (
         <ResumingClassesModal onClose={() => { setShowResuming(false); load(); refreshBadge() }} />
+      )}
+      {showInstructorCheckIn && (
+        <InstructorCheckInModal onClose={() => { setShowInstructorCheckIn(false); load(); refreshBadge() }} />
       )}
     </div>
   )

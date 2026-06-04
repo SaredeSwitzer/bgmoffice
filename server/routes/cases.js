@@ -7,7 +7,7 @@ router.use(requireAuth);
 
 const CASE_SELECT = `
   SELECT
-    c.id, c.status, c.created_at, c.resolved_at,
+    c.id, c.title, c.status, c.created_at, c.resolved_at,
     cl.id   AS client_id,   cl.name AS client_name,
     i.id    AS instructor_id, i.name AS instructor_name
   FROM cases c
@@ -74,10 +74,10 @@ router.get('/:id', (req, res) => {
 
 // Create case
 router.post('/', (req, res) => {
-  const { client_id, instructor_id } = req.body;
+  const { client_id, instructor_id, title } = req.body;
   const result = db.prepare(
-    'INSERT INTO cases (client_id, instructor_id) VALUES (?, ?)'
-  ).run(client_id || null, instructor_id || null);
+    'INSERT INTO cases (client_id, instructor_id, title) VALUES (?, ?, ?)'
+  ).run(client_id || null, instructor_id || null, title || null);
   const row = db.prepare(CASE_SELECT + ' WHERE c.id = ?').get(result.lastInsertRowid);
   res.status(201).json(enrichCase(row));
 });
@@ -100,9 +100,9 @@ router.patch('/:id/status', (req, res) => {
 router.put('/:id', (req, res) => {
   const c = db.prepare('SELECT id FROM cases WHERE id = ?').get(req.params.id);
   if (!c) return res.status(404).json({ error: 'Case not found' });
-  const { client_id, instructor_id } = req.body;
-  db.prepare('UPDATE cases SET client_id=?, instructor_id=? WHERE id=?')
-    .run(client_id || null, instructor_id || null, req.params.id);
+  const { client_id, instructor_id, title } = req.body;
+  db.prepare('UPDATE cases SET client_id=?, instructor_id=?, title=? WHERE id=?')
+    .run(client_id || null, instructor_id || null, title || null, req.params.id);
   const row = db.prepare(CASE_SELECT + ' WHERE c.id = ?').get(req.params.id);
   res.json(enrichCase(row));
 });

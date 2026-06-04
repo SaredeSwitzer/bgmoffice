@@ -7,6 +7,7 @@ export default function NewCaseModal({ clientId, instructorId, onClose }) {
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [form, setForm] = useState({
+    title: '',
     client_id: clientId || '',
     instructor_id: instructorId || '',
   })
@@ -22,6 +23,7 @@ export default function NewCaseModal({ clientId, instructorId, onClose }) {
     setSaving(true)
     try {
       const c = await api.createCase({
+        title: form.title.trim() || null,
         client_id: form.client_id ? Number(form.client_id) : null,
         instructor_id: form.instructor_id ? Number(form.instructor_id) : null,
       })
@@ -37,6 +39,15 @@ export default function NewCaseModal({ clientId, instructorId, onClose }) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
         <h3 className="font-bold text-gray-900 mb-4">Open New Case</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Title (optional)</label>
+            <input
+              value={form.title}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Whitney scheduling conflict"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Client</label>
             <select

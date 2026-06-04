@@ -76,8 +76,9 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
       <td className="px-2 py-2.5 w-7">
         <StarButton starred={!!item.starred} onToggle={() => onStar(item.id, !item.starred)} />
       </td>
-      <td className="px-3 py-2.5 text-sm text-gray-900 whitespace-nowrap">
-        {item.client_name || <span className="text-gray-400">—</span>}
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        <div className="text-sm text-gray-900">{item.client_name || <span className="text-gray-400">—</span>}</div>
+        {item.case_title && <div className="text-xs text-gray-400 truncate max-w-[160px]">{item.case_title}</div>}
       </td>
       <td className="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">
         {item.instructor_name || <span className="text-gray-400">—</span>}

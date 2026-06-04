@@ -187,6 +187,7 @@ const migrations = [
   `ALTER TABLE client_instructor_prefs ADD COLUMN created_by TEXT`,
   `ALTER TABLE action_items             ADD COLUMN created_by TEXT`,
   // profile-expansion columns (added 2026-06)
+  `ALTER TABLE cases        ADD COLUMN title               TEXT`,
   `ALTER TABLE clients      ADD COLUMN rate_per_class      TEXT`,
   `ALTER TABLE instructors  ADD COLUMN mailing_address     TEXT`,
   `ALTER TABLE instructors  ADD COLUMN ssn                 TEXT`,

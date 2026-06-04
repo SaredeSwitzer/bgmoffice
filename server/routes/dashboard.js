@@ -23,7 +23,8 @@ const BASE_SQL = `
     ai.id, ai.case_id, ai.status, ai.initial_note, ai.created_at, ai.starred,
     d.id   AS delegate_id,   d.name  AS delegate_name,
     cl.id  AS client_id,     cl.name AS client_name,
-    i.id   AS instructor_id, i.name  AS instructor_name
+    i.id   AS instructor_id, i.name  AS instructor_name,
+    c.title AS case_title
   FROM action_items ai
   LEFT JOIN delegates   d  ON d.id  = ai.delegate_id
   LEFT JOIN cases       c  ON c.id  = ai.case_id

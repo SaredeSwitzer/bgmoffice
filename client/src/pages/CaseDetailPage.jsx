@@ -107,8 +107,7 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
     finally { setBusy(false) }
   }
 
-  async function handleAdd(e) {
-    e.preventDefault()
+  async function handleAdd() {
     if (!newName.trim()) return
     setBusy(true); setError('')
     try {
@@ -173,11 +172,12 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
         </div>
       ))}
 
-      {/* Add new */}
-      <form onSubmit={handleAdd} className="flex items-center gap-2 pt-2 mt-1 border-t border-gray-200">
+      {/* Add new — note: div not form to avoid submitting the outer action-item form */}
+      <div className="flex items-center gap-2 pt-2 mt-1 border-t border-gray-200">
         <input
           value={newName}
           onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleAdd() } }}
           placeholder="New type name…"
           className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-400"
         />
@@ -189,11 +189,12 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
           {AT_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <button
-          type="submit"
+          type="button"
+          onClick={handleAdd}
           disabled={busy || !newName.trim()}
           className="px-2.5 py-1 bg-gray-900 text-white text-xs rounded font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
         >Add</button>
-      </form>
+      </div>
     </div>
   )
 }
@@ -914,6 +915,67 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, 
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
+// ── Inline case title editor ──────────────────────────────────────────────────
+
+function CaseTitleEditor({ caseId, initialTitle, onSaved, placeholder }) {
+  const [editing, setEditing] = useState(false)
+  const [value,   setValue]   = useState(initialTitle)
+  const [saving,  setSaving]  = useState(false)
+  const inputRef = useRef(null)
+
+  useEffect(() => { setValue(initialTitle) }, [initialTitle])
+  useEffect(() => { if (editing && inputRef.current) inputRef.current.focus() }, [editing])
+
+  async function save() {
+    const trimmed = value.trim()
+    if (trimmed === initialTitle) { setEditing(false); return }
+    setSaving(true)
+    try {
+      await api.updateCase(caseId, { title: trimmed || null })
+      onSaved(trimmed || null)
+    } finally { setSaving(false); setEditing(false) }
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 mb-1">
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setValue(initialTitle); setEditing(false) } }}
+          placeholder="Add a case title…"
+          className="flex-1 text-lg font-bold text-gray-900 border-b-2 border-gray-400 bg-transparent focus:outline-none focus:border-gray-700 py-0.5 min-w-0"
+        />
+        {saving && <span className="text-xs text-gray-400">Saving…</span>}
+      </div>
+    )
+  }
+
+  if (placeholder && !initialTitle) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="text-sm text-gray-400 hover:text-gray-600 italic mb-1 text-left"
+      >
+        + Add case title
+      </button>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="text-lg font-bold text-gray-900 hover:text-gray-700 text-left mb-1 group flex items-center gap-1.5"
+      title="Click to edit title"
+    >
+      {initialTitle}
+      <span className="text-xs text-gray-300 group-hover:text-gray-500 font-normal">✎</span>
+    </button>
+  )
+}
+
 export default function CaseDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -1005,7 +1067,11 @@ export default function CaseDetailPage() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            {caseData.title
+              ? <CaseTitleEditor caseId={caseData.id} initialTitle={caseData.title} onSaved={t => setCaseData(prev => ({ ...prev, title: t }))} />
+              : <CaseTitleEditor caseId={caseData.id} initialTitle="" onSaved={t => setCaseData(prev => ({ ...prev, title: t }))} placeholder />
+            }
+            <div className="flex items-center gap-2 mb-1 mt-1">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Case #{caseData.id}</span>
               {isResolved ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold">

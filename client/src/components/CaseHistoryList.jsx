@@ -29,6 +29,9 @@ export default function CaseHistoryList({ cases }) {
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
+                {c.title && (
+                  <p className="text-sm font-semibold text-gray-900 mb-1 leading-snug">{c.title}</p>
+                )}
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                   <span className="text-xs font-bold text-gray-400">Case #{c.id}</span>
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
