@@ -280,13 +280,11 @@ export default function InstructorProfilePage() {
                 <textarea value={editForm.mailing_address} onChange={e => setEditForm(f => ({ ...f, mailing_address: e.target.value }))}
                   rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
               </div>
-              {isAdmin && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">SSN (admin only)</label>
-                  <input value={editForm.ssn} onChange={e => setEditForm(f => ({ ...f, ssn: e.target.value }))}
-                    placeholder="XXX-XX-XXXX" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono" />
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">SSN</label>
+                <input value={editForm.ssn} onChange={e => setEditForm(f => ({ ...f, ssn: e.target.value }))}
+                  placeholder="XXX-XX-XXXX" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono" />
+              </div>
               <div className={isAdmin ? '' : 'col-span-2'}>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Contract</label>
                 <div className="flex items-center gap-3">
@@ -379,12 +377,10 @@ export default function InstructorProfilePage() {
                   <span className="text-gray-400 italic text-xs">Not signed</span>
                 )}
               </div>
-              {isAdmin && (
-                <div className="flex gap-2 items-center">
-                  <span className="text-gray-400 w-28 flex-shrink-0 text-xs">SSN</span>
-                  <SSNField value={instructor.ssn} />
-                </div>
-              )}
+              <div className="flex gap-2 items-center">
+                <span className="text-gray-400 w-28 flex-shrink-0 text-xs">SSN</span>
+                <SSNField value={instructor.ssn} />
+              </div>
               {instructor.notes && (
                 <div className="mt-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 text-gray-600 text-sm">
                   {instructor.notes}
