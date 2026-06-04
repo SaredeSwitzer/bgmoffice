@@ -131,25 +131,29 @@ app.delete('/api/action-types/:id', requireAuth, (req, res) => {
   const at = db.prepare('SELECT id FROM action_types WHERE id = ?').get(req.params.id);
   if (!at) return res.status(404).json({ error: 'Not found' });
 
-  // Clean up before deleting to avoid FK constraint on the legacy action_type_id column.
-  // Use a transaction so both writes are atomic.
-  db.transaction(() => {
-    // Null out the legacy column on any action item still pointing at this type.
-    // We allow NULL here even though the original schema said NOT NULL — the junction
-    // table is the source of truth; the legacy column is only kept for old queries.
-    db.prepare(
-      `UPDATE action_items SET action_type_id = NULL WHERE action_type_id = ?`
-    ).run(req.params.id);
+  // Check the legacy NOT-NULL FK column — this is what actually blocks the DELETE.
+  // The junction table has ON DELETE CASCADE so it cleans itself up, but
+  // action_items.action_type_id is NOT NULL with no ON DELETE rule, meaning SQLite
+  // will refuse to delete the action type if any row still points at it.
+  const legacyCount = db.prepare(
+    'SELECT COUNT(*) AS n FROM action_items WHERE action_type_id = ?'
+  ).get(req.params.id).n;
 
-    // Remove from junction table (also covered by ON DELETE CASCADE, but be explicit).
-    db.prepare(
-      `DELETE FROM action_item_action_types WHERE action_type_id = ?`
-    ).run(req.params.id);
+  // Also check the junction table (source of truth for multi-type assignments).
+  const junctionCount = db.prepare(
+    'SELECT COUNT(*) AS n FROM action_item_action_types WHERE action_type_id = ?'
+  ).get(req.params.id).n;
 
-    // Now delete the action type itself.
-    db.prepare('DELETE FROM action_types WHERE id = ?').run(req.params.id);
-  })();
+  const total = Math.max(legacyCount, junctionCount);
 
+  if (total > 0) {
+    return res.status(409).json({
+      error: `This action type is still assigned to ${total} action item${total !== 1 ? 's' : ''}. Reassign those items to a different type first, then delete.`,
+    });
+  }
+
+  // Safe to delete — no action items reference this type.
+  db.prepare('DELETE FROM action_types WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
