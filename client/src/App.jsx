@@ -29,8 +29,8 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            {/* Default landing → My Tasks */}
-            <Route index element={<Navigate to="/my-tasks" replace />} />
+            {/* Default landing → Dashboard */}
+            <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="my-tasks" element={<MyTasksPage />} />
             <Route path="reminders" element={<RemindersPage />} />
             <Route path="reference" element={<ReferencePage />} />
@@ -51,7 +51,7 @@ export default function App() {
               }
             />
           </Route>
-          <Route path="*" element={<Navigate to="/my-tasks" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
