@@ -137,7 +137,17 @@ export default function ClientProfilePage() {
     ])
       .then(([c, cs, instr, recr]) => {
         setClient(c)
-        setEditForm({ name: c.name, phone: c.phone || '', email: c.email || '', preferred_contact: c.preferred_contact || '', notes: c.notes || '', rate_per_class: c.rate_per_class || '' })
+        setEditForm({
+        name: c.name, phone: c.phone || '', email: c.email || '',
+        preferred_contact: c.preferred_contact || '', notes: c.notes || '',
+        rate_per_class: c.rate_per_class || '',
+        contact_person_name: c.contact_person_name || '',
+        contact_person_phone: c.contact_person_phone || '',
+        contact_person_email: c.contact_person_email || '',
+        contact_person_role: c.contact_person_role || '',
+        waiver_signed: c.waiver_signed ? true : false,
+        waiver_signed_date: c.waiver_signed_date || '',
+      })
         setCases(cs)
         setInstructors(instr)
         setRecruitingEntries(recr)
@@ -233,6 +243,52 @@ export default function ClientProfilePage() {
                 <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                   rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
               </div>
+              {/* Waiver */}
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Client Waiver</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={editForm.waiver_signed}
+                      onChange={e => setEditForm(f => ({
+                        ...f,
+                        waiver_signed: e.target.checked,
+                        waiver_signed_date: e.target.checked && !f.waiver_signed_date
+                          ? new Date().toISOString().slice(0, 10) : f.waiver_signed_date,
+                      }))}
+                      className="rounded" />
+                    Signed
+                  </label>
+                  {editForm.waiver_signed && (
+                    <input type="date" value={editForm.waiver_signed_date}
+                      onChange={e => setEditForm(f => ({ ...f, waiver_signed_date: e.target.value }))}
+                      className="border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+                  )}
+                </div>
+              </div>
+              {/* Contact Person */}
+              <div className="col-span-2 pt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contact Person (optional)</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                <input value={editForm.contact_person_name} onChange={e => setEditForm(f => ({ ...f, contact_person_name: e.target.value }))}
+                  placeholder="e.g. Jane Smith" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Role / Relationship</label>
+                <input value={editForm.contact_person_role} onChange={e => setEditForm(f => ({ ...f, contact_person_role: e.target.value }))}
+                  placeholder="e.g. Office Manager" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                <input value={editForm.contact_person_phone} onChange={e => setEditForm(f => ({ ...f, contact_person_phone: e.target.value }))}
+                  placeholder="718-555-0000" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                <input value={editForm.contact_person_email} onChange={e => setEditForm(f => ({ ...f, contact_person_email: e.target.value }))}
+                  placeholder="contact@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={saving}
@@ -269,6 +325,51 @@ export default function ClientProfilePage() {
               </div>
             </div>
             <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
+
+            {/* Waiver status */}
+            <div className="mt-3 flex items-center gap-2">
+              {client.waiver_signed ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-800 text-xs font-semibold">
+                  ✅ Waiver Signed
+                  {client.waiver_signed_date && (
+                    <span className="font-normal text-green-700">
+                      — {new Date(client.waiver_signed_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
+                  ⚠️ Waiver Not Signed
+                </span>
+              )}
+            </div>
+
+            {/* Contact person */}
+            {client.contact_person_name && (
+              <div className="mt-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Contact Person</p>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span className="text-sm font-semibold text-gray-800">{client.contact_person_name}</span>
+                  {client.contact_person_role && (
+                    <span className="text-xs text-gray-500 italic">{client.contact_person_role}</span>
+                  )}
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-gray-600">
+                  {client.contact_person_phone && (
+                    <a href={`tel:${client.contact_person_phone.replace(/\D/g,'').length === 10 ? '+1' : '+'}${client.contact_person_phone.replace(/\D/g,'')}`}
+                      className="flex items-center gap-1 text-green-700 hover:underline">
+                      📞 {client.contact_person_phone}
+                    </a>
+                  )}
+                  {client.contact_person_email && (
+                    <a href={`mailto:${client.contact_person_email}`}
+                      className="flex items-center gap-1 text-blue-600 hover:underline">
+                      ✉️ {client.contact_person_email}
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

@@ -37,11 +37,19 @@ router.get('/:id', (req, res) => {
 
 // Create client
 router.post('/', (req, res) => {
-  const { name, phone, email, preferred_contact, notes, rate_per_class } = req.body;
+  const { name, phone, email, preferred_contact, notes, rate_per_class,
+          contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
+          waiver_signed, waiver_signed_date } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
   const result = db.prepare(
-    'INSERT INTO clients (name, phone, email, preferred_contact, notes, rate_per_class) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(name, phone || null, email || null, preferred_contact || null, notes || null, rate_per_class || null);
+    `INSERT INTO clients
+       (name, phone, email, preferred_contact, notes, rate_per_class,
+        contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
+        waiver_signed, waiver_signed_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(name, phone || null, email || null, preferred_contact || null, notes || null, rate_per_class || null,
+        contact_person_name || null, contact_person_phone || null, contact_person_email || null, contact_person_role || null,
+        waiver_signed ? 1 : 0, waiver_signed_date || null);
   res.status(201).json(db.prepare('SELECT * FROM clients WHERE id = ?').get(result.lastInsertRowid));
 });
 
@@ -49,10 +57,19 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
   if (!client) return res.status(404).json({ error: 'Client not found' });
-  const { name, phone, email, preferred_contact, notes, rate_per_class } = req.body;
+  const { name, phone, email, preferred_contact, notes, rate_per_class,
+          contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
+          waiver_signed, waiver_signed_date } = req.body;
   db.prepare(
-    'UPDATE clients SET name=?, phone=?, email=?, preferred_contact=?, notes=?, rate_per_class=? WHERE id=?'
-  ).run(name, phone || null, email || null, preferred_contact || null, notes || null, rate_per_class || null, req.params.id);
+    `UPDATE clients SET
+       name=?, phone=?, email=?, preferred_contact=?, notes=?, rate_per_class=?,
+       contact_person_name=?, contact_person_phone=?, contact_person_email=?, contact_person_role=?,
+       waiver_signed=?, waiver_signed_date=?
+     WHERE id=?`
+  ).run(name, phone || null, email || null, preferred_contact || null, notes || null, rate_per_class || null,
+        contact_person_name || null, contact_person_phone || null, contact_person_email || null, contact_person_role || null,
+        waiver_signed ? 1 : 0, waiver_signed_date || null,
+        req.params.id);
   res.json(db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id));
 });
 

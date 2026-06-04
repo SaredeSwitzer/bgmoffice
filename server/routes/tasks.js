@@ -1,0 +1,61 @@
+const express = require('express');
+const db = require('../db');
+const { requireAuth } = require('../middleware/auth');
+
+const router = express.Router();
+router.use(requireAuth);
+
+// List tasks (optionally filter by status)
+router.get('/', (req, res) => {
+  const { status } = req.query;
+  let sql = 'SELECT * FROM standalone_tasks';
+  const params = [];
+  if (status) { sql += ' WHERE status = ?'; params.push(status); }
+  sql += ' ORDER BY starred DESC, priority DESC, created_at DESC';
+  res.json(db.prepare(sql).all(...params));
+});
+
+// Create task
+router.post('/', (req, res) => {
+  const { title, description, assigned_to, due_date, priority, notes } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title required' });
+  const result = db.prepare(
+    `INSERT INTO standalone_tasks (title, description, assigned_to, due_date, priority, notes, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    title.trim(),
+    description || null,
+    assigned_to || null,
+    due_date || null,
+    priority || 'normal',
+    notes || null,
+    req.user.initials
+  );
+  res.status(201).json(db.prepare('SELECT * FROM standalone_tasks WHERE id = ?').get(result.lastInsertRowid));
+});
+
+// Update task
+router.put('/:id', (req, res) => {
+  const task = db.prepare('SELECT id FROM standalone_tasks WHERE id = ?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const { title, description, assigned_to, due_date, priority, notes, status, starred } = req.body;
+  const completed_at = status === 'done' ? (db.prepare('SELECT completed_at FROM standalone_tasks WHERE id=?').get(req.params.id).completed_at || new Date().toISOString()) : null;
+  db.prepare(
+    `UPDATE standalone_tasks SET
+       title=?, description=?, assigned_to=?, due_date=?, priority=?, notes=?, status=?, starred=?, completed_at=?
+     WHERE id=?`
+  ).run(
+    title, description || null, assigned_to || null, due_date || null,
+    priority || 'normal', notes || null, status || 'open',
+    starred ? 1 : 0, completed_at, req.params.id
+  );
+  res.json(db.prepare('SELECT * FROM standalone_tasks WHERE id = ?').get(req.params.id));
+});
+
+// Delete task
+router.delete('/:id', (req, res) => {
+  db.prepare('DELETE FROM standalone_tasks WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+module.exports = router;

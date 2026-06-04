@@ -173,6 +173,24 @@ try {
   console.error('[seed] recruiting_entries failed (non-fatal):', err.message);
 }
 
+// Standalone tasks (not linked to client/instructor)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS standalone_tasks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    description TEXT,
+    assigned_to TEXT,
+    due_date    TEXT,
+    priority    TEXT    NOT NULL DEFAULT 'normal' CHECK(priority IN ('normal','urgent')),
+    status      TEXT    NOT NULL DEFAULT 'open'   CHECK(status IN ('open','done')),
+    starred     INTEGER NOT NULL DEFAULT 0,
+    notes       TEXT,
+    created_by  TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+  )
+`);
+
 // Idempotent column additions for existing DBs that predate these columns.
 // Each ALTER TABLE is attempted; "duplicate column" errors are silently
 // ignored. Any other error is logged so it shows up in Railway's deploy log.
@@ -194,6 +212,14 @@ const migrations = [
   `ALTER TABLE instructors  ADD COLUMN contract_signed     INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE instructors  ADD COLUMN contract_signed_date TEXT`,
   `ALTER TABLE instructors  ADD COLUMN photo_url           TEXT`,
+  // contact person for clients (added 2026-06)
+  `ALTER TABLE clients      ADD COLUMN contact_person_name  TEXT`,
+  `ALTER TABLE clients      ADD COLUMN contact_person_phone TEXT`,
+  `ALTER TABLE clients      ADD COLUMN contact_person_email TEXT`,
+  `ALTER TABLE clients      ADD COLUMN contact_person_role  TEXT`,
+  // client waiver (added 2026-06)
+  `ALTER TABLE clients      ADD COLUMN waiver_signed        INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE clients      ADD COLUMN waiver_signed_date   TEXT`,
 ];
 
 for (const sql of migrations) {

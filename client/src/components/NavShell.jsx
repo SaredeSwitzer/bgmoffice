@@ -21,6 +21,7 @@ function Shell() {
     { to: '/clients',     label: 'Clients' },
     { to: '/instructors', label: 'Instructors' },
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
+    { to: '/tasks',      label: 'Tasks' },
     { to: '/recruiting', label: 'Recruiting' },
     { to: '/reference',  label: 'Reference' },
     ...(user?.role === 'admin' ? [{ to: '/settings', label: 'Settings' }] : []),

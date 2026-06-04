@@ -27,6 +27,12 @@ async function request(path, options = {}) {
 export const api = {
   myTasks: () => request('/dashboard/my-tasks'),
 
+  // Standalone Tasks
+  getTasks: (status) => request(`/tasks${status ? `?status=${status}` : ''}`),
+  createTask: (data) => request('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+  updateTask: (id, data) => request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
+
   // Auth
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

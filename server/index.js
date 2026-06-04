@@ -43,6 +43,7 @@ app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/reminders',    require('./routes/reminders'));
 app.use('/api/reference',    require('./routes/reference'));
 app.use('/api/recruiting',   require('./routes/recruiting'));
+app.use('/api/tasks',        require('./routes/tasks'));
 
 // Action type lookups + all-user management (any authenticated user may edit)
 const db = require('./db');

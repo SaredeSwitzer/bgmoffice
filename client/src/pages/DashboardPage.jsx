@@ -4,6 +4,49 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 
+const DELEGATES = ['Sarede', 'Lyra', 'Maria', 'Claire', 'Anyone']
+
+// ── Inline task form for dashboard ───────────────────────────────────────────
+function DashboardTaskForm({ onSave, onCancel, saving }) {
+  const [form, setForm] = useState({ title: '', assigned_to: '', due_date: '', priority: 'normal' })
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.title.trim()) return
+    onSave(form)
+  }
+  return (
+    <form onSubmit={handleSubmit} className="mb-3 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+      <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+        placeholder="Task title…" autoFocus
+        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+      <div className="flex flex-wrap gap-2">
+        <select value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}
+          className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+          <option value="">Unassigned</option>
+          {DELEGATES.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+          className="border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+        <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+          className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+          <option value="normal">Normal</option>
+          <option value="urgent">🔴 Urgent</option>
+        </select>
+      </div>
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving}
+          className="px-3 py-1 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          {saving ? 'Saving…' : 'Add'}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-3 py-1 border border-gray-300 text-gray-600 text-xs rounded-lg">
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function daysOpen(createdAt) {
@@ -319,14 +362,31 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [data, setData] = useState(null)
   const [delegates, setDelegates] = useState([])
+  const [tasks, setTasks] = useState([])
+  const [showNewTask, setShowNewTask] = useState(false)
+  const [taskSaving, setTaskSaving] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
-    Promise.all([api.dashboard(), api.getDelegates()])
-      .then(([d, dels]) => { setData(d); setDelegates(dels) })
+    Promise.all([api.dashboard(), api.getDelegates(), api.getTasks('open')])
+      .then(([d, dels, ts]) => { setData(d); setDelegates(dels); setTasks(ts) })
       .catch(e => setError(e.message))
   }, [])
+
+  async function handleCreateTask(form) {
+    setTaskSaving(true)
+    try {
+      const t = await api.createTask(form)
+      setTasks(prev => [t, ...prev])
+      setShowNewTask(false)
+    } finally { setTaskSaving(false) }
+  }
+
+  async function handleDoneTask(task) {
+    const updated = await api.updateTask(task.id, { ...task, status: 'done' })
+    setTasks(prev => prev.filter(t => t.id !== updated.id))
+  }
 
   const myDelegateName = useMemo(() => {
     if (!user || !delegates.length) return null
@@ -355,6 +415,60 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* Standalone Tasks widget */}
+      <div className="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500">
+            Tasks
+            {tasks.length > 0 && (
+              <span className="ml-2 text-xs font-semibold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                {tasks.length} open
+              </span>
+            )}
+          </h2>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/tasks')}
+              className="text-xs text-blue-600 hover:underline">View all →</button>
+            <button onClick={() => setShowNewTask(v => !v)}
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors">
+              + New Task
+            </button>
+          </div>
+        </div>
+
+        {showNewTask && (
+          <DashboardTaskForm onSave={handleCreateTask} onCancel={() => setShowNewTask(false)} saving={taskSaving} />
+        )}
+
+        {tasks.length === 0 && !showNewTask ? (
+          <p className="text-sm text-gray-400 italic">No open tasks.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {tasks.slice(0, 5).sort((a, b) => (b.starred - a.starred) || (b.priority === 'urgent' ? 1 : -1)).map(t => (
+              <div key={t.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${
+                t.starred ? 'bg-yellow-50' : t.priority === 'urgent' ? 'bg-red-50' : 'bg-gray-50'
+              }`}>
+                <button onClick={() => handleDoneTask(t)}
+                  className="flex-shrink-0 w-4 h-4 rounded border-2 border-gray-300 hover:border-green-500 transition-colors" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm text-gray-800 font-medium">
+                    {t.priority === 'urgent' && <span className="text-red-500 mr-1">🔴</span>}
+                    {t.title}
+                  </span>
+                  {t.assigned_to && <span className="text-xs text-gray-400 ml-2">→ {t.assigned_to}</span>}
+                  {t.due_date && <span className="text-xs text-gray-400 ml-2">due {t.due_date}</span>}
+                </div>
+              </div>
+            ))}
+            {tasks.length > 5 && (
+              <button onClick={() => navigate('/tasks')} className="text-xs text-blue-500 hover:underline px-3 pt-1">
+                +{tasks.length - 5} more — view all
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       <SectionTable title="Open Tasks"           items={data.open_tasks}           emptyMsg="No open tasks — all caught up!"    accent="gray"  {...shared} />
       <SectionTable title="Client Follow-ups"    items={data.client_followups}     emptyMsg="No open client follow-ups."        accent="green" {...shared} />
       <SectionTable title="Instructor Follow-ups" items={data.instructor_followups} emptyMsg="No open instructor follow-ups."    accent="blue"  {...shared} />
