@@ -77,16 +77,28 @@ app.put('/api/action-types/:id', requireAuth, (req, res) => {
   }
 });
 app.delete('/api/action-types/:id', requireAuth, (req, res) => {
-  const usageCount = db.prepare(
-    'SELECT COUNT(*) AS n FROM action_item_action_types WHERE action_type_id = ?'
-  ).get(req.params.id)?.n || 0;
-  if (usageCount > 0) {
-    return res.status(409).json({
-      error: `This action type is being used by ${usageCount} action item${usageCount !== 1 ? 's' : ''} and cannot be deleted.`
-    });
-  }
-  const result = db.prepare('DELETE FROM action_types WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  const at = db.prepare('SELECT id FROM action_types WHERE id = ?').get(req.params.id);
+  if (!at) return res.status(404).json({ error: 'Not found' });
+
+  // Clean up before deleting to avoid FK constraint on the legacy action_type_id column.
+  // Use a transaction so both writes are atomic.
+  db.transaction(() => {
+    // Null out the legacy column on any action item still pointing at this type.
+    // We allow NULL here even though the original schema said NOT NULL — the junction
+    // table is the source of truth; the legacy column is only kept for old queries.
+    db.prepare(
+      `UPDATE action_items SET action_type_id = NULL WHERE action_type_id = ?`
+    ).run(req.params.id);
+
+    // Remove from junction table (also covered by ON DELETE CASCADE, but be explicit).
+    db.prepare(
+      `DELETE FROM action_item_action_types WHERE action_type_id = ?`
+    ).run(req.params.id);
+
+    // Now delete the action type itself.
+    db.prepare('DELETE FROM action_types WHERE id = ?').run(req.params.id);
+  })();
+
   res.json({ success: true });
 });
 

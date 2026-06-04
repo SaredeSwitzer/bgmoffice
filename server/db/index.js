@@ -55,11 +55,18 @@ db.exec(`
   )
 `);
 
-// One-time data migration: copy existing single action_type_id into junction table
-db.exec(`
-  INSERT OR IGNORE INTO action_item_action_types (action_item_id, action_type_id)
-  SELECT id, action_type_id FROM action_items WHERE action_type_id IS NOT NULL
-`);
+// One-time data migration: copy legacy action_type_id into junction table.
+// Only runs when the junction table is completely empty (truly first boot after
+// this feature shipped).  Running it on every boot would re-insert stale legacy
+// values after users have reassigned types via the edit form.
+const junctionEmpty = db.prepare('SELECT COUNT(*) AS n FROM action_item_action_types').get().n === 0;
+if (junctionEmpty) {
+  db.exec(`
+    INSERT OR IGNORE INTO action_item_action_types (action_item_id, action_type_id)
+    SELECT id, action_type_id FROM action_items WHERE action_type_id IS NOT NULL
+  `);
+  console.log('[migration] seeded action_item_action_types from legacy action_type_id column');
+}
 
 // Reference (internal wiki) sections
 db.exec(`
