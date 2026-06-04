@@ -20,7 +20,7 @@ function fmtDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-const EMPTY_LINE = { description: '', quantity: 1, unit_price: '' }
+const EMPTY_LINE = { description: '', class_date: '', quantity: 1, unit_price: '' }
 
 function NewInvoiceModal({ onClose, onCreated }) {
   const [clients, setClients] = useState([])
@@ -36,11 +36,23 @@ function NewInvoiceModal({ onClose, onCreated }) {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [clientPackages, setClientPackages] = useState([])
+  const [showImport, setShowImport] = useState(false)
 
   useEffect(() => {
     Promise.all([api.getClients(), api.getInstructors()])
       .then(([c, i]) => { setClients(c); setInstructors(i) })
   }, [])
+
+  // Load packages when client changes
+  useEffect(() => {
+    if (form.client?.id) {
+      api.getClientPackages(form.client.id).then(setClientPackages)
+    } else {
+      setClientPackages([])
+      setShowImport(false)
+    }
+  }, [form.client?.id])
 
   function setField(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -77,6 +89,7 @@ function NewInvoiceModal({ onClose, onCreated }) {
         notes: form.notes || null,
         line_items: form.line_items.filter(li => li.description.trim()).map(li => ({
           description: li.description.trim(),
+          class_date: li.class_date || null,
           quantity: Number(li.quantity) || 1,
           unit_price: Number(li.unit_price) || 0,
         })),
@@ -123,17 +136,90 @@ function NewInvoiceModal({ onClose, onCreated }) {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-medium text-gray-600">Line Items</label>
-                <button type="button" onClick={addLine}
-                  className="text-xs text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 rounded px-2 py-0.5">
-                  + Add Line
-                </button>
+                <div className="flex gap-2">
+                  {clientPackages.length > 0 && (
+                    <button type="button" onClick={() => setShowImport(v => !v)}
+                      className="text-xs text-purple-600 hover:text-purple-800 border border-purple-200 rounded px-2 py-0.5 bg-purple-50">
+                      📦 Import from Package
+                    </button>
+                  )}
+                  <button type="button" onClick={addLine}
+                    className="text-xs text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 rounded px-2 py-0.5">
+                    + Add Line
+                  </button>
+                </div>
               </div>
+
+              {/* Package session importer */}
+              {showImport && (
+                <div className="mb-3 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3 space-y-2">
+                  <p className="text-xs font-semibold text-purple-800">Import sessions as line items</p>
+                  {clientPackages.map(pkg => (
+                    <div key={pkg.id} className="bg-white border border-purple-100 rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs font-semibold text-gray-700">
+                          {pkg.total_classes}-class package
+                          {pkg.instructor_name && <span className="font-normal text-gray-400"> · {pkg.instructor_name}</span>}
+                          <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${pkg.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {pkg.status}
+                          </span>
+                        </span>
+                        <button type="button"
+                          onClick={() => {
+                            const newLines = (pkg.sessions || []).map(s => ({
+                              description: `Class${pkg.instructor_name ? ` w/ ${pkg.instructor_name}` : ''}`,
+                              class_date: s.session_date,
+                              quantity: 1,
+                              unit_price: '',
+                            }))
+                            setForm(f => ({
+                              ...f,
+                              line_items: [
+                                ...f.line_items.filter(li => li.description.trim()),
+                                ...newLines,
+                              ],
+                            }))
+                            setShowImport(false)
+                          }}
+                          className="text-xs text-purple-700 font-semibold hover:underline">
+                          Import all ({pkg.sessions?.length || 0} sessions)
+                        </button>
+                      </div>
+                      {(pkg.sessions || []).length === 0 && (
+                        <p className="text-xs text-gray-400 italic">No sessions logged</p>
+                      )}
+                      {(pkg.sessions || []).map(s => (
+                        <div key={s.id} className="flex items-center justify-between text-xs text-gray-600 py-0.5">
+                          <span>{fmtDate(s.session_date)}{s.notes && <span className="text-gray-400 italic ml-1">— {s.notes}</span>}</span>
+                          <button type="button"
+                            onClick={() => {
+                              setForm(f => ({
+                                ...f,
+                                line_items: [
+                                  ...f.line_items.filter(li => li.description.trim()),
+                                  {
+                                    description: `Class${pkg.instructor_name ? ` w/ ${pkg.instructor_name}` : ''}`,
+                                    class_date: s.session_date,
+                                    quantity: 1,
+                                    unit_price: '',
+                                  },
+                                ],
+                              }))
+                            }}
+                            className="text-purple-600 hover:text-purple-800 font-semibold">+ Add</button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="space-y-2">
                 <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 px-1">
-                  <span className="col-span-6">Description</span>
-                  <span className="col-span-2 text-right">Qty</span>
+                  <span className="col-span-4">Description</span>
+                  <span className="col-span-2">Class Date</span>
+                  <span className="col-span-1 text-right">Qty</span>
                   <span className="col-span-2 text-right">Unit Price</span>
-                  <span className="col-span-2 text-right">Total</span>
+                  <span className="col-span-3 text-right">Total</span>
                 </div>
                 {form.line_items.map((li, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-center">
@@ -141,13 +227,19 @@ function NewInvoiceModal({ onClose, onCreated }) {
                       value={li.description}
                       onChange={e => setLine(idx, 'description', e.target.value)}
                       placeholder="Description…"
-                      className="col-span-6 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                      className="col-span-4 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                    />
+                    <input
+                      type="date"
+                      value={li.class_date || ''}
+                      onChange={e => setLine(idx, 'class_date', e.target.value)}
+                      className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                     />
                     <input
                       type="number" min="0" step="0.01"
                       value={li.quantity}
                       onChange={e => setLine(idx, 'quantity', e.target.value)}
-                      className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
+                      className="col-span-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
                     />
                     <input
                       type="number" min="0" step="0.01"
@@ -156,7 +248,7 @@ function NewInvoiceModal({ onClose, onCreated }) {
                       placeholder="0.00"
                       className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
                     />
-                    <div className="col-span-2 flex items-center justify-end gap-1">
+                    <div className="col-span-3 flex items-center justify-end gap-1">
                       <span className="text-sm text-gray-700">
                         {fmtMoney(Number(li.quantity || 0) * Number(li.unit_price || 0))}
                       </span>

@@ -21,7 +21,7 @@ function fmtDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-const EMPTY_LINE = { description: '', quantity: 1, unit_price: '' }
+const EMPTY_LINE = { description: '', class_date: '', quantity: 1, unit_price: '' }
 
 export default function InvoiceDetailPage() {
   const { id } = useParams()
@@ -90,6 +90,7 @@ export default function InvoiceDetailPage() {
         status: editForm.status,
         line_items: editForm.line_items.filter(li => li.description.trim()).map(li => ({
           description: li.description.trim(),
+          class_date: li.class_date || null,
           quantity: Number(li.quantity) || 1,
           unit_price: Number(li.unit_price) || 0,
         })),
@@ -183,9 +184,10 @@ export default function InvoiceDetailPage() {
     // Line items table
     autoTable(doc, {
       startY: 60,
-      head: [['Description', 'Qty', 'Unit Price', 'Total']],
+      head: [['Description', 'Class Date', 'Qty', 'Unit Price', 'Total']],
       body: invoice.line_items.map(li => [
         li.description,
+        li.class_date ? fmtDate(li.class_date) : '—',
         li.quantity,
         fmtMoney(li.unit_price),
         fmtMoney(li.quantity * li.unit_price),
@@ -194,9 +196,10 @@ export default function InvoiceDetailPage() {
       headStyles: { fillColor: [30, 30, 30], textColor: 255 },
       columnStyles: {
         0: { cellWidth: 'auto' },
-        1: { halign: 'right', cellWidth: 20 },
-        2: { halign: 'right', cellWidth: 35 },
-        3: { halign: 'right', cellWidth: 35 },
+        1: { cellWidth: 28 },
+        2: { halign: 'right', cellWidth: 16 },
+        3: { halign: 'right', cellWidth: 30 },
+        4: { halign: 'right', cellWidth: 30 },
       },
       margin: { left: 14, right: 14 },
     })
@@ -299,17 +302,27 @@ export default function InvoiceDetailPage() {
                 </button>
               </div>
               <div className="space-y-2">
+                <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 px-1">
+                  <span className="col-span-4">Description</span>
+                  <span className="col-span-2">Class Date</span>
+                  <span className="col-span-1 text-right">Qty</span>
+                  <span className="col-span-2 text-right">Unit Price</span>
+                  <span className="col-span-3 text-right">Total</span>
+                </div>
                 {editForm.line_items.map((li, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                     <input value={li.description} onChange={e => setLine(idx, 'description', e.target.value)}
-                      placeholder="Description…" className="col-span-6 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                      placeholder="Description…" className="col-span-4 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                    <input type="date" value={li.class_date || ''}
+                      onChange={e => setLine(idx, 'class_date', e.target.value)}
+                      className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
                     <input type="number" min="0" step="0.01" value={li.quantity}
                       onChange={e => setLine(idx, 'quantity', e.target.value)}
-                      className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
+                      className="col-span-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
                     <input type="number" min="0" step="0.01" value={li.unit_price}
                       onChange={e => setLine(idx, 'unit_price', e.target.value)}
                       placeholder="0.00" className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
-                    <div className="col-span-2 flex items-center justify-end gap-1">
+                    <div className="col-span-3 flex items-center justify-end gap-1">
                       <span className="text-sm text-gray-700">{fmtMoney(Number(li.quantity||0)*Number(li.unit_price||0))}</span>
                       {editForm.line_items.length > 1 && (
                         <button type="button"
@@ -395,6 +408,7 @@ export default function InvoiceDetailPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Description</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Class Date</th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Qty</th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Unit Price</th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Total</th>
@@ -404,6 +418,7 @@ export default function InvoiceDetailPage() {
                   {invoice.line_items.map((li, i) => (
                     <tr key={i}>
                       <td className="px-4 py-2.5 text-gray-800">{li.description}</td>
+                      <td className="px-4 py-2.5 text-gray-500 text-xs">{li.class_date ? fmtDate(li.class_date) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-2.5 text-right text-gray-600">{li.quantity}</td>
                       <td className="px-4 py-2.5 text-right text-gray-600">{fmtMoney(li.unit_price)}</td>
                       <td className="px-4 py-2.5 text-right font-medium text-gray-900">{fmtMoney(li.quantity * li.unit_price)}</td>
