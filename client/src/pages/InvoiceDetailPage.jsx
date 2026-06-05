@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
-import DateInput from '../components/DateInput'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -304,8 +303,8 @@ export default function InvoiceDetailPage() {
               </div>
               <div className="space-y-2">
                 <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 px-1">
-                  <span className="col-span-4">Description</span>
-                  <span className="col-span-2">Class Date</span>
+                  <span className="col-span-3">Description</span>
+                  <span className="col-span-3">Class Date</span>
                   <span className="col-span-1 text-right">Qty</span>
                   <span className="col-span-2 text-right">Unit Price</span>
                   <span className="col-span-3 text-right">Total</span>
@@ -313,10 +312,10 @@ export default function InvoiceDetailPage() {
                 {editForm.line_items.map((li, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                     <input value={li.description} onChange={e => setLine(idx, 'description', e.target.value)}
-                      placeholder="Description…" className="col-span-4 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                    <DateInput value={li.class_date || ''}
-                      onChange={v => setLine(idx, 'class_date', v)}
-                      className="col-span-2" />
+                      placeholder="Description…" className="col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                    <input type="date" value={li.class_date || ''}
+                      onChange={e => setLine(idx, 'class_date', e.target.value)}
+                      className="col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full" />
                     <input type="number" min="0" step="0.01" value={li.quantity}
                       onChange={e => setLine(idx, 'quantity', e.target.value)}
                       className="col-span-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
