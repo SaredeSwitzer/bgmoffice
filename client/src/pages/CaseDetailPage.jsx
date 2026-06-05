@@ -406,12 +406,12 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
               type="date"
               value={reminderDate}
               onChange={e => setReminderDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300"
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-base focus:outline-none focus:ring-1 focus:ring-gray-300"
             />
             <select
               value={reminderDelegate}
               onChange={e => setReminderDelegate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300"
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-base focus:outline-none focus:ring-1 focus:ring-gray-300"
             >
               <option value="">Anyone</option>
               {(delegates || []).map(d => (
@@ -744,7 +744,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                       type="date"
                       value={reminderForm.remind_on}
                       onChange={e => setReminderForm(f => ({ ...f, remind_on: e.target.value }))}
-                      className="border border-blue-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      className="border border-blue-200 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
                     />
                     <select
                       value={reminderForm.delegate_name}

@@ -297,7 +297,7 @@ export default function InstructorProfilePage() {
                   {editForm.contract_signed && (
                     <input type="date" value={editForm.contract_signed_date}
                       onChange={e => setEditForm(f => ({ ...f, contract_signed_date: e.target.value }))}
-                      className="border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+                      className="border border-gray-300 rounded-lg px-2 py-2 text-base" />
                   )}
                 </div>
               </div>

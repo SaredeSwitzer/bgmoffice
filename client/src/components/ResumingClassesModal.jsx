@@ -122,7 +122,7 @@ export default function ResumingClassesModal({ onClose }) {
               type="date"
               value={followUpDate}
               onChange={e => setFollowUpDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-violet-300"
             />
             <p className="text-[10px] text-gray-400 mt-0.5">When you want to be reminded</p>
           </div>

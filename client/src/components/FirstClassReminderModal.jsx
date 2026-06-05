@@ -113,7 +113,7 @@ export default function FirstClassReminderModal({ onClose }) {
               type="date"
               value={classDate}
               onChange={e => setClassDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-teal-300"
             />
             <p className="text-[10px] text-gray-400 mt-0.5">The reminder will fire on this date</p>
           </div>

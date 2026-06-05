@@ -123,12 +123,12 @@ function NewInvoiceModal({ onClose, onCreated }) {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Date</label>
                 <input type="date" value={form.invoice_date} onChange={e => setField('invoice_date', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
                 <input type="date" value={form.due_date} onChange={e => setField('due_date', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
               </div>
             </div>
 
@@ -233,7 +233,7 @@ function NewInvoiceModal({ onClose, onCreated }) {
                       type="date"
                       value={li.class_date || ''}
                       onChange={e => setLine(idx, 'class_date', e.target.value)}
-                      className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                      className="col-span-2 border border-gray-300 rounded-lg px-2 py-2 text-base"
                     />
                     <input
                       type="number" min="0" step="0.01"

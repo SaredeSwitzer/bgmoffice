@@ -90,7 +90,7 @@ export default function AddReminderModal({
               type="date"
               value={form.remind_on}
               onChange={e => setForm(f => ({ ...f, remind_on: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
 

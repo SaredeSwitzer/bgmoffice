@@ -261,26 +261,28 @@ function PackagesSection({ clientId, instructors }) {
         {isLogging && (
           <div className="mt-3 pt-3 border-t border-gray-100">
             <p className="text-xs font-semibold text-gray-600 mb-2">Log Session</p>
-            <div className="flex items-end gap-2 flex-wrap">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Date</label>
+                <label className="block text-xs text-gray-500 mb-1">Date *</label>
                 <input type="date" value={form.session_date}
                   onChange={e => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: e.target.value } }))}
-                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
               </div>
-              <div className="flex-1 min-w-32">
-                <label className="block text-xs text-gray-500 mb-1">Notes (opt.)</label>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Notes (optional)</label>
                 <input value={form.notes}
                   onChange={e => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], notes: e.target.value } }))}
                   placeholder="e.g. Great session"
-                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
               </div>
+            </div>
+            <div className="flex gap-2 mt-2">
               <button onClick={() => handleLogSession(pkg.id)} disabled={isSaving}
-                className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
-                {isSaving ? 'Saving…' : 'Save'}
+                className="flex-1 sm:flex-none px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+                {isSaving ? 'Saving…' : 'Save Session'}
               </button>
               <button onClick={() => setLogging(prev => ({ ...prev, [pkg.id]: false }))}
-                className="px-3 py-1.5 border border-gray-200 text-gray-600 text-xs rounded-lg">
+                className="flex-1 sm:flex-none px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg">
                 Cancel
               </button>
             </div>
@@ -359,7 +361,7 @@ function PackagesSection({ clientId, instructors }) {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
               <input type="date" value={addForm.start_date} onChange={e => setAddForm(f => ({ ...f, start_date: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
@@ -542,7 +544,7 @@ export default function ClientProfilePage() {
                   {editForm.waiver_signed && (
                     <input type="date" value={editForm.waiver_signed_date}
                       onChange={e => setEditForm(f => ({ ...f, waiver_signed_date: e.target.value }))}
-                      className="border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+                      className="border border-gray-300 rounded-lg px-2 py-2 text-base" />
                   )}
                 </div>
               </div>

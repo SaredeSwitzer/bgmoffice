@@ -86,7 +86,7 @@ export default function InstructorCheckInModal({ onClose }) {
               type="date"
               value={form.follow_up_date}
               onChange={e => set('follow_up_date', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base"
             />
           </div>
           <div>
