@@ -3,12 +3,17 @@ const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
 const fs      = require('fs');
+const { runBackup } = require('./db/backup');
 
 // Uploads directory — must be on the persistent volume in production
 const UPLOADS_DIR = process.env.NODE_ENV === 'production'
   ? '/app/server/data/uploads'
   : path.join(__dirname, 'db', 'uploads');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+// Run a backup on startup, then every 24 hours
+runBackup();
+setInterval(runBackup, 24 * 60 * 60 * 1000);
 
 const app = express();
 

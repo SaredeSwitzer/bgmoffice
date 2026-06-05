@@ -16,6 +16,12 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    function onSessionExpired() { setUser(null) }
+    window.addEventListener('bgm:session-expired', onSessionExpired)
+    return () => window.removeEventListener('bgm:session-expired', onSessionExpired)
+  }, [])
+
   async function login(email, password) {
     const data = await api.login(email, password)
     localStorage.setItem('bgm_token', data.token)

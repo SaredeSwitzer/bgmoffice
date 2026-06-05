@@ -3,4 +3,7 @@ node_modules/
 *.db-shm
 *.db-wal
 .env
+**/.env
 client/dist
+server/db/backups/
+server/db/uploads/

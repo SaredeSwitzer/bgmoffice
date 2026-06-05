@@ -20,6 +20,10 @@ async function request(path, options = {}) {
     },
   })
   const data = await res.json()
+  if (res.status === 401 && path !== '/auth/login') {
+    localStorage.removeItem('bgm_token')
+    window.dispatchEvent(new Event('bgm:session-expired'))
+  }
   if (!res.ok) throw new Error(data.error || 'Request failed')
   return data
 }
