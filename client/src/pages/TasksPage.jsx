@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import DateInput from '../components/DateInput'
 
 const DELEGATES = ['Sarede', 'Lyra', 'Maria', 'Claire', 'Anyone']
 
@@ -54,8 +55,7 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
-          <input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
+          <DateInput value={form.due_date} onChange={v => set('due_date', v)} className="w-full" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>

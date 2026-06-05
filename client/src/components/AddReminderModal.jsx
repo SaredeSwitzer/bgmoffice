@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { useRemindersContext } from '../context/RemindersContext'
 import SearchSelect from './SearchSelect'
+import DateInput from './DateInput'
 
 export default function AddReminderModal({
   onClose,
@@ -85,12 +86,11 @@ export default function AddReminderModal({
           {/* Date */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Remind on *</label>
-            <input
+            <DateInput
               required
-              type="date"
               value={form.remind_on}
-              onChange={e => setForm(f => ({ ...f, remind_on: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-gray-300"
+              onChange={v => setForm(f => ({ ...f, remind_on: v }))}
+              className="w-full"
             />
           </div>
 

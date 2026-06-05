@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
+import DateInput from '../components/DateInput'
 
 const STATUS_COLORS = {
   draft:   'bg-gray-100 text-gray-600',
@@ -122,13 +123,11 @@ function NewInvoiceModal({ onClose, onCreated }) {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Date</label>
-                <input type="date" value={form.invoice_date} onChange={e => setField('invoice_date', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
+                <DateInput value={form.invoice_date} onChange={v => setField('invoice_date', v)} className="w-full" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
-                <input type="date" value={form.due_date} onChange={e => setField('due_date', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
+                <DateInput value={form.due_date} onChange={v => setField('due_date', v)} className="w-full" />
               </div>
             </div>
 
@@ -229,11 +228,10 @@ function NewInvoiceModal({ onClose, onCreated }) {
                       placeholder="Description…"
                       className="col-span-4 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                     />
-                    <input
-                      type="date"
+                    <DateInput
                       value={li.class_date || ''}
-                      onChange={e => setLine(idx, 'class_date', e.target.value)}
-                      className="col-span-2 border border-gray-300 rounded-lg px-2 py-2 text-base"
+                      onChange={v => setLine(idx, 'class_date', v)}
+                      className="col-span-2"
                     />
                     <input
                       type="number" min="0" step="0.01"

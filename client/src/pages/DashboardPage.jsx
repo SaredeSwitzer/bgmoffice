@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
+import DateInput from '../components/DateInput'
 
 const DELEGATES = ['Sarede', 'Lyra', 'Maria', 'Claire', 'Anyone']
 
@@ -25,8 +26,7 @@ function DashboardTaskForm({ onSave, onCancel, saving }) {
           <option value="">Unassigned</option>
           {DELEGATES.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
-        <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
-          className="border border-gray-300 rounded-lg px-2 py-2 text-base" />
+        <DateInput value={form.due_date} onChange={v => setForm(f => ({ ...f, due_date: v }))} />
         <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
           className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
           <option value="normal">Normal</option>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
+import DateInput from './DateInput'
 
 const REASONS = [
   'Away/Unavailable',
@@ -82,11 +83,11 @@ export default function InstructorCheckInModal({ onClose }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Follow-up Date <span className="text-red-500">*</span></label>
-            <input
-              type="date"
+            <DateInput
+              required
               value={form.follow_up_date}
-              onChange={e => set('follow_up_date', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base"
+              onChange={v => set('follow_up_date', v)}
+              className="w-full"
             />
           </div>
           <div>

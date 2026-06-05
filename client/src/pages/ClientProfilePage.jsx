@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
+import DateInput from '../components/DateInput'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -265,25 +266,11 @@ function PackagesSection({ clientId, instructors }) {
             {/* Date field */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Class Date *</label>
-              <div className="flex items-center gap-2 flex-wrap">
-                <input
-                  type="date"
-                  value={form.session_date}
-                  onChange={e => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: e.target.value } }))}
-                  className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2.5 text-base bg-white"
-                  style={{ fontSize: '16px' }}
-                />
-                <button type="button"
-                  onClick={() => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: new Date().toISOString().slice(0, 10) } }))}
-                  className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 whitespace-nowrap">
-                  Today
-                </button>
-                <button type="button"
-                  onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: d.toISOString().slice(0, 10) } })) }}
-                  className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 whitespace-nowrap">
-                  Yesterday
-                </button>
-              </div>
+              <DateInput
+                value={form.session_date}
+                onChange={v => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: v } }))}
+                className="w-full"
+              />
             </div>
 
             {/* Notes field */}
@@ -384,8 +371,7 @@ function PackagesSection({ clientId, instructors }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
-              <input type="date" value={addForm.start_date} onChange={e => setAddForm(f => ({ ...f, start_date: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
+              <DateInput value={addForm.start_date} onChange={v => setAddForm(f => ({ ...f, start_date: v }))} className="w-full" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
@@ -566,9 +552,8 @@ export default function ClientProfilePage() {
                     Signed
                   </label>
                   {editForm.waiver_signed && (
-                    <input type="date" value={editForm.waiver_signed_date}
-                      onChange={e => setEditForm(f => ({ ...f, waiver_signed_date: e.target.value }))}
-                      className="border border-gray-300 rounded-lg px-2 py-2 text-base" />
+                    <DateInput value={editForm.waiver_signed_date}
+                      onChange={v => setEditForm(f => ({ ...f, waiver_signed_date: v }))} />
                   )}
                 </div>
               </div>

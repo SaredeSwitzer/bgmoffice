@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
+import DateInput from '../components/DateInput'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -402,11 +403,9 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
         </label>
         {wantReminder && (
           <>
-            <input
-              type="date"
+            <DateInput
               value={reminderDate}
-              onChange={e => setReminderDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-base focus:outline-none focus:ring-1 focus:ring-gray-300"
+              onChange={v => setReminderDate(v)}
             />
             <select
               value={reminderDelegate}
@@ -739,12 +738,11 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                     className="w-full border border-blue-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                   <div className="flex flex-wrap gap-2 items-center">
-                    <input
+                    <DateInput
                       required
-                      type="date"
                       value={reminderForm.remind_on}
-                      onChange={e => setReminderForm(f => ({ ...f, remind_on: e.target.value }))}
-                      className="border border-blue-200 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      onChange={v => setReminderForm(f => ({ ...f, remind_on: v }))}
+                      className="flex-1 min-w-0"
                     />
                     <select
                       value={reminderForm.delegate_name}
