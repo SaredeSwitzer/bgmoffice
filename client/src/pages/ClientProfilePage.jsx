@@ -116,17 +116,155 @@ function AddPrefForm({ clientId, instructors, onAdded }) {
   )
 }
 
-// ── Packages Section ─────────────────────────────────────────────────────────
+// ── PackageCard — defined at module level so React never remounts it on parent re-renders ──
+function PackageCard({
+  pkg,
+  isExpanded, onToggleExpand,
+  isLogging, onStartLog, onCancelLog,
+  logDate, onSetDate,
+  isSaving, onSave,
+  onDelete, onDeleteSession,
+}) {
+  // Notes lives in local state so typing never triggers a parent re-render
+  const [notes, setNotes] = useState('')
+
+  // Reset notes whenever the log form is opened or closed
+  useEffect(() => {
+    if (!isLogging) setNotes('')
+  }, [isLogging])
+
+  const pct = pkg.total_classes > 0 ? Math.round((pkg.classes_used / pkg.total_classes) * 100) : 0
+  const remaining = pkg.total_classes - pkg.classes_used
+
+  const statusColor = pkg.status === 'completed' ? 'bg-green-50 border-green-200'
+    : pkg.status === 'cancelled' ? 'bg-gray-50 border-gray-200'
+    : 'bg-white border-gray-200'
+
+  const barColor = pkg.status === 'completed' ? 'bg-green-500'
+    : pct >= 80 ? 'bg-orange-400'
+    : 'bg-blue-500'
+
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${statusColor}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-gray-800">
+              {pkg.total_classes}-class package
+            </span>
+            {pkg.instructor_name && (
+              <span className="text-xs text-gray-500">w/ {pkg.instructor_name}</span>
+            )}
+            {pkg.status === 'completed' && (
+              <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Completed</span>
+            )}
+            {pkg.status === 'cancelled' && (
+              <span className="text-xs bg-gray-200 text-gray-500 font-semibold px-2 py-0.5 rounded-full">Cancelled</span>
+            )}
+          </div>
+          {pkg.start_date && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              Started {new Date(pkg.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+          )}
+          {pkg.notes && <p className="text-xs text-gray-500 italic mt-0.5">{pkg.notes}</p>}
+
+          {/* Progress bar */}
+          <div className="mt-2">
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+              <span>{pkg.classes_used} of {pkg.total_classes} used</span>
+              {pkg.status === 'active' && <span className="font-semibold text-blue-600">{remaining} left</span>}
+            </div>
+            <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {pkg.status === 'active' && (
+            <button onClick={onStartLog}
+              className="px-2.5 py-1 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700">
+              + Log
+            </button>
+          )}
+          <button onClick={onToggleExpand}
+            className="px-2.5 py-1 border border-gray-200 text-gray-500 text-xs rounded-lg hover:bg-gray-50">
+            {isExpanded ? 'Hide' : `Sessions (${pkg.classes_used})`}
+          </button>
+          <button onClick={onDelete}
+            className="px-2 py-1 text-gray-300 hover:text-red-500 text-xs rounded-lg">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Log session inline form */}
+      {isLogging && (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+          <p className="text-xs font-semibold text-gray-600">Log Session</p>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Class Date *</label>
+            <DateInput value={logDate} onChange={onSetDate} className="w-full" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Notes (optional)</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="e.g. Great session"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={() => onSave(notes)} disabled={isSaving}
+              className="flex-1 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+              {isSaving ? 'Saving…' : 'Save Session'}
+            </button>
+            <button onClick={onCancelLog}
+              className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sessions list */}
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+          {(pkg.sessions || []).length === 0 ? (
+            <p className="text-xs text-gray-400 italic">No sessions logged yet.</p>
+          ) : (
+            [...(pkg.sessions || [])].reverse().map(s => (
+              <div key={s.id} className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                <span className="font-medium">{new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                {s.notes && <span className="text-gray-400 italic flex-1 truncate">{s.notes}</span>}
+                <span className="text-gray-300">{s.created_by}</span>
+                <button onClick={() => onDeleteSession(s.id)}
+                  className="text-gray-300 hover:text-red-500 transition-colors">✕</button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Packages Section ──────────────────────────────────────────────────────────
 function PackagesSection({ clientId, instructors }) {
   const [packages, setPackages] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ total_classes: '', instructor_id: '', start_date: '', notes: '' })
   const [addSaving, setAddSaving] = useState(false)
-  const [expanded, setExpanded] = useState({}) // packageId -> bool
-  const [logging, setLogging] = useState({})   // packageId -> bool
-  const [logForm, setLogForm] = useState({})   // packageId -> { session_date, notes }
-  const [logSaving, setLogSaving] = useState({})
+  const [expanded, setExpanded] = useState({})   // packageId -> bool
+  const [logging, setLogging] = useState({})     // packageId -> bool
+  const [logDates, setLogDates] = useState({})   // packageId -> session_date string
+  const [logSaving, setLogSaving] = useState({}) // packageId -> bool
   const [justCompleted, setJustCompleted] = useState(null)
 
   useEffect(() => {
@@ -161,16 +299,17 @@ function PackagesSection({ clientId, instructors }) {
   }
 
   function startLog(pkgId) {
+    setLogDates(prev => ({ ...prev, [pkgId]: new Date().toISOString().slice(0, 10) }))
     setLogging(prev => ({ ...prev, [pkgId]: true }))
-    setLogForm(prev => ({ ...prev, [pkgId]: { session_date: new Date().toISOString().slice(0, 10), notes: '' } }))
   }
 
-  async function handleLogSession(pkgId) {
-    const form = logForm[pkgId] || {}
-    if (!form.session_date) return
+  // notes is passed in from the card's local state at save time
+  async function handleLogSession(pkgId, notes) {
+    const sessionDate = logDates[pkgId]
+    if (!sessionDate) return
     setLogSaving(prev => ({ ...prev, [pkgId]: true }))
     try {
-      const updated = await api.logSession(pkgId, { session_date: form.session_date, notes: form.notes || null })
+      const updated = await api.logSession(pkgId, { session_date: sessionDate, notes: notes || null })
       setPackages(prev => prev.map(p => p.id === updated.id ? updated : p))
       setLogging(prev => ({ ...prev, [pkgId]: false }))
       if (updated.status === 'completed') setJustCompleted(updated)
@@ -187,140 +326,6 @@ function PackagesSection({ clientId, instructors }) {
   const active = packages.filter(p => p.status === 'active')
   const completed = packages.filter(p => p.status === 'completed')
   const cancelled = packages.filter(p => p.status === 'cancelled')
-
-  function PackageCard({ pkg }) {
-    const pct = pkg.total_classes > 0 ? Math.round((pkg.classes_used / pkg.total_classes) * 100) : 0
-    const remaining = pkg.total_classes - pkg.classes_used
-    const isExpanded = expanded[pkg.id]
-    const isLogging = logging[pkg.id]
-    const isSaving = logSaving[pkg.id]
-    const form = logForm[pkg.id] || { session_date: '', notes: '' }
-
-    const statusColor = pkg.status === 'completed' ? 'bg-green-50 border-green-200'
-      : pkg.status === 'cancelled' ? 'bg-gray-50 border-gray-200'
-      : 'bg-white border-gray-200'
-
-    const barColor = pkg.status === 'completed' ? 'bg-green-500'
-      : pct >= 80 ? 'bg-orange-400'
-      : 'bg-blue-500'
-
-    return (
-      <div className={`rounded-xl border px-4 py-3 ${statusColor}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-gray-800">
-                {pkg.total_classes}-class package
-              </span>
-              {pkg.instructor_name && (
-                <span className="text-xs text-gray-500">w/ {pkg.instructor_name}</span>
-              )}
-              {pkg.status === 'completed' && (
-                <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Completed</span>
-              )}
-              {pkg.status === 'cancelled' && (
-                <span className="text-xs bg-gray-200 text-gray-500 font-semibold px-2 py-0.5 rounded-full">Cancelled</span>
-              )}
-            </div>
-            {pkg.start_date && (
-              <p className="text-xs text-gray-400 mt-0.5">
-                Started {new Date(pkg.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </p>
-            )}
-            {pkg.notes && <p className="text-xs text-gray-500 italic mt-0.5">{pkg.notes}</p>}
-
-            {/* Progress bar */}
-            <div className="mt-2">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span>{pkg.classes_used} of {pkg.total_classes} used</span>
-                {pkg.status === 'active' && <span className="font-semibold text-blue-600">{remaining} left</span>}
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {pkg.status === 'active' && (
-              <button onClick={() => startLog(pkg.id)}
-                className="px-2.5 py-1 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700">
-                + Log
-              </button>
-            )}
-            <button onClick={() => setExpanded(prev => ({ ...prev, [pkg.id]: !prev[pkg.id] }))}
-              className="px-2.5 py-1 border border-gray-200 text-gray-500 text-xs rounded-lg hover:bg-gray-50">
-              {isExpanded ? 'Hide' : `Sessions (${pkg.classes_used})`}
-            </button>
-            <button onClick={() => handleDeletePackage(pkg.id)}
-              className="px-2 py-1 text-gray-300 hover:text-red-500 text-xs rounded-lg">
-              ✕
-            </button>
-          </div>
-        </div>
-
-        {/* Log session inline form */}
-        {isLogging && (
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
-            <p className="text-xs font-semibold text-gray-600">Log Session</p>
-
-            {/* Date field */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Class Date *</label>
-              <DateInput
-                value={form.session_date}
-                onChange={v => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: v } }))}
-                className="w-full"
-              />
-            </div>
-
-            {/* Notes field */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Notes (optional)</label>
-              <input
-                type="text"
-                value={form.notes}
-                onChange={e => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], notes: e.target.value } }))}
-                placeholder="e.g. Great session"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base bg-white"
-                style={{ fontSize: '16px' }}
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2">
-              <button onClick={() => handleLogSession(pkg.id)} disabled={isSaving}
-                className="flex-1 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
-                {isSaving ? 'Saving…' : 'Save Session'}
-              </button>
-              <button onClick={() => setLogging(prev => ({ ...prev, [pkg.id]: false }))}
-                className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Sessions list */}
-        {isExpanded && (
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
-            {(pkg.sessions || []).length === 0 ? (
-              <p className="text-xs text-gray-400 italic">No sessions logged yet.</p>
-            ) : (
-              [...(pkg.sessions || [])].reverse().map(s => (
-                <div key={s.id} className="flex items-center justify-between gap-2 text-xs text-gray-600">
-                  <span className="font-medium">{new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                  {s.notes && <span className="text-gray-400 italic flex-1 truncate">{s.notes}</span>}
-                  <span className="text-gray-300">{s.created_by}</span>
-                  <button onClick={() => handleDeleteSession(pkg.id, s.id)}
-                    className="text-gray-300 hover:text-red-500 transition-colors">✕</button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
 
   return (
     <section>
@@ -398,9 +403,23 @@ function PackagesSection({ clientId, instructors }) {
         <p className="text-xs text-gray-400 italic">No packages yet.</p>
       ) : (
         <div className="space-y-2">
-          {active.map(pkg => <PackageCard key={pkg.id} pkg={pkg} />)}
-          {completed.map(pkg => <PackageCard key={pkg.id} pkg={pkg} />)}
-          {cancelled.map(pkg => <PackageCard key={pkg.id} pkg={pkg} />)}
+          {[...active, ...completed, ...cancelled].map(pkg => (
+            <PackageCard
+              key={pkg.id}
+              pkg={pkg}
+              isExpanded={!!expanded[pkg.id]}
+              onToggleExpand={() => setExpanded(prev => ({ ...prev, [pkg.id]: !prev[pkg.id] }))}
+              isLogging={!!logging[pkg.id]}
+              onStartLog={() => startLog(pkg.id)}
+              onCancelLog={() => setLogging(prev => ({ ...prev, [pkg.id]: false }))}
+              logDate={logDates[pkg.id] || ''}
+              onSetDate={v => setLogDates(prev => ({ ...prev, [pkg.id]: v }))}
+              isSaving={!!logSaving[pkg.id]}
+              onSave={notes => handleLogSession(pkg.id, notes)}
+              onDelete={() => handleDeletePackage(pkg.id)}
+              onDeleteSession={sessionId => handleDeleteSession(pkg.id, sessionId)}
+            />
+          ))}
         </div>
       )}
     </section>
