@@ -211,48 +211,54 @@ function NewInvoiceModal({ onClose, onCreated }) {
                   ))}
                 </div>
               )}
-              <div className="space-y-2">
-                <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 px-1">
-                  <span className="col-span-3">Description</span>
-                  <span className="col-span-3">Class Date</span>
-                  <span className="col-span-1 text-right">Qty</span>
-                  <span className="col-span-2 text-right">Unit Price</span>
-                  <span className="col-span-3 text-right">Total</span>
-                </div>
+              {/* Column headers */}
+              <div className="hidden sm:flex gap-2 text-xs font-semibold text-gray-400 px-1 mb-1">
+                <span className="flex-1 min-w-0">Description</span>
+                <span className="w-32 shrink-0">Class Date</span>
+                <span className="w-12 shrink-0 text-right">Qty</span>
+                <span className="w-20 shrink-0 text-right">Unit Price</span>
+                <span className="w-20 shrink-0 text-right">Total</span>
+                <span className="w-4 shrink-0" />
+              </div>
+
+              <div className="space-y-3">
                 {form.line_items.map((li, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                  <div key={idx} className="flex flex-col sm:flex-row gap-2 sm:items-center">
                     <input
                       value={li.description}
                       onChange={e => setLine(idx, 'description', e.target.value)}
                       placeholder="Description…"
-                      className="col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                      className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                     />
-                    <input
-                      type="date"
-                      value={li.class_date || ''}
-                      onChange={e => setLine(idx, 'class_date', e.target.value)}
-                      className="col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-full"
-                    />
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={li.quantity}
-                      onChange={e => setLine(idx, 'quantity', e.target.value)}
-                      className="col-span-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
-                    />
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={li.unit_price}
-                      onChange={e => setLine(idx, 'unit_price', e.target.value)}
-                      placeholder="0.00"
-                      className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
-                    />
-                    <div className="col-span-3 flex items-center justify-end gap-1">
-                      <span className="text-sm text-gray-700">
-                        {fmtMoney(Number(li.quantity || 0) * Number(li.unit_price || 0))}
-                      </span>
-                      {form.line_items.length > 1 && (
-                        <button type="button" onClick={() => removeLine(idx)} className="text-gray-300 hover:text-red-500 text-xs ml-1">✕</button>
-                      )}
+                    <div className="flex gap-2 items-center">
+                      <div className="flex flex-col sm:hidden text-xs text-gray-400 font-medium mb-0.5">Class Date</div>
+                      <input
+                        type="date"
+                        value={li.class_date || ''}
+                        onChange={e => setLine(idx, 'class_date', e.target.value)}
+                        className="w-32 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                      />
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={li.quantity}
+                        onChange={e => setLine(idx, 'quantity', e.target.value)}
+                        className="w-12 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
+                      />
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={li.unit_price}
+                        onChange={e => setLine(idx, 'unit_price', e.target.value)}
+                        placeholder="0.00"
+                        className="w-20 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
+                      />
+                      <div className="w-20 shrink-0 flex items-center justify-end gap-1">
+                        <span className="text-sm text-gray-700">
+                          {fmtMoney(Number(li.quantity || 0) * Number(li.unit_price || 0))}
+                        </span>
+                        {form.line_items.length > 1 && (
+                          <button type="button" onClick={() => removeLine(idx)} className="text-gray-300 hover:text-red-500 text-xs ml-1">✕</button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
