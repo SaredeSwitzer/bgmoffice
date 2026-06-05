@@ -259,30 +259,54 @@ function PackagesSection({ clientId, instructors }) {
 
         {/* Log session inline form */}
         {isLogging && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-xs font-semibold text-gray-600 mb-2">Log Session</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Date *</label>
-                <input type="date" value={form.session_date}
+          <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+            <p className="text-xs font-semibold text-gray-600">Log Session</p>
+
+            {/* Date field */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Class Date *</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="date"
+                  value={form.session_date}
                   onChange={e => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: e.target.value } }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Notes (optional)</label>
-                <input value={form.notes}
-                  onChange={e => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], notes: e.target.value } }))}
-                  placeholder="e.g. Great session"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base" />
+                  className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2.5 text-base bg-white"
+                  style={{ fontSize: '16px' }}
+                />
+                <button type="button"
+                  onClick={() => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: new Date().toISOString().slice(0, 10) } }))}
+                  className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 whitespace-nowrap">
+                  Today
+                </button>
+                <button type="button"
+                  onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], session_date: d.toISOString().slice(0, 10) } })) }}
+                  className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 whitespace-nowrap">
+                  Yesterday
+                </button>
               </div>
             </div>
-            <div className="flex gap-2 mt-2">
+
+            {/* Notes field */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Notes (optional)</label>
+              <input
+                type="text"
+                value={form.notes}
+                onChange={e => setLogForm(prev => ({ ...prev, [pkg.id]: { ...prev[pkg.id], notes: e.target.value } }))}
+                placeholder="e.g. Great session"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base bg-white"
+                style={{ fontSize: '16px' }}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
               <button onClick={() => handleLogSession(pkg.id)} disabled={isSaving}
-                className="flex-1 sm:flex-none px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+                className="flex-1 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
                 {isSaving ? 'Saving…' : 'Save Session'}
               </button>
               <button onClick={() => setLogging(prev => ({ ...prev, [pkg.id]: false }))}
-                className="flex-1 sm:flex-none px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg">
+                className="px-4 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50">
                 Cancel
               </button>
             </div>
