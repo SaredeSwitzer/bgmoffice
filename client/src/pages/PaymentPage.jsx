@@ -181,12 +181,12 @@ export default function PaymentPage() {
             {invoice.line_items.map((li, i) => (
               <div key={i} className="flex justify-between text-sm gap-3">
                 <div>
-                  <span className="text-gray-700">{li.description}{li.quantity > 1 && <span className="text-gray-400"> × {li.quantity}</span>}</span>
+                  <span className="text-gray-700">{li.description}</span>
                   {li.class_date && (
                     <div className="text-xs text-gray-400 mt-0.5">{fmtDate(li.class_date)}</div>
                   )}
                 </div>
-                <span className="text-gray-900 font-medium flex-shrink-0">{fmtMoney(li.quantity * li.unit_price)}</span>
+                <span className="text-gray-900 font-medium flex-shrink-0">{fmtMoney(li.unit_price)}</span>
               </div>
             ))}
             <div className="border-t border-gray-100 pt-2 space-y-1 text-sm">

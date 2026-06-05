@@ -21,7 +21,7 @@ function fmtDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-const EMPTY_LINE = { description: '', class_date: '', quantity: 1, unit_price: '' }
+const EMPTY_LINE = { description: '', class_date: '', unit_price: '' }
 
 export default function InvoiceDetailPage() {
   const { id } = useParams()
@@ -70,7 +70,7 @@ export default function InvoiceDetailPage() {
   }
 
   const subtotal = editing
-    ? (editForm?.line_items || []).reduce((s, li) => s + (Number(li.quantity || 0) * Number(li.unit_price || 0)), 0)
+    ? (editForm?.line_items || []).reduce((s, li) => s + Number(li.unit_price || 0), 0)
     : invoice?.subtotal || 0
   const taxRate = editing ? Number(editForm?.tax_rate || 0) : invoice?.tax_rate || 0
   const taxAmt = subtotal * taxRate / 100
@@ -91,7 +91,6 @@ export default function InvoiceDetailPage() {
         line_items: editForm.line_items.filter(li => li.description.trim()).map(li => ({
           description: li.description.trim(),
           class_date: li.class_date || null,
-          quantity: Number(li.quantity) || 1,
           unit_price: Number(li.unit_price) || 0,
         })),
       })
@@ -184,22 +183,18 @@ export default function InvoiceDetailPage() {
     // Line items table
     autoTable(doc, {
       startY: 60,
-      head: [['Description', 'Class Date', 'Qty', 'Unit Price', 'Total']],
+      head: [['Description', 'Class Date', 'Price']],
       body: invoice.line_items.map(li => [
         li.description,
         li.class_date ? fmtDate(li.class_date) : '—',
-        li.quantity,
         fmtMoney(li.unit_price),
-        fmtMoney(li.quantity * li.unit_price),
       ]),
       styles: { fontSize: 10 },
       headStyles: { fillColor: [30, 30, 30], textColor: 255 },
       columnStyles: {
         0: { cellWidth: 'auto' },
-        1: { cellWidth: 28 },
-        2: { halign: 'right', cellWidth: 16 },
-        3: { halign: 'right', cellWidth: 30 },
-        4: { halign: 'right', cellWidth: 30 },
+        1: { cellWidth: 32 },
+        2: { halign: 'right', cellWidth: 30 },
       },
       margin: { left: 14, right: 14 },
     })
@@ -304,10 +299,8 @@ export default function InvoiceDetailPage() {
               {/* Column headers */}
               <div className="hidden sm:flex gap-2 text-xs font-semibold text-gray-400 px-1 mb-1">
                 <span className="flex-1 min-w-0">Description</span>
-                <span className="w-32 shrink-0">Class Date</span>
-                <span className="w-12 shrink-0 text-right">Qty</span>
-                <span className="w-20 shrink-0 text-right">Unit Price</span>
-                <span className="w-20 shrink-0 text-right">Total</span>
+                <span className="w-36 shrink-0">Class Date</span>
+                <span className="w-24 shrink-0 text-right">Price</span>
                 <span className="w-4 shrink-0" />
               </div>
 
@@ -320,22 +313,16 @@ export default function InvoiceDetailPage() {
                     <div className="flex gap-2 items-center">
                       <input type="date" value={li.class_date || ''}
                         onChange={e => setLine(idx, 'class_date', e.target.value)}
-                        className="w-32 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                      <input type="number" min="0" step="0.01" value={li.quantity}
-                        onChange={e => setLine(idx, 'quantity', e.target.value)}
-                        className="w-12 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
+                        className="w-36 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
                       <input type="number" min="0" step="0.01" value={li.unit_price}
                         onChange={e => setLine(idx, 'unit_price', e.target.value)}
                         placeholder="0.00"
-                        className="w-20 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
-                      <div className="w-20 shrink-0 flex items-center justify-end gap-1">
-                        <span className="text-sm text-gray-700">{fmtMoney(Number(li.quantity||0)*Number(li.unit_price||0))}</span>
-                        {editForm.line_items.length > 1 && (
-                          <button type="button"
-                            onClick={() => setEditForm(f => ({ ...f, line_items: f.line_items.filter((_, i) => i !== idx) }))}
-                            className="text-gray-300 hover:text-red-500 text-xs ml-1">✕</button>
-                        )}
-                      </div>
+                        className="w-24 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
+                      {editForm.line_items.length > 1 && (
+                        <button type="button"
+                          onClick={() => setEditForm(f => ({ ...f, line_items: f.line_items.filter((_, i) => i !== idx) }))}
+                          className="text-gray-300 hover:text-red-500 text-xs">✕</button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -416,9 +403,7 @@ export default function InvoiceDetailPage() {
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Description</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Class Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Qty</th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Unit Price</th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Total</th>
+                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Price</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -426,9 +411,7 @@ export default function InvoiceDetailPage() {
                     <tr key={i}>
                       <td className="px-4 py-2.5 text-gray-800">{li.description}</td>
                       <td className="px-4 py-2.5 text-gray-500 text-xs">{li.class_date ? fmtDate(li.class_date) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-2.5 text-right text-gray-600">{li.quantity}</td>
-                      <td className="px-4 py-2.5 text-right text-gray-600">{fmtMoney(li.unit_price)}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-gray-900">{fmtMoney(li.quantity * li.unit_price)}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-gray-900">{fmtMoney(li.unit_price)}</td>
                     </tr>
                   ))}
                 </tbody>

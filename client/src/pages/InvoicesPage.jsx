@@ -20,7 +20,7 @@ function fmtDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-const EMPTY_LINE = { description: '', class_date: '', quantity: 1, unit_price: '' }
+const EMPTY_LINE = { description: '', class_date: '', unit_price: '' }
 
 function NewInvoiceModal({ onClose, onCreated }) {
   const [clients, setClients] = useState([])
@@ -69,7 +69,7 @@ function NewInvoiceModal({ onClose, onCreated }) {
     setForm(f => ({ ...f, line_items: f.line_items.filter((_, i) => i !== idx) }))
   }
 
-  const subtotal = form.line_items.reduce((s, li) => s + (Number(li.quantity || 0) * Number(li.unit_price || 0)), 0)
+  const subtotal = form.line_items.reduce((s, li) => s + Number(li.unit_price || 0), 0)
   const taxRate = Number(form.tax_rate || 0)
   const taxAmt = subtotal * taxRate / 100
   const total = subtotal + taxAmt
@@ -90,7 +90,6 @@ function NewInvoiceModal({ onClose, onCreated }) {
         line_items: form.line_items.filter(li => li.description.trim()).map(li => ({
           description: li.description.trim(),
           class_date: li.class_date || null,
-          quantity: Number(li.quantity) || 1,
           unit_price: Number(li.unit_price) || 0,
         })),
       })
@@ -167,7 +166,6 @@ function NewInvoiceModal({ onClose, onCreated }) {
                             const newLines = (pkg.sessions || []).map(s => ({
                               description: `Class${pkg.instructor_name ? ` w/ ${pkg.instructor_name}` : ''}`,
                               class_date: s.session_date,
-                              quantity: 1,
                               unit_price: '',
                             }))
                             setForm(f => ({
@@ -198,7 +196,6 @@ function NewInvoiceModal({ onClose, onCreated }) {
                                   {
                                     description: `Class${pkg.instructor_name ? ` w/ ${pkg.instructor_name}` : ''}`,
                                     class_date: s.session_date,
-                                    quantity: 1,
                                     unit_price: '',
                                   },
                                 ],
@@ -214,10 +211,8 @@ function NewInvoiceModal({ onClose, onCreated }) {
               {/* Column headers */}
               <div className="hidden sm:flex gap-2 text-xs font-semibold text-gray-400 px-1 mb-1">
                 <span className="flex-1 min-w-0">Description</span>
-                <span className="w-32 shrink-0">Class Date</span>
-                <span className="w-12 shrink-0 text-right">Qty</span>
-                <span className="w-20 shrink-0 text-right">Unit Price</span>
-                <span className="w-20 shrink-0 text-right">Total</span>
+                <span className="w-36 shrink-0">Class Date</span>
+                <span className="w-24 shrink-0 text-right">Price</span>
                 <span className="w-4 shrink-0" />
               </div>
 
@@ -231,34 +226,22 @@ function NewInvoiceModal({ onClose, onCreated }) {
                       className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                     />
                     <div className="flex gap-2 items-center">
-                      <div className="flex flex-col sm:hidden text-xs text-gray-400 font-medium mb-0.5">Class Date</div>
                       <input
                         type="date"
                         value={li.class_date || ''}
                         onChange={e => setLine(idx, 'class_date', e.target.value)}
-                        className="w-32 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                      />
-                      <input
-                        type="number" min="0" step="0.01"
-                        value={li.quantity}
-                        onChange={e => setLine(idx, 'quantity', e.target.value)}
-                        className="w-12 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
+                        className="w-36 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                       />
                       <input
                         type="number" min="0" step="0.01"
                         value={li.unit_price}
                         onChange={e => setLine(idx, 'unit_price', e.target.value)}
                         placeholder="0.00"
-                        className="w-20 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
+                        className="w-24 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
                       />
-                      <div className="w-20 shrink-0 flex items-center justify-end gap-1">
-                        <span className="text-sm text-gray-700">
-                          {fmtMoney(Number(li.quantity || 0) * Number(li.unit_price || 0))}
-                        </span>
-                        {form.line_items.length > 1 && (
-                          <button type="button" onClick={() => removeLine(idx)} className="text-gray-300 hover:text-red-500 text-xs ml-1">✕</button>
-                        )}
-                      </div>
+                      {form.line_items.length > 1 && (
+                        <button type="button" onClick={() => removeLine(idx)} className="text-gray-300 hover:text-red-500 text-xs">✕</button>
+                      )}
                     </div>
                   </div>
                 ))}
