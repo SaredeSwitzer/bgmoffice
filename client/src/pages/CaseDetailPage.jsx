@@ -333,11 +333,13 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
   const [reminderDate, setReminderDate] = useState('')
   const [reminderDelegate, setReminderDelegate] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   async function submit(e) {
     e.preventDefault()
     if (!text.trim()) return
     setSaving(true)
+    setError('')
     try {
       const note = await api.addNote(actionItemId, { text: text.trim() })
       onAdded(note)
@@ -357,6 +359,8 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
       setWantReminder(false)
       setReminderDate('')
       setReminderDelegate('')
+    } catch (err) {
+      setError(err.message)
     } finally {
       setSaving(false)
     }
@@ -391,19 +395,22 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
       </div>
 
       {/* Optional reminder row */}
-      <div className="flex flex-wrap items-center gap-2 pl-1">
-        <input
-          id={`reminder-check-${actionItemId}`}
-          type="checkbox"
-          checked={wantReminder}
-          onChange={e => setWantReminder(e.target.checked)}
-          className="w-3.5 h-3.5 rounded accent-gray-700"
-        />
-        <label htmlFor={`reminder-check-${actionItemId}`} className="text-xs text-gray-500 cursor-pointer">
-          Set reminder for follow-up
-        </label>
+      <div className="pl-1 space-y-1.5">
+        <div className="flex items-center gap-2">
+          <input
+            id={`reminder-check-${actionItemId}`}
+            type="checkbox"
+            checked={wantReminder}
+            onChange={e => { setWantReminder(e.target.checked); setReminderDate(''); setError('') }}
+            className="w-3.5 h-3.5 rounded accent-gray-700"
+          />
+          <label htmlFor={`reminder-check-${actionItemId}`} className="text-xs text-gray-500 cursor-pointer">
+            Set reminder for follow-up
+          </label>
+        </div>
         {wantReminder && (
-          <>
+          <div className="flex flex-wrap items-center gap-2 pl-5">
+            <span className="text-xs text-gray-500">Remind on:</span>
             <DateInput
               value={reminderDate}
               onChange={v => setReminderDate(v)}
@@ -411,15 +418,19 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
             <select
               value={reminderDelegate}
               onChange={e => setReminderDelegate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-base focus:outline-none focus:ring-1 focus:ring-gray-300"
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-300"
             >
               <option value="">Anyone</option>
               {(delegates || []).map(d => (
                 <option key={d.id} value={d.name}>{d.name}</option>
               ))}
             </select>
-          </>
+            {!reminderDate && (
+              <span className="text-xs text-amber-600">Pick a date to enable Send</span>
+            )}
+          </div>
         )}
+        {error && <p className="text-xs text-red-600 pl-5">{error}</p>}
       </div>
     </form>
   )
