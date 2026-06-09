@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
+import DateInput from '../components/DateInput'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 

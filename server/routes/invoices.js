@@ -33,7 +33,7 @@ function nextInvoiceNumber() {
 }
 
 function calcTotals(lineItems, taxRate) {
-  const subtotal = lineItems.reduce((s, li) => s + (Number(li.quantity) * Number(li.unit_price)), 0);
+  const subtotal = lineItems.reduce((s, li) => s + Number(li.unit_price || 0), 0);
   const tax_amount = subtotal * (Number(taxRate) / 100);
   const total = subtotal + tax_amount;
   return { subtotal, tax_amount, total };

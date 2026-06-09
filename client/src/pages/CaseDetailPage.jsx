@@ -327,7 +327,7 @@ function NoteThread({ notes, onNoteEdited, onNoteDeleted }) {
 
 // ── Add-note input ────────────────────────────────────────────────────────────
 
-function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
+function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdded }) {
   const [text, setText] = useState('')
   const [wantReminder, setWantReminder] = useState(false)
   const [reminderDate, setReminderDate] = useState('')
@@ -343,13 +343,14 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded }) {
       onAdded(note)
 
       if (wantReminder && reminderDate) {
-        await api.createReminder({
+        const newReminder = await api.createReminder({
           title: text.trim(),
           remind_on: reminderDate,
           delegate_name: reminderDelegate || null,
           action_item_id: actionItemId,
           case_id: caseId || null,
         })
+        if (onReminderAdded) onReminderAdded(newReminder)
       }
 
       setText('')
@@ -509,6 +510,10 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
 
   function handleReminderDone(reminderId) {
     setItem(prev => ({ ...prev, reminders: (prev.reminders || []).filter(r => r.id !== reminderId) }))
+  }
+
+  function handleReminderAdded(reminder) {
+    setItem(prev => ({ ...prev, reminders: [...(prev.reminders || []), reminder] }))
   }
 
   function handleNoteAdded(note) {
@@ -780,7 +785,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
 
               <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} onNoteDeleted={handleNoteDeleted} />
               {!isResolved && (
-                <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} />
+                <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} onReminderAdded={handleReminderAdded} />
               )}
             </>
           )}
