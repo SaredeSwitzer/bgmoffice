@@ -144,15 +144,16 @@ router.get('/:id', (req, res) => {
 
 // Create invoice
 router.post('/', (req, res) => {
-  const { client_id, instructor_id, line_items = [], tax_rate = 0, notes, invoice_date, due_date } = req.body;
+  const { client_id, instructor_id, line_items = [], tax_rate = 0, notes, invoice_date, due_date, title } = req.body;
   const invoice_number = nextInvoiceNumber();
   const { subtotal, tax_amount, total } = calcTotals(line_items, tax_rate);
   const result = db.prepare(`
     INSERT INTO invoices
-      (invoice_number, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (invoice_number, title, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     invoice_number,
+    title || null,
     client_id || null,
     instructor_id || null,
     JSON.stringify(line_items),
@@ -176,14 +177,15 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const inv = db.prepare('SELECT id, status FROM invoices WHERE id=?').get(req.params.id);
   if (!inv) return res.status(404).json({ error: 'Invoice not found' });
-  const { client_id, instructor_id, line_items = [], tax_rate = 0, notes, invoice_date, due_date, status } = req.body;
+  const { client_id, instructor_id, line_items = [], tax_rate = 0, notes, invoice_date, due_date, status, title } = req.body;
   const { subtotal, tax_amount, total } = calcTotals(line_items, tax_rate);
   db.prepare(`
     UPDATE invoices SET
-      client_id=?, instructor_id=?, line_items=?, subtotal=?, tax_rate=?, tax_amount=?, total=?,
+      title=?, client_id=?, instructor_id=?, line_items=?, subtotal=?, tax_rate=?, tax_amount=?, total=?,
       notes=?, invoice_date=?, due_date=?, status=?, updated_at=datetime('now')
     WHERE id=?
   `).run(
+    title || null,
     client_id || null, instructor_id || null,
     JSON.stringify(line_items), subtotal, tax_rate, tax_amount, total,
     notes || null, invoice_date || null, due_date || null,

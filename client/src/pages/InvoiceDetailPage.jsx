@@ -50,6 +50,7 @@ export default function InvoiceDetailPage() {
 
   function startEdit() {
     setEditForm({
+      title: invoice.title || '',
       client: invoice.client_id ? { id: invoice.client_id, name: invoice.client_name } : null,
       instructor: invoice.instructor_id ? { id: invoice.instructor_id, name: invoice.instructor_name } : null,
       invoice_date: invoice.invoice_date || '',
@@ -82,6 +83,7 @@ export default function InvoiceDetailPage() {
     setSaving(true); setError('')
     try {
       const updated = await api.updateInvoice(id, {
+        title: editForm.title || null,
         client_id: editForm.client?.id || null,
         instructor_id: editForm.instructor?.id || null,
         invoice_date: editForm.invoice_date || null,
@@ -252,6 +254,12 @@ export default function InvoiceDetailPage() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
         {editing ? (
           <form onSubmit={handleSave} className="space-y-5">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Title (optional)</label>
+              <input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. June Sessions — Smith Family"
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Client</label>
@@ -375,6 +383,9 @@ export default function InvoiceDetailPage() {
                     {invoice.status}
                   </span>
                 </div>
+                {invoice.title && (
+                  <p className="text-base font-semibold text-gray-800 mb-1">{invoice.title}</p>
+                )}
                 <p className="text-sm text-gray-600">
                   {invoice.client_name || 'No client'}
                   {invoice.instructor_name && ` · ${invoice.instructor_name}`}

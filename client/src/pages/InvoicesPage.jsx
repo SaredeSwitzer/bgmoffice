@@ -26,6 +26,7 @@ function NewInvoiceModal({ onClose, onCreated }) {
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [form, setForm] = useState({
+    title: '',
     client: null,
     instructor: null,
     invoice_date: new Date().toISOString().slice(0, 10),
@@ -81,6 +82,7 @@ function NewInvoiceModal({ onClose, onCreated }) {
     setSaving(true); setError('')
     try {
       const inv = await api.createInvoice({
+        title: form.title || null,
         client_id: form.client.id,
         instructor_id: form.instructor?.id || null,
         invoice_date: form.invoice_date,
@@ -109,6 +111,12 @@ function NewInvoiceModal({ onClose, onCreated }) {
         </div>
         <form onSubmit={handleSubmit}>
           <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Title (optional)</label>
+              <input value={form.title} onChange={e => setField('title', e.target.value)}
+                placeholder="e.g. June Sessions — Smith Family"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
             {/* Client + Instructor */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -376,7 +384,10 @@ export default function InvoicesPage() {
                   onClick={() => navigate(`/invoices/${inv.id}`)}
                   className="cursor-pointer hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-4 py-3 font-mono text-xs text-gray-700 font-semibold">{inv.invoice_number}</td>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs text-gray-700 font-semibold">{inv.invoice_number}</span>
+                    {inv.title && <p className="text-xs text-gray-500 mt-0.5">{inv.title}</p>}
+                  </td>
                   <td className="px-4 py-3 text-gray-900">{inv.client_name || <span className="text-gray-400">—</span>}</td>
                   <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{fmtDate(inv.invoice_date)}</td>
                   <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{fmtDate(inv.due_date)}</td>

@@ -290,6 +290,8 @@ const migrations = [
   // client waiver (added 2026-06)
   `ALTER TABLE clients      ADD COLUMN waiver_signed        INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE clients      ADD COLUMN waiver_signed_date   TEXT`,
+  // invoice title (added 2026-06)
+  `ALTER TABLE invoices     ADD COLUMN title                TEXT`,
 ];
 
 for (const sql of migrations) {
