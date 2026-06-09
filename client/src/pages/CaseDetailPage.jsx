@@ -338,6 +338,10 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
   async function submit(e) {
     e.preventDefault()
     if (!text.trim()) return
+    if (wantReminder && !reminderDate) {
+      setError('Pick a reminder date (month, day, and year).')
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -387,7 +391,7 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
         />
         <button
           type="submit"
-          disabled={saving || !text.trim() || (wantReminder && !reminderDate)}
+          disabled={saving || !text.trim()}
           className="flex-shrink-0 px-4 py-2 bg-gray-900 text-white text-sm rounded-full font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
         >
           Send
@@ -425,9 +429,6 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
                 <option key={d.id} value={d.name}>{d.name}</option>
               ))}
             </select>
-            {!reminderDate && (
-              <span className="text-xs text-amber-600">Pick a date to enable Send</span>
-            )}
           </div>
         )}
         {error && <p className="text-xs text-red-600 pl-5">{error}</p>}
