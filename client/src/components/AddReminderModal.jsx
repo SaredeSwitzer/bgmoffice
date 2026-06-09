@@ -14,8 +14,8 @@ export default function AddReminderModal({
   const [clients,     setClients]     = useState([])
   const [instructors, setInstructors] = useState([])
   const [delegates,   setDelegates]   = useState([])
-  const [client,      setClient]      = useState(null)
-  const [instructor,  setInstructor]  = useState(null)
+  const [selectedClients,     setSelectedClients]     = useState([])
+  const [selectedInstructors, setSelectedInstructors] = useState([])
   const [form, setForm] = useState({
     title:         defaultTitle,
     notes:         '',
@@ -31,9 +31,14 @@ export default function AddReminderModal({
         setClients(c)
         setInstructors(i)
         setDelegates(d)
-        // Pre-select if IDs were passed in as props
-        if (clientId)     setClient(c.find(x => x.id === Number(clientId)) || null)
-        if (instructorId) setInstructor(i.find(x => x.id === Number(instructorId)) || null)
+        if (clientId) {
+          const found = c.find(x => x.id === Number(clientId))
+          if (found) setSelectedClients([found])
+        }
+        if (instructorId) {
+          const found = i.find(x => x.id === Number(instructorId))
+          if (found) setSelectedInstructors([found])
+        }
       })
       .catch(() => {})
   }, [clientId, instructorId])
@@ -43,17 +48,25 @@ export default function AddReminderModal({
     if (!form.title.trim() || !form.remind_on) return
     setSaving(true)
     setError('')
+
+    const base = {
+      title:          form.title.trim(),
+      notes:          form.notes.trim() || null,
+      remind_on:      form.remind_on,
+      delegate_name:  form.delegate_name || null,
+      case_id:        caseId        || null,
+      action_item_id: actionItemId  || null,
+    }
+
+    // Build one entry per selected person; if none selected, create one unlinked reminder
+    const people = [
+      ...selectedClients.map(c     => ({ client_id: c.id, instructor_id: null })),
+      ...selectedInstructors.map(i => ({ client_id: null, instructor_id: i.id })),
+    ]
+    const entries = people.length > 0 ? people : [{ client_id: null, instructor_id: null }]
+
     try {
-      await api.createReminder({
-        title:          form.title.trim(),
-        notes:          form.notes.trim() || null,
-        remind_on:      form.remind_on,
-        delegate_name:  form.delegate_name || null,
-        client_id:      client?.id        || clientId     || null,
-        instructor_id:  instructor?.id    || instructorId || null,
-        case_id:        caseId        || null,
-        action_item_id: actionItemId  || null,
-      })
+      await Promise.all(entries.map(p => api.createReminder({ ...base, ...p })))
       refresh()
       onClose()
     } catch (err) {
@@ -61,6 +74,8 @@ export default function AddReminderModal({
       setSaving(false)
     }
   }
+
+  const totalCount = selectedClients.length + selectedInstructors.length
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
@@ -94,23 +109,32 @@ export default function AddReminderModal({
             />
           </div>
 
-          {/* Client (optional) */}
+          {/* Clients (multi) */}
           <SearchSelect
-            label="Client (optional)"
+            label="Client(s) (optional)"
             options={clients}
-            value={client}
-            onChange={setClient}
+            value={selectedClients}
+            onChange={setSelectedClients}
             placeholder="Search clients…"
+            multi
           />
 
-          {/* Instructor (optional) */}
+          {/* Instructors (multi) */}
           <SearchSelect
-            label="Instructor (optional)"
+            label="Instructor(s) (optional)"
             options={instructors}
-            value={instructor}
-            onChange={setInstructor}
+            value={selectedInstructors}
+            onChange={setSelectedInstructors}
             placeholder="Search instructors…"
+            multi
           />
+
+          {/* Fan-out hint */}
+          {totalCount > 1 && (
+            <p className="text-xs text-gray-500 pl-0.5">
+              Creates {totalCount} separate reminders — one per person.
+            </p>
+          )}
 
           {/* Delegate */}
           <div>
@@ -147,7 +171,7 @@ export default function AddReminderModal({
               disabled={saving || !form.title.trim() || !form.remind_on}
               className="flex-1 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors"
             >
-              {saving ? 'Saving…' : 'Add Reminder'}
+              {saving ? 'Saving…' : totalCount > 1 ? `Add ${totalCount} Reminders` : 'Add Reminder'}
             </button>
             <button type="button" onClick={onClose}
               className="px-4 py-2 border border-gray-300 text-gray-600 text-sm rounded-lg hover:bg-gray-50">
