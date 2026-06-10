@@ -7,10 +7,19 @@ router.use(requireAuth);
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const ENTRY_JOIN = `
+  SELECT re.*,
+    i.name  AS instructor_name,
+    at.name AS action_type_name, at.color AS action_type_color,
+    u.name  AS assigned_to_user_name, u.initials AS assigned_to_user_initials
+  FROM recruiting_entries re
+  LEFT JOIN instructors  i  ON i.id  = re.instructor_id
+  LEFT JOIN action_types at ON at.id = re.action_type_id
+  LEFT JOIN users        u  ON u.id  = re.assigned_to_user_id
+`;
 
 function getEntry(id) {
-  const entry = db.prepare('SELECT * FROM recruiting_entries WHERE id = ?').get(id);
+  const entry = db.prepare(`${ENTRY_JOIN} WHERE re.id = ?`).get(id);
   if (!entry) return null;
   entry.notes = db.prepare(
     'SELECT * FROM recruiting_notes WHERE entry_id = ? ORDER BY created_at ASC'
@@ -18,83 +27,43 @@ function getEntry(id) {
   return entry;
 }
 
-// ── Columns ───────────────────────────────────────────────────────────────────
-
-router.get('/columns', (req, res) => {
-  res.json(db.prepare('SELECT * FROM recruiting_columns ORDER BY display_order ASC').all());
-});
-
-router.post('/columns', (req, res) => {
-  const { name } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name required' });
-  const maxOrder = db.prepare('SELECT MAX(display_order) AS m FROM recruiting_columns').get().m ?? 0;
-  const result = db.prepare(
-    'INSERT INTO recruiting_columns (name, field_key, display_order, is_system) VALUES (?, NULL, ?, 0)'
-  ).run(name.trim(), maxOrder + 1);
-  res.status(201).json(db.prepare('SELECT * FROM recruiting_columns WHERE id = ?').get(result.lastInsertRowid));
-});
-
-router.put('/columns/:id', (req, res) => {
-  const col = db.prepare('SELECT * FROM recruiting_columns WHERE id = ?').get(req.params.id);
-  if (!col) return res.status(404).json({ error: 'Column not found' });
-  const { name, display_order } = req.body;
-  db.prepare('UPDATE recruiting_columns SET name=?, display_order=? WHERE id=?')
-    .run(name ?? col.name, display_order ?? col.display_order, req.params.id);
-  res.json(db.prepare('SELECT * FROM recruiting_columns WHERE id = ?').get(req.params.id));
-});
-
-router.delete('/columns/:id', (req, res) => {
-  const col = db.prepare('SELECT * FROM recruiting_columns WHERE id = ?').get(req.params.id);
-  if (!col) return res.status(404).json({ error: 'Column not found' });
-  db.prepare('DELETE FROM recruiting_columns WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
-});
-
 // ── Entries ───────────────────────────────────────────────────────────────────
 
-// GET /api/recruiting  — all entries with notes, grouped by day
 router.get('/', (req, res) => {
   const { q } = req.query;
   let entries;
   if (q) {
     const like = `%${q}%`;
     entries = db.prepare(`
-      SELECT * FROM recruiting_entries
-      WHERE time_slot LIKE ? OR neighborhood LIKE ? OR style LIKE ?
-        OR participants LIKE ? OR client_name LIKE ? OR address LIKE ?
-        OR phone LIKE ? OR instructor_info LIKE ? OR client_rate LIKE ?
-      ORDER BY day_of_week, created_at
-    `).all(like, like, like, like, like, like, like, like, like);
+      ${ENTRY_JOIN}
+      WHERE re.time_slot LIKE ? OR re.neighborhood LIKE ? OR re.style LIKE ?
+        OR re.participants LIKE ? OR re.client_name LIKE ? OR re.address LIKE ?
+        OR re.phone LIKE ? OR re.instructor_info LIKE ? OR re.client_rate LIKE ?
+        OR i.name LIKE ?
+      ORDER BY re.day_of_week, re.created_at
+    `).all(like, like, like, like, like, like, like, like, like, like);
   } else {
-    entries = db.prepare('SELECT * FROM recruiting_entries ORDER BY created_at ASC').all();
+    entries = db.prepare(`${ENTRY_JOIN} ORDER BY re.created_at ASC`).all();
   }
 
-  // Attach notes to each entry
   const notesByEntry = {};
   db.prepare('SELECT * FROM recruiting_notes ORDER BY created_at ASC').all()
     .forEach(n => {
       if (!notesByEntry[n.entry_id]) notesByEntry[n.entry_id] = [];
       notesByEntry[n.entry_id].push(n);
     });
-
   entries.forEach(e => { e.notes = notesByEntry[e.id] || []; });
 
-  // Group by day
   const grouped = {};
   DAYS.forEach(d => { grouped[d] = []; });
-  entries.forEach(e => {
-    if (grouped[e.day_of_week]) grouped[e.day_of_week].push(e);
-  });
+  entries.forEach(e => { if (grouped[e.day_of_week]) grouped[e.day_of_week].push(e); });
 
-  const columns = db.prepare('SELECT * FROM recruiting_columns ORDER BY display_order ASC').all();
-  res.json({ grouped, columns });
+  res.json({ grouped });
 });
 
-// GET /api/recruiting/client/:clientId — entries linked to a client
 router.get('/client/:clientId', (req, res) => {
-  const entries = db.prepare(
-    'SELECT * FROM recruiting_entries WHERE client_id = ? ORDER BY created_at DESC'
-  ).all(req.params.clientId);
+  const entries = db.prepare(`${ENTRY_JOIN} WHERE re.client_id = ? ORDER BY re.created_at DESC`)
+    .all(req.params.clientId);
   entries.forEach(e => {
     e.notes = db.prepare(
       'SELECT * FROM recruiting_notes WHERE entry_id = ? ORDER BY created_at ASC'
@@ -107,7 +76,7 @@ router.post('/entries', (req, res) => {
   const {
     day_of_week, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
-    instructor_info, client_rate, extra_data,
+    instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
   } = req.body;
   if (!day_of_week || !DAYS.includes(day_of_week))
     return res.status(400).json({ error: 'Valid day_of_week required' });
@@ -116,22 +85,24 @@ router.post('/entries', (req, res) => {
     INSERT INTO recruiting_entries
       (day_of_week, time_slot, neighborhood, style, participants,
        client_name, client_id, address, phone, waiver_signed,
-       instructor_info, client_rate, extra_data, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id, created_by)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     day_of_week,
-    time_slot      || null,
-    neighborhood   || null,
-    style          || null,
-    participants   || null,
-    client_name    || null,
-    client_id      || null,
-    address        || null,
-    phone          || null,
-    waiver_signed  ? 1 : 0,
-    instructor_info || null,
-    client_rate    || null,
-    extra_data     ? JSON.stringify(extra_data) : null,
+    time_slot           || null,
+    neighborhood        || null,
+    style               || null,
+    participants        || null,
+    client_name         || null,
+    client_id           || null,
+    address             || null,
+    phone               || null,
+    waiver_signed       ? 1 : 0,
+    instructor_info     || null,
+    instructor_id       || null,
+    client_rate         || null,
+    action_type_id      || null,
+    assigned_to_user_id || null,
     req.user.initials,
   );
   res.status(201).json(getEntry(result.lastInsertRowid));
@@ -144,29 +115,31 @@ router.put('/entries/:id', (req, res) => {
   const {
     day_of_week, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
-    instructor_info, client_rate, extra_data,
+    instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
   } = req.body;
 
   db.prepare(`
     UPDATE recruiting_entries SET
       day_of_week=?, time_slot=?, neighborhood=?, style=?, participants=?,
       client_name=?, client_id=?, address=?, phone=?, waiver_signed=?,
-      instructor_info=?, client_rate=?, extra_data=?
+      instructor_info=?, instructor_id=?, client_rate=?, action_type_id=?, assigned_to_user_id=?
     WHERE id=?
   `).run(
-    day_of_week    || null,
-    time_slot      || null,
-    neighborhood   || null,
-    style          || null,
-    participants   || null,
-    client_name    || null,
-    client_id      || null,
-    address        || null,
-    phone          || null,
-    waiver_signed  ? 1 : 0,
-    instructor_info || null,
-    client_rate    || null,
-    extra_data     ? JSON.stringify(extra_data) : null,
+    day_of_week         || null,
+    time_slot           || null,
+    neighborhood        || null,
+    style               || null,
+    participants        || null,
+    client_name         || null,
+    client_id           || null,
+    address             || null,
+    phone               || null,
+    waiver_signed       ? 1 : 0,
+    instructor_info     || null,
+    instructor_id       || null,
+    client_rate         || null,
+    action_type_id      || null,
+    assigned_to_user_id || null,
     req.params.id,
   );
   res.json(getEntry(req.params.id));
@@ -193,7 +166,6 @@ router.post('/entries/:id/notes', (req, res) => {
 
   let note = db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(noteResult.lastInsertRowid);
 
-  // Mirror to standalone_tasks so it appears in the Tasks page
   if (is_task) {
     const context = [
       entry.client_name ? `Client: ${entry.client_name}` : null,
@@ -206,12 +178,12 @@ router.post('/entries/:id/notes', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       text.trim(),
-      assigned_to || null,
-      context || null,
+      assigned_to    || null,
+      context        || null,
       req.user.initials,
       note.id,
-      client_id || null,
-      instructor_id || null,
+      client_id      || null,
+      instructor_id  || null,
       action_type_id || null,
     );
 
@@ -231,9 +203,8 @@ router.patch('/entries/:id/notes/:noteId/done', (req, res) => {
   const newDone = note.is_done ? 0 : 1;
   db.prepare('UPDATE recruiting_notes SET is_done = ? WHERE id = ?').run(newDone, req.params.noteId);
 
-  // Keep standalone_task in sync
   if (note.standalone_task_id) {
-    db.prepare(`UPDATE standalone_tasks SET status = ?, completed_at = ? WHERE id = ?`).run(
+    db.prepare('UPDATE standalone_tasks SET status = ?, completed_at = ? WHERE id = ?').run(
       newDone ? 'done' : 'open',
       newDone ? new Date().toISOString() : null,
       note.standalone_task_id
@@ -249,11 +220,9 @@ router.delete('/entries/:id/notes/:noteId', (req, res) => {
   ).get(req.params.noteId, req.params.id);
   if (!note) return res.status(404).json({ error: 'Note not found' });
 
-  // Remove the mirrored standalone_task
   if (note.standalone_task_id) {
     db.prepare('DELETE FROM standalone_tasks WHERE id = ?').run(note.standalone_task_id);
   }
-
   db.prepare('DELETE FROM recruiting_notes WHERE id = ?').run(req.params.noteId);
   res.json({ success: true });
 });
@@ -272,7 +241,8 @@ router.get('/availability', (req, res) => {
 
 router.post('/availability', (req, res) => {
   const { instructor_id, day_of_week, time_slot } = req.body;
-  if (!instructor_id || !day_of_week) return res.status(400).json({ error: 'instructor_id and day_of_week required' });
+  if (!instructor_id || !day_of_week)
+    return res.status(400).json({ error: 'instructor_id and day_of_week required' });
   const result = db.prepare(
     'INSERT INTO instructor_availability (instructor_id, day_of_week, time_slot) VALUES (?, ?, ?)'
   ).run(instructor_id, day_of_week, time_slot || null);

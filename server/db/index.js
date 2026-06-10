@@ -303,6 +303,10 @@ const migrations = [
   `ALTER TABLE standalone_tasks  ADD COLUMN client_id     INTEGER REFERENCES clients(id) ON DELETE SET NULL`,
   `ALTER TABLE standalone_tasks  ADD COLUMN instructor_id INTEGER REFERENCES instructors(id) ON DELETE SET NULL`,
   `ALTER TABLE standalone_tasks  ADD COLUMN action_type_id INTEGER REFERENCES action_types(id) ON DELETE SET NULL`,
+  // recruiting entry enrichment — linked instructor, action type, assigned user (added 2026-06)
+  `ALTER TABLE recruiting_entries ADD COLUMN instructor_id       INTEGER REFERENCES instructors(id) ON DELETE SET NULL`,
+  `ALTER TABLE recruiting_entries ADD COLUMN action_type_id      INTEGER REFERENCES action_types(id) ON DELETE SET NULL`,
+  `ALTER TABLE recruiting_entries ADD COLUMN assigned_to_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
 ];
 
 // instructor availability table (added 2026-06)
