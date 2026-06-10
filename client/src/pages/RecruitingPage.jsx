@@ -29,17 +29,28 @@ function getColValue(entry, col) {
 
 // ── Notes Thread ──────────────────────────────────────────────────────────────
 
-function NotesThread({ entryId, notes, onNotesChanged }) {
+function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, actionTypes }) {
   const { user } = useAuth()
-  const [text,        setText]        = useState('')
-  const [isTask,      setIsTask]      = useState(false)
-  const [assignedTo,  setAssignedTo]  = useState('')
-  const [delegates,   setDelegates]   = useState([])
-  const [saving,      setSaving]      = useState(false)
+  const [text,           setText]           = useState('')
+  const [isTask,         setIsTask]         = useState(false)
+  const [assignedTo,     setAssignedTo]     = useState('')
+  const [taskClientId,   setTaskClientId]   = useState('')
+  const [taskInstructor, setTaskInstructor] = useState('')
+  const [taskActionType, setTaskActionType] = useState('')
+  const [delegates,      setDelegates]      = useState([])
+  const [saving,         setSaving]         = useState(false)
 
   useEffect(() => {
     api.getDelegates().then(setDelegates).catch(() => {})
   }, [])
+
+  function resetTaskFields() {
+    setIsTask(false)
+    setAssignedTo('')
+    setTaskClientId('')
+    setTaskInstructor('')
+    setTaskActionType('')
+  }
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -48,13 +59,15 @@ function NotesThread({ entryId, notes, onNotesChanged }) {
     try {
       const note = await api.addRecruitingNote(entryId, {
         text,
-        is_task:     isTask ? 1 : 0,
-        assigned_to: isTask ? (assignedTo || null) : null,
+        is_task:        isTask ? 1 : 0,
+        assigned_to:    isTask ? (assignedTo || null) : null,
+        client_id:      isTask ? (taskClientId || null) : null,
+        instructor_id:  isTask ? (taskInstructor || null) : null,
+        action_type_id: isTask ? (taskActionType || null) : null,
       })
       onNotesChanged([...notes, note])
       setText('')
-      setIsTask(false)
-      setAssignedTo('')
+      resetTaskFields()
     } finally { setSaving(false) }
   }
 
@@ -182,7 +195,7 @@ function NotesThread({ entryId, notes, onNotesChanged }) {
             <input
               type="checkbox"
               checked={isTask}
-              onChange={e => { setIsTask(e.target.checked); if (!e.target.checked) setAssignedTo('') }}
+              onChange={e => { if (e.target.checked) setIsTask(true); else resetTaskFields() }}
               className="rounded accent-amber-500"
             />
             Make this a task
@@ -197,6 +210,36 @@ function NotesThread({ entryId, notes, onNotesChanged }) {
               {delegates.map(d => (
                 <option key={d.id} value={d.name}>{d.name}</option>
               ))}
+            </select>
+          )}
+          {isTask && clients?.length > 0 && (
+            <select
+              value={taskClientId}
+              onChange={e => setTaskClientId(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white"
+            >
+              <option value="">Link client…</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          {isTask && instructors?.length > 0 && (
+            <select
+              value={taskInstructor}
+              onChange={e => setTaskInstructor(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white"
+            >
+              <option value="">Link instructor…</option>
+              {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+          )}
+          {isTask && actionTypes?.length > 0 && (
+            <select
+              value={taskActionType}
+              onChange={e => setTaskActionType(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white"
+            >
+              <option value="">Action type…</option>
+              {actionTypes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           )}
         </div>
@@ -440,7 +483,7 @@ function EntryForm({ day, entry, columns, clients, onSave, onCancel }) {
 
 // ── Entry Card ────────────────────────────────────────────────────────────────
 
-function EntryCard({ entry, columns, clients, onUpdated, onDeleted }) {
+function EntryCard({ entry, columns, clients, instructors, actionTypes, onUpdated, onDeleted }) {
   const [expanded, setExpanded] = useState(false)
   const [editing,  setEditing]  = useState(false)
   const [notes,    setNotes]    = useState(entry.notes || [])
@@ -578,6 +621,9 @@ function EntryCard({ entry, columns, clients, onUpdated, onDeleted }) {
                 entryId={entry.id}
                 notes={notes}
                 onNotesChanged={setNotes}
+                clients={clients}
+                instructors={instructors}
+                actionTypes={actionTypes}
               />
             </>
           )}
@@ -589,7 +635,7 @@ function EntryCard({ entry, columns, clients, onUpdated, onDeleted }) {
 
 // ── Day Section ───────────────────────────────────────────────────────────────
 
-function DaySection({ day, entries, columns, clients, onUpdated, onDeleted, onCreated, defaultOpen }) {
+function DaySection({ day, entries, columns, clients, instructors, actionTypes, onUpdated, onDeleted, onCreated, defaultOpen }) {
   const [open,       setOpen]       = useState(defaultOpen)
   const [addingNew,  setAddingNew]  = useState(false)
 
@@ -623,6 +669,8 @@ function DaySection({ day, entries, columns, clients, onUpdated, onDeleted, onCr
               entry={entry}
               columns={columns}
               clients={clients}
+              instructors={instructors}
+              actionTypes={actionTypes}
               onUpdated={onUpdated}
               onDeleted={onDeleted}
             />
@@ -915,6 +963,7 @@ export default function RecruitingPage() {
   const [columns,      setColumns]      = useState([])
   const [clients,      setClients]      = useState([])
   const [instructors,  setInstructors]  = useState([])
+  const [actionTypes,  setActionTypes]  = useState([])
   const [availability, setAvailability] = useState([])
   const [query,        setQuery]        = useState('')
   const [loading,      setLoading]      = useState(true)
@@ -928,13 +977,15 @@ export default function RecruitingPage() {
       api.getClients(),
       api.getInstructors(),
       api.getInstructorAvailability(),
+      api.getActionTypes(),
     ])
-      .then(([data, cls, insts, avail]) => {
+      .then(([data, cls, insts, avail, ats]) => {
         setGrouped(data.grouped)
         setColumns(data.columns)
         setClients(cls)
         setInstructors(insts)
         setAvailability(avail)
+        setActionTypes(ats)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -1077,6 +1128,8 @@ export default function RecruitingPage() {
               entries={grouped[day] || []}
               columns={columns}
               clients={clients}
+              instructors={instructors}
+              actionTypes={actionTypes}
               onUpdated={handleEntryUpdated}
               onDeleted={handleEntryDeleted}
               onCreated={handleEntryCreated}

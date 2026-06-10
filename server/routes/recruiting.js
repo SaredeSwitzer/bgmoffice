@@ -182,7 +182,7 @@ router.delete('/entries/:id', (req, res) => {
 // ── Notes ─────────────────────────────────────────────────────────────────────
 
 router.post('/entries/:id/notes', (req, res) => {
-  const { text, is_task, assigned_to } = req.body;
+  const { text, is_task, assigned_to, client_id, instructor_id, action_type_id } = req.body;
   if (!text) return res.status(400).json({ error: 'Text required' });
   const entry = db.prepare('SELECT * FROM recruiting_entries WHERE id = ?').get(req.params.id);
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
@@ -202,9 +202,18 @@ router.post('/entries/:id/notes', (req, res) => {
     ].filter(Boolean).join(' · ');
 
     const taskResult = db.prepare(`
-      INSERT INTO standalone_tasks (title, assigned_to, notes, created_by, recruiting_note_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(text.trim(), assigned_to || null, context || null, req.user.initials, note.id);
+      INSERT INTO standalone_tasks (title, assigned_to, notes, created_by, recruiting_note_id, client_id, instructor_id, action_type_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      text.trim(),
+      assigned_to || null,
+      context || null,
+      req.user.initials,
+      note.id,
+      client_id || null,
+      instructor_id || null,
+      action_type_id || null,
+    );
 
     db.prepare('UPDATE recruiting_notes SET standalone_task_id = ? WHERE id = ?')
       .run(taskResult.lastInsertRowid, note.id);

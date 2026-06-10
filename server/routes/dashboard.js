@@ -96,9 +96,37 @@ router.get('/my-tasks', (req, res) => {
   const firstName = req.user.name.split(' ')[0];
   const delegate = db.prepare('SELECT * FROM delegates WHERE LOWER(name) = LOWER(?) LIMIT 1').get(firstName);
   if (!delegate) return res.json({ tasks: [], delegate_name: null });
-  const rows = db.prepare(BASE_SQL + ' AND d.id = ? ORDER BY ai.created_at ASC').all(delegate.id);
+
+  const actionItems = db.prepare(BASE_SQL + ' AND d.id = ? ORDER BY ai.created_at ASC').all(delegate.id);
+  const processedActionItems = sortItems(attachLastNote(attachActionTypes(actionItems)))
+    .map(t => ({ ...t, source: 'action_item' }));
+
+  const standaloneRows = db.prepare(`
+    SELECT st.id, st.title, st.status, st.created_at, st.starred,
+           st.client_id,     cl.name AS client_name,
+           st.instructor_id, i.name  AS instructor_name,
+           st.action_type_id, at.name AS action_type_name, at.color AS action_type_color,
+           st.recruiting_note_id
+    FROM standalone_tasks st
+    LEFT JOIN clients     cl ON cl.id = st.client_id
+    LEFT JOIN instructors i  ON i.id  = st.instructor_id
+    LEFT JOIN action_types at ON at.id = st.action_type_id
+    WHERE st.status = 'open' AND LOWER(st.assigned_to) = LOWER(?)
+  `).all(delegate.name);
+
+  const standaloneTasks = standaloneRows.map(t => ({
+    ...t,
+    source: 'standalone_task',
+    case_id: null,
+    delegate_name: delegate.name,
+    action_types: t.action_type_id
+      ? [{ id: t.action_type_id, name: t.action_type_name, color: t.action_type_color }]
+      : [],
+    last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
+  }));
+
   return res.json({
-    tasks: sortItems(attachLastNote(attachActionTypes(rows))),
+    tasks: sortItems([...processedActionItems, ...standaloneTasks]),
     delegate_name: delegate.name,
   });
 });

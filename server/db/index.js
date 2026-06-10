@@ -299,6 +299,10 @@ const migrations = [
   // link recruiting-note tasks to standalone_tasks (added 2026-06)
   `ALTER TABLE standalone_tasks  ADD COLUMN recruiting_note_id INTEGER`,
   `ALTER TABLE recruiting_notes  ADD COLUMN standalone_task_id INTEGER`,
+  // client/instructor/action-type on standalone tasks (added 2026-06)
+  `ALTER TABLE standalone_tasks  ADD COLUMN client_id     INTEGER REFERENCES clients(id) ON DELETE SET NULL`,
+  `ALTER TABLE standalone_tasks  ADD COLUMN instructor_id INTEGER REFERENCES instructors(id) ON DELETE SET NULL`,
+  `ALTER TABLE standalone_tasks  ADD COLUMN action_type_id INTEGER REFERENCES action_types(id) ON DELETE SET NULL`,
 ];
 
 // instructor availability table (added 2026-06)

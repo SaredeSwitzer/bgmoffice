@@ -12,6 +12,7 @@ function MyTaskRow({ item, onClick }) {
   const days = daysOpen(item.created_at)
   const isOverdue = days > 7
   const isPriority = item.action_type_name === 'PRIORITY'
+  const isRecruiting = item.source === 'standalone_task'
 
   return (
     <tr
@@ -21,6 +22,8 @@ function MyTaskRow({ item, onClick }) {
           ? 'bg-red-50 hover:bg-red-100'
           : isOverdue
           ? 'bg-red-50 hover:bg-red-100'
+          : isRecruiting
+          ? 'bg-amber-50/50 hover:bg-amber-50'
           : 'hover:bg-gray-50'
       }`}
     >
@@ -31,7 +34,13 @@ function MyTaskRow({ item, onClick }) {
         {item.instructor_name || <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        <ActionTypeBadge name={item.action_type_name} color={item.action_type_color} />
+        {isRecruiting && !item.action_type_name ? (
+          <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
+            Recruiting
+          </span>
+        ) : (
+          <ActionTypeBadge name={item.action_type_name} color={item.action_type_color} />
+        )}
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap text-right">
         <span className={`text-xs font-semibold tabular-nums ${
@@ -138,9 +147,12 @@ export default function MyTasksPage() {
               <tbody className="divide-y divide-gray-100">
                 {tasks.map(item => (
                   <MyTaskRow
-                    key={item.id}
+                    key={`${item.source}-${item.id}`}
                     item={item}
-                    onClick={() => navigate(`/cases/${item.case_id}`)}
+                    onClick={() => item.source === 'standalone_task'
+                      ? navigate('/recruiting')
+                      : navigate(`/cases/${item.case_id}`)
+                    }
                   />
                 ))}
               </tbody>
