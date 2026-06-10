@@ -167,6 +167,11 @@ app.get('/api/delegates', requireAuth, (req, res) =>
   res.json(db.prepare('SELECT * FROM delegates ORDER BY name').all())
 );
 
+// Active users list — available to all authenticated users (e.g. for assignment dropdowns)
+app.get('/api/users', requireAuth, (req, res) =>
+  res.json(db.prepare('SELECT id, name, initials, role FROM users WHERE active = 1 ORDER BY name').all())
+);
+
 // 404 handler for unmatched routes
 app.use((req, res) => {
   res.status(404).json({ error: `Cannot ${req.method} ${req.path}` });

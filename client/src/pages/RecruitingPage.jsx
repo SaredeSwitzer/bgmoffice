@@ -970,7 +970,7 @@ export default function RecruitingPage() {
       api.getInstructors(),
       api.getInstructorAvailability(),
       api.getActionTypes(),
-      api.getSettingsUsers(),
+      api.getUsers(),
     ])
       .then(([data, cls, insts, avail, ats, usrs]) => {
         setGrouped(data.grouped)

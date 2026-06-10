@@ -128,6 +128,7 @@ export const api = {
   // Lookups + all-user action type management
   getActionTypes: () => request('/action-types'),
   getDelegates: () => request('/delegates'),
+  getUsers: () => request('/users'),
   createActionTypeUser: (data) =>
     request('/action-types', { method: 'POST', body: JSON.stringify(data) }),
   updateActionTypeUser: (id, data) =>
