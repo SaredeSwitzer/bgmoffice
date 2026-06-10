@@ -31,18 +31,36 @@ function getColValue(entry, col) {
 
 function NotesThread({ entryId, notes, onNotesChanged }) {
   const { user } = useAuth()
-  const [text, setText] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [text,        setText]        = useState('')
+  const [isTask,      setIsTask]      = useState(false)
+  const [assignedTo,  setAssignedTo]  = useState('')
+  const [delegates,   setDelegates]   = useState([])
+  const [saving,      setSaving]      = useState(false)
+
+  useEffect(() => {
+    api.getDelegates().then(setDelegates).catch(() => {})
+  }, [])
 
   async function handleAdd(e) {
     e.preventDefault()
     if (!text.trim()) return
     setSaving(true)
     try {
-      const note = await api.addRecruitingNote(entryId, { text })
+      const note = await api.addRecruitingNote(entryId, {
+        text,
+        is_task:     isTask ? 1 : 0,
+        assigned_to: isTask ? (assignedTo || null) : null,
+      })
       onNotesChanged([...notes, note])
       setText('')
+      setIsTask(false)
+      setAssignedTo('')
     } finally { setSaving(false) }
+  }
+
+  async function handleToggleDone(note) {
+    const updated = await api.toggleRecruitingNoteDone(entryId, note.id)
+    onNotesChanged(notes.map(n => n.id === note.id ? { ...n, is_done: updated.is_done } : n))
   }
 
   async function handleDelete(noteId) {
@@ -50,46 +68,138 @@ function NotesThread({ entryId, notes, onNotesChanged }) {
     onNotesChanged(notes.filter(n => n.id !== noteId))
   }
 
+  const tasks      = notes.filter(n => n.is_task)
+  const plainNotes = notes.filter(n => !n.is_task)
+
+  function NoteItem({ n }) {
+    return (
+      <div className="flex gap-2 group">
+        <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <span className="text-[10px] font-semibold text-gray-500">
+              {n.author_initials} — {fmt(n.created_at)}
+            </span>
+            <button
+              onClick={() => handleDelete(n.id)}
+              className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+            >✕</button>
+          </div>
+          <p className="text-gray-800 whitespace-pre-wrap">{n.text}</p>
+        </div>
+      </div>
+    )
+  }
+
+  function TaskItem({ n }) {
+    return (
+      <div className="flex gap-2 group items-start">
+        <button
+          onClick={() => handleToggleDone(n)}
+          title={n.is_done ? 'Mark incomplete' : 'Mark done'}
+          className={`mt-1 flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+            n.is_done
+              ? 'bg-teal-500 border-teal-500 text-white'
+              : 'border-gray-400 hover:border-teal-500 bg-white'
+          }`}
+        >
+          {n.is_done && <span className="text-[9px] font-bold leading-none">✓</span>}
+        </button>
+        <div className={`flex-1 rounded-lg px-3 py-2 text-sm border ${
+          n.is_done ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-amber-50 border-amber-100'
+        }`}>
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-semibold text-gray-500">
+                {n.author_initials} — {fmt(n.created_at)}
+              </span>
+              {n.assigned_to && (
+                <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-semibold">
+                  → {n.assigned_to}
+                </span>
+              )}
+              {n.is_done && (
+                <span className="text-[10px] text-teal-600 font-semibold">Done</span>
+              )}
+            </div>
+            <button
+              onClick={() => handleDelete(n.id)}
+              className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+            >✕</button>
+          </div>
+          <p className={`text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>
+            {n.text}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mt-3 pt-3 border-t border-gray-100">
+      {/* Tasks */}
+      {tasks.length > 0 && (
+        <>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Tasks</p>
+          <div className="space-y-2 mb-3">
+            {tasks.map(n => <TaskItem key={n.id} n={n} />)}
+          </div>
+        </>
+      )}
+
+      {/* Notes */}
       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Notes</p>
       <div className="space-y-2 mb-3">
-        {notes.length === 0 && (
-          <p className="text-xs text-gray-400 italic">No notes yet.</p>
+        {plainNotes.length === 0 && tasks.length === 0 && (
+          <p className="text-xs text-gray-400 italic">No notes or tasks yet.</p>
         )}
-        {notes.map(n => (
-          <div key={n.id} className="flex gap-2 group">
-            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-sm">
-              <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className="text-[10px] font-semibold text-gray-500">
-                  {n.author_initials} — {fmt(n.created_at)}
-                </span>
-                <button
-                  onClick={() => handleDelete(n.id)}
-                  className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                >✕</button>
-              </div>
-              <p className="text-gray-800 whitespace-pre-wrap">{n.text}</p>
-            </div>
-          </div>
-        ))}
+        {plainNotes.length === 0 && tasks.length > 0 && (
+          <p className="text-xs text-gray-400 italic">No plain notes.</p>
+        )}
+        {plainNotes.map(n => <NoteItem key={n.id} n={n} />)}
       </div>
-      <form onSubmit={handleAdd} className="flex gap-2">
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          rows={2}
-          placeholder={`Add a note… (as ${user?.initials})`}
-          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
-          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }}
-        />
-        <button
-          type="submit"
-          disabled={saving || !text.trim()}
-          className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg self-end disabled:opacity-40"
-        >
-          {saving ? '…' : 'Add'}
-        </button>
+
+      {/* Add form */}
+      <form onSubmit={handleAdd} className="space-y-2">
+        <div className="flex gap-2">
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            rows={2}
+            placeholder={isTask ? `Add a task… (as ${user?.initials})` : `Add a note… (as ${user?.initials})`}
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
+            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }}
+          />
+          <button
+            type="submit"
+            disabled={saving || !text.trim()}
+            className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg self-end disabled:opacity-40"
+          >
+            {saving ? '…' : 'Add'}
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 pl-0.5">
+          <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isTask}
+              onChange={e => { setIsTask(e.target.checked); if (!e.target.checked) setAssignedTo('') }}
+              className="rounded accent-amber-500"
+            />
+            Make this a task
+          </label>
+          {isTask && (
+            <select
+              value={assignedTo}
+              onChange={e => setAssignedTo(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white"
+            >
+              <option value="">Assign to anyone</option>
+              {delegates.map(d => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </form>
     </div>
   )

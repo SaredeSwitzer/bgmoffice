@@ -182,15 +182,25 @@ router.delete('/entries/:id', (req, res) => {
 // ── Notes ─────────────────────────────────────────────────────────────────────
 
 router.post('/entries/:id/notes', (req, res) => {
-  const { text } = req.body;
+  const { text, is_task, assigned_to } = req.body;
   if (!text) return res.status(400).json({ error: 'Text required' });
   const entry = db.prepare('SELECT id FROM recruiting_entries WHERE id = ?').get(req.params.id);
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
 
   const result = db.prepare(
-    'INSERT INTO recruiting_notes (entry_id, text, author_initials) VALUES (?, ?, ?)'
-  ).run(req.params.id, text.trim(), req.user.initials);
+    'INSERT INTO recruiting_notes (entry_id, text, author_initials, is_task, assigned_to) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.params.id, text.trim(), req.user.initials, is_task ? 1 : 0, assigned_to || null);
   res.status(201).json(db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(result.lastInsertRowid));
+});
+
+router.patch('/entries/:id/notes/:noteId/done', (req, res) => {
+  const note = db.prepare(
+    'SELECT * FROM recruiting_notes WHERE id = ? AND entry_id = ?'
+  ).get(req.params.noteId, req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  const newDone = note.is_done ? 0 : 1;
+  db.prepare('UPDATE recruiting_notes SET is_done = ? WHERE id = ?').run(newDone, req.params.noteId);
+  res.json({ ...note, is_done: newDone });
 });
 
 router.delete('/entries/:id/notes/:noteId', (req, res) => {

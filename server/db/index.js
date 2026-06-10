@@ -292,6 +292,10 @@ const migrations = [
   `ALTER TABLE clients      ADD COLUMN waiver_signed_date   TEXT`,
   // invoice title (added 2026-06)
   `ALTER TABLE invoices     ADD COLUMN title                TEXT`,
+  // recruiting note tasks (added 2026-06)
+  `ALTER TABLE recruiting_notes ADD COLUMN is_task     INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE recruiting_notes ADD COLUMN assigned_to TEXT`,
+  `ALTER TABLE recruiting_notes ADD COLUMN is_done     INTEGER NOT NULL DEFAULT 0`,
 ];
 
 for (const sql of migrations) {
