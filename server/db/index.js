@@ -316,4 +316,42 @@ for (const sql of migrations) {
   }
 }
 
+// Backfill: create standalone_tasks for recruiting notes that were marked as tasks
+// before the mirroring code existed (2026-06 and earlier)
+const unmirroredNotes = db.prepare(`
+  SELECT rn.*, re.client_name, re.day_of_week, re.time_slot
+  FROM recruiting_notes rn
+  JOIN recruiting_entries re ON re.id = rn.entry_id
+  WHERE rn.is_task = 1 AND rn.standalone_task_id IS NULL
+`).all();
+
+if (unmirroredNotes.length > 0) {
+  console.log(`[backfill] mirroring ${unmirroredNotes.length} existing recruiting task(s) to standalone_tasks`);
+  const insertTask = db.prepare(`
+    INSERT INTO standalone_tasks (title, assigned_to, notes, created_by, recruiting_note_id)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const linkNote = db.prepare(`UPDATE recruiting_notes SET standalone_task_id = ? WHERE id = ?`);
+
+  const backfill = db.transaction(() => {
+    for (const note of unmirroredNotes) {
+      const context = [
+        note.client_name ? `Client: ${note.client_name}` : null,
+        note.day_of_week,
+        note.time_slot || null,
+      ].filter(Boolean).join(' · ');
+
+      const result = insertTask.run(
+        note.text,
+        note.assigned_to || null,
+        context || null,
+        'system',
+        note.id
+      );
+      linkNote.run(result.lastInsertRowid, note.id);
+    }
+  });
+  backfill();
+}
+
 module.exports = db;
