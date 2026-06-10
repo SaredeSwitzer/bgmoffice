@@ -296,6 +296,9 @@ const migrations = [
   `ALTER TABLE recruiting_notes ADD COLUMN is_task     INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE recruiting_notes ADD COLUMN assigned_to TEXT`,
   `ALTER TABLE recruiting_notes ADD COLUMN is_done     INTEGER NOT NULL DEFAULT 0`,
+  // link recruiting-note tasks to standalone_tasks (added 2026-06)
+  `ALTER TABLE standalone_tasks  ADD COLUMN recruiting_note_id INTEGER`,
+  `ALTER TABLE recruiting_notes  ADD COLUMN standalone_task_id INTEGER`,
 ];
 
 for (const sql of migrations) {

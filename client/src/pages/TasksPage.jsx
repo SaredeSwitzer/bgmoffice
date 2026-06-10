@@ -168,7 +168,12 @@ function TaskCard({ task, onUpdate, onDelete }) {
                 {isOverdue ? '⚠️ ' : ''}Due {fmtDate(task.due_date)}
               </span>
             )}
-            {task.notes && <span className="italic">{task.notes}</span>}
+            {task.recruiting_note_id && (
+              <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
+                Recruiting{task.notes ? `: ${task.notes}` : ''}
+              </span>
+            )}
+            {task.notes && !task.recruiting_note_id && <span className="italic">{task.notes}</span>}
             <span>by {task.created_by} · {fmtTs(task.created_at)}</span>
           </div>
 

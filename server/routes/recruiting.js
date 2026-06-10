@@ -184,13 +184,34 @@ router.delete('/entries/:id', (req, res) => {
 router.post('/entries/:id/notes', (req, res) => {
   const { text, is_task, assigned_to } = req.body;
   if (!text) return res.status(400).json({ error: 'Text required' });
-  const entry = db.prepare('SELECT id FROM recruiting_entries WHERE id = ?').get(req.params.id);
+  const entry = db.prepare('SELECT * FROM recruiting_entries WHERE id = ?').get(req.params.id);
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
 
-  const result = db.prepare(
+  const noteResult = db.prepare(
     'INSERT INTO recruiting_notes (entry_id, text, author_initials, is_task, assigned_to) VALUES (?, ?, ?, ?, ?)'
   ).run(req.params.id, text.trim(), req.user.initials, is_task ? 1 : 0, assigned_to || null);
-  res.status(201).json(db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(result.lastInsertRowid));
+
+  let note = db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(noteResult.lastInsertRowid);
+
+  // Mirror to standalone_tasks so it appears in the Tasks page
+  if (is_task) {
+    const context = [
+      entry.client_name ? `Client: ${entry.client_name}` : null,
+      entry.day_of_week,
+      entry.time_slot || null,
+    ].filter(Boolean).join(' · ');
+
+    const taskResult = db.prepare(`
+      INSERT INTO standalone_tasks (title, assigned_to, notes, created_by, recruiting_note_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(text.trim(), assigned_to || null, context || null, req.user.initials, note.id);
+
+    db.prepare('UPDATE recruiting_notes SET standalone_task_id = ? WHERE id = ?')
+      .run(taskResult.lastInsertRowid, note.id);
+    note = db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(note.id);
+  }
+
+  res.status(201).json(note);
 });
 
 router.patch('/entries/:id/notes/:noteId/done', (req, res) => {
@@ -200,6 +221,16 @@ router.patch('/entries/:id/notes/:noteId/done', (req, res) => {
   if (!note) return res.status(404).json({ error: 'Note not found' });
   const newDone = note.is_done ? 0 : 1;
   db.prepare('UPDATE recruiting_notes SET is_done = ? WHERE id = ?').run(newDone, req.params.noteId);
+
+  // Keep standalone_task in sync
+  if (note.standalone_task_id) {
+    db.prepare(`UPDATE standalone_tasks SET status = ?, completed_at = ? WHERE id = ?`).run(
+      newDone ? 'done' : 'open',
+      newDone ? new Date().toISOString() : null,
+      note.standalone_task_id
+    );
+  }
+
   res.json({ ...note, is_done: newDone });
 });
 
@@ -208,6 +239,12 @@ router.delete('/entries/:id/notes/:noteId', (req, res) => {
     'SELECT * FROM recruiting_notes WHERE id = ? AND entry_id = ?'
   ).get(req.params.noteId, req.params.id);
   if (!note) return res.status(404).json({ error: 'Note not found' });
+
+  // Remove the mirrored standalone_task
+  if (note.standalone_task_id) {
+    db.prepare('DELETE FROM standalone_tasks WHERE id = ?').run(note.standalone_task_id);
+  }
+
   db.prepare('DELETE FROM recruiting_notes WHERE id = ?').run(req.params.noteId);
   res.json({ success: true });
 });
