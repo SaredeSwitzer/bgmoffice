@@ -157,6 +157,11 @@ export const api = {
     request(`/recruiting/columns/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteRecruitingColumn: (id) =>
     request(`/recruiting/columns/${id}`, { method: 'DELETE' }),
+  getInstructorAvailability: () => request('/recruiting/availability'),
+  addInstructorAvailability: (data) =>
+    request('/recruiting/availability', { method: 'POST', body: JSON.stringify(data) }),
+  deleteInstructorAvailability: (id) =>
+    request(`/recruiting/availability/${id}`, { method: 'DELETE' }),
 
   // Settings (admin)
   getSettingsActionTypes: () => request('/settings/action-types'),

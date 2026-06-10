@@ -249,4 +249,35 @@ router.delete('/entries/:id/notes/:noteId', (req, res) => {
   res.json({ success: true });
 });
 
+// ── Instructor Availability ───────────────────────────────────────────────────
+
+router.get('/availability', (req, res) => {
+  const rows = db.prepare(`
+    SELECT ia.*, i.name AS instructor_name
+    FROM instructor_availability ia
+    JOIN instructors i ON i.id = ia.instructor_id
+    ORDER BY i.name, ia.day_of_week, ia.time_slot
+  `).all();
+  res.json(rows);
+});
+
+router.post('/availability', (req, res) => {
+  const { instructor_id, day_of_week, time_slot } = req.body;
+  if (!instructor_id || !day_of_week) return res.status(400).json({ error: 'instructor_id and day_of_week required' });
+  const result = db.prepare(
+    'INSERT INTO instructor_availability (instructor_id, day_of_week, time_slot) VALUES (?, ?, ?)'
+  ).run(instructor_id, day_of_week, time_slot || null);
+  const row = db.prepare(`
+    SELECT ia.*, i.name AS instructor_name
+    FROM instructor_availability ia JOIN instructors i ON i.id = ia.instructor_id
+    WHERE ia.id = ?
+  `).get(result.lastInsertRowid);
+  res.status(201).json(row);
+});
+
+router.delete('/availability/:id', (req, res) => {
+  db.prepare('DELETE FROM instructor_availability WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 module.exports = router;

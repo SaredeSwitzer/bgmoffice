@@ -739,24 +739,202 @@ function ColumnManager({ columns, onColumnsChanged }) {
   )
 }
 
+// ── Fill Tracker: Classes to Fill ────────────────────────────────────────────
+
+function ClassesToFill({ grouped, availability, columns, clients, onEntryUpdated }) {
+  const unfilled = DAYS.flatMap(day =>
+    (grouped[day] || []).filter(e => !e.instructor_info?.trim())
+      .map(e => ({ ...e }))
+  )
+
+  // Build day → instructor list lookup from availability
+  const byDay = {}
+  for (const slot of availability) {
+    if (!byDay[slot.day_of_week]) byDay[slot.day_of_week] = []
+    byDay[slot.day_of_week].push(slot)
+  }
+
+  if (unfilled.length === 0) {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-8 text-center">
+        <p className="text-xl mb-1">✓</p>
+        <p className="text-sm font-medium text-green-800">All classes have instructors!</p>
+      </div>
+    )
+  }
+
+  const byDay2 = {}
+  for (const e of unfilled) {
+    if (!byDay2[e.day_of_week]) byDay2[e.day_of_week] = []
+    byDay2[e.day_of_week].push(e)
+  }
+
+  return (
+    <div className="space-y-3">
+      {DAYS.filter(d => byDay2[d]).map(day => (
+        <div key={day}>
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">{day}</p>
+          <div className="space-y-2">
+            {byDay2[day].map(entry => {
+              const matches = byDay[day] || []
+              return (
+                <div key={entry.id} className="bg-white border border-amber-200 rounded-xl px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-1">
+                        {entry.time_slot && <span className="font-semibold text-gray-800">{entry.time_slot}</span>}
+                        {entry.client_name && (
+                          entry.client_id
+                            ? <Link to={`/clients/${entry.client_id}`} className="text-blue-600 hover:underline">{entry.client_name}</Link>
+                            : <span>{entry.client_name}</span>
+                        )}
+                        {entry.style && <span className="text-gray-400">· {entry.style}</span>}
+                        {entry.neighborhood && <span className="text-gray-400">· {entry.neighborhood}</span>}
+                      </div>
+                      {matches.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          <span className="text-[11px] text-gray-400">Available {day}:</span>
+                          {matches.map(m => (
+                            <span key={m.id} className="inline-flex items-center gap-1 text-[11px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 font-medium">
+                              {m.instructor_name}{m.time_slot ? ` · ${m.time_slot}` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-gray-300 mt-1 italic">No instructors available {day}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Fill Tracker: Instructor Availability ─────────────────────────────────────
+
+function InstructorAvailability({ availability, instructors, onChanged }) {
+  const [form,    setForm]    = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
+  const [saving,  setSaving]  = useState(false)
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (!form.instructor_id || !form.day_of_week) return
+    setSaving(true)
+    try {
+      const row = await api.addInstructorAvailability({
+        instructor_id: Number(form.instructor_id),
+        day_of_week:   form.day_of_week,
+        time_slot:     form.time_slot || null,
+      })
+      onChanged([...availability, row])
+      setForm({ instructor_id: '', day_of_week: '', time_slot: '' })
+    } finally { setSaving(false) }
+  }
+
+  async function handleDelete(id) {
+    await api.deleteInstructorAvailability(id)
+    onChanged(availability.filter(a => a.id !== id))
+  }
+
+  // Group by instructor name for display
+  const grouped = {}
+  for (const slot of availability) {
+    if (!grouped[slot.instructor_name]) grouped[slot.instructor_name] = []
+    grouped[slot.instructor_name].push(slot)
+  }
+  const instructorNames = Object.keys(grouped).sort()
+
+  return (
+    <div className="space-y-4">
+      {/* Add form */}
+      <form onSubmit={handleAdd} className="flex flex-wrap gap-2 items-end">
+        <div>
+          <label className="block text-[10px] font-medium text-gray-500 mb-1">Instructor</label>
+          <select value={form.instructor_id} onChange={e => setForm(f => ({ ...f, instructor_id: e.target.value }))}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm min-w-[160px]">
+            <option value="">Select instructor…</option>
+            {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-medium text-gray-500 mb-1">Day</label>
+          <select value={form.day_of_week} onChange={e => setForm(f => ({ ...f, day_of_week: e.target.value }))}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+            <option value="">Select day…</option>
+            {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-medium text-gray-500 mb-1">Time (optional)</label>
+          <input value={form.time_slot} onChange={e => setForm(f => ({ ...f, time_slot: e.target.value }))}
+            placeholder="e.g. 10am–noon"
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36" />
+        </div>
+        <button type="submit" disabled={saving || !form.instructor_id || !form.day_of_week}
+          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-gray-700">
+          {saving ? 'Adding…' : '+ Add'}
+        </button>
+      </form>
+
+      {/* Availability list */}
+      {instructorNames.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">No availability recorded yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {instructorNames.map(name => (
+            <div key={name} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+              <p className="text-sm font-semibold text-gray-800 mb-2">{name}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {grouped[name].map(slot => (
+                  <span key={slot.id} className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 rounded-full px-2.5 py-1">
+                    <span className="font-medium">{slot.day_of_week}</span>
+                    {slot.time_slot && <span className="text-gray-500">· {slot.time_slot}</span>}
+                    <button onClick={() => handleDelete(slot.id)}
+                      className="text-gray-300 hover:text-red-500 leading-none ml-0.5">✕</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function RecruitingPage() {
-  const [grouped,  setGrouped]  = useState({})
-  const [columns,  setColumns]  = useState([])
-  const [clients,  setClients]  = useState([])
-  const [query,    setQuery]    = useState('')
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState('')
+  const [tab,          setTab]          = useState('tracker')  // 'tracker' | 'entries'
+  const [grouped,      setGrouped]      = useState({})
+  const [columns,      setColumns]      = useState([])
+  const [clients,      setClients]      = useState([])
+  const [instructors,  setInstructors]  = useState([])
+  const [availability, setAvailability] = useState([])
+  const [query,        setQuery]        = useState('')
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState('')
   const searchTimer = useRef(null)
 
   const load = useCallback((q = '') => {
     setLoading(true)
-    Promise.all([api.getRecruiting(q || undefined), api.getClients()])
-      .then(([data, cls]) => {
+    Promise.all([
+      api.getRecruiting(q || undefined),
+      api.getClients(),
+      api.getInstructors(),
+      api.getInstructorAvailability(),
+    ])
+      .then(([data, cls, insts, avail]) => {
         setGrouped(data.grouped)
         setColumns(data.columns)
         setClients(cls)
+        setInstructors(insts)
+        setAvailability(avail)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -795,6 +973,8 @@ export default function RecruitingPage() {
   if (error) return <p className="text-red-600 text-sm">{error}</p>
 
   const totalEntries = DAYS.reduce((n, d) => n + (grouped[d]?.length || 0), 0)
+  const unfilledCount = DAYS.reduce((n, d) =>
+    n + (grouped[d] || []).filter(e => !e.instructor_info?.trim()).length, 0)
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -805,23 +985,89 @@ export default function RecruitingPage() {
           <p className="text-xs text-gray-500 mt-0.5">{totalEntries} entr{totalEntries === 1 ? 'y' : 'ies'} across all days</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              value={query}
-              onChange={e => handleSearchChange(e.target.value)}
-              placeholder="Search entries…"
-              className="border border-gray-300 rounded-lg pl-8 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 w-52"
-            />
-          </div>
-          <ColumnManager columns={columns} onColumnsChanged={setColumns} />
+          {tab === 'entries' && (
+            <>
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  value={query}
+                  onChange={e => handleSearchChange(e.target.value)}
+                  placeholder="Search entries…"
+                  className="border border-gray-300 rounded-lg pl-8 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 w-52"
+                />
+              </div>
+              <ColumnManager columns={columns} onColumnsChanged={setColumns} />
+            </>
+          )}
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <button
+          onClick={() => setTab('tracker')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === 'tracker'
+              ? 'border-gray-900 text-gray-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Fill Tracker
+          {unfilledCount > 0 && (
+            <span className="ml-2 text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+              {unfilledCount}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab('entries')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === 'entries'
+              ? 'border-gray-900 text-gray-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          All Entries
+        </button>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
+      ) : tab === 'tracker' ? (
+        <div className="space-y-8">
+          {/* Classes to Fill */}
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-4 pl-1 border-l-4 border-amber-400">
+              Classes to Fill
+              {unfilledCount > 0 && (
+                <span className="ml-2 text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                  {unfilledCount} need{unfilledCount === 1 ? 's' : ''} instructor
+                </span>
+              )}
+            </h2>
+            <ClassesToFill
+              grouped={grouped}
+              availability={availability}
+              columns={columns}
+              clients={clients}
+              onEntryUpdated={handleEntryUpdated}
+            />
+          </section>
+
+          {/* Instructor Availability */}
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-4 pl-1 border-l-4 border-blue-400">
+              Instructor Availability
+            </h2>
+            <InstructorAvailability
+              availability={availability}
+              instructors={instructors}
+              onChanged={setAvailability}
+            />
+          </section>
+        </div>
       ) : (
         <div className="space-y-4">
           {DAYS.map(day => (

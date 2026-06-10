@@ -301,6 +301,17 @@ const migrations = [
   `ALTER TABLE recruiting_notes  ADD COLUMN standalone_task_id INTEGER`,
 ];
 
+// instructor availability table (added 2026-06)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS instructor_availability (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    instructor_id INTEGER NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
+    day_of_week   TEXT    NOT NULL,
+    time_slot     TEXT,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 for (const sql of migrations) {
   try {
     db.exec(sql);
