@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import SearchSelect from '../components/SearchSelect'
@@ -468,11 +468,19 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
 
 // ── Entry Card ────────────────────────────────────────────────────────────────
 
-function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated, onDeleted }) {
-  const [expanded,     setExpanded]     = useState(false)
+function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated, onDeleted, targetEntryId }) {
+  const isTarget = targetEntryId != null && entry.id === targetEntryId
+  const [expanded,     setExpanded]     = useState(isTarget)
   const [editing,      setEditing]      = useState(false)
   const [notes,        setNotes]        = useState(entry.notes || [])
   const [quickAddTask, setQuickAddTask] = useState(false)
+  const cardRef = useRef(null)
+
+  useEffect(() => {
+    if (isTarget && cardRef.current) {
+      setTimeout(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400)
+    }
+  }, [isTarget])
 
   function handleUpdated(updated) {
     setEditing(false)
@@ -495,7 +503,10 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
   const openTaskCount = notes.filter(n => n.is_task && !n.is_done).length
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div ref={cardRef}
+      className={`bg-white rounded-xl shadow-sm overflow-hidden transition-shadow ${
+        isTarget ? 'border-2 border-amber-400 ring-2 ring-amber-100' : 'border border-gray-200'
+      }`}>
       {/* Summary row */}
       <div
         className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -722,8 +733,9 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
 
 // ── Day Section ───────────────────────────────────────────────────────────────
 
-function DaySection({ day, entries, clients, instructors, actionTypes, users, onUpdated, onDeleted, onCreated, defaultOpen }) {
-  const [open,      setOpen]      = useState(defaultOpen)
+function DaySection({ day, entries, clients, instructors, actionTypes, users, onUpdated, onDeleted, onCreated, defaultOpen, targetEntryId }) {
+  const hasTarget = targetEntryId != null && entries.some(e => e.id === targetEntryId)
+  const [open,      setOpen]      = useState(defaultOpen || hasTarget)
   const [addingNew, setAddingNew] = useState(false)
 
   const unfilledInDay = entries.filter(isUnfilled).length
@@ -766,6 +778,7 @@ function DaySection({ day, entries, clients, instructors, actionTypes, users, on
               users={users}
               onUpdated={onUpdated}
               onDeleted={onDeleted}
+              targetEntryId={targetEntryId}
             />
           ))}
 
@@ -1001,6 +1014,9 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function RecruitingPage() {
+  const [searchParams] = useSearchParams()
+  const targetEntryId  = searchParams.get('entry') ? Number(searchParams.get('entry')) : null
+
   const [tab,          setTab]          = useState('entries')
   const [grouped,      setGrouped]      = useState({})
   const [clients,      setClients]      = useState([])
@@ -1149,6 +1165,7 @@ export default function RecruitingPage() {
               onDeleted={handleEntryDeleted}
               onCreated={handleEntryCreated}
               defaultOpen={day === 'Sunday'}
+              targetEntryId={targetEntryId}
             />
           ))}
         </div>

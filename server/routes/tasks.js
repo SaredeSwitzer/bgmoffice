@@ -52,6 +52,13 @@ router.put('/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM standalone_tasks WHERE id = ?').get(req.params.id));
 });
 
+// Star/unstar task
+router.patch('/:id/star', (req, res) => {
+  const { starred } = req.body;
+  db.prepare('UPDATE standalone_tasks SET starred = ? WHERE id = ?').run(starred ? 1 : 0, req.params.id);
+  res.json(db.prepare('SELECT * FROM standalone_tasks WHERE id = ?').get(req.params.id));
+});
+
 // Delete task
 router.delete('/:id', (req, res) => {
   db.prepare('DELETE FROM standalone_tasks WHERE id = ?').run(req.params.id);

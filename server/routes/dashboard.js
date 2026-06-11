@@ -87,9 +87,20 @@ function sortItems(items) {
   });
 }
 
+function attachCategories(items) {
+  return items.map(item => {
+    const typeNames = (item.action_types || []).map(at => at.name);
+    const categories = [];
+    if (typeNames.some(n => CLIENT_FACING_TYPES.includes(n)))      categories.push('client_followup');
+    if (typeNames.some(n => INSTRUCTOR_FACING_TYPES.includes(n)))  categories.push('instructor_followup');
+    if (categories.length === 0) categories.push('other');
+    return { ...item, source: 'action_item', categories };
+  });
+}
+
 function buildSection(extraSql, params) {
   const rows = db.prepare(BASE_SQL + extraSql).all(...params);
-  return sortItems(attachLastNote(attachActionTypes(rows)));
+  return sortItems(attachLastNote(attachCategories(attachActionTypes(rows))));
 }
 
 router.get('/my-tasks', (req, res) => {
@@ -139,11 +150,13 @@ router.get('/', (req, res) => {
            st.client_id,     cl.name AS client_name,
            st.instructor_id, i.name  AS instructor_name,
            st.action_type_id, at.name AS action_type_name, at.color AS action_type_color,
-           st.assigned_to, st.recruiting_note_id, st.notes
+           st.assigned_to, st.recruiting_note_id, st.notes,
+           rn.entry_id AS recruiting_entry_id
     FROM standalone_tasks st
-    LEFT JOIN clients     cl ON cl.id = st.client_id
-    LEFT JOIN instructors i  ON i.id  = st.instructor_id
-    LEFT JOIN action_types at ON at.id = st.action_type_id
+    LEFT JOIN clients        cl ON cl.id = st.client_id
+    LEFT JOIN instructors    i  ON i.id  = st.instructor_id
+    LEFT JOIN action_types   at ON at.id = st.action_type_id
+    LEFT JOIN recruiting_notes rn ON rn.id = st.recruiting_note_id
     WHERE st.status = 'open'
     ORDER BY st.starred DESC, st.created_at ASC
   `).all();
@@ -154,6 +167,7 @@ router.get('/', (req, res) => {
     status: t.status,
     created_at: t.created_at,
     starred: t.starred,
+    title: t.title,
     delegate_name: t.assigned_to,
     client_id: t.client_id,
     client_name: t.client_name,
@@ -168,17 +182,15 @@ router.get('/', (req, res) => {
     action_type_color: t.action_type_color || 'gray',
     last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
     source: t.recruiting_note_id ? 'recruiting' : 'standalone',
+    categories: t.recruiting_note_id ? ['recruiting'] : ['task'],
     recruiting_note_id: t.recruiting_note_id,
+    recruiting_entry_id: t.recruiting_entry_id || null,
   }));
 
   const open_tasks = [...actionItemTasks, ...standaloneTasks]
     .sort((a, b) => (b.starred - a.starred) || (new Date(a.created_at) - new Date(b.created_at)));
 
-  res.json({
-    open_tasks,
-    client_followups:     buildSection(typeFilter(CLIENT_FACING_TYPES)     + ' ORDER BY ai.created_at ASC', CLIENT_FACING_TYPES),
-    instructor_followups: buildSection(typeFilter(INSTRUCTOR_FACING_TYPES) + ' ORDER BY ai.created_at ASC', INSTRUCTOR_FACING_TYPES),
-  });
+  res.json({ open_tasks });
 });
 
 module.exports = router;
