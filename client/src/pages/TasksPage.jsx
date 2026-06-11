@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import DateInput from '../components/DateInput'
@@ -169,9 +170,11 @@ function TaskCard({ task, onUpdate, onDelete }) {
               </span>
             )}
             {task.recruiting_note_id && (
-              <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
-                Recruiting{task.notes ? `: ${task.notes}` : ''}
-              </span>
+              <Link to="/recruiting"
+                className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium hover:bg-amber-200"
+                onClick={e => e.stopPropagation()}>
+                → Recruiting{task.notes ? `: ${task.notes}` : ''}
+              </Link>
             )}
             {task.notes && !task.recruiting_note_id && <span className="italic">{task.notes}</span>}
             <span>by {task.created_by} · {fmtTs(task.created_at)}</span>

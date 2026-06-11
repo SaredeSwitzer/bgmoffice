@@ -260,8 +260,6 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
     instructor_info:     entry?.instructor_info     || '',
     instructor_id:       entry?.instructor_id       || null,
     client_rate:         entry?.client_rate         || '',
-    action_type_id:      entry?.action_type_id      || '',
-    assigned_to_user_id: entry?.assigned_to_user_id || '',
   }))
 
   const [clientObj,     setClientObj]     = useState(
@@ -325,10 +323,8 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
     try {
       const payload = {
         ...form,
-        client_id:           form.client_id           || null,
-        instructor_id:       form.instructor_id       || null,
-        action_type_id:      form.action_type_id      ? Number(form.action_type_id)      : null,
-        assigned_to_user_id: form.assigned_to_user_id ? Number(form.assigned_to_user_id) : null,
+        client_id:     form.client_id     || null,
+        instructor_id: form.instructor_id || null,
       }
       const saved = entry
         ? await api.updateRecruitingEntry(entry.id, payload)
@@ -452,27 +448,6 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
             placeholder="e.g. $125" className={inputCls} />
         </div>
 
-        {/* Action Type */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Action Type</label>
-          <select value={form.action_type_id} onChange={e => setField('action_type_id', e.target.value)}
-            className={selectCls}>
-            <option value="">None</option>
-            {actionTypes.map(at => <option key={at.id} value={at.id}>{at.name}</option>)}
-          </select>
-        </div>
-
-        {/* Assigned To */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Assigned To</label>
-          <select value={form.assigned_to_user_id} onChange={e => setField('assigned_to_user_id', e.target.value)}
-            className={selectCls}>
-            <option value="">Unassigned</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-        </div>
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}

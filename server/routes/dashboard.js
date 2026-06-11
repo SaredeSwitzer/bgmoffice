@@ -132,8 +132,50 @@ router.get('/my-tasks', (req, res) => {
 });
 
 router.get('/', (req, res) => {
+  const actionItemTasks = buildSection(' ORDER BY ai.created_at ASC', []);
+
+  const standaloneRows = db.prepare(`
+    SELECT st.id, st.title, st.status, st.created_at, st.starred,
+           st.client_id,     cl.name AS client_name,
+           st.instructor_id, i.name  AS instructor_name,
+           st.action_type_id, at.name AS action_type_name, at.color AS action_type_color,
+           st.assigned_to, st.recruiting_note_id, st.notes
+    FROM standalone_tasks st
+    LEFT JOIN clients     cl ON cl.id = st.client_id
+    LEFT JOIN instructors i  ON i.id  = st.instructor_id
+    LEFT JOIN action_types at ON at.id = st.action_type_id
+    WHERE st.status = 'open'
+    ORDER BY st.starred DESC, st.created_at ASC
+  `).all();
+
+  const standaloneTasks = standaloneRows.map(t => ({
+    id: t.id,
+    case_id: null,
+    status: t.status,
+    created_at: t.created_at,
+    starred: t.starred,
+    delegate_name: t.assigned_to,
+    client_id: t.client_id,
+    client_name: t.client_name,
+    instructor_id: t.instructor_id,
+    instructor_name: t.instructor_name,
+    case_title: null,
+    action_types: t.action_type_id
+      ? [{ id: t.action_type_id, name: t.action_type_name, color: t.action_type_color }]
+      : [],
+    action_type_id: t.action_type_id,
+    action_type_name: t.action_type_name || null,
+    action_type_color: t.action_type_color || 'gray',
+    last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
+    source: t.recruiting_note_id ? 'recruiting' : 'standalone',
+    recruiting_note_id: t.recruiting_note_id,
+  }));
+
+  const open_tasks = [...actionItemTasks, ...standaloneTasks]
+    .sort((a, b) => (b.starred - a.starred) || (new Date(a.created_at) - new Date(b.created_at)));
+
   res.json({
-    open_tasks:           buildSection(' ORDER BY ai.created_at ASC', []),
+    open_tasks,
     client_followups:     buildSection(typeFilter(CLIENT_FACING_TYPES)     + ' ORDER BY ai.created_at ASC', CLIENT_FACING_TYPES),
     instructor_followups: buildSection(typeFilter(INSTRUCTOR_FACING_TYPES) + ' ORDER BY ai.created_at ASC', INSTRUCTOR_FACING_TYPES),
   });

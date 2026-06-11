@@ -144,14 +144,23 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
         </span>
       </td>
       <td className="px-3 py-2.5 max-w-xs">
-        {item.last_note ? (
-          <span className="text-xs text-gray-500 truncate block max-w-[180px]">
-            <span className="font-medium text-gray-700">{item.last_note.author_initials}:</span>{' '}
-            {item.last_note.text}
-          </span>
-        ) : (
-          <span className="text-xs text-gray-400 italic">—</span>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {item.source === 'recruiting' && (
+            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap">
+              Recruiting
+            </span>
+          )}
+          {item.last_note ? (
+            <span className="text-xs text-gray-500 truncate block max-w-[180px]">
+              {item.source !== 'recruiting' && (
+                <span className="font-medium text-gray-700">{item.last_note.author_initials}: </span>
+              )}
+              {item.last_note.text}
+            </span>
+          ) : (
+            <span className="text-xs text-gray-400 italic">—</span>
+          )}
+        </div>
       </td>
     </tr>
   )
@@ -343,7 +352,7 @@ function SectionTable({ title, items, emptyMsg, onRowClick, accent, myDelegateNa
                     key={item.id}
                     item={item}
                     isOwn={delegateFilter === FILTER_ALL && !!myDelegateName && item.delegate_name === myDelegateName}
-                    onClick={() => onRowClick(item.case_id)}
+                    onClick={() => onRowClick(item)}
                     onStar={onStar}
                   />
                 ))}
@@ -412,7 +421,14 @@ export default function DashboardPage() {
   if (error) return <p className="text-red-600 text-sm">{error}</p>
   if (!data)  return <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
 
-  const shared = { onRowClick: id => navigate(`/cases/${id}`), delegates, myDelegateName, onStar: handleStar }
+  const shared = {
+    onRowClick: (item) => {
+      if (item.source === 'recruiting') navigate('/recruiting')
+      else if (item.source === 'standalone') navigate('/tasks')
+      else if (item.case_id) navigate(`/cases/${item.case_id}`)
+    },
+    delegates, myDelegateName, onStar: handleStar,
+  }
 
   return (
     <div className="space-y-8">
