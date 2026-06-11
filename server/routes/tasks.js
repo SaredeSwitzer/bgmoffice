@@ -52,6 +52,19 @@ router.put('/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM standalone_tasks WHERE id = ?').get(req.params.id));
 });
 
+// Add reply to task
+router.post('/:id/replies', (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
+  const task = db.prepare('SELECT id, replies FROM standalone_tasks WHERE id = ?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Not found' });
+  const existing = task.replies ? JSON.parse(task.replies) : [];
+  const reply = { id: Date.now(), text: text.trim(), author: req.user.initials, created_at: new Date().toISOString() };
+  db.prepare('UPDATE standalone_tasks SET replies = ? WHERE id = ?')
+    .run(JSON.stringify([...existing, reply]), task.id);
+  res.status(201).json(reply);
+});
+
 // Star/unstar task
 router.patch('/:id/star', (req, res) => {
   const { starred } = req.body;

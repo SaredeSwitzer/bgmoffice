@@ -51,6 +51,12 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     setTaskInstructor(String(entryInstructorId || ''))
   }
 
+  function openReplyNote(taskText) {
+    setMode('note')
+    setText(`Re: "${taskText}"\n`)
+    setTimeout(() => textRef.current?.focus(), 50)
+  }
+
   function cancel() {
     setMode(null); setText(''); setAssignedTo('')
     setTaskClientId(String(entryClientId || ''))
@@ -109,28 +115,37 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
             <p className="text-xs text-gray-400 italic">No tasks yet.</p>
           )}
           {tasks.map(n => (
-            <div key={n.id} className="flex gap-2 group items-start">
-              <button onClick={() => handleToggleDone(n)}
-                className={`mt-1 flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                  n.is_done ? 'bg-teal-500 border-teal-500 text-white' : 'border-gray-400 hover:border-teal-500 bg-white'
-                }`}>
-                {n.is_done && <span className="text-[9px] font-bold leading-none">✓</span>}
-              </button>
-              <div className={`flex-1 rounded-lg px-3 py-2 text-sm border ${
-                n.is_done ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-amber-50 border-amber-100'
-              }`}>
-                <div className="flex items-center justify-between gap-2 mb-0.5">
+            <div key={n.id} className={`rounded-xl border overflow-hidden ${
+              n.is_done ? 'border-gray-100 bg-gray-50 opacity-70' : 'border-amber-200 bg-amber-50'
+            }`}>
+              <div className="px-3 pt-2.5 pb-1">
+                <div className="flex items-start justify-between gap-2 mb-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
                     {n.assigned_to && (
                       <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-semibold">→ {n.assigned_to}</span>
                     )}
-                    {n.is_done && <span className="text-[10px] text-teal-600 font-semibold">Done</span>}
                   </div>
                   <button onClick={() => handleDelete(n.id)}
-                    className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                    className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
                 </div>
-                <p className={`text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>{n.text}</p>
+                <p className={`text-sm text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>{n.text}</p>
+              </div>
+              <div className="flex gap-1.5 px-3 pb-2.5 pt-1">
+                <button onClick={() => handleToggleDone(n)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                    n.is_done
+                      ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-white'
+                      : 'bg-white border-teal-300 text-teal-700 hover:bg-teal-50'
+                  }`}>
+                  {n.is_done ? '✓ Done — Reopen' : '✓ Mark Done'}
+                </button>
+                {!n.is_done && (
+                  <button onClick={() => openReplyNote(n.text)}
+                    className="px-2.5 py-1 text-xs font-medium border border-gray-200 text-gray-500 rounded-lg hover:bg-white">
+                    ↩ Reply
+                  </button>
+                )}
               </div>
             </div>
           ))}

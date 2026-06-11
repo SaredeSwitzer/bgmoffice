@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -89,10 +89,18 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
 
 // ── Task card ─────────────────────────────────────────────────────────────────
 function TaskCard({ task, onUpdate, onDelete }) {
-  const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const isDone = task.status === 'done'
-  const isUrgent = task.priority === 'urgent'
+  const { user } = useAuth()
+  const [editing,    setEditing]    = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const [showReply,  setShowReply]  = useState(false)
+  const [replyText,  setReplyText]  = useState('')
+  const [replies,    setReplies]    = useState(() => {
+    try { return task.replies ? JSON.parse(task.replies) : [] } catch { return [] }
+  })
+  const replyRef = useRef(null)
+
+  const isDone    = task.status === 'done'
+  const isUrgent  = task.priority === 'urgent'
   const isOverdue = task.due_date && !isDone && task.due_date < new Date().toISOString().slice(0, 10)
 
   async function toggle() {
@@ -117,6 +125,18 @@ function TaskCard({ task, onUpdate, onDelete }) {
     } finally { setSaving(false) }
   }
 
+  async function handleReply(e) {
+    e.preventDefault()
+    if (!replyText.trim()) return
+    setSaving(true)
+    try {
+      const reply = await api.addTaskReply(task.id, replyText.trim())
+      setReplies(prev => [...prev, reply])
+      setReplyText('')
+      setShowReply(false)
+    } finally { setSaving(false) }
+  }
+
   if (editing) return (
     <TaskForm initial={{ title: task.title, description: task.description || '', assigned_to: task.assigned_to || '',
       due_date: task.due_date || '', priority: task.priority, notes: task.notes || '' }}
@@ -125,65 +145,94 @@ function TaskCard({ task, onUpdate, onDelete }) {
 
   return (
     <div className={`bg-white border rounded-xl px-4 py-3 transition-colors ${
-      isDone ? 'border-gray-100 opacity-60' :
+      isDone ? 'border-gray-100 opacity-70' :
       task.starred ? 'border-yellow-300 bg-yellow-50/40' :
       isUrgent ? 'border-red-200 bg-red-50/30' :
       'border-gray-200'
     }`}>
-      <div className="flex items-start gap-3">
-        {/* checkbox */}
-        <button onClick={toggle} disabled={saving}
-          className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-            isDone ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-gray-500'
-          }`}>
-          {isDone && <span className="text-white text-xs font-bold">✓</span>}
-        </button>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <p className={`text-sm font-semibold ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-              {isUrgent && !isDone && <span className="text-red-500 mr-1">🔴</span>}
-              {task.title}
-            </p>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <button onClick={toggleStar}
-                className={`text-base leading-none ${task.starred ? 'text-yellow-400' : 'text-gray-200 hover:text-yellow-300'}`}
-                title={task.starred ? 'Unstar' : 'Star'}>★</button>
-              <button onClick={() => setEditing(true)}
-                className="text-xs text-gray-400 hover:text-gray-700 px-1">✎</button>
-              <button onClick={() => onDelete(task.id)}
-                className="text-xs text-gray-300 hover:text-red-500 px-1">✕</button>
-            </div>
-          </div>
-
-          {task.description && (
-            <p className="text-xs text-gray-500 mt-0.5">{task.description}</p>
-          )}
-
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-gray-400">
-            {task.assigned_to && (
-              <span className="font-medium text-gray-600">→ {task.assigned_to}</span>
-            )}
-            {task.due_date && (
-              <span className={isOverdue ? 'text-amber-600 font-semibold' : ''}>
-                {isOverdue ? '⚠️ ' : ''}Due {fmtDate(task.due_date)}
-              </span>
-            )}
-            {task.recruiting_note_id && (
-              <Link to="/recruiting"
-                className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium hover:bg-amber-200"
-                onClick={e => e.stopPropagation()}>
-                → Recruiting{task.notes ? `: ${task.notes}` : ''}
-              </Link>
-            )}
-            {task.notes && !task.recruiting_note_id && <span className="italic">{task.notes}</span>}
-            <span>by {task.created_by} · {fmtTs(task.created_at)}</span>
-          </div>
-
-          {isDone && task.completed_at && (
-            <p className="text-[10px] text-green-600 mt-0.5">Completed {fmtTs(task.completed_at)}</p>
-          )}
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className={`text-sm font-semibold flex-1 ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+          {isUrgent && !isDone && <span className="text-red-500 mr-1">🔴</span>}
+          {task.title}
+        </p>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={toggleStar}
+            className={`text-base leading-none ${task.starred ? 'text-yellow-400' : 'text-gray-200 hover:text-yellow-300'}`}>★</button>
+          <button onClick={() => setEditing(true)} className="text-xs text-gray-400 hover:text-gray-700 px-1">✎</button>
+          <button onClick={() => onDelete(task.id)} className="text-xs text-gray-300 hover:text-red-500 px-1">✕</button>
         </div>
+      </div>
+
+      {task.description && <p className="text-xs text-gray-500 mb-2">{task.description}</p>}
+
+      {/* Metadata */}
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-3 text-xs text-gray-400">
+        {task.assigned_to && <span className="font-medium text-gray-600">→ {task.assigned_to}</span>}
+        {task.due_date && (
+          <span className={isOverdue ? 'text-amber-600 font-semibold' : ''}>
+            {isOverdue ? '⚠️ ' : ''}Due {fmtDate(task.due_date)}
+          </span>
+        )}
+        {task.recruiting_note_id && (
+          <Link to="/recruiting"
+            className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium hover:bg-amber-200">
+            ↗ From Recruiting{task.notes ? `: ${task.notes}` : ''}
+          </Link>
+        )}
+        {task.notes && !task.recruiting_note_id && <span className="italic">{task.notes}</span>}
+        <span>by {task.created_by} · {fmtTs(task.created_at)}</span>
+        {isDone && task.completed_at && (
+          <span className="text-green-600">✓ Completed {fmtTs(task.completed_at)}</span>
+        )}
+      </div>
+
+      {/* Reply thread */}
+      {replies.length > 0 && (
+        <div className="border-t border-gray-100 pt-2 mb-2 space-y-1.5">
+          {replies.map(r => (
+            <div key={r.id} className="flex gap-2 text-xs">
+              <span className="font-semibold text-gray-500 flex-shrink-0">{r.author}</span>
+              <span className="text-gray-700">{r.text}</span>
+              <span className="text-gray-300 flex-shrink-0 ml-auto">{fmtTs(r.created_at)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Reply form */}
+      {showReply && (
+        <form onSubmit={handleReply} className="border-t border-gray-100 pt-2 mb-2 flex gap-2">
+          <input ref={replyRef} value={replyText} onChange={e => setReplyText(e.target.value)}
+            placeholder={`Reply as ${user?.initials}…`} autoFocus
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
+          <button type="submit" disabled={saving || !replyText.trim()}
+            className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40">
+            Send
+          </button>
+          <button type="button" onClick={() => { setShowReply(false); setReplyText('') }}
+            className="px-2 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">
+            ✕
+          </button>
+        </form>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex gap-2 pt-1">
+        <button onClick={toggle} disabled={saving}
+          className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+            isDone
+              ? 'bg-green-50 border-green-200 text-green-700 hover:bg-white hover:text-gray-600'
+              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700'
+          }`}>
+          {saving ? '…' : isDone ? '✓ Done — click to reopen' : '✓ Mark as Done'}
+        </button>
+        {!isDone && (
+          <button onClick={() => { setShowReply(v => !v) }}
+            className="px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50">
+            ↩ Reply
+          </button>
+        )}
       </div>
     </div>
   )

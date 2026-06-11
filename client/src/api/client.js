@@ -36,6 +36,7 @@ export const api = {
   createTask: (data) => request('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id, data) => request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   starTask: (id, starred) => request(`/tasks/${id}/star`, { method: 'PATCH', body: JSON.stringify({ starred }) }),
+  addTaskReply: (id, text) => request(`/tasks/${id}/replies`, { method: 'POST', body: JSON.stringify({ text }) }),
   deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
 
   // Auth
