@@ -218,15 +218,13 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
             <p className="text-xs text-gray-400 italic">No notes yet.</p>
           )}
           {plainNotes.map(n => (
-            <div key={n.id} className="flex gap-2 group">
-              <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
-                  <button onClick={() => handleDelete(n.id)}
-                    className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
-                </div>
-                <p className="text-gray-800 whitespace-pre-wrap">{n.text}</p>
+            <div key={n.id} className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
+                <button onClick={() => handleDelete(n.id)}
+                  className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
               </div>
+              <p className="text-gray-800 whitespace-pre-wrap">{n.text}</p>
             </div>
           ))}
         </div>

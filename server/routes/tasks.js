@@ -65,6 +65,16 @@ router.post('/:id/replies', (req, res) => {
   res.status(201).json(reply);
 });
 
+// Delete a reply
+router.delete('/:id/replies/:replyId', (req, res) => {
+  const task = db.prepare('SELECT id, replies FROM standalone_tasks WHERE id = ?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Not found' });
+  const existing = task.replies ? JSON.parse(task.replies) : [];
+  db.prepare('UPDATE standalone_tasks SET replies = ? WHERE id = ?')
+    .run(JSON.stringify(existing.filter(r => String(r.id) !== String(req.params.replyId))), task.id);
+  res.json({ success: true });
+});
+
 // Star/unstar task
 router.patch('/:id/star', (req, res) => {
   const { starred } = req.body;

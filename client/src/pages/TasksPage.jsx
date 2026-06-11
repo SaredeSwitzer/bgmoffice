@@ -137,6 +137,11 @@ function TaskCard({ task, onUpdate, onDelete }) {
     } finally { setSaving(false) }
   }
 
+  async function handleDeleteReply(replyId) {
+    await api.deleteTaskReply(task.id, replyId)
+    setReplies(prev => prev.filter(r => r.id !== replyId))
+  }
+
   if (editing) return (
     <TaskForm initial={{ title: task.title, description: task.description || '', assigned_to: task.assigned_to || '',
       due_date: task.due_date || '', priority: task.priority, notes: task.notes || '' }}
@@ -191,10 +196,12 @@ function TaskCard({ task, onUpdate, onDelete }) {
       {replies.length > 0 && (
         <div className="border-t border-gray-100 pt-2 mb-2 space-y-1.5">
           {replies.map(r => (
-            <div key={r.id} className="flex gap-2 text-xs">
-              <span className="font-semibold text-gray-500 flex-shrink-0">{r.author}</span>
-              <span className="text-gray-700">{r.text}</span>
-              <span className="text-gray-300 flex-shrink-0 ml-auto">{fmtTs(r.created_at)}</span>
+            <div key={r.id} className="flex gap-2 text-xs items-start group">
+              <span className="font-semibold text-gray-500 flex-shrink-0 mt-0.5">{r.author}</span>
+              <span className="text-gray-700 flex-1">{r.text}</span>
+              <span className="text-gray-300 flex-shrink-0">{fmtTs(r.created_at)}</span>
+              <button onClick={() => handleDeleteReply(r.id)}
+                className="text-gray-300 hover:text-red-500 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
             </div>
           ))}
         </div>
