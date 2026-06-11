@@ -152,6 +152,8 @@ export const api = {
     request(`/recruiting/entries/${entryId}/notes`, { method: 'POST', body: JSON.stringify(data) }),
   deleteRecruitingNote: (entryId, noteId) =>
     request(`/recruiting/entries/${entryId}/notes/${noteId}`, { method: 'DELETE' }),
+  updateRecruitingNote: (entryId, noteId, data) =>
+    request(`/recruiting/entries/${entryId}/notes/${noteId}`, { method: 'PUT', body: JSON.stringify(data) }),
   toggleRecruitingNoteDone: (entryId, noteId) =>
     request(`/recruiting/entries/${entryId}/notes/${noteId}/done`, { method: 'PATCH' }),
   getRecruitingColumns: () => request('/recruiting/columns'),

@@ -195,6 +195,26 @@ router.post('/entries/:id/notes', (req, res) => {
   res.status(201).json(note);
 });
 
+router.put('/entries/:id/notes/:noteId', (req, res) => {
+  const note = db.prepare(
+    'SELECT * FROM recruiting_notes WHERE id = ? AND entry_id = ?'
+  ).get(req.params.noteId, req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+
+  const { text, assigned_to } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
+
+  db.prepare('UPDATE recruiting_notes SET text = ?, assigned_to = ? WHERE id = ?')
+    .run(text.trim(), assigned_to || null, note.id);
+
+  if (note.standalone_task_id) {
+    db.prepare('UPDATE standalone_tasks SET title = ?, assigned_to = ? WHERE id = ?')
+      .run(text.trim(), assigned_to || null, note.standalone_task_id);
+  }
+
+  res.json(db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(note.id));
+});
+
 router.patch('/entries/:id/notes/:noteId/done', (req, res) => {
   const note = db.prepare(
     'SELECT * FROM recruiting_notes WHERE id = ? AND entry_id = ?'

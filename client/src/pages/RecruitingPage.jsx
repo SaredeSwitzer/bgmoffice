@@ -19,6 +19,98 @@ function isUnfilled(entry) {
   return !entry.instructor_id && !entry.instructor_info?.trim()
 }
 
+// ── Task note card (with inline edit) ────────────────────────────────────────
+
+function TaskNoteCard({ note: n, currentUserInitials, delegates, onToggleDone, onDelete, onEdit, onReply }) {
+  const [editing,     setEditing]     = useState(false)
+  const [editText,    setEditText]    = useState(n.text)
+  const [editAssign,  setEditAssign]  = useState(n.assigned_to || '')
+  const [saving,      setSaving]      = useState(false)
+  const isAuthor = n.author_initials === currentUserInitials
+
+  async function handleSave(e) {
+    e.preventDefault()
+    if (!editText.trim()) return
+    setSaving(true)
+    try {
+      await onEdit(editText.trim(), editAssign)
+      setEditing(false)
+    } finally { setSaving(false) }
+  }
+
+  function handleCancel() {
+    setEditText(n.text)
+    setEditAssign(n.assigned_to || '')
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSave} className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-2">
+        <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus
+          className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <select value={editAssign} onChange={e => setEditAssign(e.target.value)}
+            className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+            <option value="">Assign to…</option>
+            {delegates.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+          </select>
+          <button type="submit" disabled={saving || !editText.trim()}
+            className="px-3 py-1 bg-amber-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-amber-600">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" onClick={handleCancel}
+            className="px-3 py-1 border border-gray-300 text-gray-600 text-xs rounded-lg">
+            Cancel
+          </button>
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <div className={`rounded-xl border overflow-hidden ${
+      n.is_done ? 'border-gray-100 bg-gray-50 opacity-70' : 'border-amber-200 bg-amber-50'
+    }`}>
+      <div className="px-3 pt-2.5 pb-1">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
+            {n.assigned_to && (
+              <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-semibold">→ {n.assigned_to}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {isAuthor && !n.is_done && (
+              <button onClick={() => setEditing(true)}
+                className="text-[10px] text-gray-400 hover:text-gray-700">✎</button>
+            )}
+            <button onClick={onDelete}
+              className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
+          </div>
+        </div>
+        <p className={`text-sm text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>{n.text}</p>
+      </div>
+      <div className="flex gap-1.5 px-3 pb-2.5 pt-1">
+        <button onClick={onToggleDone}
+          className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+            n.is_done
+              ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-white'
+              : 'bg-white border-teal-300 text-teal-700 hover:bg-teal-50'
+          }`}>
+          {n.is_done ? '✓ Done — Reopen' : '✓ Mark Done'}
+        </button>
+        {!n.is_done && (
+          <button onClick={onReply}
+            className="px-2.5 py-1 text-xs font-medium border border-gray-200 text-gray-500 rounded-lg hover:bg-white">
+            ↩ Reply
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Notes Thread ──────────────────────────────────────────────────────────────
 
 // entryClientId / entryInstructorId: auto-populated from the entry when adding a task
@@ -93,6 +185,11 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     onNotesChanged(notes.filter(n => n.id !== noteId))
   }
 
+  async function handleEditTask(noteId, text, assignedTo) {
+    const updated = await api.updateRecruitingNote(entryId, noteId, { text, assigned_to: assignedTo || null })
+    onNotesChanged(notes.map(n => n.id === noteId ? updated : n))
+  }
+
   const tasks      = notes.filter(n => n.is_task)
   const plainNotes = notes.filter(n => !n.is_task)
 
@@ -115,39 +212,16 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
             <p className="text-xs text-gray-400 italic">No tasks yet.</p>
           )}
           {tasks.map(n => (
-            <div key={n.id} className={`rounded-xl border overflow-hidden ${
-              n.is_done ? 'border-gray-100 bg-gray-50 opacity-70' : 'border-amber-200 bg-amber-50'
-            }`}>
-              <div className="px-3 pt-2.5 pb-1">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
-                    {n.assigned_to && (
-                      <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-semibold">→ {n.assigned_to}</span>
-                    )}
-                  </div>
-                  <button onClick={() => handleDelete(n.id)}
-                    className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
-                </div>
-                <p className={`text-sm text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>{n.text}</p>
-              </div>
-              <div className="flex gap-1.5 px-3 pb-2.5 pt-1">
-                <button onClick={() => handleToggleDone(n)}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
-                    n.is_done
-                      ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-white'
-                      : 'bg-white border-teal-300 text-teal-700 hover:bg-teal-50'
-                  }`}>
-                  {n.is_done ? '✓ Done — Reopen' : '✓ Mark Done'}
-                </button>
-                {!n.is_done && (
-                  <button onClick={() => openReplyNote(n.text)}
-                    className="px-2.5 py-1 text-xs font-medium border border-gray-200 text-gray-500 rounded-lg hover:bg-white">
-                    ↩ Reply
-                  </button>
-                )}
-              </div>
-            </div>
+            <TaskNoteCard
+              key={n.id}
+              note={n}
+              currentUserInitials={user?.initials}
+              delegates={delegates}
+              onToggleDone={() => handleToggleDone(n)}
+              onDelete={() => handleDelete(n.id)}
+              onEdit={(text, assignedTo) => handleEditTask(n.id, text, assignedTo)}
+              onReply={() => openReplyNote(n.text)}
+            />
           ))}
         </div>
 
