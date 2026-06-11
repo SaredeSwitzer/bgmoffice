@@ -10,21 +10,14 @@ function daysOpen(createdAt) {
 
 function MyTaskRow({ item, onClick }) {
   const days = daysOpen(item.created_at)
-  const isOverdue = days > 7
-  const isPriority = item.action_type_name === 'PRIORITY'
-  const isRecruiting = item.source === 'standalone_task'
+  const isRecruiting = item.source === 'recruiting'
+  const isReference  = item.task_type === 'reference'
 
   return (
     <tr
       onClick={onClick}
       className={`cursor-pointer transition-colors ${
-        isPriority
-          ? 'bg-red-50 hover:bg-red-100'
-          : isOverdue
-          ? 'bg-red-50 hover:bg-red-100'
-          : isRecruiting
-          ? 'bg-amber-50/50 hover:bg-amber-50'
-          : 'hover:bg-gray-50'
+        item.starred ? 'bg-yellow-50/60 hover:bg-yellow-50' : 'hover:bg-gray-50'
       }`}
     >
       <td className="px-3 py-2.5 text-sm text-gray-900 whitespace-nowrap">
@@ -34,24 +27,22 @@ function MyTaskRow({ item, onClick }) {
         {item.instructor_name || <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        {isRecruiting && !item.action_type_name ? (
+        {isRecruiting ? (
           <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
-            Recruiting
+            Recruiting ↗
           </span>
-        ) : (
+        ) : isReference ? (
+          <span className="inline-block text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
+            Reference
+          </span>
+        ) : item.action_type_name ? (
           <ActionTypeBadge name={item.action_type_name} color={item.action_type_color} />
+        ) : (
+          <span className="text-gray-400 text-xs">—</span>
         )}
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap text-right">
-        <span className={`text-xs font-semibold tabular-nums ${
-          isPriority ? 'text-red-700' : isOverdue ? 'text-red-600' : 'text-gray-500'
-        }`}>
-          {days}d
-          {isOverdue && !isPriority && (
-            <span className="ml-1 font-bold">!</span>
-          )}
-          {isPriority && <span className="ml-1 font-bold">↑</span>}
-        </span>
+        <span className="text-xs font-semibold tabular-nums text-gray-500">{days}d</span>
       </td>
       <td className="px-3 py-2.5 max-w-xs">
         {item.last_note ? (
@@ -85,17 +76,25 @@ export default function MyTasksPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const overdue = tasks.filter(t => daysOpen(t.created_at) > 7 && t.action_type_name !== 'PRIORITY')
-  const priority = tasks.filter(t => t.action_type_name === 'PRIORITY')
-
   if (error) return <p className="text-red-600 text-sm">{error}</p>
   if (loading) return (
     <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
   )
 
+  function handleClick(item) {
+    if (item.source === 'recruiting' && item.recruiting_entry_id) {
+      navigate(`/recruiting?entry=${item.recruiting_entry_id}`)
+    } else if (item.source === 'recruiting') {
+      navigate('/recruiting')
+    } else if (item.source === 'standalone') {
+      navigate('/tasks')
+    } else if (item.case_id) {
+      navigate(`/cases/${item.case_id}`)
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
@@ -105,26 +104,11 @@ export default function MyTasksPage() {
               : `No delegate match found for ${user?.name?.split(' ')[0]} — showing all`}
           </p>
         </div>
-
-        {/* Summary chips */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {priority.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
-              ↑ {priority.length} priority
-            </span>
-          )}
-          {overdue.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-600 text-xs font-semibold border border-red-200">
-              ! {overdue.length} overdue
-            </span>
-          )}
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
-            {tasks.length} total
-          </span>
-        </div>
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
+          {tasks.length} total
+        </span>
       </div>
 
-      {/* Table */}
       {tasks.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-16 text-center">
           <p className="text-2xl mb-2">✓</p>
@@ -149,10 +133,7 @@ export default function MyTasksPage() {
                   <MyTaskRow
                     key={`${item.source}-${item.id}`}
                     item={item}
-                    onClick={() => item.source === 'standalone_task'
-                      ? navigate('/recruiting')
-                      : navigate(`/cases/${item.case_id}`)
-                    }
+                    onClick={() => handleClick(item)}
                   />
                 ))}
               </tbody>

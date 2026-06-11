@@ -52,16 +52,14 @@ function SortTh({ label, col, sortCol, sortDir, onSort, className = '' }) {
 
 function TaskRow({ item, onClick, isOwn, onStar }) {
   const days = daysOpen(item.created_at)
-  const isOverdue = days > 7
   const actionTypes = item.action_types || []
 
   return (
     <tr
       onClick={onClick}
       className={`cursor-pointer transition-colors hover:bg-gray-50 ${
-        item.starred        ? 'bg-yellow-50/60 hover:bg-yellow-50'
-        : isOwn             ? 'bg-blue-50/40 hover:bg-blue-50'
-        : isOverdue         ? 'bg-amber-50 hover:bg-amber-100'
+        item.starred ? 'bg-yellow-50/60 hover:bg-yellow-50'
+        : isOwn      ? 'bg-blue-50/40 hover:bg-blue-50'
         : ''
       }`}
     >
@@ -86,9 +84,7 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
         <DelegateChip name={item.delegate_name} />
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap text-right">
-        <span className={`text-xs font-semibold tabular-nums ${isOverdue ? 'text-amber-700' : 'text-gray-500'}`}>
-          {days}d{isOverdue && <span className="ml-1 text-amber-600 font-bold">!</span>}
-        </span>
+        <span className="text-xs font-semibold tabular-nums text-gray-500">{days}d</span>
       </td>
       <td className="px-3 py-2.5 max-w-xs">
         <div className="flex items-center gap-2 flex-wrap">
@@ -147,15 +143,8 @@ const CATEGORY_FILTERS = [
   { key: 'client_followup',     label: 'Client F/U' },
   { key: 'instructor_followup', label: 'Instructor F/U' },
   { key: 'recruiting',          label: 'Recruiting' },
-  { key: 'task',                label: 'Task' },
   { key: 'reference',           label: 'Reference' },
   { key: 'other',               label: 'Other' },
-]
-
-const AGE_OPTIONS = [
-  { value: 'all',     label: 'All ages' },
-  { value: 'overdue', label: 'Overdue (>7d)' },
-  { value: 'new',     label: 'New (≤7d)' },
 ]
 
 // ── Open Tasks table ──────────────────────────────────────────────────────────
@@ -163,7 +152,6 @@ const AGE_OPTIONS = [
 function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }) {
   const [delegateFilter,  setDelegateFilter]  = useState(FILTER_ALL)
   const [categoryFilter,  setCategoryFilter]  = useState('all')
-  const [ageFilter,       setAgeFilter]       = useState('all')
   const [sortCol,         setSortCol]         = useState(null)
   const [sortDir,         setSortDir]         = useState('asc')
 
@@ -181,9 +169,6 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
 
     if (categoryFilter !== 'all')
       filtered = filtered.filter(i => getItemCategories(i).includes(categoryFilter))
-
-    if (ageFilter === 'overdue') filtered = filtered.filter(i => daysOpen(i.created_at) > 7)
-    if (ageFilter === 'new')     filtered = filtered.filter(i => daysOpen(i.created_at) <= 7)
 
     filtered.sort((a, b) => {
       if ((b.starred ? 0 : 1) !== (a.starred ? 0 : 1)) return (a.starred ? 0 : 1) - (b.starred ? 0 : 1)
@@ -203,7 +188,7 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
     })
 
     return filtered
-  }, [items, delegateFilter, categoryFilter, ageFilter, sortCol, sortDir, myDelegateName])
+  }, [items, delegateFilter, categoryFilter, sortCol, sortDir, myDelegateName])
 
   const delegateFilters = [
     { key: FILTER_ALL,     label: 'All' },
@@ -212,12 +197,11 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
     ...delegates.map(d => ({ key: d.name, label: d.name })),
   ]
 
-  const hasFilters = delegateFilter !== FILTER_ALL || categoryFilter !== 'all' || ageFilter !== 'all'
+  const hasFilters = delegateFilter !== FILTER_ALL || categoryFilter !== 'all'
 
   function resetFilters() {
     setDelegateFilter(FILTER_ALL)
     setCategoryFilter('all')
-    setAgeFilter('all')
   }
 
   return (
@@ -266,10 +250,6 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
               {label}
             </button>
           ))}
-          <select value={ageFilter} onChange={e => setAgeFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-600 bg-white focus:outline-none ml-1">
-            {AGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
         </div>
       </div>
 

@@ -117,23 +117,26 @@ router.get('/my-tasks', (req, res) => {
            st.client_id,     cl.name AS client_name,
            st.instructor_id, i.name  AS instructor_name,
            st.action_type_id, at.name AS action_type_name, at.color AS action_type_color,
-           st.recruiting_note_id
+           st.recruiting_note_id, st.task_type,
+           rn.entry_id AS recruiting_entry_id
     FROM standalone_tasks st
-    LEFT JOIN clients     cl ON cl.id = st.client_id
-    LEFT JOIN instructors i  ON i.id  = st.instructor_id
-    LEFT JOIN action_types at ON at.id = st.action_type_id
+    LEFT JOIN clients          cl ON cl.id = st.client_id
+    LEFT JOIN instructors       i ON i.id  = st.instructor_id
+    LEFT JOIN action_types     at ON at.id = st.action_type_id
+    LEFT JOIN recruiting_notes rn ON rn.id = st.recruiting_note_id
     WHERE st.status = 'open' AND LOWER(st.assigned_to) = LOWER(?)
   `).all(delegate.name);
 
   const standaloneTasks = standaloneRows.map(t => ({
     ...t,
-    source: 'standalone_task',
+    source: t.recruiting_note_id ? 'recruiting' : 'standalone',
     case_id: null,
     delegate_name: delegate.name,
     action_types: t.action_type_id
       ? [{ id: t.action_type_id, name: t.action_type_name, color: t.action_type_color }]
       : [],
-    last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
+    last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : (t.task_type === 'reference' ? 'Reference' : 'Task') },
+    recruiting_entry_id: t.recruiting_entry_id || null,
   }));
 
   return res.json({
