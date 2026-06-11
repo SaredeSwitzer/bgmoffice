@@ -381,7 +381,7 @@ if (unmirroredNotes.length > 0) {
 db.prepare(`
   UPDATE standalone_tasks
   SET recruiting_note_id = NULL, task_type = 'reference'
-  WHERE title IN ('How to Run a Report', 'Vacation Leave')
+  WHERE LOWER(title) IN ('how to run a report', 'vacation leave')
 `).run();
 
 module.exports = db;

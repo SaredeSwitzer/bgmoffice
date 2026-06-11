@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -8,10 +8,43 @@ function daysOpen(createdAt) {
   return Math.floor((Date.now() - new Date(createdAt)) / 86400000)
 }
 
+// Mirror of server constants for client-side category derivation
+const CLIENT_FACING_TYPES = [
+  'FOLLOW UP WITH CLIENT',
+  'SET UP CLASS ON CALENDAR AND SEND CONFIRMATION EMAIL',
+  'FOLLOW UP ON BLAST RESPONSES',
+  'ADD TO RECRUITING / SEND BLAST',
+]
+const INSTRUCTOR_FACING_TYPES = [
+  'FOLLOW UP WITH INSTRUCTOR',
+  'INSTRUCTOR AWAY - INFORM ALL CLIENTS',
+]
+
+function getItemCategories(item) {
+  if (item.categories?.length) return item.categories
+  if (item.source === 'recruiting') return ['recruiting']
+  if (item.source === 'standalone') return [item.task_type || 'task']
+  const typeNames = (item.action_types || []).map(at => at.name)
+  const cats = []
+  if (typeNames.some(n => CLIENT_FACING_TYPES.includes(n))) cats.push('client_followup')
+  if (typeNames.some(n => INSTRUCTOR_FACING_TYPES.includes(n))) cats.push('instructor_followup')
+  return cats.length ? cats : ['other']
+}
+
+const CATEGORY_FILTERS = [
+  { key: 'all',                 label: 'All' },
+  { key: 'client_followup',     label: 'Client F/U' },
+  { key: 'instructor_followup', label: 'Instructor F/U' },
+  { key: 'recruiting',          label: 'Recruiting' },
+  { key: 'reference',           label: 'Reference' },
+  { key: 'other',               label: 'Other' },
+]
+
 function MyTaskRow({ item, onClick }) {
   const days = daysOpen(item.created_at)
   const isRecruiting = item.source === 'recruiting'
   const isReference  = item.task_type === 'reference'
+  const actionTypes  = item.action_types || []
 
   return (
     <tr
@@ -35,8 +68,10 @@ function MyTaskRow({ item, onClick }) {
           <span className="inline-block text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
             Reference
           </span>
-        ) : item.action_type_name ? (
-          <ActionTypeBadge name={item.action_type_name} color={item.action_type_color} />
+        ) : actionTypes.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {actionTypes.map(at => <ActionTypeBadge key={at.id} name={at.name} color={at.color} />)}
+          </div>
         ) : (
           <span className="text-gray-400 text-xs">—</span>
         )}
@@ -65,6 +100,7 @@ export default function MyTasksPage() {
   const [delegateName, setDelegateName] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
 
   useEffect(() => {
     api.myTasks()
@@ -75,6 +111,11 @@ export default function MyTasksPage() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
+
+  const displayTasks = useMemo(() => {
+    if (categoryFilter === 'all') return tasks
+    return tasks.filter(t => getItemCategories(t).includes(categoryFilter))
+  }, [tasks, categoryFilter])
 
   if (error) return <p className="text-red-600 text-sm">{error}</p>
   if (loading) return (
@@ -105,8 +146,32 @@ export default function MyTasksPage() {
           </p>
         </div>
         <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
-          {tasks.length} total
+          {displayTasks.length}{displayTasks.length !== tasks.length ? ` of ${tasks.length}` : ''} total
         </span>
+      </div>
+
+      {/* Type filter */}
+      <div className="flex flex-wrap gap-1.5 items-center">
+        <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mr-1">Type:</span>
+        {CATEGORY_FILTERS.map(({ key, label }) => (
+          <button key={key} onClick={() => setCategoryFilter(key)}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+              categoryFilter === key
+                ? key === 'recruiting'          ? 'bg-amber-500 text-white'
+                : key === 'client_followup'     ? 'bg-green-600 text-white'
+                : key === 'instructor_followup' ? 'bg-blue-600 text-white'
+                : key === 'reference'           ? 'bg-purple-600 text-white'
+                : 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            {label}
+          </button>
+        ))}
+        {categoryFilter !== 'all' && (
+          <button onClick={() => setCategoryFilter('all')} className="text-xs text-gray-400 hover:text-gray-700 ml-1">
+            ✕ clear
+          </button>
+        )}
       </div>
 
       {tasks.length === 0 ? (
@@ -115,6 +180,8 @@ export default function MyTasksPage() {
           <p className="text-sm font-medium text-gray-700">All caught up!</p>
           <p className="text-xs text-gray-400 mt-1">No open tasks assigned to you.</p>
         </div>
+      ) : displayTasks.length === 0 ? (
+        <p className="text-sm text-gray-400 italic px-2">No items match the current filter.</p>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -123,13 +190,13 @@ export default function MyTasksPage() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type / Action</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Age</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Last note</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {tasks.map(item => (
+                {displayTasks.map(item => (
                   <MyTaskRow
                     key={`${item.source}-${item.id}`}
                     item={item}
