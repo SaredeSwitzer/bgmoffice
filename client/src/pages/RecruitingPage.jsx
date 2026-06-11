@@ -21,13 +21,18 @@ function isUnfilled(entry) {
 
 // ── Notes Thread ──────────────────────────────────────────────────────────────
 
-function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, actionTypes }) {
+// entryClientId / entryInstructorId: auto-populated from the entry when adding a task
+function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, actionTypes,
+                       entryClientId, entryClientName, entryInstructorId, entryInstructorName,
+                       defaultAddTask = false }) {
   const { user } = useAuth()
+  const textRef = useRef(null)
+
+  const [mode,           setMode]           = useState(defaultAddTask ? 'task' : null) // null | 'task' | 'note'
   const [text,           setText]           = useState('')
-  const [isTask,         setIsTask]         = useState(false)
   const [assignedTo,     setAssignedTo]     = useState('')
-  const [taskClientId,   setTaskClientId]   = useState('')
-  const [taskInstructor, setTaskInstructor] = useState('')
+  const [taskClientId,   setTaskClientId]   = useState(String(entryClientId || ''))
+  const [taskInstructor, setTaskInstructor] = useState(String(entryInstructorId || ''))
   const [taskActionType, setTaskActionType] = useState('')
   const [delegates,      setDelegates]      = useState([])
   const [saving,         setSaving]         = useState(false)
@@ -36,14 +41,28 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     api.getDelegates().then(setDelegates).catch(() => {})
   }, [])
 
-  function resetTaskFields() {
-    setIsTask(false); setAssignedTo(''); setTaskClientId(''); setTaskInstructor(''); setTaskActionType('')
+  useEffect(() => {
+    if (mode && textRef.current) textRef.current.focus()
+  }, [mode])
+
+  function openTask() {
+    setMode('task')
+    setTaskClientId(String(entryClientId || ''))
+    setTaskInstructor(String(entryInstructorId || ''))
+  }
+
+  function cancel() {
+    setMode(null); setText(''); setAssignedTo('')
+    setTaskClientId(String(entryClientId || ''))
+    setTaskInstructor(String(entryInstructorId || ''))
+    setTaskActionType('')
   }
 
   async function handleAdd(e) {
     e.preventDefault()
     if (!text.trim()) return
     setSaving(true)
+    const isTask = mode === 'task'
     try {
       const note = await api.addRecruitingNote(entryId, {
         text,
@@ -54,8 +73,7 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
         action_type_id: isTask ? (taskActionType || null) : null,
       })
       onNotesChanged([...notes, note])
-      setText('')
-      resetTaskFields()
+      cancel()
     } finally { setSaving(false) }
   }
 
@@ -73,117 +91,152 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
   const plainNotes = notes.filter(n => !n.is_task)
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-100">
-      {tasks.length > 0 && (
-        <>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Tasks</p>
-          <div className="space-y-2 mb-3">
-            {tasks.map(n => (
-              <div key={n.id} className="flex gap-2 group items-start">
-                <button
-                  onClick={() => handleToggleDone(n)}
-                  className={`mt-1 flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                    n.is_done ? 'bg-teal-500 border-teal-500 text-white' : 'border-gray-400 hover:border-teal-500 bg-white'
-                  }`}
-                >
-                  {n.is_done && <span className="text-[9px] font-bold leading-none">✓</span>}
-                </button>
-                <div className={`flex-1 rounded-lg px-3 py-2 text-sm border ${
-                  n.is_done ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-amber-50 border-amber-100'
-                }`}>
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
-                      {n.assigned_to && (
-                        <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-semibold">→ {n.assigned_to}</span>
-                      )}
-                      {n.is_done && <span className="text-[10px] text-teal-600 font-semibold">Done</span>}
-                    </div>
-                    <button onClick={() => handleDelete(n.id)}
-                      className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
-                  </div>
-                  <p className={`text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>{n.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+    <div className="space-y-4">
+      {/* ── Tasks ── */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Tasks</p>
+          {mode !== 'task' && (
+            <button onClick={openTask}
+              className="text-xs px-2.5 py-1 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600">
+              + Add Task
+            </button>
+          )}
+        </div>
 
-      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Notes</p>
-      <div className="space-y-2 mb-3">
-        {plainNotes.length === 0 && tasks.length === 0 && (
-          <p className="text-xs text-gray-400 italic">No notes or tasks yet.</p>
-        )}
-        {plainNotes.length === 0 && tasks.length > 0 && (
-          <p className="text-xs text-gray-400 italic">No plain notes.</p>
-        )}
-        {plainNotes.map(n => (
-          <div key={n.id} className="flex gap-2 group">
-            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-sm">
-              <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
-                <button onClick={() => handleDelete(n.id)}
-                  className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+        <div className="space-y-2 mb-2">
+          {tasks.length === 0 && mode !== 'task' && (
+            <p className="text-xs text-gray-400 italic">No tasks yet.</p>
+          )}
+          {tasks.map(n => (
+            <div key={n.id} className="flex gap-2 group items-start">
+              <button onClick={() => handleToggleDone(n)}
+                className={`mt-1 flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                  n.is_done ? 'bg-teal-500 border-teal-500 text-white' : 'border-gray-400 hover:border-teal-500 bg-white'
+                }`}>
+                {n.is_done && <span className="text-[9px] font-bold leading-none">✓</span>}
+              </button>
+              <div className={`flex-1 rounded-lg px-3 py-2 text-sm border ${
+                n.is_done ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-amber-50 border-amber-100'
+              }`}>
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
+                    {n.assigned_to && (
+                      <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-semibold">→ {n.assigned_to}</span>
+                    )}
+                    {n.is_done && <span className="text-[10px] text-teal-600 font-semibold">Done</span>}
+                  </div>
+                  <button onClick={() => handleDelete(n.id)}
+                    className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                </div>
+                <p className={`text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>{n.text}</p>
               </div>
-              <p className="text-gray-800 whitespace-pre-wrap">{n.text}</p>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
+
+        {mode === 'task' && (
+          <form onSubmit={handleAdd} className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-semibold text-amber-800">New Task</p>
+            <textarea ref={textRef} value={text} onChange={e => setText(e.target.value)} rows={2}
+              placeholder={`Describe the task… (as ${user?.initials})`}
+              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }} />
+            <div className="flex flex-wrap gap-2">
+              <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                <option value="">Assign to…</option>
+                {delegates.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+              </select>
+              <select value={taskClientId} onChange={e => setTaskClientId(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                <option value="">Client…</option>
+                {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select value={taskInstructor} onChange={e => setTaskInstructor(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                <option value="">Instructor…</option>
+                {instructors?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+              <select value={taskActionType} onChange={e => setTaskActionType(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                <option value="">Action type…</option>
+                {actionTypes?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            {(taskClientId || taskInstructor) && (
+              <p className="text-[10px] text-amber-700">
+                Will link to:
+                {taskClientId && clients && <span className="font-semibold"> {clients.find(c => String(c.id) === String(taskClientId))?.name}</span>}
+                {taskInstructor && instructors && <span className="font-semibold"> · {instructors.find(i => String(i.id) === String(taskInstructor))?.name}</span>}
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button type="submit" disabled={saving || !text.trim()}
+                className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-amber-600">
+                {saving ? 'Saving…' : 'Add Task'}
+              </button>
+              <button type="button" onClick={cancel}
+                className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
-      <form onSubmit={handleAdd} className="space-y-2">
-        <div className="flex gap-2">
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            rows={2}
-            placeholder={isTask ? `Add a task… (as ${user?.initials})` : `Add a note… (as ${user?.initials})`}
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
-            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }}
-          />
-          <button type="submit" disabled={saving || !text.trim()}
-            className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg self-end disabled:opacity-40">
-            {saving ? '…' : 'Add'}
-          </button>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 pl-0.5">
-          <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
-            <input type="checkbox" checked={isTask}
-              onChange={e => { if (e.target.checked) setIsTask(true); else resetTaskFields() }}
-              className="rounded accent-amber-500" />
-            Make this a task
-          </label>
-          {isTask && (
-            <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-              <option value="">Assign to anyone</option>
-              {delegates.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-            </select>
-          )}
-          {isTask && clients?.length > 0 && (
-            <select value={taskClientId} onChange={e => setTaskClientId(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-              <option value="">Link client…</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
-          {isTask && instructors?.length > 0 && (
-            <select value={taskInstructor} onChange={e => setTaskInstructor(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-              <option value="">Link instructor…</option>
-              {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-            </select>
-          )}
-          {isTask && actionTypes?.length > 0 && (
-            <select value={taskActionType} onChange={e => setTaskActionType(e.target.value)}
-              className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white">
-              <option value="">Action type…</option>
-              {actionTypes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+      {/* ── Notes ── */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Notes</p>
+          {mode !== 'note' && (
+            <button onClick={() => setMode('note')}
+              className="text-xs px-2.5 py-1 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50">
+              + Add Note
+            </button>
           )}
         </div>
-      </form>
+
+        <div className="space-y-2 mb-2">
+          {plainNotes.length === 0 && mode !== 'note' && (
+            <p className="text-xs text-gray-400 italic">No notes yet.</p>
+          )}
+          {plainNotes.map(n => (
+            <div key={n.id} className="flex gap-2 group">
+              <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
+                  <button onClick={() => handleDelete(n.id)}
+                    className="text-[10px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                </div>
+                <p className="text-gray-800 whitespace-pre-wrap">{n.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {mode === 'note' && (
+          <form onSubmit={handleAdd} className="space-y-2">
+            <div className="flex gap-2">
+              <textarea ref={textRef} value={text} onChange={e => setText(e.target.value)} rows={2}
+                placeholder={`Add a note… (as ${user?.initials})`}
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }} />
+              <div className="flex flex-col gap-1 self-end">
+                <button type="submit" disabled={saving || !text.trim()}
+                  className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40">
+                  {saving ? '…' : 'Add'}
+                </button>
+                <button type="button" onClick={cancel}
+                  className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
 }
@@ -415,7 +468,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
           <select value={form.assigned_to_user_id} onChange={e => setField('assigned_to_user_id', e.target.value)}
             className={selectCls}>
             <option value="">Unassigned</option>
-            {users.filter(u => u.active).map(u => (
+            {users.map(u => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
@@ -441,9 +494,10 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
 // ── Entry Card ────────────────────────────────────────────────────────────────
 
 function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated, onDeleted }) {
-  const [expanded, setExpanded] = useState(false)
-  const [editing,  setEditing]  = useState(false)
-  const [notes,    setNotes]    = useState(entry.notes || [])
+  const [expanded,     setExpanded]     = useState(false)
+  const [editing,      setEditing]      = useState(false)
+  const [notes,        setNotes]        = useState(entry.notes || [])
+  const [quickAddTask, setQuickAddTask] = useState(false)
 
   function handleUpdated(updated) {
     setEditing(false)
@@ -455,6 +509,12 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
     if (!confirm('Delete this entry?')) return
     await api.deleteRecruitingEntry(entry.id)
     onDeleted(entry.id)
+  }
+
+  function handleQuickTask(e) {
+    e.stopPropagation()
+    setExpanded(true)
+    setQuickAddTask(true)
   }
 
   const openTaskCount = notes.filter(n => n.is_task && !n.is_done).length
@@ -490,7 +550,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
           </div>
         </div>
 
-        {/* Badges */}
+        {/* Badges + quick actions */}
         <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
           {entry.client_id ? (
             <Link to={`/clients/${entry.client_id}`} onClick={e => e.stopPropagation()}
@@ -537,12 +597,21 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
               {openTaskCount} task{openTaskCount > 1 ? 's' : ''}
             </span>
           )}
+
+          {/* Quick task button — always visible */}
+          <button
+            onClick={handleQuickTask}
+            title="Add a task for this entry"
+            className="text-[10px] px-2 py-0.5 bg-amber-500 text-white rounded-full font-medium hover:bg-amber-600 whitespace-nowrap"
+          >
+            + Task
+          </button>
         </div>
       </div>
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="border-t border-gray-100 px-4 py-4">
+        <div className="border-t border-gray-100 px-4 py-4 space-y-5">
           {editing ? (
             <EntryForm
               day={entry.day_of_week}
@@ -556,111 +625,118 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
             />
           ) : (
             <>
-              <div className="flex justify-end gap-2 mb-3">
-                <span className="text-[10px] text-gray-400 self-center mr-auto">
-                  Added by {entry.created_by}
-                </span>
-                <button onClick={() => setEditing(true)}
-                  className="text-xs px-3 py-1 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
-                  Edit
-                </button>
-                <button onClick={handleDelete}
-                  className="text-xs px-3 py-1 border border-red-200 rounded-lg text-red-600 hover:bg-red-50">
-                  Delete
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Time</p>
-                  <p className="text-sm text-gray-800">{entry.time_slot || <span className="text-gray-300">—</span>}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Neighborhood</p>
-                  <p className="text-sm text-gray-800">{entry.neighborhood || <span className="text-gray-300">—</span>}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Style</p>
-                  <p className="text-sm text-gray-800">{entry.style || <span className="text-gray-300">—</span>}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Participants</p>
-                  <p className="text-sm text-gray-800">{entry.participants || <span className="text-gray-300">—</span>}</p>
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Client</p>
-                  {entry.client_id ? (
-                    <Link to={`/clients/${entry.client_id}`} className="text-sm font-medium text-blue-600 hover:underline">
-                      {entry.client_name || '—'}
-                    </Link>
-                  ) : (
-                    <p className="text-sm text-gray-800">{entry.client_name || <span className="text-gray-300">—</span>}</p>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Instructor</p>
-                  {entry.instructor_id ? (
-                    <Link to={`/instructors/${entry.instructor_id}`} className="text-sm font-medium text-purple-600 hover:underline">
-                      {entry.instructor_name}
-                    </Link>
-                  ) : (
-                    <p className="text-sm text-gray-800">{entry.instructor_info || <span className="text-gray-300">—</span>}</p>
-                  )}
-                </div>
-
-                {entry.instructor_info && entry.instructor_id && (
-                  <div className="col-span-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Instructor Notes</p>
-                    <p className="text-sm text-gray-800">{entry.instructor_info}</p>
-                  </div>
-                )}
-
-                <div className="col-span-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Address</p>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{entry.address || <span className="text-gray-300">—</span>}</p>
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Phone</p>
-                  {entry.phone ? <PhoneLink phone={entry.phone} /> : <span className="text-gray-300">—</span>}
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Waiver</p>
-                  <p className={`text-sm font-medium ${entry.waiver_signed ? 'text-green-700' : 'text-gray-400'}`}>
-                    {entry.waiver_signed ? '✓ Yes' : 'No'}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Client Rate</p>
-                  <p className="text-sm text-gray-800">{entry.client_rate || <span className="text-gray-300">—</span>}</p>
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Action Type</p>
-                  {entry.action_type_id
-                    ? <ActionTypeBadge name={entry.action_type_name} color={entry.action_type_color} />
-                    : <span className="text-gray-300 text-sm">—</span>}
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Assigned To</p>
-                  <p className="text-sm text-gray-800">
-                    {entry.assigned_to_user_name || <span className="text-gray-300">—</span>}
-                  </p>
-                </div>
-              </div>
-
+              {/* Tasks + Notes — shown first, most actionable */}
               <NotesThread
                 entryId={entry.id}
                 notes={notes}
-                onNotesChanged={setNotes}
+                onNotesChanged={n => { setNotes(n); setQuickAddTask(false) }}
                 clients={clients}
                 instructors={instructors}
                 actionTypes={actionTypes}
+                entryClientId={entry.client_id}
+                entryClientName={entry.client_name}
+                entryInstructorId={entry.instructor_id}
+                entryInstructorName={entry.instructor_name}
+                defaultAddTask={quickAddTask}
               />
+
+              {/* Entry details — below tasks/notes */}
+              <div className="pt-3 border-t border-gray-100">
+                <div className="flex justify-end gap-2 mb-3">
+                  <span className="text-[10px] text-gray-400 self-center mr-auto">Added by {entry.created_by}</span>
+                  <button onClick={() => setEditing(true)}
+                    className="text-xs px-3 py-1 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
+                    Edit
+                  </button>
+                  <button onClick={handleDelete}
+                    className="text-xs px-3 py-1 border border-red-200 rounded-lg text-red-600 hover:bg-red-50">
+                    Delete
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Time</p>
+                    <p className="text-sm text-gray-800">{entry.time_slot || <span className="text-gray-300">—</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Neighborhood</p>
+                    <p className="text-sm text-gray-800">{entry.neighborhood || <span className="text-gray-300">—</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Style</p>
+                    <p className="text-sm text-gray-800">{entry.style || <span className="text-gray-300">—</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Participants</p>
+                    <p className="text-sm text-gray-800">{entry.participants || <span className="text-gray-300">—</span>}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Client</p>
+                    {entry.client_id ? (
+                      <Link to={`/clients/${entry.client_id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                        {entry.client_name || '—'}
+                      </Link>
+                    ) : (
+                      <p className="text-sm text-gray-800">{entry.client_name || <span className="text-gray-300">—</span>}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Instructor</p>
+                    {entry.instructor_id ? (
+                      <Link to={`/instructors/${entry.instructor_id}`} className="text-sm font-medium text-purple-600 hover:underline">
+                        {entry.instructor_name}
+                      </Link>
+                    ) : (
+                      <p className="text-sm text-gray-800">{entry.instructor_info || <span className="text-gray-300">—</span>}</p>
+                    )}
+                  </div>
+
+                  {entry.instructor_info && entry.instructor_id && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Instructor Notes</p>
+                      <p className="text-sm text-gray-800">{entry.instructor_info}</p>
+                    </div>
+                  )}
+
+                  <div className="col-span-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Address</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{entry.address || <span className="text-gray-300">—</span>}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Phone</p>
+                    {entry.phone ? <PhoneLink phone={entry.phone} /> : <span className="text-gray-300">—</span>}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Waiver</p>
+                    <p className={`text-sm font-medium ${entry.waiver_signed ? 'text-green-700' : 'text-gray-400'}`}>
+                      {entry.waiver_signed ? '✓ Yes' : 'No'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Client Rate</p>
+                    <p className="text-sm text-gray-800">{entry.client_rate || <span className="text-gray-300">—</span>}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Action Type</p>
+                    {entry.action_type_id
+                      ? <ActionTypeBadge name={entry.action_type_name} color={entry.action_type_color} />
+                      : <span className="text-gray-300 text-sm">—</span>}
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Assigned To</p>
+                    <p className="text-sm text-gray-800">
+                      {entry.assigned_to_user_name || <span className="text-gray-300">—</span>}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </div>
