@@ -72,6 +72,7 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
             className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
             <option value="task">Task</option>
             <option value="reference">Reference</option>
+            <option value="other">Other</option>
           </select>
         </div>
         <div>
