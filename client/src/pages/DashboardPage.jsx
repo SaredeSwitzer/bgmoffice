@@ -119,6 +119,29 @@ const FILTER_ALL     = 'all'
 const FILTER_ANYONE  = '__anyone__'
 const FILTER_STARRED = '__starred__'
 
+// Mirror of server constants — used for client-side category fallback
+const CLIENT_FACING_TYPES = [
+  'FOLLOW UP WITH CLIENT',
+  'SET UP CLASS ON CALENDAR AND SEND CONFIRMATION EMAIL',
+  'FOLLOW UP ON BLAST RESPONSES',
+  'ADD TO RECRUITING / SEND BLAST',
+]
+const INSTRUCTOR_FACING_TYPES = [
+  'FOLLOW UP WITH INSTRUCTOR',
+  'INSTRUCTOR AWAY - INFORM ALL CLIENTS',
+]
+
+function getItemCategories(item) {
+  if (item.categories?.length) return item.categories
+  if (item.source === 'recruiting') return ['recruiting']
+  if (item.source === 'standalone') return ['task']
+  const typeNames = (item.action_types || []).map(at => at.name)
+  const cats = []
+  if (typeNames.some(n => CLIENT_FACING_TYPES.includes(n))) cats.push('client_followup')
+  if (typeNames.some(n => INSTRUCTOR_FACING_TYPES.includes(n))) cats.push('instructor_followup')
+  return cats.length ? cats : ['other']
+}
+
 const CATEGORY_FILTERS = [
   { key: 'all',                 label: 'All' },
   { key: 'client_followup',     label: 'Client F/U' },
@@ -156,7 +179,7 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
     else if (delegateFilter !== FILTER_ALL)      filtered = filtered.filter(i => i.delegate_name === delegateFilter)
 
     if (categoryFilter !== 'all')
-      filtered = filtered.filter(i => (i.categories || []).includes(categoryFilter))
+      filtered = filtered.filter(i => getItemCategories(i).includes(categoryFilter))
 
     if (ageFilter === 'overdue') filtered = filtered.filter(i => daysOpen(i.created_at) > 7)
     if (ageFilter === 'new')     filtered = filtered.filter(i => daysOpen(i.created_at) <= 7)
