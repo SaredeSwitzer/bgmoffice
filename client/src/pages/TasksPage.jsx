@@ -21,7 +21,7 @@ function fmtTs(iso) {
 function TaskForm({ initial, onSave, onCancel, saving }) {
   const today = new Date().toISOString().slice(0, 10)
   const [form, setForm] = useState(initial || {
-    title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '',
+    title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: 'task',
   })
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -64,6 +64,14 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
             className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
             <option value="normal">Normal</option>
             <option value="urgent">🔴 Urgent</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+          <select value={form.task_type || 'task'} onChange={e => set('task_type', e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="task">Task</option>
+            <option value="reference">Reference</option>
           </select>
         </div>
         <div>
@@ -144,7 +152,7 @@ function TaskCard({ task, onUpdate, onDelete }) {
 
   if (editing) return (
     <TaskForm initial={{ title: task.title, description: task.description || '', assigned_to: task.assigned_to || '',
-      due_date: task.due_date || '', priority: task.priority, notes: task.notes || '' }}
+      due_date: task.due_date || '', priority: task.priority, notes: task.notes || '', task_type: task.task_type || 'task' }}
       onSave={handleEdit} onCancel={() => setEditing(false)} saving={saving} />
   )
 
@@ -173,6 +181,9 @@ function TaskCard({ task, onUpdate, onDelete }) {
 
       {/* Metadata */}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-3 text-xs text-gray-400">
+        {task.task_type === 'reference' && (
+          <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">Reference</span>
+        )}
         {task.assigned_to && <span className="font-medium text-gray-600">→ {task.assigned_to}</span>}
         {task.due_date && (
           <span className={isOverdue ? 'text-amber-600 font-semibold' : ''}>

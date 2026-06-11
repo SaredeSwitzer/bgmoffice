@@ -134,7 +134,7 @@ const INSTRUCTOR_FACING_TYPES = [
 function getItemCategories(item) {
   if (item.categories?.length) return item.categories
   if (item.source === 'recruiting') return ['recruiting']
-  if (item.source === 'standalone') return ['task']
+  if (item.source === 'standalone') return [item.task_type || 'task']
   const typeNames = (item.action_types || []).map(at => at.name)
   const cats = []
   if (typeNames.some(n => CLIENT_FACING_TYPES.includes(n))) cats.push('client_followup')
@@ -148,6 +148,7 @@ const CATEGORY_FILTERS = [
   { key: 'instructor_followup', label: 'Instructor F/U' },
   { key: 'recruiting',          label: 'Recruiting' },
   { key: 'task',                label: 'Task' },
+  { key: 'reference',           label: 'Reference' },
   { key: 'other',               label: 'Other' },
 ]
 
@@ -258,6 +259,7 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
                   ? key === 'recruiting'          ? 'bg-amber-500 text-white'
                   : key === 'client_followup'     ? 'bg-green-600 text-white'
                   : key === 'instructor_followup' ? 'bg-blue-600 text-white'
+                  : key === 'reference'           ? 'bg-purple-600 text-white'
                   : 'bg-gray-900 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}>

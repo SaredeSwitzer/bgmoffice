@@ -150,7 +150,7 @@ router.get('/', (req, res) => {
            st.client_id,     cl.name AS client_name,
            st.instructor_id, i.name  AS instructor_name,
            st.action_type_id, at.name AS action_type_name, at.color AS action_type_color,
-           st.assigned_to, st.recruiting_note_id, st.notes,
+           st.assigned_to, st.recruiting_note_id, st.notes, st.task_type,
            rn.entry_id AS recruiting_entry_id
     FROM standalone_tasks st
     LEFT JOIN clients        cl ON cl.id = st.client_id
@@ -182,7 +182,7 @@ router.get('/', (req, res) => {
     action_type_color: t.action_type_color || 'gray',
     last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
     source: t.recruiting_note_id ? 'recruiting' : 'standalone',
-    categories: t.recruiting_note_id ? ['recruiting'] : ['task'],
+    categories: t.recruiting_note_id ? ['recruiting'] : [t.task_type || 'task'],
     recruiting_note_id: t.recruiting_note_id,
     recruiting_entry_id: t.recruiting_entry_id || null,
   }));

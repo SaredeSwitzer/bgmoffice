@@ -309,6 +309,8 @@ const migrations = [
   `ALTER TABLE recruiting_entries ADD COLUMN assigned_to_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
   // task reply thread (added 2026-06)
   `ALTER TABLE standalone_tasks ADD COLUMN replies TEXT`,
+  // task type — 'task' (default) or 'reference' (added 2026-06)
+  `ALTER TABLE standalone_tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'task'`,
 ];
 
 // instructor availability table (added 2026-06)
@@ -374,5 +376,12 @@ if (unmirroredNotes.length > 0) {
   });
   backfill();
 }
+
+// One-time fix: clear recruiting association + mark as reference type
+db.prepare(`
+  UPDATE standalone_tasks
+  SET recruiting_note_id = NULL, task_type = 'reference'
+  WHERE title IN ('How to Run a Report', 'Vacation Leave')
+`).run();
 
 module.exports = db;
