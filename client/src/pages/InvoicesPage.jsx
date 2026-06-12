@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
+import DateInput from '../components/DateInput'
 
 const STATUS_COLORS = {
   draft:   'bg-gray-100 text-gray-600',
@@ -22,12 +23,12 @@ function fmtDate(iso) {
 
 const EMPTY_LINE = { description: '', class_date: '', unit_price: '' }
 
-function NewInvoiceModal({ onClose, onCreated }) {
+export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [form, setForm] = useState({
     title: '',
-    client: null,
+    client: initialClient,
     instructor: null,
     invoice_date: new Date().toISOString().slice(0, 10),
     due_date: '',

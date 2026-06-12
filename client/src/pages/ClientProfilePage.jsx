@@ -5,6 +5,7 @@ import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
 import DateInput from '../components/DateInput'
+import { NewInvoiceModal } from './InvoicesPage'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -426,6 +427,109 @@ function PackagesSection({ clientId, instructors }) {
   )
 }
 
+const STATUS_COLORS = {
+  draft:   'bg-gray-100 text-gray-600',
+  sent:    'bg-blue-100 text-blue-700',
+  paid:    'bg-green-100 text-green-700',
+  overdue: 'bg-red-100 text-red-700',
+}
+
+function fmtMoney(n) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0)
+}
+
+function fmtInvDate(iso) {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function InvoicesSection({ clientId, clientName }) {
+  const navigate = useNavigate()
+  const [invoices, setInvoices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showNew, setShowNew] = useState(false)
+
+  useEffect(() => {
+    api.getInvoices({ client_id: clientId })
+      .then(setInvoices)
+      .finally(() => setLoading(false))
+  }, [clientId])
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-emerald-400">
+          Invoices
+          {invoices.length > 0 && (
+            <span className="ml-2 text-xs font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+              {invoices.length}
+            </span>
+          )}
+        </h2>
+        <button
+          onClick={() => setShowNew(true)}
+          className="px-3 py-1.5 bg-emerald-700 text-white text-xs font-medium rounded-lg hover:bg-emerald-800 transition-colors"
+        >
+          + New Invoice
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-gray-400 italic">Loading…</p>
+      ) : invoices.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">No invoices yet.</p>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Invoice #</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 hidden sm:table-cell">Date</th>
+                <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Total</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {invoices.map(inv => (
+                <tr
+                  key={inv.id}
+                  onClick={() => navigate(`/invoices/${inv.id}`)}
+                  className="cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <td className="px-4 py-2.5">
+                    <span className="font-mono text-xs text-gray-700 font-semibold">{inv.invoice_number}</span>
+                    {inv.title && <p className="text-xs text-gray-400 mt-0.5">{inv.title}</p>}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-500 text-xs hidden sm:table-cell">{fmtInvDate(inv.invoice_date)}</td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-gray-900 text-xs">{fmtMoney(inv.total)}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[inv.status]}`}>
+                      {inv.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showNew && (
+        <NewInvoiceModal
+          initialClient={{ id: Number(clientId), name: clientName }}
+          onClose={() => setShowNew(false)}
+          onCreated={inv => {
+            setShowNew(false)
+            setInvoices(prev => [inv, ...prev])
+            navigate(`/invoices/${inv.id}`)
+          }}
+        />
+      )}
+    </section>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ClientProfilePage() {
   const { id } = useParams()
@@ -736,6 +840,9 @@ export default function ClientProfilePage() {
 
       {/* Class Packages */}
       <PackagesSection clientId={id} instructors={instructors} />
+
+      {/* Invoices */}
+      <InvoicesSection clientId={id} clientName={client.name} />
 
       {/* Case history */}
       <section>
