@@ -324,6 +324,23 @@ db.exec(`
   )
 `);
 
+// One-time data cleanup: remove Lyra from delegates and users (2026-06)
+try {
+  const lyraDelegate = db.prepare(`SELECT id FROM delegates WHERE name = 'Lyra'`).get();
+  if (lyraDelegate) {
+    db.prepare(`UPDATE action_items SET delegate_id = NULL WHERE delegate_id = ?`).run(lyraDelegate.id);
+    db.prepare(`DELETE FROM delegates WHERE id = ?`).run(lyraDelegate.id);
+    console.log('[migration] removed Lyra from delegates');
+  }
+  const lyraUser = db.prepare(`SELECT id FROM users WHERE email = 'lyra@bgmoffice.com'`).get();
+  if (lyraUser) {
+    db.prepare(`DELETE FROM users WHERE id = ?`).run(lyraUser.id);
+    console.log('[migration] removed Lyra user account');
+  }
+} catch (err) {
+  console.error('[migration] Lyra cleanup failed (non-fatal):', err.message);
+}
+
 for (const sql of migrations) {
   try {
     db.exec(sql);

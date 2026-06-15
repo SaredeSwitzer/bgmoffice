@@ -257,12 +257,58 @@ function TaskCard({ task, onUpdate, onDelete }) {
   )
 }
 
+// ── Task section (by type) ────────────────────────────────────────────────────
+function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType }) {
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function handleCreate(form) {
+    setSaving(true)
+    try {
+      const t = await api.createTask({ ...form, task_type: defaultType })
+      onUpdate(t, 'add')
+      setShowForm(false)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className={`flex items-center justify-between pl-1 border-l-4 ${borderColor}`}>
+        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+          {label} ({tasks.length})
+        </h2>
+        <button onClick={() => setShowForm(v => !v)}
+          className="text-xs text-gray-400 hover:text-gray-700 font-medium px-2 py-0.5 rounded hover:bg-gray-100">
+          + Add
+        </button>
+      </div>
+      {showForm && (
+        <TaskForm
+          initial={{ title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: defaultType }}
+          onSave={handleCreate}
+          onCancel={() => setShowForm(false)}
+          saving={saving}
+        />
+      )}
+      {tasks.length === 0 && !showForm ? (
+        <p className="text-sm text-gray-400 italic px-2">None yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {tasks
+            .sort((a, b) => (b.starred - a.starred) || (b.priority === 'urgent' ? 1 : -1))
+            .map(t => (
+              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} />
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function TasksPage() {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showNew, setShowNew] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [filterAssignee, setFilterAssignee] = useState('')
 
@@ -270,23 +316,15 @@ export default function TasksPage() {
     api.getTasks().then(setTasks).finally(() => setLoading(false))
   }, [])
 
-  async function handleCreate(form) {
-    setSaving(true)
-    try {
-      const t = await api.createTask(form)
-      setTasks(prev => [t, ...prev])
-      setShowNew(false)
-    } finally { setSaving(false) }
+  function handleSectionUpdate(t, action) {
+    if (action === 'add') setTasks(prev => [t, ...prev])
+    else setTasks(prev => prev.map(x => x.id === t.id ? t : x))
   }
 
   async function handleDelete(id) {
     if (!confirm('Delete this task?')) return
     await api.deleteTask(id)
     setTasks(prev => prev.filter(t => t.id !== id))
-  }
-
-  function handleUpdate(updated) {
-    setTasks(prev => prev.map(t => t.id === updated.id ? updated : t))
   }
 
   const open = tasks.filter(t => t.status === 'open')
@@ -303,48 +341,33 @@ export default function TasksPage() {
     <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
   )
 
+  const openTasks     = filtered(open.filter(t => !t.task_type || t.task_type === 'task'))
+  const openReference = filtered(open.filter(t => t.task_type === 'reference'))
+  const openOther     = filtered(open.filter(t => t.task_type === 'other'))
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
-        <div className="flex items-center gap-2">
-          {assignees.length > 0 && (
-            <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-              <option value="">All assignees</option>
-              {DELEGATES.filter(d => assignees.includes(d) || assignees.includes(d)).map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          )}
-          <button onClick={() => setShowNew(v => !v)}
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
-            + New Task
-          </button>
-        </div>
+        {assignees.length > 0 && (
+          <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="">All assignees</option>
+            {DELEGATES.filter(d => assignees.includes(d)).map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        )}
       </div>
 
-      {showNew && (
-        <TaskForm onSave={handleCreate} onCancel={() => setShowNew(false)} saving={saving} />
-      )}
+      <TaskSection label="Tasks" borderColor="border-gray-300" tasks={openTasks}
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" />
 
-      {/* Open tasks */}
-      <section>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 pl-1 border-l-4 border-gray-300">
-          Open ({open.length})
-        </h2>
-        {filtered(open).length === 0 ? (
-          <p className="text-sm text-gray-400 italic px-2">No open tasks.</p>
-        ) : (
-          <div className="space-y-2">
-            {filtered(open)
-              .sort((a, b) => (b.starred - a.starred) || (b.priority === 'urgent' ? 1 : -1))
-              .map(t => (
-                <TaskCard key={t.id} task={t} onUpdate={handleUpdate} onDelete={handleDelete} />
-              ))}
-          </div>
-        )}
-      </section>
+      <TaskSection label="Reference" borderColor="border-purple-300" tasks={openReference}
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="reference" />
+
+      <TaskSection label="Other" borderColor="border-blue-300" tasks={openOther}
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" />
 
       {/* Completed tasks (collapsible) */}
       {done.length > 0 && (
@@ -359,7 +382,7 @@ export default function TasksPage() {
           {showDone && (
             <div className="space-y-2">
               {filtered(done).map(t => (
-                <TaskCard key={t.id} task={t} onUpdate={handleUpdate} onDelete={handleDelete} />
+                <TaskCard key={t.id} task={t} onUpdate={t => handleSectionUpdate(t, 'update')} onDelete={handleDelete} />
               ))}
             </div>
           )}
