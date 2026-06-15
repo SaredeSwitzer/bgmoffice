@@ -1,8 +1,60 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
+
+const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
+
+function QuickAddOther({ onAdd }) {
+  const { user } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [assignedTo, setAssignedTo] = useState('')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef(null)
+
+  function show() { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0) }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!title.trim()) return
+    setSaving(true)
+    try {
+      const t = await api.createTask({ title: title.trim(), assigned_to: assignedTo, task_type: 'other', priority: 'normal', description: '', due_date: '', notes: '' })
+      onAdd(t)
+      setTitle('')
+      setAssignedTo('')
+      setOpen(false)
+    } finally { setSaving(false) }
+  }
+
+  if (!open) return (
+    <button onClick={show}
+      className="text-xs font-semibold text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 hover:border-gray-400 px-3 py-1.5 rounded-lg transition-colors">
+      + Add Other task
+    </button>
+  )
+
+  return (
+    <form onSubmit={handleSubmit} className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
+      <input ref={inputRef} value={title} onChange={e => setTitle(e.target.value)}
+        placeholder="Task title…" required
+        className="flex-1 text-sm border-none outline-none bg-transparent" />
+      <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
+        className="text-xs border border-gray-200 rounded px-2 py-1 text-gray-600">
+        <option value="">Unassigned</option>
+        {DELEGATES.map(d => <option key={d} value={d}>{d}</option>)}
+      </select>
+      <button type="submit" disabled={saving || !title.trim()}
+        className="text-xs font-semibold bg-gray-900 text-white px-3 py-1 rounded disabled:opacity-40">
+        {saving ? '…' : 'Save'}
+      </button>
+      <button type="button" onClick={() => { setOpen(false); setTitle(''); setAssignedTo('') }}
+        className="text-gray-400 hover:text-gray-600 text-xs px-1">✕</button>
+    </form>
+  )
+}
 
 function daysOpen(createdAt) {
   return Math.floor((Date.now() - new Date(createdAt)) / 86400000)
@@ -102,6 +154,10 @@ export default function MyTasksPage() {
   const [error, setError] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
 
+  function handleAddOther(newTask) {
+    setTasks(prev => [{ ...newTask, source: 'standalone', categories: ['other'] }, ...prev])
+  }
+
   useEffect(() => {
     api.myTasks()
       .then(({ tasks: t, delegate_name }) => {
@@ -171,6 +227,9 @@ export default function MyTasksPage() {
           <button onClick={() => setCategoryFilter('all')} className="text-xs text-gray-400 hover:text-gray-700 ml-1">
             ✕ clear
           </button>
+        )}
+        {categoryFilter === 'other' && (
+          <QuickAddOther onAdd={handleAddOther} />
         )}
       </div>
 
