@@ -7,3 +7,6 @@ node_modules/
 client/dist
 server/db/backups/
 server/db/uploads/
+
+# Local Netlify folder
+.netlify

@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import DateInput from '../components/DateInput'
 
-const DELEGATES = ['Sarede', 'Lyra', 'Maria', 'Claire', 'Anyone']
+const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
 function fmtDate(iso) {
   if (!iso) return ''
