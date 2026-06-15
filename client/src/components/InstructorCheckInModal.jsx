@@ -10,7 +10,7 @@ const REASONS = [
   'Other',
 ]
 
-const DELEGATES = ['Sarede', 'Lyra', 'Maria', 'Claire', 'Anyone']
+const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
 export default function InstructorCheckInModal({ onClose }) {
   const [instructors, setInstructors] = useState([])
