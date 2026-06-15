@@ -31,7 +31,7 @@ db.transaction(() => {
   db.prepare('DELETE FROM delegates').run()
 
   const insertDelegate = db.prepare('INSERT INTO delegates (name) VALUES (?)')
-  const delegates = ['Sarede', 'Lyra', 'Maria', 'Claire']
+  const delegates = ['Sarede', 'Maria', 'Claire']
   delegates.forEach(d => insertDelegate.run(d))
   console.log(`  delegates: ${delegates.length} rows inserted`)
 
@@ -44,7 +44,6 @@ db.transaction(() => {
   const users = [
     { name: 'Admin',    initials: 'AD', email: 'admin@bgmoffice.com',  password: 'admin123', role: 'admin' },
     { name: 'Sarede S', initials: 'SS', email: 'sarede@bgmoffice.com', password: 'staff123', role: 'staff' },
-    { name: 'Lyra M',   initials: 'LM', email: 'lyra@bgmoffice.com',   password: 'staff123', role: 'staff' },
     { name: 'Maria A',  initials: 'MA', email: 'maria@bgmoffice.com',  password: 'staff123', role: 'staff' },
     { name: 'Claire M', initials: 'CM', email: 'claire@bgmoffice.com', password: 'staff123', role: 'staff' },
   ]

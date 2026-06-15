@@ -45,8 +45,8 @@ if (userCount === 0) {
 
     // Delegates
     const insertD = db.prepare('INSERT INTO delegates (name) VALUES (?)');
-    ['Sarede', 'Lyra', 'Maria', 'Claire'].forEach(n => insertD.run(n));
-    console.log('  ✓ 4 delegates');
+    ['Sarede', 'Maria', 'Claire'].forEach(n => insertD.run(n));
+    console.log('  ✓ 3 delegates');
 
     // Users
     const insertU = db.prepare(
@@ -55,14 +55,13 @@ if (userCount === 0) {
     [
       { name: 'Admin',    initials: 'AD', email: 'admin@bgmoffice.com',  password: 'admin123', role: 'admin' },
       { name: 'Sarede S', initials: 'SS', email: 'sarede@bgmoffice.com', password: 'staff123', role: 'staff' },
-      { name: 'Lyra M',   initials: 'LM', email: 'lyra@bgmoffice.com',   password: 'staff123', role: 'staff' },
       { name: 'Maria A',  initials: 'MA', email: 'maria@bgmoffice.com',  password: 'staff123', role: 'staff' },
       { name: 'Claire M', initials: 'CM', email: 'claire@bgmoffice.com', password: 'staff123', role: 'staff' },
     ].forEach(u => insertU.run({
       name: u.name, initials: u.initials, email: u.email, role: u.role,
       password_hash: bcrypt.hashSync(u.password, 10),
     }));
-    console.log('  ✓ 5 users');
+    console.log('  ✓ 4 users');
   })();
 
   console.log('Seeding complete.');

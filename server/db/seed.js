@@ -36,7 +36,7 @@ const insertActionType = db.prepare(
 actionTypes.forEach(at => insertActionType.run(at));
 
 // ── Delegates ─────────────────────────────────────────────────────────────────
-const delegates = ['Sarede', 'Lyra', 'Maria', 'Claire'];
+const delegates = ['Sarede', 'Maria', 'Claire'];
 const insertDelegate = db.prepare('INSERT INTO delegates (name) VALUES (?)');
 delegates.forEach(d => insertDelegate.run(d));
 
@@ -47,7 +47,6 @@ const insertUser = db.prepare(
 
 const users = [
   { name: 'Admin',          initials: 'AD', email: 'admin@bgmoffice.com', password: 'admin123',  role: 'admin' },
-  { name: 'Lyra M',         initials: 'LM', email: 'lyra@bgmoffice.com',  password: 'staff123',  role: 'staff' },
   { name: 'Maria A',        initials: 'MA', email: 'maria@bgmoffice.com', password: 'staff123',  role: 'staff' },
   { name: 'Sarede S',       initials: 'SS', email: 'sarede@bgmoffice.com',password: 'staff123',  role: 'staff' },
   { name: 'Claire M',       initials: 'CM', email: 'claire@bgmoffice.com',password: 'staff123',  role: 'staff' },
@@ -172,13 +171,13 @@ const case1 = insertCase.run({ client_id: 1, instructor_id: 1, status: 'open', c
 const ai1 = insertActionItem.run({
   case_id: case1.lastInsertRowid,
   action_type_id: atId('FOLLOW UP WITH INSTRUCTOR'),
-  delegate_id: dlId('Lyra'),
+  delegate_id: dlId('Maria'),
   status: 'open',
   initial_note: 'Whitney missed her Monday session with Rivky. Need to confirm if she can cover Thursday instead.',
   created_at: '2026-05-20 09:05:00',
 });
-insertNote.run(ai1.lastInsertRowid, 'Left Whitney a voicemail. Waiting to hear back.', 'LM', '2026-05-20 10:00:00');
-insertNote.run(ai1.lastInsertRowid, 'Whitney confirmed Thursday 9am works.', 'LM', '2026-05-21 11:30:00');
+insertNote.run(ai1.lastInsertRowid, 'Left Whitney a voicemail. Waiting to hear back.', 'MA', '2026-05-20 10:00:00');
+insertNote.run(ai1.lastInsertRowid, 'Whitney confirmed Thursday 9am works.', 'MA', '2026-05-21 11:30:00');
 
 const ai2 = insertActionItem.run({
   case_id: case1.lastInsertRowid,
@@ -240,12 +239,12 @@ insertNote.run(ai6.lastInsertRowid, 'Calendar event created. Drafting confirmati
 const ai7 = insertActionItem.run({
   case_id: case3.lastInsertRowid,
   action_type_id: atId('UPDATE JOTFORM'),
-  delegate_id: dlId('Lyra'),
+  delegate_id: dlId('Maria'),
   status: 'open',
   initial_note: "Update Miri's session package on Jotform from 2x/week to 3x/week.",
   created_at: '2026-05-26 11:10:00',
 });
-insertNote.run(ai7.lastInsertRowid, 'Updated Jotform. Screenshot saved to client folder.', 'LM', '2026-05-27 09:00:00');
+insertNote.run(ai7.lastInsertRowid, 'Updated Jotform. Screenshot saved to client folder.', 'MA', '2026-05-27 09:00:00');
 
 // ── Case 4: David Ostrevsky away — inform clients ─────────────────────────────
 const case4 = insertCase.run({ client_id: null, instructor_id: 2, status: 'open', created_at: '2026-05-28 08:00:00' });
@@ -259,17 +258,17 @@ const ai8 = insertActionItem.run({
 });
 insertNote.run(ai8.lastInsertRowid, 'Sent WhatsApp to Miri explaining David is away that week.', 'SS', '2026-05-28 09:00:00');
 insertNote.run(ai8.lastInsertRowid, 'Miri wants to reschedule, not cancel. Working on finding sub.', 'SS', '2026-05-28 10:00:00');
-insertNote.run(ai8.lastInsertRowid, 'Ephraim confirmed cancellation for that week. No makeup needed.', 'LM', '2026-05-29 09:30:00');
+insertNote.run(ai8.lastInsertRowid, 'Ephraim confirmed cancellation for that week. No makeup needed.', 'MA', '2026-05-29 09:30:00');
 
 const ai9 = insertActionItem.run({
   case_id: case4.lastInsertRowid,
   action_type_id: atId('FOLLOW UP WITH INSTRUCTOR'),
-  delegate_id: dlId('Lyra'),
+  delegate_id: dlId('Maria'),
   status: 'open',
   initial_note: 'Check with David if Sharon can cover his Miri sessions June 9–13.',
   created_at: '2026-05-28 10:05:00',
 });
-insertNote.run(ai9.lastInsertRowid, 'David said Sharon should be fine. Need to confirm with Sharon directly.', 'LM', '2026-05-29 11:00:00');
+insertNote.run(ai9.lastInsertRowid, 'David said Sharon should be fine. Need to confirm with Sharon directly.', 'MA', '2026-05-29 11:00:00');
 
 console.log('✅ Database seeded successfully.');
 db.close();
