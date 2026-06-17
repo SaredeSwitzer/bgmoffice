@@ -48,16 +48,47 @@ function SortTh({ label, col, sortCol, sortDir, onSort, className = '' }) {
   )
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getItemUrl(item) {
+  if (item.source === 'recruiting') {
+    return item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting'
+  }
+  if (item.source === 'standalone') return `/tasks?id=${item.id}`
+  if (item.case_id) return `/cases/${item.case_id}`
+  return null
+}
+
 // ── Task row ──────────────────────────────────────────────────────────────────
 
 function TaskRow({ item, onClick, isOwn, onStar }) {
+  const url = getItemUrl(item)
+
+  function handleClick(e) {
+    if (url && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    onClick()
+  }
+
+  function handleAuxClick(e) {
+    if (e.button === 1 && url) {
+      e.preventDefault()
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+  }
   const days = daysOpen(item.created_at)
+  const isRecruiting = item.source === 'recruiting'
+  const isReference  = item.task_type === 'reference'
   const actionTypes = item.action_types || []
 
   return (
     <tr
-      onClick={onClick}
-      className={`cursor-pointer transition-colors hover:bg-gray-50 ${
+      onClick={handleClick}
+      onAuxClick={handleAuxClick}
+      className={`group cursor-pointer transition-colors hover:bg-gray-50 ${
         item.starred ? 'bg-yellow-50/60 hover:bg-yellow-50'
         : isOwn      ? 'bg-blue-50/40 hover:bg-blue-50'
         : ''
@@ -74,11 +105,21 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
         {item.instructor_name || <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        <div className="flex flex-wrap gap-1">
-          {actionTypes.length > 0
-            ? actionTypes.map(at => <ActionTypeBadge key={at.id} name={at.name} color={at.color} />)
-            : <span className="text-gray-300 text-xs">—</span>}
-        </div>
+        {isRecruiting ? (
+          <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap">
+            Recruiting ↗
+          </span>
+        ) : isReference ? (
+          <span className="inline-block text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
+            Reference
+          </span>
+        ) : actionTypes.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {actionTypes.map(at => <ActionTypeBadge key={at.id} name={at.name} color={at.color} />)}
+          </div>
+        ) : (
+          <span className="text-gray-300 text-xs">—</span>
+        )}
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap">
         <DelegateChip name={item.delegate_name} />
@@ -87,23 +128,25 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
         <span className="text-xs font-semibold tabular-nums text-gray-500">{days}d</span>
       </td>
       <td className="px-3 py-2.5 max-w-xs">
-        <div className="flex items-center gap-2 flex-wrap">
-          {item.source === 'recruiting' && (
-            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap">
-              Recruiting ↗
-            </span>
-          )}
-          {item.last_note ? (
-            <span className="text-xs text-gray-500 truncate block max-w-[200px]">
-              {item.source !== 'recruiting' && item.source !== 'standalone' && (
-                <span className="font-medium text-gray-700">{item.last_note.author_initials}: </span>
-              )}
-              {item.last_note.text}
-            </span>
-          ) : (
-            <span className="text-xs text-gray-400 italic">—</span>
-          )}
-        </div>
+        {item.last_note ? (
+          <span className="text-xs text-gray-500 truncate block max-w-[200px]">
+            <span className="font-medium text-gray-700">{item.last_note.author_initials}: </span>
+            {item.last_note.text}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400 italic">—</span>
+        )}
+      </td>
+      <td className="px-2 py-2.5 w-7 text-center">
+        {url && (
+          <button
+            onClick={e => { e.stopPropagation(); window.open(url, '_blank', 'noopener,noreferrer') }}
+            title="Open in new tab"
+            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-blue-500 transition-all text-base leading-none"
+          >
+            ↗
+          </button>
+        )}
       </td>
     </tr>
   )
@@ -270,6 +313,7 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
                   <SortTh label="Assigned"   col="delegate"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <SortTh label="Age"        col="age"        sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Note / Task</th>
+                  <th className="px-2 py-2 w-7" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -336,7 +380,7 @@ export default function DashboardPage() {
     } else if (item.source === 'recruiting') {
       navigate('/recruiting')
     } else if (item.source === 'standalone') {
-      navigate('/tasks')
+      navigate(`/tasks?id=${item.id}`)
     } else if (item.case_id) {
       navigate(`/cases/${item.case_id}`)
     }

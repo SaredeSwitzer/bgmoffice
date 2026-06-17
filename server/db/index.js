@@ -311,6 +311,11 @@ const migrations = [
   `ALTER TABLE standalone_tasks ADD COLUMN replies TEXT`,
   // task type — 'task' (default) or 'reference' (added 2026-06)
   `ALTER TABLE standalone_tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'task'`,
+  // archive recruiting entries instead of hard-delete (added 2026-06)
+  `ALTER TABLE recruiting_entries ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
+  // class type and dates for recruiting entries (added 2026-06)
+  `ALTER TABLE recruiting_entries ADD COLUMN class_type  TEXT`,
+  `ALTER TABLE recruiting_entries ADD COLUMN class_dates TEXT`,
 ];
 
 // instructor availability table (added 2026-06)

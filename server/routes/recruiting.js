@@ -30,20 +30,24 @@ function getEntry(id) {
 // ── Entries ───────────────────────────────────────────────────────────────────
 
 router.get('/', (req, res) => {
-  const { q } = req.query;
+  const { q, archived } = req.query;
+  const showArchived = archived === '1';
+  const archivedCond = showArchived ? 're.archived = 1' : 're.archived = 0';
   let entries;
   if (q) {
     const like = `%${q}%`;
     entries = db.prepare(`
       ${ENTRY_JOIN}
-      WHERE re.time_slot LIKE ? OR re.neighborhood LIKE ? OR re.style LIKE ?
+      WHERE (${archivedCond}) AND (
+        re.time_slot LIKE ? OR re.neighborhood LIKE ? OR re.style LIKE ?
         OR re.participants LIKE ? OR re.client_name LIKE ? OR re.address LIKE ?
         OR re.phone LIKE ? OR re.instructor_info LIKE ? OR re.client_rate LIKE ?
         OR i.name LIKE ?
+      )
       ORDER BY re.day_of_week, re.created_at
     `).all(like, like, like, like, like, like, like, like, like, like);
   } else {
-    entries = db.prepare(`${ENTRY_JOIN} ORDER BY re.created_at ASC`).all();
+    entries = db.prepare(`${ENTRY_JOIN} WHERE ${archivedCond} ORDER BY re.created_at ASC`).all();
   }
 
   const notesByEntry = {};
@@ -77,6 +81,7 @@ router.post('/entries', (req, res) => {
     day_of_week, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
     instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
+    class_type, class_dates,
   } = req.body;
   if (!day_of_week || !DAYS.includes(day_of_week))
     return res.status(400).json({ error: 'Valid day_of_week required' });
@@ -85,8 +90,9 @@ router.post('/entries', (req, res) => {
     INSERT INTO recruiting_entries
       (day_of_week, time_slot, neighborhood, style, participants,
        client_name, client_id, address, phone, waiver_signed,
-       instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id, created_by,
+       class_type, class_dates)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     day_of_week,
     time_slot           || null,
@@ -104,6 +110,8 @@ router.post('/entries', (req, res) => {
     action_type_id      || null,
     assigned_to_user_id || null,
     req.user.initials,
+    class_type          || null,
+    class_dates         || null,
   );
   res.status(201).json(getEntry(result.lastInsertRowid));
 });
@@ -116,13 +124,15 @@ router.put('/entries/:id', (req, res) => {
     day_of_week, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
     instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
+    class_type, class_dates,
   } = req.body;
 
   db.prepare(`
     UPDATE recruiting_entries SET
       day_of_week=?, time_slot=?, neighborhood=?, style=?, participants=?,
       client_name=?, client_id=?, address=?, phone=?, waiver_signed=?,
-      instructor_info=?, instructor_id=?, client_rate=?, action_type_id=?, assigned_to_user_id=?
+      instructor_info=?, instructor_id=?, client_rate=?, action_type_id=?, assigned_to_user_id=?,
+      class_type=?, class_dates=?
     WHERE id=?
   `).run(
     day_of_week         || null,
@@ -140,6 +150,8 @@ router.put('/entries/:id', (req, res) => {
     client_rate         || null,
     action_type_id      || null,
     assigned_to_user_id || null,
+    class_type          || null,
+    class_dates         || null,
     req.params.id,
   );
   res.json(getEntry(req.params.id));
@@ -150,6 +162,14 @@ router.delete('/entries/:id', (req, res) => {
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
   db.prepare('DELETE FROM recruiting_entries WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+router.patch('/entries/:id/archive', (req, res) => {
+  const entry = db.prepare('SELECT id, archived FROM recruiting_entries WHERE id = ?').get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Entry not found' });
+  const newArchived = entry.archived ? 0 : 1;
+  db.prepare('UPDATE recruiting_entries SET archived = ? WHERE id = ?').run(newArchived, req.params.id);
+  res.json(getEntry(req.params.id));
 });
 
 // ── Notes ─────────────────────────────────────────────────────────────────────

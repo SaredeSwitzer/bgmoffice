@@ -92,16 +92,43 @@ const CATEGORY_FILTERS = [
   { key: 'other',               label: 'Other' },
 ]
 
+function getItemUrl(item) {
+  if (item.source === 'recruiting') {
+    return item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting'
+  }
+  if (item.source === 'standalone') return `/tasks?id=${item.id}`
+  if (item.case_id) return `/cases/${item.case_id}`
+  return null
+}
+
 function MyTaskRow({ item, onClick }) {
   const days = daysOpen(item.created_at)
   const isRecruiting = item.source === 'recruiting'
   const isReference  = item.task_type === 'reference'
   const actionTypes  = item.action_types || []
+  const url = getItemUrl(item)
+
+  function handleClick(e) {
+    if (url && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    onClick()
+  }
+
+  function handleAuxClick(e) {
+    if (e.button === 1 && url) {
+      e.preventDefault()
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+  }
 
   return (
     <tr
-      onClick={onClick}
-      className={`cursor-pointer transition-colors ${
+      onClick={handleClick}
+      onAuxClick={handleAuxClick}
+      className={`group cursor-pointer transition-colors ${
         item.starred ? 'bg-yellow-50/60 hover:bg-yellow-50' : 'hover:bg-gray-50'
       }`}
     >
@@ -139,6 +166,17 @@ function MyTaskRow({ item, onClick }) {
           </span>
         ) : (
           <span className="text-xs text-gray-400 italic">No notes yet</span>
+        )}
+      </td>
+      <td className="px-2 py-2.5 w-7 text-center">
+        {url && (
+          <button
+            onClick={e => { e.stopPropagation(); window.open(url, '_blank', 'noopener,noreferrer') }}
+            title="Open in new tab"
+            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-blue-500 transition-all text-base leading-none"
+          >
+            ↗
+          </button>
         )}
       </td>
     </tr>
@@ -184,7 +222,7 @@ export default function MyTasksPage() {
     } else if (item.source === 'recruiting') {
       navigate('/recruiting')
     } else if (item.source === 'standalone') {
-      navigate('/tasks')
+      navigate(`/tasks?id=${item.id}`)
     } else if (item.case_id) {
       navigate(`/cases/${item.case_id}`)
     }
@@ -252,6 +290,7 @@ export default function MyTasksPage() {
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type / Action</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Age</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Last note</th>
+                  <th className="px-2 py-2 w-7" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

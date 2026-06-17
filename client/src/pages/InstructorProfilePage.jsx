@@ -233,12 +233,12 @@ export default function InstructorProfilePage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <button onClick={() => navigate('/instructors')}
+      <button onClick={() => navigate(-1)}
         className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        All Instructors
+        Back
       </button>
 
       {/* Profile card */}

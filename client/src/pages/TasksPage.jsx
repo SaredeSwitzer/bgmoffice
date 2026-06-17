@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import DateInput from '../components/DateInput'
@@ -305,8 +305,18 @@ function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultTyp
   )
 }
 
+const TYPE_META = {
+  reference: { label: 'Reference', borderColor: 'border-purple-300', defaultType: 'reference' },
+  other:     { label: 'Other',     borderColor: 'border-blue-300',   defaultType: 'other'     },
+  task:      { label: 'Tasks',     borderColor: 'border-gray-300',   defaultType: 'task'      },
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function TasksPage() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const focusId = searchParams.get('id') ? Number(searchParams.get('id')) : null
+
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [showDone, setShowDone] = useState(false)
@@ -325,6 +335,7 @@ export default function TasksPage() {
     if (!confirm('Delete this task?')) return
     await api.deleteTask(id)
     setTasks(prev => prev.filter(t => t.id !== id))
+    if (focusId === id) navigate('/tasks')
   }
 
   const open = tasks.filter(t => t.status === 'open')
@@ -345,6 +356,42 @@ export default function TasksPage() {
   const openReference = filtered(open.filter(t => t.task_type === 'reference'))
   const openOther     = filtered(open.filter(t => t.task_type === 'other'))
 
+  // ── Focused single-task view ──────────────────────────────────────────────
+  if (focusId) {
+    const focusedTask = tasks.find(t => t.id === focusId)
+    const typeKey = focusedTask?.task_type || 'task'
+    const meta = TYPE_META[typeKey] || TYPE_META.task
+
+    return (
+      <div className="max-w-3xl mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+          <button onClick={() => navigate('/tasks')}
+            className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">
+            See all {meta.label} tasks
+          </button>
+        </div>
+
+        {focusedTask ? (
+          <TaskCard
+            task={focusedTask}
+            onUpdate={t => handleSectionUpdate(t, 'update')}
+            onDelete={handleDelete}
+          />
+        ) : (
+          <p className="text-sm text-gray-400 italic">Task not found.</p>
+        )}
+      </div>
+    )
+  }
+
+  // ── Full list view ────────────────────────────────────────────────────────
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-3">

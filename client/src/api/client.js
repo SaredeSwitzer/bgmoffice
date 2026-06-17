@@ -140,7 +140,13 @@ export const api = {
     request(`/action-types/${id}`, { method: 'DELETE' }),
 
   // Recruiting
-  getRecruiting: (q) => request(`/recruiting${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  getRecruiting: (q, { archived } = {}) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (archived) params.set('archived', '1')
+    const qs = params.toString()
+    return request(`/recruiting${qs ? `?${qs}` : ''}`)
+  },
   getRecruitingByClient: (clientId) => request(`/recruiting/client/${clientId}`),
   createRecruitingEntry: (data) =>
     request('/recruiting/entries', { method: 'POST', body: JSON.stringify(data) }),
@@ -148,6 +154,8 @@ export const api = {
     request(`/recruiting/entries/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteRecruitingEntry: (id) =>
     request(`/recruiting/entries/${id}`, { method: 'DELETE' }),
+  archiveRecruitingEntry: (id) =>
+    request(`/recruiting/entries/${id}/archive`, { method: 'PATCH' }),
   addRecruitingNote: (entryId, data) =>
     request(`/recruiting/entries/${entryId}/notes`, { method: 'POST', body: JSON.stringify(data) }),
   deleteRecruitingNote: (entryId, noteId) =>

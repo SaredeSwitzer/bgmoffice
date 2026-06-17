@@ -8,11 +8,22 @@ import PhoneLink from '../components/PhoneLink'
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
+const CLASS_TYPE_LABELS = {
+  ala_carte:      'A la carte',
+  ongoing_weekly: 'Ongoing weekly',
+  semester:       'Semester',
+}
+
 function fmt(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
     ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+function fmtShort(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function isUnfilled(entry) {
@@ -335,7 +346,9 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
 
   const [form, setForm] = useState(() => ({
     day_of_week:         entry?.day_of_week         || day,
+    class_type:          entry?.class_type          || '',
     time_slot:           entry?.time_slot           || '',
+    class_dates:         entry?.class_dates         || '',
     neighborhood:        entry?.neighborhood        || '',
     style:               entry?.style               || '',
     participants:        entry?.participants        || '',
@@ -412,6 +425,8 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
         ...form,
         client_id:     form.client_id     || null,
         instructor_id: form.instructor_id || null,
+        class_type:    form.class_type    || null,
+        class_dates:   form.class_dates   || null,
       }
       const saved = entry
         ? await api.updateRecruitingEntry(entry.id, payload)
@@ -438,10 +453,31 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
 
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Class Type</label>
+          <select value={form.class_type} onChange={e => { setField('class_type', e.target.value); if (e.target.value === 'ongoing_weekly') setField('class_dates', '') }} className={selectCls}>
+            <option value="">Not specified</option>
+            <option value="ala_carte">A la carte</option>
+            <option value="ongoing_weekly">Ongoing weekly</option>
+            <option value="semester">Semester</option>
+          </select>
+        </div>
+
+        <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
           <input value={form.time_slot} onChange={e => setField('time_slot', e.target.value)}
-            placeholder="e.g. 10:00–11:00 AM" className={inputCls} />
+            placeholder="e.g. 9:30–10:30 AM" className={inputCls} />
         </div>
+
+        {(form.class_type === 'ala_carte' || form.class_type === 'semester') && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              {form.class_type === 'ala_carte' ? 'Specific Dates' : 'Date Range'}
+            </label>
+            <input value={form.class_dates} onChange={e => setField('class_dates', e.target.value)}
+              placeholder={form.class_type === 'ala_carte' ? 'e.g. May 24, June 21, July 5' : 'e.g. Sep 8 – Dec 15'}
+              className={inputCls} />
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
           <input value={form.neighborhood} onChange={e => setField('neighborhood', e.target.value)} className={inputCls} />
@@ -555,13 +591,17 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
 
 // ── Entry Card ────────────────────────────────────────────────────────────────
 
-function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated, onDeleted, targetEntryId }) {
+function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated, onDeleted, onArchived, targetEntryId }) {
   const isTarget = targetEntryId != null && entry.id === targetEntryId
   const [expanded,     setExpanded]     = useState(isTarget)
   const [editing,      setEditing]      = useState(false)
   const [notes,        setNotes]        = useState(entry.notes || [])
   const [quickAddTask, setQuickAddTask] = useState(false)
   const cardRef = useRef(null)
+
+  const latestNote = notes.length > 0
+    ? [...notes].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+    : null
 
   useEffect(() => {
     if (isTarget && cardRef.current) {
@@ -576,9 +616,14 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this entry?')) return
+    if (!confirm('Permanently delete this entry? This cannot be undone.')) return
     await api.deleteRecruitingEntry(entry.id)
     onDeleted(entry.id)
+  }
+
+  async function handleArchive() {
+    const updated = await api.archiveRecruitingEntry(entry.id)
+    onArchived(updated)
   }
 
   function handleQuickTask(e) {
@@ -593,92 +638,107 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
     <div ref={cardRef}
       className={`bg-white rounded-xl shadow-sm overflow-hidden transition-shadow ${
         isTarget ? 'border-2 border-amber-400 ring-2 ring-amber-100' : 'border border-gray-200'
-      }`}>
+      } ${entry.archived ? 'opacity-60' : ''}`}>
       {/* Summary row */}
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
+        className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={() => !editing && setExpanded(e => !e)}
       >
         <button
           onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
-          className="text-gray-400 flex-shrink-0 w-4 text-center text-sm"
+          className="text-gray-400 flex-shrink-0 w-4 text-center text-sm mt-1"
         >
           {expanded ? '▾' : '▸'}
         </button>
 
-        {/* Primary info */}
+        {/* Main content */}
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            {entry.time_slot && (
-              <span className="text-sm font-semibold text-gray-900 truncate">{entry.time_slot}</span>
-            )}
-            {(entry.neighborhood || entry.style) && (
-              <span className="text-xs text-gray-500 truncate">
-                {[entry.neighborhood, entry.style].filter(Boolean).join(' · ')}
-              </span>
-            )}
-            {entry.participants && (
-              <span className="text-xs text-gray-400 truncate">{entry.participants}</span>
+          {/* Client name — headline */}
+          <div className="font-bold text-gray-900 text-[15px] leading-snug">
+            {entry.client_id ? (
+              <Link to={`/clients/${entry.client_id}`} onClick={e => e.stopPropagation()}
+                className="hover:text-blue-700 hover:underline">
+                {entry.client_name || 'Client'}
+              </Link>
+            ) : entry.client_name ? (
+              entry.client_name
+            ) : (
+              <span className="text-gray-300 font-normal italic text-sm">No client</span>
             )}
           </div>
+
+          {/* Location · style · participants */}
+          {(entry.neighborhood || entry.style || entry.participants) && (
+            <div className="text-xs text-gray-500 mt-0.5">
+              {[entry.neighborhood, entry.style, entry.participants].filter(Boolean).join(' · ')}
+            </div>
+          )}
+
+          {/* Class type · dates · time */}
+          {(entry.class_type || entry.time_slot || entry.class_dates) && (
+            <div className="flex flex-wrap items-center gap-x-1.5 mt-1">
+              {entry.class_type && (
+                <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">
+                  {CLASS_TYPE_LABELS[entry.class_type]}
+                </span>
+              )}
+              {entry.class_dates && (
+                <span className="text-xs text-gray-600">{entry.class_dates}</span>
+              )}
+              {entry.class_dates && entry.time_slot && (
+                <span className="text-xs text-gray-300">·</span>
+              )}
+              {entry.time_slot && (
+                <span className="text-xs font-medium text-gray-700">{entry.time_slot}</span>
+              )}
+            </div>
+          )}
+
+          {/* Latest note preview */}
+          {latestNote && (
+            <div className="mt-1.5 flex items-baseline gap-1.5 min-w-0">
+              <span className="text-[11px] font-semibold text-gray-500 flex-shrink-0">{latestNote.author_initials}</span>
+              <span className="text-[11px] text-gray-400 truncate">
+                {latestNote.is_task ? '↳ ' : ''}{latestNote.text}
+              </span>
+              <span className="text-[11px] text-gray-300 flex-shrink-0">{fmtShort(latestNote.created_at)}</span>
+            </div>
+          )}
         </div>
 
-        {/* Badges + quick actions */}
-        <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
-          {entry.client_id ? (
-            <Link to={`/clients/${entry.client_id}`} onClick={e => e.stopPropagation()}
-              className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full hover:bg-blue-200 font-medium whitespace-nowrap">
-              {entry.client_name || 'Client'}
-            </Link>
-          ) : entry.client_name ? (
-            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
-              {entry.client_name}
-            </span>
-          ) : null}
-
+        {/* Right column: instructor status + secondary badges */}
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0 mt-0.5">
           {entry.instructor_id ? (
             <Link to={`/instructors/${entry.instructor_id}`} onClick={e => e.stopPropagation()}
-              className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full hover:bg-purple-200 font-medium whitespace-nowrap">
+              className="text-xs font-semibold text-purple-700 hover:underline whitespace-nowrap">
               {entry.instructor_name}
             </Link>
-          ) : entry.instructor_info ? (
-            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full whitespace-nowrap">
-              {entry.instructor_info}
-            </span>
           ) : (
-            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-              Needs instructor
-            </span>
+            <span className="text-xs font-semibold text-amber-600 whitespace-nowrap">Needs instructor</span>
           )}
 
-          {entry.action_type_id && (
-            <ActionTypeBadge name={entry.action_type_name} color={entry.action_type_color} size="xs" />
-          )}
-
-          {entry.assigned_to_user_id && (
-            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
-              {entry.assigned_to_user_initials || entry.assigned_to_user_name}
-            </span>
-          )}
-
-          {entry.waiver_signed ? (
-            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Waiver</span>
-          ) : null}
-
-          {openTaskCount > 0 && (
-            <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full">
-              {openTaskCount} task{openTaskCount > 1 ? 's' : ''}
-            </span>
-          )}
-
-          {/* Quick task button — always visible */}
-          <button
-            onClick={handleQuickTask}
-            title="Add a task for this entry"
-            className="text-[10px] px-2 py-0.5 bg-amber-500 text-white rounded-full font-medium hover:bg-amber-600 whitespace-nowrap"
-          >
-            + Task
-          </button>
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+            {!!entry.archived && (
+              <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">Archived</span>
+            )}
+            {!!entry.waiver_signed && (
+              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓ Waiver</span>
+            )}
+            {openTaskCount > 0 && (
+              <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                {openTaskCount} task{openTaskCount > 1 ? 's' : ''}
+              </span>
+            )}
+            {!entry.archived ? (
+              <button
+                onClick={handleQuickTask}
+                title="Add a task for this entry"
+                className="text-[10px] px-1.5 py-0.5 bg-amber-500 text-white rounded-full font-medium hover:bg-amber-600 whitespace-nowrap"
+              >
+                + Task
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -698,28 +758,21 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
             />
           ) : (
             <>
-              {/* Tasks + Notes — shown first, most actionable */}
-              <NotesThread
-                entryId={entry.id}
-                notes={notes}
-                onNotesChanged={n => { setNotes(n); setQuickAddTask(false) }}
-                clients={clients}
-                instructors={instructors}
-                actionTypes={actionTypes}
-                entryClientId={entry.client_id}
-                entryClientName={entry.client_name}
-                entryInstructorId={entry.instructor_id}
-                entryInstructorName={entry.instructor_name}
-                defaultAddTask={quickAddTask}
-              />
-
-              {/* Entry details — below tasks/notes */}
-              <div className="pt-3 border-t border-gray-100">
+              {/* Entry details — client info + what's needed */}
+              <div className="pb-4 border-b border-gray-100">
                 <div className="flex justify-end gap-2 mb-3">
-                  <span className="text-[10px] text-gray-400 self-center mr-auto">Added by {entry.created_by}</span>
-                  <button onClick={() => setEditing(true)}
-                    className="text-xs px-3 py-1 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
-                    Edit
+                  <span className="text-[10px] text-gray-400 self-center mr-auto">
+                    Added by {entry.created_by}{entry.created_at ? ` · ${fmtShort(entry.created_at)}` : ''}
+                  </span>
+                  {!entry.archived && (
+                    <button onClick={() => setEditing(true)}
+                      className="text-xs px-3 py-1 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">
+                      Edit
+                    </button>
+                  )}
+                  <button onClick={handleArchive}
+                    className="text-xs px-3 py-1 border border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50">
+                    {entry.archived ? 'Unarchive' : 'Archive'}
                   </button>
                   <button onClick={handleDelete}
                     className="text-xs px-3 py-1 border border-red-200 rounded-lg text-red-600 hover:bg-red-50">
@@ -728,23 +781,6 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Time</p>
-                    <p className="text-sm text-gray-800">{entry.time_slot || <span className="text-gray-300">—</span>}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Neighborhood</p>
-                    <p className="text-sm text-gray-800">{entry.neighborhood || <span className="text-gray-300">—</span>}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Style</p>
-                    <p className="text-sm text-gray-800">{entry.style || <span className="text-gray-300">—</span>}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Participants</p>
-                    <p className="text-sm text-gray-800">{entry.participants || <span className="text-gray-300">—</span>}</p>
-                  </div>
-
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Client</p>
                     {entry.client_id ? (
@@ -763,7 +799,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
                         {entry.instructor_name}
                       </Link>
                     ) : (
-                      <p className="text-sm text-gray-800">{entry.instructor_info || <span className="text-gray-300">—</span>}</p>
+                      <p className="text-sm text-gray-800">{entry.instructor_info || <span className="text-gray-300 italic">Needs instructor</span>}</p>
                     )}
                   </div>
 
@@ -773,6 +809,35 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
                       <p className="text-sm text-gray-800">{entry.instructor_info}</p>
                     </div>
                   )}
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Class Type</p>
+                    <p className="text-sm text-gray-800">{entry.class_type ? CLASS_TYPE_LABELS[entry.class_type] : <span className="text-gray-300">—</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Time</p>
+                    <p className="text-sm text-gray-800">{entry.time_slot || <span className="text-gray-300">—</span>}</p>
+                  </div>
+                  {entry.class_dates && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        {entry.class_type === 'semester' ? 'Date Range' : 'Dates'}
+                      </p>
+                      <p className="text-sm text-gray-800">{entry.class_dates}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Neighborhood</p>
+                    <p className="text-sm text-gray-800">{entry.neighborhood || <span className="text-gray-300">—</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Style</p>
+                    <p className="text-sm text-gray-800">{entry.style || <span className="text-gray-300">—</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Participants</p>
+                    <p className="text-sm text-gray-800">{entry.participants || <span className="text-gray-300">—</span>}</p>
+                  </div>
 
                   <div className="col-span-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Address</p>
@@ -810,6 +875,21 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
                   </div>
                 </div>
               </div>
+
+              {/* Tasks + Notes — below entry details */}
+              <NotesThread
+                entryId={entry.id}
+                notes={notes}
+                onNotesChanged={n => { setNotes(n); setQuickAddTask(false) }}
+                clients={clients}
+                instructors={instructors}
+                actionTypes={actionTypes}
+                entryClientId={entry.client_id}
+                entryClientName={entry.client_name}
+                entryInstructorId={entry.instructor_id}
+                entryInstructorName={entry.instructor_name}
+                defaultAddTask={quickAddTask}
+              />
             </>
           )}
         </div>
@@ -820,7 +900,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
 
 // ── Day Section ───────────────────────────────────────────────────────────────
 
-function DaySection({ day, entries, clients, instructors, actionTypes, users, onUpdated, onDeleted, onCreated, defaultOpen, targetEntryId }) {
+function DaySection({ day, entries, clients, instructors, actionTypes, users, onUpdated, onDeleted, onArchived, onCreated, defaultOpen, targetEntryId }) {
   const hasTarget = targetEntryId != null && entries.some(e => e.id === targetEntryId)
   const [open,      setOpen]      = useState(defaultOpen || hasTarget)
   const [addingNew, setAddingNew] = useState(false)
@@ -865,6 +945,7 @@ function DaySection({ day, entries, clients, instructors, actionTypes, users, on
               users={users}
               onUpdated={onUpdated}
               onDeleted={onDeleted}
+              onArchived={onArchived}
               targetEntryId={targetEntryId}
             />
           ))}
@@ -1104,22 +1185,23 @@ export default function RecruitingPage() {
   const [searchParams] = useSearchParams()
   const targetEntryId  = searchParams.get('entry') ? Number(searchParams.get('entry')) : null
 
-  const [tab,          setTab]          = useState('entries')
-  const [grouped,      setGrouped]      = useState({})
-  const [clients,      setClients]      = useState([])
-  const [instructors,  setInstructors]  = useState([])
-  const [actionTypes,  setActionTypes]  = useState([])
-  const [users,        setUsers]        = useState([])
-  const [availability, setAvailability] = useState([])
-  const [query,        setQuery]        = useState('')
-  const [loading,      setLoading]      = useState(true)
-  const [error,        setError]        = useState('')
+  const [tab,           setTab]           = useState('entries')
+  const [grouped,       setGrouped]       = useState({})
+  const [clients,       setClients]       = useState([])
+  const [instructors,   setInstructors]   = useState([])
+  const [actionTypes,   setActionTypes]   = useState([])
+  const [users,         setUsers]         = useState([])
+  const [availability,  setAvailability]  = useState([])
+  const [query,         setQuery]         = useState('')
+  const [showArchived,  setShowArchived]  = useState(false)
+  const [loading,       setLoading]       = useState(true)
+  const [error,         setError]         = useState('')
   const searchTimer = useRef(null)
 
-  const load = useCallback((q = '') => {
+  const load = useCallback((q = '', archived = false) => {
     setLoading(true)
     Promise.all([
-      api.getRecruiting(q || undefined),
+      api.getRecruiting(q || undefined, { archived }),
       api.getClients(),
       api.getInstructors(),
       api.getInstructorAvailability(),
@@ -1138,12 +1220,17 @@ export default function RecruitingPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load('', showArchived) }, [load, showArchived])
 
   function handleSearchChange(q) {
     setQuery(q)
     clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => load(q), 250)
+    searchTimer.current = setTimeout(() => load(q, showArchived), 250)
+  }
+
+  function toggleArchived() {
+    setQuery('')
+    setShowArchived(v => !v)
   }
 
   function handleEntryUpdated(updated) {
@@ -1160,6 +1247,15 @@ export default function RecruitingPage() {
     setGrouped(prev => {
       const next = {}
       DAYS.forEach(d => { next[d] = (prev[d] || []).filter(e => e.id !== id) })
+      return next
+    })
+  }
+
+  function handleEntryArchived(updated) {
+    // Remove from current view (archived/unarchived toggle causes it to disappear)
+    setGrouped(prev => {
+      const next = {}
+      DAYS.forEach(d => { next[d] = (prev[d] || []).filter(e => e.id !== updated.id) })
       return next
     })
   }
@@ -1190,18 +1286,32 @@ export default function RecruitingPage() {
           </p>
         </div>
         {tab === 'entries' && (
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"
-              fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              value={query}
-              onChange={e => handleSearchChange(e.target.value)}
-              placeholder="Search entries…"
-              className="border border-gray-300 rounded-lg pl-8 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 w-52"
-            />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleArchived}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                showArchived
+                  ? 'bg-gray-200 border-gray-300 text-gray-700 font-medium'
+                  : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {showArchived ? 'Showing archived' : 'Show archived'}
+            </button>
+            {!showArchived && (
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  value={query}
+                  onChange={e => handleSearchChange(e.target.value)}
+                  placeholder="Search entries…"
+                  className="border border-gray-300 rounded-lg pl-8 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 w-52"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1239,6 +1349,11 @@ export default function RecruitingPage() {
         <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
       ) : tab === 'entries' ? (
         <div className="space-y-4">
+          {showArchived && (
+            <p className="text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-2">
+              Showing archived entries. <button onClick={toggleArchived} className="underline hover:text-gray-800">Back to active entries</button>
+            </p>
+          )}
           {DAYS.map(day => (
             <DaySection
               key={day}
@@ -1250,6 +1365,7 @@ export default function RecruitingPage() {
               users={users}
               onUpdated={handleEntryUpdated}
               onDeleted={handleEntryDeleted}
+              onArchived={handleEntryArchived}
               onCreated={handleEntryCreated}
               defaultOpen={day === 'Sunday'}
               targetEntryId={targetEntryId}
