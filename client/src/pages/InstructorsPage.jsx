@@ -2,13 +2,20 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 
+const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
+
 export default function InstructorsPage() {
   const [instructors, setInstructors] = useState([])
+  const [classStyles, setClassStyles] = useState([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [newInstructor, setNewInstructor] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', specialties: '', style: '', notes: '', pay_rate: '' })
+  const [form, setForm] = useState(BLANK_FORM)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.getClassStyles().then(setClassStyles).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -24,10 +31,16 @@ export default function InstructorsPage() {
       const i = await api.createInstructor(form)
       setInstructors(prev => [...prev, i].sort((a, b) => a.name.localeCompare(b.name)))
       setNewInstructor(false)
-      setForm({ name: '', phone: '', email: '', specialties: '', style: '', notes: '', pay_rate: '' })
+      setForm(BLANK_FORM)
     } finally {
       setSaving(false)
     }
+  }
+
+  function toggleStyle(name) {
+    const cur = (form.styles_taught || '').split(',').map(s => s.trim()).filter(Boolean)
+    const next = cur.includes(name) ? cur.filter(s => s !== name) : [...cur, name]
+    setForm(f => ({ ...f, styles_taught: next.join(', ') }))
   }
 
   return (
@@ -61,25 +74,38 @@ export default function InstructorsPage() {
               <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Specialties</label>
-              <input value={form.specialties} onChange={e => setForm(f => ({ ...f, specialties: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="Yoga, Pilates…" />
+            {classStyles.length > 0 && (
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-2">Styles They Teach</label>
+                <div className="flex flex-wrap gap-2">
+                  {classStyles.map(s => {
+                    const checked = (form.styles_taught || '').split(',').map(x => x.trim()).includes(s.name)
+                    return (
+                      <button key={s.id} type="button" onClick={() => toggleStyle(s.name)}
+                        className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
+                          checked ? 'bg-purple-100 border-purple-400 text-purple-800' : 'bg-gray-50 border-gray-300 text-gray-600 hover:border-gray-400'
+                        }`}>
+                        {s.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Pay Rate</label>
               <input value={form.pay_rate} onChange={e => setForm(f => ({ ...f, pay_rate: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="$85/hr" />
             </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Style</label>
-              <input value={form.style} onChange={e => setForm(f => ({ ...f, style: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
+              <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
+                placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
             </div>
           </div>
           <div className="flex gap-2">

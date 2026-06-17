@@ -11,7 +11,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
   const [newClient, setNewClient] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '' })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', zip: '', neighborhood: '' })
   const [saving, setSaving] = useState(false)
   const [createError, setCreateError] = useState('')
 
@@ -30,7 +30,7 @@ export default function ClientsPage() {
       const c = await api.createClient(form)
       setClients(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))
       setNewClient(false)
-      setForm({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '' })
+      setForm({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', zip: '', neighborhood: '' })
     } catch (err) {
       setCreateError(err.message)
     } finally {
@@ -86,7 +86,27 @@ export default function ClientsPage() {
                 placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Street</label>
+              <input value={form.street} onChange={e => setForm(f => ({ ...f, street: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="123 Main St" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+              <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Zip</label>
+              <input value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
+              <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="e.g. Park Slope" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Notes / Contact Person</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
             </div>
