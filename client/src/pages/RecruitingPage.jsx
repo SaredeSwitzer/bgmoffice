@@ -1149,10 +1149,20 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
         <div className="space-y-5">
           {daysWithSlots.map(day => {
             const timeGroups = byDay[day]
+            const parseTime = s => {
+              const m = s.match(/^(\d+)(?::(\d+))?\s*(am|pm)?/i)
+              if (!m) return 9999
+              let h = parseInt(m[1], 10)
+              const min = parseInt(m[2] || '0', 10)
+              const meridiem = (m[3] || '').toLowerCase()
+              if (meridiem === 'pm' && h !== 12) h += 12
+              if (meridiem === 'am' && h === 12) h = 0
+              return h * 60 + min
+            }
             const timeKeys = Object.keys(timeGroups).sort((a, b) => {
               if (a === '__none__') return 1
               if (b === '__none__') return -1
-              return a.localeCompare(b)
+              return parseTime(a) - parseTime(b)
             })
             return (
               <section key={day}>
