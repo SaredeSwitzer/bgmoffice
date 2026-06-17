@@ -131,7 +131,13 @@ export default function ClientsPage() {
             >
               <div>
                 <p className="text-sm font-semibold text-gray-900">{c.name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{c.phone || c.email || '—'}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {c.phone
+                    ? c.phone
+                    : c.email
+                      ? <a href={`mailto:${c.email}`} onClick={e => e.stopPropagation()} className="hover:text-blue-600 hover:underline">{c.email}</a>
+                      : '—'}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 {c.preferred_contact && (
