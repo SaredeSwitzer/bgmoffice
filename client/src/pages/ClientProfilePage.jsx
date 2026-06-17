@@ -554,16 +554,20 @@ export default function ClientProfilePage() {
       .then(([c, cs, instr, recr]) => {
         setClient(c)
         setEditForm({
-        name: c.name, phone: c.phone || '', email: c.email || '',
-        preferred_contact: c.preferred_contact || '', notes: c.notes || '',
-        rate_per_class: c.rate_per_class || '',
-        contact_person_name: c.contact_person_name || '',
-        contact_person_phone: c.contact_person_phone || '',
-        contact_person_email: c.contact_person_email || '',
-        contact_person_role: c.contact_person_role || '',
-        waiver_signed: c.waiver_signed ? true : false,
-        waiver_signed_date: c.waiver_signed_date || '',
-      })
+          name: c.name, phone: c.phone || '', email: c.email || '',
+          preferred_contact: c.preferred_contact || '', notes: c.notes || '',
+          rate_per_class: c.rate_per_class || '',
+          contact_person_name: c.contact_person_name || '',
+          contact_person_phone: c.contact_person_phone || '',
+          contact_person_email: c.contact_person_email || '',
+          contact_person_role: c.contact_person_role || '',
+          waiver_signed: c.waiver_signed ? true : false,
+          waiver_signed_date: c.waiver_signed_date || '',
+          street: c.street || '',
+          city: c.city || '',
+          zip: c.zip || '',
+          neighborhood: c.neighborhood || '',
+        })
         setCases(cs)
         setInstructors(instr)
         setRecruitingEntries(recr)
@@ -704,6 +708,30 @@ export default function ClientProfilePage() {
                 <input value={editForm.contact_person_email} onChange={e => setEditForm(f => ({ ...f, contact_person_email: e.target.value }))}
                   placeholder="contact@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
+              {/* Address */}
+              <div className="col-span-2 pt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Address</p>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Street</label>
+                <input value={editForm.street} onChange={e => setEditForm(f => ({ ...f, street: e.target.value }))}
+                  placeholder="123 Main St" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+                <input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
+                  placeholder="Brooklyn" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Zip</label>
+                <input value={editForm.zip} onChange={e => setEditForm(f => ({ ...f, zip: e.target.value }))}
+                  placeholder="11201" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
+                <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
+                  placeholder="Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={saving}
@@ -758,6 +786,22 @@ export default function ClientProfilePage() {
                 </span>
               )}
             </div>
+
+            {/* Address */}
+            {(client.street || client.city || client.zip || client.neighborhood) && (
+              <div className="mt-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Address</p>
+                {client.street && <p className="text-sm text-gray-800">{client.street}</p>}
+                {(client.city || client.zip) && (
+                  <p className="text-sm text-gray-800">
+                    {[client.city, client.zip].filter(Boolean).join(', ')}
+                  </p>
+                )}
+                {client.neighborhood && (
+                  <p className="text-xs text-gray-500 mt-0.5">{client.neighborhood}</p>
+                )}
+              </div>
+            )}
 
             {/* Contact person */}
             {client.contact_person_name && (

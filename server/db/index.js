@@ -316,6 +316,11 @@ const migrations = [
   // class type and dates for recruiting entries (added 2026-06)
   `ALTER TABLE recruiting_entries ADD COLUMN class_type  TEXT`,
   `ALTER TABLE recruiting_entries ADD COLUMN class_dates TEXT`,
+  // client address fields (added 2026-06)
+  `ALTER TABLE clients ADD COLUMN street       TEXT`,
+  `ALTER TABLE clients ADD COLUMN city         TEXT`,
+  `ALTER TABLE clients ADD COLUMN zip          TEXT`,
+  `ALTER TABLE clients ADD COLUMN neighborhood TEXT`,
 ];
 
 // instructor availability table (added 2026-06)

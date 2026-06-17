@@ -39,17 +39,20 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const { name, phone, email, preferred_contact, notes, rate_per_class,
           contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
-          waiver_signed, waiver_signed_date } = req.body;
+          waiver_signed, waiver_signed_date,
+          street, city, zip, neighborhood } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
   const result = db.prepare(
     `INSERT INTO clients
        (name, phone, email, preferred_contact, notes, rate_per_class,
         contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
-        waiver_signed, waiver_signed_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        waiver_signed, waiver_signed_date,
+        street, city, zip, neighborhood)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(name, phone || null, email || null, preferred_contact || null, notes || null, rate_per_class || null,
         contact_person_name || null, contact_person_phone || null, contact_person_email || null, contact_person_role || null,
-        waiver_signed ? 1 : 0, waiver_signed_date || null);
+        waiver_signed ? 1 : 0, waiver_signed_date || null,
+        street || null, city || null, zip || null, neighborhood || null);
   res.status(201).json(db.prepare('SELECT * FROM clients WHERE id = ?').get(result.lastInsertRowid));
 });
 
@@ -59,16 +62,19 @@ router.put('/:id', (req, res) => {
   if (!client) return res.status(404).json({ error: 'Client not found' });
   const { name, phone, email, preferred_contact, notes, rate_per_class,
           contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
-          waiver_signed, waiver_signed_date } = req.body;
+          waiver_signed, waiver_signed_date,
+          street, city, zip, neighborhood } = req.body;
   db.prepare(
     `UPDATE clients SET
        name=?, phone=?, email=?, preferred_contact=?, notes=?, rate_per_class=?,
        contact_person_name=?, contact_person_phone=?, contact_person_email=?, contact_person_role=?,
-       waiver_signed=?, waiver_signed_date=?
+       waiver_signed=?, waiver_signed_date=?,
+       street=?, city=?, zip=?, neighborhood=?
      WHERE id=?`
   ).run(name, phone || null, email || null, preferred_contact || null, notes || null, rate_per_class || null,
         contact_person_name || null, contact_person_phone || null, contact_person_email || null, contact_person_role || null,
         waiver_signed ? 1 : 0, waiver_signed_date || null,
+        street || null, city || null, zip || null, neighborhood || null,
         req.params.id);
   res.json(db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id));
 });
