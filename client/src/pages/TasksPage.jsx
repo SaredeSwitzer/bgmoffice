@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import DateInput from '../components/DateInput'
+import { useSeenTasks } from '../hooks/useSeenTasks'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -97,7 +98,7 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
-function TaskCard({ task, onUpdate, onDelete }) {
+function TaskCard({ task, onUpdate, onDelete, isNew }) {
   const { user } = useAuth()
   const [editing,    setEditing]    = useState(false)
   const [saving,     setSaving]     = useState(false)
@@ -162,11 +163,13 @@ function TaskCard({ task, onUpdate, onDelete }) {
       isDone ? 'border-gray-100 opacity-70' :
       task.starred ? 'border-yellow-300 bg-yellow-50/40' :
       isUrgent ? 'border-red-200 bg-red-50/30' :
+      isNew ? 'border-blue-300 bg-blue-50/30' :
       'border-gray-200'
     }`}>
       {/* Header row */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className={`text-sm font-semibold flex-1 ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+        <p className={`text-sm flex-1 ${isDone ? 'line-through text-gray-400 font-normal' : isNew ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}`}>
+          {isNew && !isDone && <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1.5 mb-0.5 align-middle" />}
           {isUrgent && !isDone && <span className="text-red-500 mr-1">🔴</span>}
           {task.title}
         </p>
@@ -258,7 +261,7 @@ function TaskCard({ task, onUpdate, onDelete }) {
 }
 
 // ── Task section (by type) ────────────────────────────────────────────────────
-function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType }) {
+function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType, isNewFn }) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -297,7 +300,7 @@ function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultTyp
           {tasks
             .sort((a, b) => (b.starred - a.starred) || (b.priority === 'urgent' ? 1 : -1))
             .map(t => (
-              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} />
+              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} isNew={isNewFn?.(t)} />
             ))}
         </div>
       )}
@@ -316,15 +319,30 @@ export default function TasksPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const focusId = searchParams.get('id') ? Number(searchParams.get('id')) : null
+  const { user } = useAuth()
+  const { seen, markSeen } = useSeenTasks(user?.initials)
 
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [showDone, setShowDone] = useState(false)
   const [filterAssignee, setFilterAssignee] = useState('')
 
+  const myFirstName = user?.name?.split(' ')[0] || ''
+  function isNew(task) {
+    if (task.status === 'done') return false
+    if (task.created_by === user?.initials) return false
+    const assignedToMe = task.assigned_to &&
+      task.assigned_to.toLowerCase() === myFirstName.toLowerCase()
+    return assignedToMe && !seen.has(task.id)
+  }
+
   useEffect(() => {
     api.getTasks().then(setTasks).finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (focusId) markSeen(focusId)
+  }, [focusId])
 
   function handleSectionUpdate(t, action) {
     if (action === 'add') setTasks(prev => [t, ...prev])
@@ -408,13 +426,13 @@ export default function TasksPage() {
       </div>
 
       <TaskSection label="Tasks" borderColor="border-gray-300" tasks={openTasks}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} />
 
       <TaskSection label="Reference" borderColor="border-purple-300" tasks={openReference}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="reference" />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="reference" isNewFn={isNew} />
 
       <TaskSection label="Other" borderColor="border-blue-300" tasks={openOther}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" isNewFn={isNew} />
 
       {/* Completed tasks (collapsible) */}
       {done.length > 0 && (

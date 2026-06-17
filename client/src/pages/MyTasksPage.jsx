@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
+import { useSeenTasks } from '../hooks/useSeenTasks'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -101,7 +102,7 @@ function getItemUrl(item) {
   return null
 }
 
-function MyTaskRow({ item, onClick }) {
+function MyTaskRow({ item, onClick, isNew }) {
   const days = daysOpen(item.created_at)
   const isRecruiting = item.source === 'recruiting'
   const isReference  = item.task_type === 'reference'
@@ -129,11 +130,16 @@ function MyTaskRow({ item, onClick }) {
       onClick={handleClick}
       onAuxClick={handleAuxClick}
       className={`group cursor-pointer transition-colors ${
-        item.starred ? 'bg-yellow-50/60 hover:bg-yellow-50' : 'hover:bg-gray-50'
+        item.starred ? 'bg-yellow-50/60 hover:bg-yellow-50'
+        : isNew      ? 'bg-blue-50/50 hover:bg-blue-50'
+        :              'hover:bg-gray-50'
       }`}
     >
-      <td className="px-3 py-2.5 text-sm text-gray-900 whitespace-nowrap">
-        {item.client_name || <span className="text-gray-400">—</span>}
+      <td className="px-3 py-2.5 text-sm whitespace-nowrap">
+        <span className={`flex items-center gap-1.5 ${isNew ? 'font-bold text-gray-900' : 'text-gray-900'}`}>
+          {isNew && <span className="inline-block w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+          {item.client_name || <span className="text-gray-400 font-normal">—</span>}
+        </span>
       </td>
       <td className="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">
         {item.instructor_name || <span className="text-gray-400">—</span>}
@@ -160,8 +166,8 @@ function MyTaskRow({ item, onClick }) {
       </td>
       <td className="px-3 py-2.5 max-w-xs">
         {item.last_note ? (
-          <span className="text-xs text-gray-500 truncate block max-w-[180px]">
-            <span className="font-medium text-gray-700">{item.last_note.author_initials}:</span>{' '}
+          <span className={`text-xs truncate block max-w-[180px] ${isNew ? 'text-gray-700 font-semibold' : 'text-gray-500'}`}>
+            <span className={isNew ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}>{item.last_note.author_initials}:</span>{' '}
             {item.last_note.text}
           </span>
         ) : (
@@ -186,11 +192,16 @@ function MyTaskRow({ item, onClick }) {
 export default function MyTasksPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { seen, markSeen } = useSeenTasks(user?.initials)
   const [tasks, setTasks] = useState([])
   const [delegateName, setDelegateName] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+
+  function isNew(item) {
+    return !seen.has(item.id) && item.created_by !== user?.initials
+  }
 
   function handleAddOther(newTask) {
     setTasks(prev => [{ ...newTask, source: 'standalone', categories: ['other'] }, ...prev])
@@ -217,6 +228,7 @@ export default function MyTasksPage() {
   )
 
   function handleClick(item) {
+    markSeen(item.id)
     if (item.source === 'recruiting' && item.recruiting_entry_id) {
       navigate(`/recruiting?entry=${item.recruiting_entry_id}`)
     } else if (item.source === 'recruiting') {
@@ -299,6 +311,7 @@ export default function MyTasksPage() {
                     key={`${item.source}-${item.id}`}
                     item={item}
                     onClick={() => handleClick(item)}
+                    isNew={isNew(item)}
                   />
                 ))}
               </tbody>
