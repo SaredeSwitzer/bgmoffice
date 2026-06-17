@@ -900,9 +900,11 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
 
 // ── Day Section ───────────────────────────────────────────────────────────────
 
-function DaySection({ day, entries, clients, instructors, actionTypes, users, onUpdated, onDeleted, onArchived, onCreated, defaultOpen, targetEntryId }) {
+function DaySection({ day, entries, clients, instructors, actionTypes, users, onUpdated, onDeleted, onArchived, onCreated, defaultOpen, targetEntryId, forceOpen }) {
   const hasTarget = targetEntryId != null && entries.some(e => e.id === targetEntryId)
   const [open,      setOpen]      = useState(defaultOpen || hasTarget)
+
+  useEffect(() => { if (forceOpen) setOpen(true) }, [forceOpen])
   const [addingNew, setAddingNew] = useState(false)
 
   const unfilledInDay = entries.filter(isUnfilled).length
@@ -1185,13 +1187,11 @@ export default function RecruitingPage() {
   const [searchParams] = useSearchParams()
   const targetEntryId  = searchParams.get('entry') ? Number(searchParams.get('entry')) : null
 
-  const [tab,           setTab]           = useState('entries')
   const [grouped,       setGrouped]       = useState({})
   const [clients,       setClients]       = useState([])
   const [instructors,   setInstructors]   = useState([])
   const [actionTypes,   setActionTypes]   = useState([])
   const [users,         setUsers]         = useState([])
-  const [availability,  setAvailability]  = useState([])
   const [query,         setQuery]         = useState('')
   const [showArchived,  setShowArchived]  = useState(false)
   const [loading,       setLoading]       = useState(true)
@@ -1204,15 +1204,13 @@ export default function RecruitingPage() {
       api.getRecruiting(q || undefined, { archived }),
       api.getClients(),
       api.getInstructors(),
-      api.getInstructorAvailability(),
       api.getActionTypes(),
       api.getUsers(),
     ])
-      .then(([data, cls, insts, avail, ats, usrs]) => {
+      .then(([data, cls, insts, ats, usrs]) => {
         setGrouped(data.grouped)
         setClients(cls)
         setInstructors(insts)
-        setAvailability(avail)
         setActionTypes(ats)
         setUsers(usrs)
       })
@@ -1285,76 +1283,45 @@ export default function RecruitingPage() {
             )}
           </p>
         </div>
-        {tab === 'entries' && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleArchived}
-              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                showArchived
-                  ? 'bg-gray-200 border-gray-300 text-gray-700 font-medium'
-                  : 'border-gray-300 text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              {showArchived ? 'Showing archived' : 'Show archived'}
-            </button>
-            {!showArchived && (
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  value={query}
-                  onChange={e => handleSearchChange(e.target.value)}
-                  placeholder="Search entries…"
-                  className="border border-gray-300 rounded-lg pl-8 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 w-52"
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
-        <button
-          onClick={() => setTab('entries')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            tab === 'entries'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Entries
-        </button>
-        <button
-          onClick={() => setTab('availability')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            tab === 'availability'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Instructor Availability
-          {unfilledCount > 0 && (
-            <span className="ml-2 text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
-              {unfilledCount}
-            </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleArchived}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              showArchived
+                ? 'bg-gray-200 border-gray-300 text-gray-700 font-medium'
+                : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            {showArchived ? 'Showing archived' : 'Show archived'}
+          </button>
+          {!showArchived && (
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                value={query}
+                onChange={e => handleSearchChange(e.target.value)}
+                placeholder="Search client, style, neighborhood…"
+                className="border border-gray-300 rounded-lg pl-8 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 w-64"
+              />
+            </div>
           )}
-        </button>
+        </div>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
-      ) : tab === 'entries' ? (
+      ) : (
         <div className="space-y-4">
           {showArchived && (
             <p className="text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-2">
               Showing archived entries. <button onClick={toggleArchived} className="underline hover:text-gray-800">Back to active entries</button>
             </p>
           )}
-          {DAYS.map(day => (
+          {DAYS.filter(day => !query || (grouped[day]?.length > 0)).map(day => (
             <DaySection
               key={day}
               day={day}
@@ -1369,16 +1336,13 @@ export default function RecruitingPage() {
               onCreated={handleEntryCreated}
               defaultOpen={day === 'Sunday'}
               targetEntryId={targetEntryId}
+              forceOpen={!!query}
             />
           ))}
+          {query && totalEntries === 0 && (
+            <p className="text-sm text-gray-400 italic px-2">No entries match "{query}".</p>
+          )}
         </div>
-      ) : (
-        <InstructorAvailabilityTab
-          availability={availability}
-          instructors={instructors}
-          grouped={grouped}
-          onChanged={setAvailability}
-        />
       )}
     </div>
   )
