@@ -334,8 +334,6 @@ export default function InstructorProfilePage() {
           name: inst.name,
           phone: inst.phone || '',
           email: inst.email || '',
-          specialties: inst.specialties || '',
-          style: inst.style || '',
           notes: inst.notes || '',
           pay_rate: inst.pay_rate || '',
           mailing_address: inst.mailing_address || '',
@@ -407,31 +405,6 @@ export default function InstructorProfilePage() {
                 <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Specialties</label>
-                <input value={editForm.specialties} onChange={e => setEditForm(f => ({ ...f, specialties: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Pay Rate</label>
-                <input value={editForm.pay_rate} onChange={e => setEditForm(f => ({ ...f, pay_rate: e.target.value }))}
-                  placeholder="e.g. $60/class" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Style / Teaching Approach</label>
-                <input value={editForm.style} onChange={e => setEditForm(f => ({ ...f, style: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
-                <textarea value={editForm.mailing_address} onChange={e => setEditForm(f => ({ ...f, mailing_address: e.target.value }))}
-                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
-                <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
-                  placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-              </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-2">Styles They Teach</label>
                 <div className="flex flex-wrap gap-2">
@@ -454,6 +427,26 @@ export default function InstructorProfilePage() {
                   })}
                 </div>
               </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Pay Rate</label>
+                <input value={editForm.pay_rate} onChange={e => setEditForm(f => ({ ...f, pay_rate: e.target.value }))}
+                  placeholder="e.g. $60/class" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
+                <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
+                  placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
+                <textarea value={editForm.mailing_address} onChange={e => setEditForm(f => ({ ...f, mailing_address: e.target.value }))}
+                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">SSN</label>
                 <input value={editForm.ssn} onChange={e => setEditForm(f => ({ ...f, ssn: e.target.value }))}
@@ -473,11 +466,6 @@ export default function InstructorProfilePage() {
                       onChange={v => setEditForm(f => ({ ...f, contract_signed_date: v }))} />
                   )}
                 </div>
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
-                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
               </div>
             </div>
             <div className="flex gap-2">
@@ -503,12 +491,6 @@ export default function InstructorProfilePage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h1 className="text-xl font-bold text-gray-900">{instructor.name}</h1>
-                    {instructor.specialties && (
-                      <p className="text-sm text-gray-500 mt-0.5">{instructor.specialties}</p>
-                    )}
-                    {instructor.style && (
-                      <p className="text-sm text-gray-600 mt-1 italic">"{instructor.style}"</p>
-                    )}
                     {instructor.pay_rate && (
                       <p className="text-sm font-semibold text-emerald-700 mt-1">💰 {instructor.pay_rate}</p>
                     )}
@@ -529,22 +511,30 @@ export default function InstructorProfilePage() {
 
             <ContactInfo phone={instructor.phone} email={instructor.email} />
 
+            {/* Styles + notes — shown right after contact info */}
+            {(instructor.styles_taught || instructor.notes) && (
+              <div className="mt-3 space-y-2">
+                {instructor.styles_taught && (
+                  <div className="flex flex-wrap gap-1">
+                    {instructor.styles_taught.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                      <span key={s} className="text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-2 py-0.5 font-medium">{s}</span>
+                    ))}
+                  </div>
+                )}
+                {instructor.notes && (
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 text-gray-600 text-sm">
+                    {instructor.notes}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Detail rows */}
             <div className="mt-4 space-y-2 text-sm">
               {instructor.neighborhood && (
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Neighborhood</span>
                   <span className="text-gray-700">{instructor.neighborhood}</span>
-                </div>
-              )}
-              {instructor.styles_taught && (
-                <div className="flex gap-2 items-start">
-                  <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Styles Taught</span>
-                  <div className="flex flex-wrap gap-1">
-                    {instructor.styles_taught.split(',').map(s => s.trim()).filter(Boolean).map(s => (
-                      <span key={s} className="text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-2 py-0.5 font-medium">{s}</span>
-                    ))}
-                  </div>
                 </div>
               )}
               {instructor.mailing_address && (
@@ -570,11 +560,6 @@ export default function InstructorProfilePage() {
                 <span className="text-gray-400 w-28 flex-shrink-0 text-xs">SSN</span>
                 <SSNField value={instructor.ssn} />
               </div>
-              {instructor.notes && (
-                <div className="mt-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 text-gray-600 text-sm">
-                  {instructor.notes}
-                </div>
-              )}
             </div>
           </>
         )}
