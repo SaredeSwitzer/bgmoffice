@@ -20,7 +20,9 @@ export default function ContactInfo({ phone, email, preferred_contact }) {
       {email && (
         <div>
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Email</p>
-          <a href={`mailto:${email}`} className="text-gray-800 hover:text-blue-600">{email}</a>
+          <a href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`}
+            target="_blank" rel="noopener noreferrer"
+            className="text-gray-800 hover:text-blue-600">{email}</a>
         </div>
       )}
       {preferred_contact && (
