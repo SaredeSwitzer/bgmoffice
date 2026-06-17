@@ -659,7 +659,7 @@ export default function ClientProfilePage() {
                   placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notes / Contact Person</label>
                 <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                   rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
               </div>
@@ -683,30 +683,6 @@ export default function ClientProfilePage() {
                       onChange={v => setEditForm(f => ({ ...f, waiver_signed_date: v }))} />
                   )}
                 </div>
-              </div>
-              {/* Contact Person */}
-              <div className="col-span-2 pt-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contact Person (optional)</p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
-                <input value={editForm.contact_person_name} onChange={e => setEditForm(f => ({ ...f, contact_person_name: e.target.value }))}
-                  placeholder="e.g. Jane Smith" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Role / Relationship</label>
-                <input value={editForm.contact_person_role} onChange={e => setEditForm(f => ({ ...f, contact_person_role: e.target.value }))}
-                  placeholder="e.g. Office Manager" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-                <input value={editForm.contact_person_phone} onChange={e => setEditForm(f => ({ ...f, contact_person_phone: e.target.value }))}
-                  placeholder="718-555-0000" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-                <input value={editForm.contact_person_email} onChange={e => setEditForm(f => ({ ...f, contact_person_email: e.target.value }))}
-                  placeholder="contact@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
               {/* Address */}
               <div className="col-span-2 pt-1">
@@ -803,32 +779,6 @@ export default function ClientProfilePage() {
               </div>
             )}
 
-            {/* Contact person */}
-            {client.contact_person_name && (
-              <div className="mt-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Contact Person</p>
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-sm font-semibold text-gray-800">{client.contact_person_name}</span>
-                  {client.contact_person_role && (
-                    <span className="text-xs text-gray-500 italic">{client.contact_person_role}</span>
-                  )}
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-gray-600">
-                  {client.contact_person_phone && (
-                    <a href={`tel:${client.contact_person_phone.replace(/\D/g,'').length === 10 ? '+1' : '+'}${client.contact_person_phone.replace(/\D/g,'')}`}
-                      className="flex items-center gap-1 text-green-700 hover:underline">
-                      📞 {client.contact_person_phone}
-                    </a>
-                  )}
-                  {client.contact_person_email && (
-                    <a href={`mailto:${client.contact_person_email}`}
-                      className="flex items-center gap-1 text-blue-600 hover:underline">
-                      ✉️ {client.contact_person_email}
-                    </a>
-                  )}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
