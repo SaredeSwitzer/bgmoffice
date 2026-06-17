@@ -298,6 +298,26 @@ router.post('/availability', (req, res) => {
   res.status(201).json(row);
 });
 
+router.put('/availability/:id', (req, res) => {
+  const slot = db.prepare('SELECT id FROM instructor_availability WHERE id = ?').get(req.params.id);
+  if (!slot) return res.status(404).json({ error: 'Not found' });
+  const { day_of_week, time_slot } = req.body;
+  if (!day_of_week) return res.status(400).json({ error: 'day_of_week required' });
+  db.prepare('UPDATE instructor_availability SET day_of_week = ?, time_slot = ? WHERE id = ?')
+    .run(day_of_week, time_slot || null, req.params.id);
+  const row = db.prepare(`
+    SELECT ia.*,
+           i.name         AS instructor_name,
+           i.neighborhood AS instructor_neighborhood,
+           i.specialties  AS instructor_specialties,
+           i.style        AS instructor_style
+    FROM instructor_availability ia
+    JOIN instructors i ON i.id = ia.instructor_id
+    WHERE ia.id = ?
+  `).get(req.params.id);
+  res.json(row);
+});
+
 router.delete('/availability/:id', (req, res) => {
   db.prepare('DELETE FROM instructor_availability WHERE id = ?').run(req.params.id);
   res.json({ success: true });

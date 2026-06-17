@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api, uploadsUrl } from '../api/client'
 import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
@@ -161,6 +161,146 @@ function DocumentsSection({ instructorId, documents, onDocAdded, onDocDeleted })
           ))}
         </div>
       )}
+    </section>
+  )
+}
+
+// ── Availability Section ──────────────────────────────────────────────────────
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+
+function InstructorAvailabilitySection({ instructorId }) {
+  const [slots,   setSlots]   = useState([])
+  const [addForm, setAddForm] = useState({ day_of_week: '', time_slot: '' })
+  const [saving,  setSaving]  = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editSlot,  setEditSlot]  = useState({ day_of_week: '', time_slot: '' })
+
+  useEffect(() => {
+    api.getInstructorAvailability()
+      .then(all => setSlots(all.filter(s => s.instructor_id === Number(instructorId))))
+      .catch(() => {})
+  }, [instructorId])
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (!addForm.day_of_week) return
+    setSaving(true)
+    try {
+      const row = await api.addInstructorAvailability({
+        instructor_id: Number(instructorId),
+        day_of_week:   addForm.day_of_week,
+        time_slot:     addForm.time_slot || null,
+      })
+      setSlots(s => [...s, row])
+      setAddForm({ day_of_week: '', time_slot: '' })
+    } finally { setSaving(false) }
+  }
+
+  async function handleDelete(id) {
+    await api.deleteInstructorAvailability(id)
+    setSlots(s => s.filter(x => x.id !== id))
+  }
+
+  function startEdit(slot) {
+    setEditingId(slot.id)
+    setEditSlot({ day_of_week: slot.day_of_week, time_slot: slot.time_slot || '' })
+  }
+
+  async function handleSaveEdit(id) {
+    if (!editSlot.day_of_week) return
+    const updated = await api.updateInstructorAvailability(id, editSlot)
+    setSlots(s => s.map(x => x.id === id ? { ...x, ...updated } : x))
+    setEditingId(null)
+  }
+
+  const byDay = {}
+  for (const s of slots) {
+    if (!byDay[s.day_of_week]) byDay[s.day_of_week] = []
+    byDay[s.day_of_week].push(s)
+  }
+  const daysWithSlots = DAYS.filter(d => byDay[d])
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-purple-400">
+          Availability
+          {slots.length > 0 && (
+            <span className="ml-2 text-xs font-semibold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+              {slots.length}
+            </span>
+          )}
+        </h2>
+        <Link to="/recruiting" state={{ tab: 'availability' }}
+          className="text-xs text-purple-600 hover:underline">
+          View all →
+        </Link>
+      </div>
+
+      {daysWithSlots.length === 0 ? (
+        <p className="text-sm text-gray-400 italic mb-3">No availability recorded yet.</p>
+      ) : (
+        <div className="space-y-3 mb-4">
+          {daysWithSlots.map(day => (
+            <div key={day}>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-l-2 border-purple-300 pl-2">{day}</p>
+              <div className="space-y-1.5 pl-1">
+                {byDay[day].map(slot => {
+                  if (editingId === slot.id) {
+                    return (
+                      <div key={slot.id} className="flex flex-wrap gap-2 items-center bg-white border border-purple-300 rounded-xl px-3 py-2">
+                        <select value={editSlot.day_of_week} onChange={e => setEditSlot(s => ({ ...s, day_of_week: e.target.value }))}
+                          className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                          {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                        <input value={editSlot.time_slot} onChange={e => setEditSlot(s => ({ ...s, time_slot: e.target.value }))}
+                          placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28" />
+                        <button onClick={() => handleSaveEdit(slot.id)}
+                          className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg">Save</button>
+                        <button onClick={() => setEditingId(null)}
+                          className="px-3 py-1 border border-gray-300 text-gray-500 text-xs rounded-lg">Cancel</button>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={slot.id} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-3 py-2 group">
+                      <span className="text-sm text-gray-700">
+                        {slot.time_slot || <span className="text-gray-400 italic">No time set</span>}
+                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => startEdit(slot)}
+                          className="text-gray-400 hover:text-purple-600 text-xs" title="Edit">✎</button>
+                        <button onClick={() => handleDelete(slot.id)}
+                          className="text-gray-300 hover:text-red-500 text-xs" title="Delete">✕</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={handleAdd} className="flex flex-wrap gap-2 items-end">
+        <div>
+          <label className="block text-[10px] font-medium text-gray-500 mb-1">Day</label>
+          <select value={addForm.day_of_week} onChange={e => setAddForm(f => ({ ...f, day_of_week: e.target.value }))}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+            <option value="">Select day…</option>
+            {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-medium text-gray-500 mb-1">Time (optional)</label>
+          <input value={addForm.time_slot} onChange={e => setAddForm(f => ({ ...f, time_slot: e.target.value }))}
+            placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36" />
+        </div>
+        <button type="submit" disabled={saving || !addForm.day_of_week}
+          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-gray-700">
+          {saving ? 'Adding…' : '+ Add'}
+        </button>
+      </form>
     </section>
   )
 }
@@ -410,6 +550,11 @@ export default function InstructorProfilePage() {
         onDocAdded={doc => setInstructor(prev => ({ ...prev, documents: [...(prev.documents || []), doc] }))}
         onDocDeleted={docId => setInstructor(prev => ({ ...prev, documents: (prev.documents || []).filter(d => d.id !== docId) }))}
       />
+
+      {/* Availability */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+        <InstructorAvailabilitySection instructorId={id} />
+      </div>
 
       {/* Case history */}
       <section>

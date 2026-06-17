@@ -174,6 +174,8 @@ export const api = {
   getInstructorAvailability: () => request('/recruiting/availability'),
   addInstructorAvailability: (data) =>
     request('/recruiting/availability', { method: 'POST', body: JSON.stringify(data) }),
+  updateInstructorAvailability: (id, data) =>
+    request(`/recruiting/availability/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteInstructorAvailability: (id) =>
     request(`/recruiting/availability/${id}`, { method: 'DELETE' }),
 

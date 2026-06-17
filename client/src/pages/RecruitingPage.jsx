@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useLocation } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import SearchSelect from '../components/SearchSelect'
@@ -1050,9 +1050,11 @@ function OpeningsPanel({ grouped, availability }) {
 // ── Instructor Availability Tab ───────────────────────────────────────────────
 
 function InstructorAvailabilityTab({ availability, instructors, grouped, onChanged }) {
-  const [form,   setForm]   = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
-  const [saving, setSaving] = useState(false)
-  const [showOpenings, setShowOpenings] = useState(false)
+  const [form,          setForm]         = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
+  const [saving,        setSaving]       = useState(false)
+  const [showOpenings,  setShowOpenings] = useState(false)
+  const [editingSlotId, setEditingSlotId] = useState(null)
+  const [editSlot,      setEditSlot]     = useState({ day_of_week: '', time_slot: '' })
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -1072,6 +1074,18 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
   async function handleDelete(id) {
     await api.deleteInstructorAvailability(id)
     onChanged(availability.filter(a => a.id !== id))
+  }
+
+  function startEdit(slot) {
+    setEditingSlotId(slot.id)
+    setEditSlot({ day_of_week: slot.day_of_week, time_slot: slot.time_slot || '' })
+  }
+
+  async function handleSaveEdit(slotId) {
+    if (!editSlot.day_of_week) return
+    const updated = await api.updateInstructorAvailability(slotId, editSlot)
+    onChanged(availability.map(a => a.id === slotId ? updated : a))
+    setEditingSlotId(null)
   }
 
   // Group by day (in DAYS order), then by time slot within each day
@@ -1178,8 +1192,24 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
                         <div className="space-y-1.5">
                           {slots.map(slot => {
                             const styles = [slot.instructor_style, slot.instructor_specialties].filter(Boolean).join(' · ')
+                            if (editingSlotId === slot.id) {
+                              return (
+                                <div key={slot.id} className="bg-white border border-purple-300 rounded-xl px-3 py-2 flex flex-wrap gap-2 items-center">
+                                  <select value={editSlot.day_of_week} onChange={e => setEditSlot(s => ({ ...s, day_of_week: e.target.value }))}
+                                    className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                                    {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                                  </select>
+                                  <input value={editSlot.time_slot} onChange={e => setEditSlot(s => ({ ...s, time_slot: e.target.value }))}
+                                    placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28" />
+                                  <button onClick={() => handleSaveEdit(slot.id)}
+                                    className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg">Save</button>
+                                  <button onClick={() => setEditingSlotId(null)}
+                                    className="px-3 py-1 border border-gray-300 text-gray-500 text-xs rounded-lg">Cancel</button>
+                                </div>
+                              )
+                            }
                             return (
-                              <div key={slot.id} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-3 py-2">
+                              <div key={slot.id} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-3 py-2 group">
                                 <div className="flex items-baseline gap-2 flex-wrap min-w-0">
                                   <Link to={`/instructors/${slot.instructor_id}`}
                                     className="text-sm font-semibold text-gray-800 hover:text-purple-700 hover:underline whitespace-nowrap">
@@ -1192,8 +1222,12 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
                                     <span className="text-xs text-gray-400 italic truncate">{styles}</span>
                                   )}
                                 </div>
-                                <button onClick={() => handleDelete(slot.id)}
-                                  className="text-gray-300 hover:text-red-500 flex-shrink-0 text-xs leading-none">✕</button>
+                                <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => startEdit(slot)}
+                                    className="text-gray-400 hover:text-purple-600 text-xs leading-none" title="Edit">✎</button>
+                                  <button onClick={() => handleDelete(slot.id)}
+                                    className="text-gray-300 hover:text-red-500 text-xs leading-none" title="Delete">✕</button>
+                                </div>
                               </div>
                             )
                           })}
@@ -1215,9 +1249,10 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
 
 export default function RecruitingPage() {
   const [searchParams] = useSearchParams()
+  const location       = useLocation()
   const targetEntryId  = searchParams.get('entry') ? Number(searchParams.get('entry')) : null
 
-  const [tab,           setTab]           = useState('entries')
+  const [tab,           setTab]           = useState(location.state?.tab || 'entries')
   const [grouped,       setGrouped]       = useState({})
   const [clients,       setClients]       = useState([])
   const [instructors,   setInstructors]   = useState([])
