@@ -1,4 +1,5 @@
 import PhoneLink from './PhoneLink'
+import GmailComposeLink from './GmailComposeLink'
 
 const CONTACT_LABELS = { text: 'Text', email: 'Email', whatsapp: 'WhatsApp', call: 'Call' }
 const CONTACT_COLORS = {
@@ -20,9 +21,7 @@ export default function ContactInfo({ phone, email, preferred_contact }) {
       {email && (
         <div>
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Email</p>
-          <a href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`}
-            target="_blank" rel="noopener noreferrer"
-            className="text-gray-800 hover:text-blue-600">{email}</a>
+          <GmailComposeLink to={email} className="text-gray-800 hover:text-blue-600 cursor-pointer" />
         </div>
       )}
       {preferred_contact && (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import NewCaseModal from '../components/NewCaseModal'
+import GmailComposeLink from '../components/GmailComposeLink'
 
 const CONTACT_ICONS = { text: '💬', email: '✉️', whatsapp: '📱', call: '📞' }
 
@@ -155,7 +156,7 @@ export default function ClientsPage() {
                   {c.phone
                     ? c.phone
                     : c.email
-                      ? <a href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(c.email)}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="hover:text-blue-600 hover:underline">{c.email}</a>
+                      ? <GmailComposeLink to={c.email} stopPropagation className="hover:text-blue-600 hover:underline cursor-pointer" />
                       : '—'}
                 </p>
               </div>
