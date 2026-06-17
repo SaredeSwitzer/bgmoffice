@@ -317,16 +317,19 @@ export default function InstructorProfilePage() {
   const [showNewCase, setShowNewCase] = useState(false)
   const [error, setError] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [classStyles, setClassStyles] = useState([])
 
   useEffect(() => {
     Promise.all([
       api.getInstructor(id),
       api.getCases({ instructor_id: id }),
       api.me(),
+      api.getClassStyles(),
     ])
-      .then(([inst, cs, me]) => {
+      .then(([inst, cs, me, styles]) => {
         setInstructor(inst)
         setIsAdmin(me.role === 'admin')
+        setClassStyles(styles || [])
         setEditForm({
           name: inst.name,
           phone: inst.phone || '',
@@ -340,6 +343,7 @@ export default function InstructorProfilePage() {
           ssn: inst.ssn || '',
           contract_signed: inst.contract_signed ? true : false,
           contract_signed_date: inst.contract_signed_date || '',
+          styles_taught: inst.styles_taught || '',
         })
         setCases(cs)
       })
@@ -353,6 +357,7 @@ export default function InstructorProfilePage() {
       const updated = await api.updateInstructor(id, {
         ...editForm,
         contract_signed: editForm.contract_signed ? 1 : 0,
+        styles_taught: editForm.styles_taught,
       })
       setInstructor(prev => ({ ...prev, ...updated }))
       setEditing(false)
@@ -426,6 +431,28 @@ export default function InstructorProfilePage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
                 <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
                   placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-2">Styles They Teach</label>
+                <div className="flex flex-wrap gap-2">
+                  {classStyles.map(s => {
+                    const taught = (editForm.styles_taught || '').split(',').map(x => x.trim()).filter(Boolean)
+                    const checked = taught.includes(s.name)
+                    return (
+                      <label key={s.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border cursor-pointer text-xs font-medium transition-colors ${
+                        checked ? 'bg-purple-100 border-purple-400 text-purple-800' : 'bg-gray-50 border-gray-300 text-gray-600 hover:border-gray-400'
+                      }`}>
+                        <input type="checkbox" className="sr-only" checked={checked}
+                          onChange={e => {
+                            const cur = (editForm.styles_taught || '').split(',').map(x => x.trim()).filter(Boolean)
+                            const next = e.target.checked ? [...cur, s.name] : cur.filter(x => x !== s.name)
+                            setEditForm(f => ({ ...f, styles_taught: next.join(', ') }))
+                          }} />
+                        {s.name}
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">SSN</label>
@@ -508,6 +535,16 @@ export default function InstructorProfilePage() {
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Neighborhood</span>
                   <span className="text-gray-700">{instructor.neighborhood}</span>
+                </div>
+              )}
+              {instructor.styles_taught && (
+                <div className="flex gap-2 items-start">
+                  <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Styles Taught</span>
+                  <div className="flex flex-wrap gap-1">
+                    {instructor.styles_taught.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                      <span key={s} className="text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-2 py-0.5 font-medium">{s}</span>
+                    ))}
+                  </div>
                 </div>
               )}
               {instructor.mailing_address && (

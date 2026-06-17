@@ -81,7 +81,7 @@ router.post('/entries', (req, res) => {
     day_of_week, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
     instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
-    class_type, class_dates,
+    class_type, class_dates, class_notes,
   } = req.body;
   if (!day_of_week || !DAYS.includes(day_of_week))
     return res.status(400).json({ error: 'Valid day_of_week required' });
@@ -91,8 +91,8 @@ router.post('/entries', (req, res) => {
       (day_of_week, time_slot, neighborhood, style, participants,
        client_name, client_id, address, phone, waiver_signed,
        instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id, created_by,
-       class_type, class_dates)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       class_type, class_dates, class_notes)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     day_of_week,
     time_slot           || null,
@@ -112,6 +112,7 @@ router.post('/entries', (req, res) => {
     req.user.initials,
     class_type          || null,
     class_dates         || null,
+    class_notes         || null,
   );
   res.status(201).json(getEntry(result.lastInsertRowid));
 });
@@ -124,7 +125,7 @@ router.put('/entries/:id', (req, res) => {
     day_of_week, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
     instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
-    class_type, class_dates,
+    class_type, class_dates, class_notes,
   } = req.body;
 
   db.prepare(`
@@ -132,7 +133,7 @@ router.put('/entries/:id', (req, res) => {
       day_of_week=?, time_slot=?, neighborhood=?, style=?, participants=?,
       client_name=?, client_id=?, address=?, phone=?, waiver_signed=?,
       instructor_info=?, instructor_id=?, client_rate=?, action_type_id=?, assigned_to_user_id=?,
-      class_type=?, class_dates=?
+      class_type=?, class_dates=?, class_notes=?
     WHERE id=?
   `).run(
     day_of_week         || null,
@@ -152,6 +153,7 @@ router.put('/entries/:id', (req, res) => {
     assigned_to_user_id || null,
     class_type          || null,
     class_dates         || null,
+    class_notes         || null,
     req.params.id,
   );
   res.json(getEntry(req.params.id));
@@ -275,7 +277,8 @@ router.get('/availability', (req, res) => {
            i.name         AS instructor_name,
            i.neighborhood AS instructor_neighborhood,
            i.specialties  AS instructor_specialties,
-           i.style        AS instructor_style
+           i.style        AS instructor_style,
+           i.styles_taught AS instructor_styles_taught
     FROM instructor_availability ia
     JOIN instructors i ON i.id = ia.instructor_id
     ORDER BY ia.day_of_week, ia.time_slot, i.name
@@ -320,6 +323,37 @@ router.put('/availability/:id', (req, res) => {
 
 router.delete('/availability/:id', (req, res) => {
   db.prepare('DELETE FROM instructor_availability WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Class Styles ──────────────────────────────────────────────────────────────
+
+router.get('/styles', (req, res) => {
+  res.json(db.prepare('SELECT * FROM class_styles ORDER BY name').all());
+});
+
+router.post('/styles', (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
+  try {
+    const result = db.prepare('INSERT INTO class_styles (name) VALUES (?)').run(name.trim());
+    res.status(201).json(db.prepare('SELECT * FROM class_styles WHERE id = ?').get(result.lastInsertRowid));
+  } catch {
+    res.status(409).json({ error: 'Style already exists' });
+  }
+});
+
+router.put('/styles/:id', (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
+  const row = db.prepare('SELECT id FROM class_styles WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  db.prepare('UPDATE class_styles SET name = ? WHERE id = ?').run(name.trim(), req.params.id);
+  res.json(db.prepare('SELECT * FROM class_styles WHERE id = ?').get(req.params.id));
+});
+
+router.delete('/styles/:id', (req, res) => {
+  db.prepare('DELETE FROM class_styles WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 

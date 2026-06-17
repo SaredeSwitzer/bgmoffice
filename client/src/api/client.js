@@ -178,6 +178,13 @@ export const api = {
     request(`/recruiting/availability/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteInstructorAvailability: (id) =>
     request(`/recruiting/availability/${id}`, { method: 'DELETE' }),
+  getClassStyles: () => request('/recruiting/styles'),
+  createClassStyle: (name) =>
+    request('/recruiting/styles', { method: 'POST', body: JSON.stringify({ name }) }),
+  updateClassStyle: (id, name) =>
+    request(`/recruiting/styles/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+  deleteClassStyle: (id) =>
+    request(`/recruiting/styles/${id}`, { method: 'DELETE' }),
 
   // Settings (admin)
   getSettingsActionTypes: () => request('/settings/action-types'),

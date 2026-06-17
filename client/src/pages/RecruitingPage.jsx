@@ -339,9 +339,83 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
   )
 }
 
+// ── Styles Manager Modal ──────────────────────────────────────────────────────
+
+function StylesManagerModal({ styles, onChanged, onClose }) {
+  const [editingId, setEditingId] = useState(null)
+  const [editName,  setEditName]  = useState('')
+  const [newName,   setNewName]   = useState('')
+  const [saving,    setSaving]    = useState(false)
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (!newName.trim()) return
+    setSaving(true)
+    try {
+      const s = await api.createClassStyle(newName.trim())
+      onChanged([...styles, s].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewName('')
+    } finally { setSaving(false) }
+  }
+
+  async function handleSaveEdit(id) {
+    if (!editName.trim()) return
+    const s = await api.updateClassStyle(id, editName.trim())
+    onChanged(styles.map(x => x.id === id ? s : x))
+    setEditingId(null)
+  }
+
+  async function handleDelete(id) {
+    if (!confirm('Delete this style?')) return
+    await api.deleteClassStyle(id)
+    onChanged(styles.filter(x => x.id !== id))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-900">Manage Styles</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none">✕</button>
+        </div>
+        <div className="space-y-1.5 max-h-60 overflow-y-auto">
+          {styles.map(s => editingId === s.id ? (
+            <div key={s.id} className="flex gap-2">
+              <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+              <button onClick={() => handleSaveEdit(s.id)}
+                className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg">Save</button>
+              <button onClick={() => setEditingId(null)}
+                className="px-2 py-1 border border-gray-300 text-gray-500 text-xs rounded-lg">✕</button>
+            </div>
+          ) : (
+            <div key={s.id} className="flex items-center justify-between gap-2 group">
+              <span className="text-sm text-gray-800">{s.name}</span>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => { setEditingId(s.id); setEditName(s.name) }}
+                  className="text-gray-400 hover:text-blue-600 text-xs px-1">✎</button>
+                <button onClick={() => handleDelete(s.id)}
+                  className="text-gray-400 hover:text-red-500 text-xs px-1">✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <form onSubmit={handleAdd} className="flex gap-2">
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New style…"
+            className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          <button type="submit" disabled={saving || !newName.trim()}
+            className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40">
+            {saving ? '…' : '+ Add'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Entry Form ────────────────────────────────────────────────────────────────
 
-function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSave, onCancel }) {
+function EntryForm({ day, entry, clients, instructors, actionTypes, users, styles, onSave, onCancel }) {
   const { user } = useAuth()
 
   const [form, setForm] = useState(() => ({
@@ -360,6 +434,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
     instructor_info:     entry?.instructor_info     || '',
     instructor_id:       entry?.instructor_id       || null,
     client_rate:         entry?.client_rate         || '',
+    class_notes:         entry?.class_notes         || '',
   }))
 
   const [clientObj,     setClientObj]     = useState(
@@ -368,9 +443,11 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
   const [instructorObj, setInstructorObj] = useState(
     entry?.instructor_id ? instructors.find(i => i.id === entry.instructor_id) || null : null
   )
-  const [newClientName,  setNewClientName]  = useState('')
-  const [newClientPhone, setNewClientPhone] = useState('')
-  const [showNewClient,  setShowNewClient]  = useState(false)
+  const [newClientName,     setNewClientName]     = useState('')
+  const [newClientPhone,    setNewClientPhone]    = useState('')
+  const [showNewClient,     setShowNewClient]     = useState(false)
+  const [showStylesManager, setShowStylesManager] = useState(false)
+  const [localStyles,       setLocalStyles]       = useState(styles)
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
@@ -483,13 +560,34 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
           <input value={form.neighborhood} onChange={e => setField('neighborhood', e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Style</label>
-          <input value={form.style} onChange={e => setField('style', e.target.value)} className={inputCls} />
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-gray-600">Style</label>
+            <button type="button" onClick={() => setShowStylesManager(true)}
+              className="text-[10px] text-purple-500 hover:underline">✎ Manage styles</button>
+          </div>
+          <select value={form.style} onChange={e => setField('style', e.target.value)} className={inputCls}>
+            <option value="">Select style…</option>
+            {localStyles.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+          </select>
+          {showStylesManager && (
+            <StylesManagerModal
+              styles={localStyles}
+              onChanged={setLocalStyles}
+              onClose={() => setShowStylesManager(false)}
+            />
+          )}
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">Participants & Ages</label>
           <input value={form.participants} onChange={e => setField('participants', e.target.value)}
             placeholder="e.g. 10–15 Seniors" className={inputCls} />
+        </div>
+
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">Class Notes</label>
+          <textarea value={form.class_notes} onChange={e => setField('class_notes', e.target.value)}
+            rows={2} placeholder="Additional class details…"
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
         </div>
 
         {/* Client */}
@@ -591,7 +689,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, onSav
 
 // ── Entry Card ────────────────────────────────────────────────────────────────
 
-function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated, onDeleted, onArchived, targetEntryId }) {
+function EntryCard({ entry, clients, instructors, actionTypes, users, styles, onUpdated, onDeleted, onArchived, targetEntryId }) {
   const isTarget = targetEntryId != null && entry.id === targetEntryId
   const [expanded,     setExpanded]     = useState(isTarget)
   const [editing,      setEditing]      = useState(false)
@@ -753,6 +851,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
               instructors={instructors}
               actionTypes={actionTypes}
               users={users}
+              styles={styles}
               onSave={handleUpdated}
               onCancel={() => setEditing(false)}
             />
@@ -834,6 +933,12 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Style</p>
                     <p className="text-sm text-gray-800">{entry.style || <span className="text-gray-300">—</span>}</p>
                   </div>
+                  {entry.class_notes && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Class Notes</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{entry.class_notes}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Participants</p>
                     <p className="text-sm text-gray-800">{entry.participants || <span className="text-gray-300">—</span>}</p>
@@ -900,7 +1005,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, onUpdated,
 
 // ── Day Section ───────────────────────────────────────────────────────────────
 
-function DaySection({ day, entries, clients, instructors, actionTypes, users, onUpdated, onDeleted, onArchived, onCreated, defaultOpen, targetEntryId, forceOpen }) {
+function DaySection({ day, entries, clients, instructors, actionTypes, users, styles, onUpdated, onDeleted, onArchived, onCreated, defaultOpen, targetEntryId, forceOpen }) {
   const hasTarget = targetEntryId != null && entries.some(e => e.id === targetEntryId)
   const [open,      setOpen]      = useState(defaultOpen || hasTarget)
 
@@ -945,6 +1050,7 @@ function DaySection({ day, entries, clients, instructors, actionTypes, users, on
               instructors={instructors}
               actionTypes={actionTypes}
               users={users}
+              styles={styles}
               onUpdated={onUpdated}
               onDeleted={onDeleted}
               onArchived={onArchived}
@@ -961,6 +1067,7 @@ function DaySection({ day, entries, clients, instructors, actionTypes, users, on
                 instructors={instructors}
                 actionTypes={actionTypes}
                 users={users}
+                styles={styles}
                 onSave={entry => { onCreated(entry); setAddingNew(false) }}
                 onCancel={() => setAddingNew(false)}
               />
@@ -977,6 +1084,44 @@ function DaySection({ day, entries, clients, instructors, actionTypes, users, on
       )}
     </section>
   )
+}
+
+// ── Time/style helpers for OpeningsPanel ─────────────────────────────────────
+
+function parseTimeRange(s) {
+  if (!s) return null
+  const meridiem = (s.match(/(am|pm)/i) || [''])[0].toLowerCase()
+  const hasNoon = /noon/i.test(s)
+  const nums = [...s.matchAll(/(\d+)(?::(\d+))?/g)]
+  if (!nums.length) return null
+  function toMin(h, m, mer) {
+    let hour = parseInt(h, 10)
+    const min = parseInt(m || '0', 10)
+    if (mer === 'pm' && hour !== 12) hour += 12
+    if (mer === 'am' && hour === 12) hour = 0
+    return hour * 60 + min
+  }
+  if (nums.length === 1) {
+    const start = toMin(nums[0][1], nums[0][2], meridiem)
+    return [start, start + 60]
+  }
+  const start = toMin(nums[0][1], nums[0][2], meridiem)
+  const endH = hasNoon ? 12 : parseInt(nums[nums.length - 1][1], 10)
+  const endM = nums[nums.length - 1][2] || '0'
+  const end = toMin(endH, endM, meridiem)
+  return [Math.min(start, end), Math.max(start, end)]
+}
+
+function timesOverlap(a, b) {
+  if (!a || !b) return true
+  return a[0] < b[1] && b[0] < a[1]
+}
+
+function styleMatches(entryStyle, instructorStylesTaught) {
+  if (!entryStyle) return true
+  if (!instructorStylesTaught) return true
+  const taught = instructorStylesTaught.split(',').map(s => s.trim().toLowerCase())
+  return taught.includes(entryStyle.toLowerCase())
 }
 
 // ── Openings Panel (shown in availability tab when toggled on) ────────────────
@@ -1011,7 +1156,11 @@ function OpeningsPanel({ grouped, availability }) {
           <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">{day}</p>
           <div className="space-y-1.5">
             {unfilledByDay[day].map(entry => {
-              const matches = availByDay[day] || []
+              const entryTimeRange = parseTimeRange(entry.time_slot)
+              const matches = (availByDay[day] || []).filter(m =>
+                timesOverlap(entryTimeRange, parseTimeRange(m.time_slot)) &&
+                styleMatches(entry.style, m.instructor_styles_taught)
+              )
               return (
                 <div key={entry.id} className="bg-white border border-amber-200 rounded-lg px-3 py-2">
                   <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-1">
@@ -1049,7 +1198,7 @@ function OpeningsPanel({ grouped, availability }) {
 
 // ── Instructor Availability Tab ───────────────────────────────────────────────
 
-function InstructorAvailabilityTab({ availability, instructors, grouped, onChanged }) {
+function InstructorAvailabilityTab({ availability, instructors, grouped, styles, onChanged }) {
   const [form,          setForm]         = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
   const [saving,        setSaving]       = useState(false)
   const [showOpenings,  setShowOpenings] = useState(false)
@@ -1191,7 +1340,9 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
                         )}
                         <div className="space-y-1.5">
                           {slots.map(slot => {
-                            const styles = [slot.instructor_style, slot.instructor_specialties].filter(Boolean).join(' · ')
+                            const stylesList = slot.instructor_styles_taught
+                              ? slot.instructor_styles_taught.split(',').map(s => s.trim()).filter(Boolean)
+                              : [slot.instructor_style, slot.instructor_specialties].filter(Boolean)
                             if (editingSlotId === slot.id) {
                               return (
                                 <div key={slot.id} className="bg-white border border-purple-300 rounded-xl px-3 py-2 flex flex-wrap gap-2 items-center">
@@ -1218,8 +1369,12 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
                                   {slot.instructor_neighborhood && (
                                     <span className="text-xs text-gray-500 whitespace-nowrap">📍 {slot.instructor_neighborhood}</span>
                                   )}
-                                  {styles && (
-                                    <span className="text-xs text-gray-400 italic truncate">{styles}</span>
+                                  {stylesList.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {stylesList.map(s => (
+                                        <span key={s} className="text-[10px] bg-purple-50 text-purple-600 border border-purple-200 rounded-full px-1.5 py-0.5 font-medium">{s}</span>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1259,6 +1414,7 @@ export default function RecruitingPage() {
   const [actionTypes,   setActionTypes]   = useState([])
   const [users,         setUsers]         = useState([])
   const [availability,  setAvailability]  = useState([])
+  const [styles,        setStyles]        = useState([])
   const [query,         setQuery]         = useState('')
   const [showArchived,  setShowArchived]  = useState(false)
   const [loading,       setLoading]       = useState(true)
@@ -1274,14 +1430,16 @@ export default function RecruitingPage() {
       api.getInstructorAvailability(),
       api.getActionTypes(),
       api.getUsers(),
+      api.getClassStyles(),
     ])
-      .then(([data, cls, insts, avail, ats, usrs]) => {
+      .then(([data, cls, insts, avail, ats, usrs, stls]) => {
         setGrouped(data.grouped)
         setClients(cls)
         setInstructors(insts)
         setAvailability(avail)
         setActionTypes(ats)
         setUsers(usrs)
+        setStyles(stls || [])
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -1430,6 +1588,7 @@ export default function RecruitingPage() {
               instructors={instructors}
               actionTypes={actionTypes}
               users={users}
+              styles={styles}
               onUpdated={handleEntryUpdated}
               onDeleted={handleEntryDeleted}
               onArchived={handleEntryArchived}
@@ -1448,6 +1607,7 @@ export default function RecruitingPage() {
           availability={availability}
           instructors={instructors}
           grouped={grouped}
+          styles={styles}
           onChanged={setAvailability}
         />
       )}

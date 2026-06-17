@@ -323,6 +323,8 @@ const migrations = [
   `ALTER TABLE clients ADD COLUMN neighborhood TEXT`,
   // instructor neighborhood (added 2026-06)
   `ALTER TABLE instructors ADD COLUMN neighborhood TEXT`,
+  `ALTER TABLE instructors       ADD COLUMN styles_taught TEXT`,
+  `ALTER TABLE recruiting_entries ADD COLUMN class_notes  TEXT`,
 ];
 
 // instructor availability table (added 2026-06)
@@ -335,6 +337,25 @@ db.exec(`
     created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
   )
 `);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS class_styles (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT    NOT NULL UNIQUE
+  )
+`);
+
+try {
+  const existingStyles = db.prepare('SELECT COUNT(*) AS n FROM class_styles').get().n
+  if (existingStyles === 0) {
+    const ins = db.prepare('INSERT INTO class_styles (name) VALUES (?)')
+    ;['General Fitness', 'Yoga', 'Zumba', 'Dance', 'Gymnastics', 'Martial Arts']
+      .forEach(name => ins.run(name))
+    console.log('[seed] class_styles: 6 default styles inserted')
+  }
+} catch (err) {
+  console.error('[seed] class_styles failed (non-fatal):', err.message)
+}
 
 // One-time data cleanup: remove Lyra from delegates and users (2026-06)
 try {

@@ -101,18 +101,18 @@ router.put('/:id', (req, res) => {
 
   const {
     name, phone, email, specialties, style, notes, pay_rate,
-    mailing_address, ssn, contract_signed, contract_signed_date, neighborhood,
+    mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught,
   } = req.body;
 
   db.prepare(`
     UPDATE instructors SET name=?, phone=?, email=?, specialties=?, style=?, notes=?, pay_rate=?,
-      mailing_address=?, ssn=?, contract_signed=?, contract_signed_date=?, neighborhood=?
+      mailing_address=?, ssn=?, contract_signed=?, contract_signed_date=?, neighborhood=?, styles_taught=?
     WHERE id=?
   `).run(
     name, phone || null, email || null, specialties || null, style || null,
     notes || null, pay_rate || null, mailing_address || null,
     ssn || null, contract_signed ? 1 : 0, contract_signed_date || null,
-    neighborhood || null,
+    neighborhood || null, styles_taught || null,
     req.params.id,
   );
   res.json(getInstructorRow(req.params.id, true));
