@@ -1050,8 +1050,8 @@ function OpeningsPanel({ grouped, availability }) {
 // ── Instructor Availability Tab ───────────────────────────────────────────────
 
 function InstructorAvailabilityTab({ availability, instructors, grouped, onChanged }) {
-  const [form,         setForm]         = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
-  const [saving,       setSaving]       = useState(false)
+  const [form,   setForm]   = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
+  const [saving, setSaving] = useState(false)
   const [showOpenings, setShowOpenings] = useState(false)
 
   async function handleAdd(e) {
@@ -1074,41 +1074,39 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
     onChanged(availability.filter(a => a.id !== id))
   }
 
-  const grouped2 = {}
+  // Group by day (in DAYS order), then by time slot within each day
+  const byDay = {}
   for (const slot of availability) {
-    if (!grouped2[slot.instructor_name]) grouped2[slot.instructor_name] = []
-    grouped2[slot.instructor_name].push(slot)
+    if (!byDay[slot.day_of_week]) byDay[slot.day_of_week] = {}
+    const key = slot.time_slot || '__none__'
+    if (!byDay[slot.day_of_week][key]) byDay[slot.day_of_week][key] = []
+    byDay[slot.day_of_week][key].push(slot)
   }
-  const instructorNames = Object.keys(grouped2).sort()
 
   const totalUnfilled = DAYS.reduce((n, d) => n + (grouped[d] || []).filter(isUnfilled).length, 0)
+  const daysWithSlots = DAYS.filter(d => byDay[d])
 
   return (
     <div className="space-y-6">
-      {/* Toggle */}
+      {/* Openings toggle */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600">
-          {availability.length} availability slot{availability.length !== 1 ? 's' : ''} recorded
+          {availability.length} slot{availability.length !== 1 ? 's' : ''} across {daysWithSlots.length} day{daysWithSlots.length !== 1 ? 's' : ''}
         </p>
         <button
           onClick={() => setShowOpenings(s => !s)}
           className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-            showOpenings
-              ? 'bg-amber-100 border-amber-300 text-amber-800'
-              : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+            showOpenings ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
           }`}
         >
           {showOpenings ? '▾' : '▸'}
           {showOpenings ? 'Hide' : 'Show'} current openings
           {!showOpenings && totalUnfilled > 0 && (
-            <span className="bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px] font-bold">
-              {totalUnfilled}
-            </span>
+            <span className="bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{totalUnfilled}</span>
           )}
         </button>
       </div>
 
-      {/* Openings panel */}
       {showOpenings && <OpeningsPanel grouped={grouped} availability={availability} />}
 
       {/* Add form */}
@@ -1144,39 +1142,61 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, onChang
         </form>
       </div>
 
-      {/* Availability list */}
-      <div>
-        <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">All Availability</p>
-        {instructorNames.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">No availability recorded yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {instructorNames.map(name => {
-              const slots = grouped2[name]
-              const instrId = slots[0].instructor_id
-              return (
-                <div key={name} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-                  <Link to={`/instructors/${instrId}`}
-                    className="text-sm font-semibold text-gray-800 hover:text-purple-700 hover:underline mb-2 inline-block">
-                    {name}
-                  </Link>
-                  <div className="flex flex-wrap gap-1.5">
-                    {slots.map(slot => (
-                      <span key={slot.id}
-                        className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 rounded-full px-2.5 py-1">
-                        <span className="font-medium">{slot.day_of_week}</span>
-                        {slot.time_slot && <span className="text-gray-500">· {slot.time_slot}</span>}
-                        <button onClick={() => handleDelete(slot.id)}
-                          className="text-gray-300 hover:text-red-500 leading-none ml-0.5">✕</button>
-                      </span>
-                    ))}
-                  </div>
+      {/* By-day availability grid */}
+      {daysWithSlots.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">No availability recorded yet.</p>
+      ) : (
+        <div className="space-y-5">
+          {daysWithSlots.map(day => {
+            const timeGroups = byDay[day]
+            const timeKeys = Object.keys(timeGroups).sort((a, b) => {
+              if (a === '__none__') return 1
+              if (b === '__none__') return -1
+              return a.localeCompare(b)
+            })
+            return (
+              <section key={day}>
+                <h3 className="text-sm font-bold text-gray-800 border-l-4 border-purple-400 pl-2 mb-2">{day}</h3>
+                <div className="space-y-2 pl-1">
+                  {timeKeys.map(timeKey => {
+                    const slots = timeGroups[timeKey]
+                    return (
+                      <div key={timeKey}>
+                        {timeKey !== '__none__' && (
+                          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">{timeKey}</p>
+                        )}
+                        <div className="space-y-1.5">
+                          {slots.map(slot => {
+                            const styles = [slot.instructor_style, slot.instructor_specialties].filter(Boolean).join(' · ')
+                            return (
+                              <div key={slot.id} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-3 py-2">
+                                <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+                                  <Link to={`/instructors/${slot.instructor_id}`}
+                                    className="text-sm font-semibold text-gray-800 hover:text-purple-700 hover:underline whitespace-nowrap">
+                                    {slot.instructor_name}
+                                  </Link>
+                                  {slot.instructor_neighborhood && (
+                                    <span className="text-xs text-gray-500 whitespace-nowrap">📍 {slot.instructor_neighborhood}</span>
+                                  )}
+                                  {styles && (
+                                    <span className="text-xs text-gray-400 italic truncate">{styles}</span>
+                                  )}
+                                </div>
+                                <button onClick={() => handleDelete(slot.id)}
+                                  className="text-gray-300 hover:text-red-500 flex-shrink-0 text-xs leading-none">✕</button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+              </section>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

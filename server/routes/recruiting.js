@@ -271,10 +271,14 @@ router.delete('/entries/:id/notes/:noteId', (req, res) => {
 
 router.get('/availability', (req, res) => {
   const rows = db.prepare(`
-    SELECT ia.*, i.name AS instructor_name
+    SELECT ia.*,
+           i.name         AS instructor_name,
+           i.neighborhood AS instructor_neighborhood,
+           i.specialties  AS instructor_specialties,
+           i.style        AS instructor_style
     FROM instructor_availability ia
     JOIN instructors i ON i.id = ia.instructor_id
-    ORDER BY i.name, ia.day_of_week, ia.time_slot
+    ORDER BY ia.day_of_week, ia.time_slot, i.name
   `).all();
   res.json(rows);
 });

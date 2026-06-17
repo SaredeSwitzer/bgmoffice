@@ -196,6 +196,7 @@ export default function InstructorProfilePage() {
           notes: inst.notes || '',
           pay_rate: inst.pay_rate || '',
           mailing_address: inst.mailing_address || '',
+          neighborhood: inst.neighborhood || '',
           ssn: inst.ssn || '',
           contract_signed: inst.contract_signed ? true : false,
           contract_signed_date: inst.contract_signed_date || '',
@@ -281,6 +282,11 @@ export default function InstructorProfilePage() {
                 <textarea value={editForm.mailing_address} onChange={e => setEditForm(f => ({ ...f, mailing_address: e.target.value }))}
                   rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
               </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
+                <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
+                  placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">SSN</label>
                 <input value={editForm.ssn} onChange={e => setEditForm(f => ({ ...f, ssn: e.target.value }))}
@@ -358,6 +364,12 @@ export default function InstructorProfilePage() {
 
             {/* Detail rows */}
             <div className="mt-4 space-y-2 text-sm">
+              {instructor.neighborhood && (
+                <div className="flex gap-2">
+                  <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Neighborhood</span>
+                  <span className="text-gray-700">{instructor.neighborhood}</span>
+                </div>
+              )}
               {instructor.mailing_address && (
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Mailing Address</span>

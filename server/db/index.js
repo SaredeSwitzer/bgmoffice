@@ -321,6 +321,8 @@ const migrations = [
   `ALTER TABLE clients ADD COLUMN city         TEXT`,
   `ALTER TABLE clients ADD COLUMN zip          TEXT`,
   `ALTER TABLE clients ADD COLUMN neighborhood TEXT`,
+  // instructor neighborhood (added 2026-06)
+  `ALTER TABLE instructors ADD COLUMN neighborhood TEXT`,
 ];
 
 // instructor availability table (added 2026-06)

@@ -68,15 +68,15 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const {
     name, phone, email, specialties, style, notes, pay_rate,
-    mailing_address, ssn, contract_signed, contract_signed_date,
+    mailing_address, ssn, contract_signed, contract_signed_date, neighborhood,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
 
   const result = db.prepare(`
     INSERT INTO instructors
       (name, phone, email, specialties, style, notes, pay_rate,
-       mailing_address, ssn, contract_signed, contract_signed_date)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       mailing_address, ssn, contract_signed, contract_signed_date, neighborhood)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     name,
     phone             || null,
@@ -89,6 +89,7 @@ router.post('/', (req, res) => {
     ssn || null,
     contract_signed   ? 1 : 0,
     contract_signed_date || null,
+    neighborhood      || null,
   );
   res.status(201).json(getInstructorRow(result.lastInsertRowid, true));
 });
@@ -100,17 +101,18 @@ router.put('/:id', (req, res) => {
 
   const {
     name, phone, email, specialties, style, notes, pay_rate,
-    mailing_address, ssn, contract_signed, contract_signed_date,
+    mailing_address, ssn, contract_signed, contract_signed_date, neighborhood,
   } = req.body;
 
   db.prepare(`
     UPDATE instructors SET name=?, phone=?, email=?, specialties=?, style=?, notes=?, pay_rate=?,
-      mailing_address=?, ssn=?, contract_signed=?, contract_signed_date=?
+      mailing_address=?, ssn=?, contract_signed=?, contract_signed_date=?, neighborhood=?
     WHERE id=?
   `).run(
     name, phone || null, email || null, specialties || null, style || null,
     notes || null, pay_rate || null, mailing_address || null,
     ssn || null, contract_signed ? 1 : 0, contract_signed_date || null,
+    neighborhood || null,
     req.params.id,
   );
   res.json(getInstructorRow(req.params.id, true));
