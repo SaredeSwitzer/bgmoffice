@@ -68,15 +68,15 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const {
     name, phone, email, specialties, style, notes, pay_rate,
-    mailing_address, ssn, contract_signed, contract_signed_date, neighborhood,
+    mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
 
   const result = db.prepare(`
     INSERT INTO instructors
       (name, phone, email, specialties, style, notes, pay_rate,
-       mailing_address, ssn, contract_signed, contract_signed_date, neighborhood)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     name,
     phone             || null,
@@ -90,6 +90,7 @@ router.post('/', (req, res) => {
     contract_signed   ? 1 : 0,
     contract_signed_date || null,
     neighborhood      || null,
+    styles_taught     || null,
   );
   res.status(201).json(getInstructorRow(result.lastInsertRowid, true));
 });
