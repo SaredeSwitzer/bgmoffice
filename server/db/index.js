@@ -374,6 +374,25 @@ try {
   console.error('[migration] Lyra cleanup failed (non-fatal):', err.message);
 }
 
+// New action types (added 2026-06)
+try {
+  const maxOrder = db.prepare('SELECT MAX(order_index) AS m FROM action_types').get().m || 11;
+  const newTypes = [
+    { name: 'FU CLIENT - OUTSTANDING INVOICE', color: 'red',  order_index: maxOrder + 1 },
+    { name: 'FU CLIENT - SALES',               color: 'teal', order_index: maxOrder + 2 },
+  ];
+  const ins = db.prepare('INSERT OR IGNORE INTO action_types (name, color, order_index) VALUES (@name, @color, @order_index)');
+  for (const t of newTypes) {
+    const exists = db.prepare('SELECT id FROM action_types WHERE name = ?').get(t.name);
+    if (!exists) {
+      ins.run(t);
+      console.log(`[migration] added action type: ${t.name}`);
+    }
+  }
+} catch (err) {
+  console.error('[migration] new action types failed (non-fatal):', err.message);
+}
+
 for (const sql of migrations) {
   try {
     db.exec(sql);

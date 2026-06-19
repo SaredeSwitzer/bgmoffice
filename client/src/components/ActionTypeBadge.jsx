@@ -25,6 +25,8 @@ const SHORT_LABELS = {
   'UPDATE CALENDAR ENTRY':                              'UPDATE CALENDAR',
   'UPDATE USAEPAY':                                     'UPDATE USAEPAY',
   'UPDATE JOTFORM':                                     'UPDATE JOTFORM',
+  'FU CLIENT - OUTSTANDING INVOICE':                    'FU CLIENT - INVOICE',
+  'FU CLIENT - SALES':                                  'FU CLIENT - SALES',
 }
 
 export default function ActionTypeBadge({ name, color, size = 'sm' }) {

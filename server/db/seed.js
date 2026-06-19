@@ -28,6 +28,8 @@ const actionTypes = [
   { name: 'UPDATE CALENDAR ENTRY',                       color: 'indigo', order_index: 9 },
   { name: 'UPDATE USAEPAY',                              color: 'amber',  order_index: 10 },
   { name: 'UPDATE JOTFORM',                              color: 'slate',  order_index: 11 },
+  { name: 'FU CLIENT - OUTSTANDING INVOICE',             color: 'red',    order_index: 12 },
+  { name: 'FU CLIENT - SALES',                           color: 'teal',   order_index: 13 },
 ];
 
 const insertActionType = db.prepare(
