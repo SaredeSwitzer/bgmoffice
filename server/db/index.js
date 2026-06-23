@@ -357,6 +357,28 @@ try {
   console.error('[seed] class_styles failed (non-fatal):', err.message)
 }
 
+// Junction table: one recruiting note/task can have multiple action types (added 2026-06)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS recruiting_note_action_types (
+    note_id        INTEGER NOT NULL REFERENCES recruiting_notes(id) ON DELETE CASCADE,
+    action_type_id INTEGER NOT NULL REFERENCES action_types(id) ON DELETE CASCADE,
+    PRIMARY KEY (note_id, action_type_id)
+  )
+`);
+
+try {
+  const existing = db.prepare('SELECT COUNT(*) AS n FROM recruiting_note_action_types').get().n
+  if (existing === 0) {
+    db.exec(`
+      INSERT OR IGNORE INTO recruiting_note_action_types (note_id, action_type_id)
+      SELECT id, action_type_id FROM recruiting_notes WHERE action_type_id IS NOT NULL
+    `)
+    console.log('[migration] seeded recruiting_note_action_types from legacy action_type_id')
+  }
+} catch (err) {
+  console.error('[migration] recruiting_note_action_types seed failed (non-fatal):', err.message)
+}
+
 // One-time data cleanup: remove Lyra from delegates and users (2026-06)
 try {
   const lyraDelegate = db.prepare(`SELECT id FROM delegates WHERE name = 'Lyra'`).get();

@@ -18,12 +18,30 @@ const ENTRY_JOIN = `
   LEFT JOIN users        u  ON u.id  = re.assigned_to_user_id
 `;
 
+function attachNoteActionTypes(notes) {
+  if (!notes.length) return notes;
+  const ids = notes.map(n => n.id);
+  const rows = db.prepare(
+    `SELECT rnat.note_id, at.id, at.name, at.color
+     FROM recruiting_note_action_types rnat
+     JOIN action_types at ON at.id = rnat.action_type_id
+     WHERE rnat.note_id IN (${ids.map(() => '?').join(',')})`
+  ).all(...ids);
+  const byNote = {};
+  rows.forEach(r => {
+    if (!byNote[r.note_id]) byNote[r.note_id] = [];
+    byNote[r.note_id].push({ id: r.id, name: r.name, color: r.color });
+  });
+  return notes.map(n => ({ ...n, action_types: byNote[n.id] || [] }));
+}
+
 function getEntry(id) {
   const entry = db.prepare(`${ENTRY_JOIN} WHERE re.id = ?`).get(id);
   if (!entry) return null;
-  entry.notes = db.prepare(
+  const notes = db.prepare(
     'SELECT * FROM recruiting_notes WHERE entry_id = ? ORDER BY created_at ASC'
   ).all(id);
+  entry.notes = attachNoteActionTypes(notes);
   return entry;
 }
 
@@ -50,12 +68,13 @@ router.get('/', (req, res) => {
     entries = db.prepare(`${ENTRY_JOIN} WHERE ${archivedCond} ORDER BY re.created_at ASC`).all();
   }
 
+  const allNotes = db.prepare('SELECT * FROM recruiting_notes ORDER BY created_at ASC').all();
+  const withTypes = attachNoteActionTypes(allNotes);
   const notesByEntry = {};
-  db.prepare('SELECT * FROM recruiting_notes ORDER BY created_at ASC').all()
-    .forEach(n => {
-      if (!notesByEntry[n.entry_id]) notesByEntry[n.entry_id] = [];
-      notesByEntry[n.entry_id].push(n);
-    });
+  withTypes.forEach(n => {
+    if (!notesByEntry[n.entry_id]) notesByEntry[n.entry_id] = [];
+    notesByEntry[n.entry_id].push(n);
+  });
   entries.forEach(e => { e.notes = notesByEntry[e.id] || []; });
 
   const grouped = {};
@@ -69,9 +88,10 @@ router.get('/client/:clientId', (req, res) => {
   const entries = db.prepare(`${ENTRY_JOIN} WHERE re.client_id = ? ORDER BY re.created_at DESC`)
     .all(req.params.clientId);
   entries.forEach(e => {
-    e.notes = db.prepare(
+    const notes = db.prepare(
       'SELECT * FROM recruiting_notes WHERE entry_id = ? ORDER BY created_at ASC'
     ).all(e.id);
+    e.notes = attachNoteActionTypes(notes);
   });
   res.json(entries);
 });
@@ -177,7 +197,7 @@ router.patch('/entries/:id/archive', (req, res) => {
 // ── Notes ─────────────────────────────────────────────────────────────────────
 
 router.post('/entries/:id/notes', (req, res) => {
-  const { text, is_task, assigned_to, client_id, instructor_id, action_type_id } = req.body;
+  const { text, is_task, assigned_to, client_id, instructor_id, action_type_ids } = req.body;
   if (!text) return res.status(400).json({ error: 'Text required' });
   const entry = db.prepare('SELECT * FROM recruiting_entries WHERE id = ?').get(req.params.id);
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
@@ -187,6 +207,12 @@ router.post('/entries/:id/notes', (req, res) => {
   ).run(req.params.id, text.trim(), req.user.initials, is_task ? 1 : 0, assigned_to || null);
 
   let note = db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(noteResult.lastInsertRowid);
+
+  const atIds = Array.isArray(action_type_ids) ? action_type_ids.map(Number).filter(Boolean) : [];
+  if (atIds.length) {
+    const insAt = db.prepare('INSERT OR IGNORE INTO recruiting_note_action_types (note_id, action_type_id) VALUES (?, ?)');
+    atIds.forEach(atId => insAt.run(note.id, atId));
+  }
 
   if (is_task) {
     const context = [
@@ -200,19 +226,24 @@ router.post('/entries/:id/notes', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       text.trim(),
-      assigned_to    || null,
-      context        || null,
+      assigned_to || null,
+      context     || null,
       req.user.initials,
       note.id,
-      client_id      || null,
-      instructor_id  || null,
-      action_type_id || null,
+      client_id   || null,
+      instructor_id || null,
+      atIds[0]    || null,
     );
 
     db.prepare('UPDATE recruiting_notes SET standalone_task_id = ? WHERE id = ?')
       .run(taskResult.lastInsertRowid, note.id);
     note = db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(note.id);
   }
+
+  note.action_types = db.prepare(
+    `SELECT at.id, at.name, at.color FROM recruiting_note_action_types rnat
+     JOIN action_types at ON at.id = rnat.action_type_id WHERE rnat.note_id = ?`
+  ).all(note.id);
 
   res.status(201).json(note);
 });
@@ -223,18 +254,35 @@ router.put('/entries/:id/notes/:noteId', (req, res) => {
   ).get(req.params.noteId, req.params.id);
   if (!note) return res.status(404).json({ error: 'Note not found' });
 
-  const { text, assigned_to } = req.body;
+  const { text, assigned_to, action_type_ids } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
 
   db.prepare('UPDATE recruiting_notes SET text = ?, assigned_to = ? WHERE id = ?')
     .run(text.trim(), assigned_to || null, note.id);
+
+  if (Array.isArray(action_type_ids)) {
+    const atIds = action_type_ids.map(Number).filter(Boolean);
+    db.prepare('DELETE FROM recruiting_note_action_types WHERE note_id = ?').run(note.id);
+    const insAt = db.prepare('INSERT OR IGNORE INTO recruiting_note_action_types (note_id, action_type_id) VALUES (?, ?)');
+    atIds.forEach(atId => insAt.run(note.id, atId));
+
+    if (note.standalone_task_id) {
+      db.prepare('UPDATE standalone_tasks SET action_type_id = ? WHERE id = ?')
+        .run(atIds[0] || null, note.standalone_task_id);
+    }
+  }
 
   if (note.standalone_task_id) {
     db.prepare('UPDATE standalone_tasks SET title = ?, assigned_to = ? WHERE id = ?')
       .run(text.trim(), assigned_to || null, note.standalone_task_id);
   }
 
-  res.json(db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(note.id));
+  const updated = db.prepare('SELECT * FROM recruiting_notes WHERE id = ?').get(note.id);
+  updated.action_types = db.prepare(
+    `SELECT at.id, at.name, at.color FROM recruiting_note_action_types rnat
+     JOIN action_types at ON at.id = rnat.action_type_id WHERE rnat.note_id = ?`
+  ).all(note.id);
+  res.json(updated);
 });
 
 router.patch('/entries/:id/notes/:noteId/done', (req, res) => {

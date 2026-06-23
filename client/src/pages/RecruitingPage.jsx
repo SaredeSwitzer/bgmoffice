@@ -32,11 +32,12 @@ function isUnfilled(entry) {
 
 // ── Task note card (with inline edit) ────────────────────────────────────────
 
-function TaskNoteCard({ note: n, currentUserInitials, delegates, onToggleDone, onDelete, onEdit, onReply }) {
-  const [editing,     setEditing]     = useState(false)
-  const [editText,    setEditText]    = useState(n.text)
-  const [editAssign,  setEditAssign]  = useState(n.assigned_to || '')
-  const [saving,      setSaving]      = useState(false)
+function TaskNoteCard({ note: n, currentUserInitials, delegates, actionTypes, onToggleDone, onDelete, onEdit, onReply }) {
+  const [editing,           setEditing]           = useState(false)
+  const [editText,          setEditText]          = useState(n.text)
+  const [editAssign,        setEditAssign]        = useState(n.assigned_to || '')
+  const [editActionTypeIds, setEditActionTypeIds] = useState((n.action_types || []).map(at => at.id))
+  const [saving,            setSaving]            = useState(false)
   const isAuthor = n.author_initials === currentUserInitials
 
   async function handleSave(e) {
@@ -44,7 +45,7 @@ function TaskNoteCard({ note: n, currentUserInitials, delegates, onToggleDone, o
     if (!editText.trim()) return
     setSaving(true)
     try {
-      await onEdit(editText.trim(), editAssign)
+      await onEdit(editText.trim(), editAssign, editActionTypeIds)
       setEditing(false)
     } finally { setSaving(false) }
   }
@@ -52,7 +53,14 @@ function TaskNoteCard({ note: n, currentUserInitials, delegates, onToggleDone, o
   function handleCancel() {
     setEditText(n.text)
     setEditAssign(n.assigned_to || '')
+    setEditActionTypeIds((n.action_types || []).map(at => at.id))
     setEditing(false)
+  }
+
+  function toggleAt(id) {
+    setEditActionTypeIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
   }
 
   if (editing) {
@@ -60,6 +68,20 @@ function TaskNoteCard({ note: n, currentUserInitials, delegates, onToggleDone, o
       <form onSubmit={handleSave} className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-2">
         <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus
           className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+        {actionTypes?.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-gray-500 mb-1">Action Types</p>
+            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-36 overflow-y-auto bg-white">
+              {actionTypes.map(at => (
+                <label key={at.id} className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 cursor-pointer">
+                  <input type="checkbox" checked={editActionTypeIds.includes(at.id)}
+                    onChange={() => toggleAt(at.id)} className="w-3.5 h-3.5 accent-gray-700" />
+                  <ActionTypeBadge name={at.name} color={at.color} size="xs" />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-2 flex-wrap">
           <select value={editAssign} onChange={e => setEditAssign(e.target.value)}
             className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
@@ -100,6 +122,13 @@ function TaskNoteCard({ note: n, currentUserInitials, delegates, onToggleDone, o
               className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
           </div>
         </div>
+        {(n.action_types || []).length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-1">
+            {n.action_types.map(at => (
+              <ActionTypeBadge key={at.id} name={at.name} color={at.color} size="xs" />
+            ))}
+          </div>
+        )}
         <p className={`text-sm text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>{n.text}</p>
       </div>
       <div className="flex gap-1.5 px-3 pb-2.5 pt-1">
@@ -131,14 +160,14 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
   const { user } = useAuth()
   const textRef = useRef(null)
 
-  const [mode,           setMode]           = useState(defaultAddTask ? 'task' : null) // null | 'task' | 'note'
-  const [text,           setText]           = useState('')
-  const [assignedTo,     setAssignedTo]     = useState('')
-  const [taskClientId,   setTaskClientId]   = useState(String(entryClientId || ''))
-  const [taskInstructor, setTaskInstructor] = useState(String(entryInstructorId || ''))
-  const [taskRows,       setTaskRows]       = useState([{ id: 0, text: '', actionType: '' }])
-  const [delegates,      setDelegates]      = useState([])
-  const [saving,         setSaving]         = useState(false)
+  const [mode,              setMode]              = useState(defaultAddTask ? 'task' : null) // null | 'task' | 'note'
+  const [text,              setText]              = useState('')
+  const [assignedTo,        setAssignedTo]        = useState('')
+  const [taskClientId,      setTaskClientId]      = useState(String(entryClientId || ''))
+  const [taskInstructor,    setTaskInstructor]    = useState(String(entryInstructorId || ''))
+  const [taskActionTypeIds, setTaskActionTypeIds] = useState([])
+  const [delegates,         setDelegates]         = useState([])
+  const [saving,            setSaving]            = useState(false)
 
   useEffect(() => {
     api.getDelegates().then(setDelegates).catch(() => {})
@@ -152,7 +181,7 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     setMode('task')
     setTaskClientId(String(entryClientId || ''))
     setTaskInstructor(String(entryInstructorId || ''))
-    setTaskRows([{ id: 0, text: '', actionType: '' }])
+    setTaskActionTypeIds([])
   }
 
   function openReplyNote(taskText) {
@@ -165,55 +194,31 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     setMode(null); setText(''); setAssignedTo('')
     setTaskClientId(String(entryClientId || ''))
     setTaskInstructor(String(entryInstructorId || ''))
-    setTaskRows([{ id: 0, text: '', actionType: '' }])
+    setTaskActionTypeIds([])
   }
 
-  function addTaskRow() {
-    setTaskRows(rows => [...rows, { id: Date.now(), text: '', actionType: '' }])
-  }
-
-  function removeTaskRow(idx) {
-    setTaskRows(rows => rows.filter((_, i) => i !== idx))
-  }
-
-  function updateTaskRow(idx, field, val) {
-    setTaskRows(rows => rows.map((r, i) => i === idx ? { ...r, [field]: val } : r))
+  function toggleTaskActionType(id) {
+    setTaskActionTypeIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
   }
 
   async function handleAdd(e) {
     e.preventDefault()
+    if (!text.trim()) return
     setSaving(true)
+    const isTask = mode === 'task'
     try {
-      if (mode === 'task') {
-        const validRows = taskRows.filter(r => r.text.trim())
-        if (!validRows.length) return
-        const newNotes = []
-        for (const row of validRows) {
-          const note = await api.addRecruitingNote(entryId, {
-            text:           row.text.trim(),
-            is_task:        1,
-            assigned_to:    assignedTo || null,
-            client_id:      taskClientId || null,
-            instructor_id:  taskInstructor || null,
-            action_type_id: row.actionType || null,
-          })
-          newNotes.push(note)
-        }
-        onNotesChanged([...notes, ...newNotes])
-        cancel()
-      } else {
-        if (!text.trim()) return
-        const note = await api.addRecruitingNote(entryId, {
-          text,
-          is_task:        0,
-          assigned_to:    null,
-          client_id:      null,
-          instructor_id:  null,
-          action_type_id: null,
-        })
-        onNotesChanged([...notes, note])
-        cancel()
-      }
+      const note = await api.addRecruitingNote(entryId, {
+        text,
+        is_task:         isTask ? 1 : 0,
+        assigned_to:     isTask ? (assignedTo || null) : null,
+        client_id:       isTask ? (taskClientId || null) : null,
+        instructor_id:   isTask ? (taskInstructor || null) : null,
+        action_type_ids: isTask ? taskActionTypeIds : [],
+      })
+      onNotesChanged([...notes, note])
+      cancel()
     } finally { setSaving(false) }
   }
 
@@ -227,8 +232,12 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     onNotesChanged(notes.filter(n => n.id !== noteId))
   }
 
-  async function handleEditTask(noteId, text, assignedTo) {
-    const updated = await api.updateRecruitingNote(entryId, noteId, { text, assigned_to: assignedTo || null })
+  async function handleEditTask(noteId, text, assignedTo, actionTypeIds) {
+    const updated = await api.updateRecruitingNote(entryId, noteId, {
+      text,
+      assigned_to:     assignedTo || null,
+      action_type_ids: actionTypeIds || [],
+    })
     onNotesChanged(notes.map(n => n.id === noteId ? updated : n))
   }
 
@@ -259,9 +268,10 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
               note={n}
               currentUserInitials={user?.initials}
               delegates={delegates}
+              actionTypes={actionTypes}
               onToggleDone={() => handleToggleDone(n)}
               onDelete={() => handleDelete(n.id)}
-              onEdit={(text, assignedTo) => handleEditTask(n.id, text, assignedTo)}
+              onEdit={(text, assignedTo, atIds) => handleEditTask(n.id, text, assignedTo, atIds)}
               onReply={() => openReplyNote(n.text)}
             />
           ))}
@@ -269,44 +279,31 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
 
         {mode === 'task' && (
           <form onSubmit={handleAdd} className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-            <p className="text-xs font-semibold text-amber-800">New Task{taskRows.length > 1 ? 's' : ''}</p>
+            <p className="text-xs font-semibold text-amber-800">New Task</p>
+            <textarea ref={textRef} value={text} onChange={e => setText(e.target.value)} rows={2}
+              placeholder={`Describe the task… (as ${user?.initials})`}
+              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }} />
 
-            {/* Per-task rows */}
-            <div className="space-y-2">
-              {taskRows.map((row, idx) => (
-                <div key={row.id} className="flex gap-2 items-start">
-                  <div className="flex-1 space-y-1.5">
-                    <textarea
-                      value={row.text}
-                      onChange={e => updateTaskRow(idx, 'text', e.target.value)}
-                      rows={2}
-                      autoFocus={idx === 0 && taskRows.length === 1}
-                      placeholder={`Describe the task… (as ${user?.initials})`}
-                      className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-                      onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }}
-                    />
-                    <select
-                      value={row.actionType}
-                      onChange={e => updateTaskRow(idx, 'actionType', e.target.value)}
-                      className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
-                      <option value="">Action type…</option>
-                      {actionTypes?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
-                  </div>
-                  {taskRows.length > 1 && (
-                    <button type="button" onClick={() => removeTaskRow(idx)}
-                      className="text-gray-300 hover:text-red-400 text-sm mt-1 flex-shrink-0">✕</button>
-                  )}
+            {/* Action types — checkboxes */}
+            {actionTypes?.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-500 mb-1">
+                  Action Types
+                  {taskActionTypeIds.length === 0 && <span className="ml-1.5 text-gray-400 font-normal">— pick at least one</span>}
+                </p>
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-44 overflow-y-auto bg-white">
+                  {actionTypes.map(at => (
+                    <label key={at.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                      <input type="checkbox" checked={taskActionTypeIds.includes(at.id)}
+                        onChange={() => toggleTaskActionType(at.id)} className="w-3.5 h-3.5 accent-gray-700" />
+                      <ActionTypeBadge name={at.name} color={at.color} size="xs" />
+                    </label>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
 
-            <button type="button" onClick={addTaskRow}
-              className="text-xs text-amber-600 hover:text-amber-800 font-medium">
-              + Add another task
-            </button>
-
-            {/* Shared fields */}
             <div className="flex flex-wrap gap-2 border-t border-amber-200 pt-2">
               <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
                 className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
@@ -324,7 +321,6 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
                 {instructors?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
               </select>
             </div>
-
             {(taskClientId || taskInstructor) && (
               <p className="text-[10px] text-amber-700">
                 Will link to:
@@ -333,15 +329,10 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
               </p>
             )}
             <div className="flex gap-2 pt-1">
-              {(() => {
-                const validCount = taskRows.filter(r => r.text.trim()).length
-                return (
-                  <button type="submit" disabled={saving || validCount === 0}
-                    className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-amber-600">
-                    {saving ? 'Saving…' : validCount > 1 ? `Add ${validCount} Tasks` : 'Add Task'}
-                  </button>
-                )
-              })()}
+              <button type="submit" disabled={saving || !text.trim()}
+                className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-amber-600">
+                {saving ? 'Saving…' : 'Add Task'}
+              </button>
               <button type="button" onClick={cancel}
                 className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
                 Cancel
