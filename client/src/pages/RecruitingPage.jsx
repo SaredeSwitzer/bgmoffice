@@ -136,7 +136,7 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
   const [assignedTo,     setAssignedTo]     = useState('')
   const [taskClientId,   setTaskClientId]   = useState(String(entryClientId || ''))
   const [taskInstructor, setTaskInstructor] = useState(String(entryInstructorId || ''))
-  const [taskActionType, setTaskActionType] = useState('')
+  const [taskRows,       setTaskRows]       = useState([{ id: 0, text: '', actionType: '' }])
   const [delegates,      setDelegates]      = useState([])
   const [saving,         setSaving]         = useState(false)
 
@@ -152,6 +152,7 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     setMode('task')
     setTaskClientId(String(entryClientId || ''))
     setTaskInstructor(String(entryInstructorId || ''))
+    setTaskRows([{ id: 0, text: '', actionType: '' }])
   }
 
   function openReplyNote(taskText) {
@@ -164,25 +165,55 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     setMode(null); setText(''); setAssignedTo('')
     setTaskClientId(String(entryClientId || ''))
     setTaskInstructor(String(entryInstructorId || ''))
-    setTaskActionType('')
+    setTaskRows([{ id: 0, text: '', actionType: '' }])
+  }
+
+  function addTaskRow() {
+    setTaskRows(rows => [...rows, { id: Date.now(), text: '', actionType: '' }])
+  }
+
+  function removeTaskRow(idx) {
+    setTaskRows(rows => rows.filter((_, i) => i !== idx))
+  }
+
+  function updateTaskRow(idx, field, val) {
+    setTaskRows(rows => rows.map((r, i) => i === idx ? { ...r, [field]: val } : r))
   }
 
   async function handleAdd(e) {
     e.preventDefault()
-    if (!text.trim()) return
     setSaving(true)
-    const isTask = mode === 'task'
     try {
-      const note = await api.addRecruitingNote(entryId, {
-        text,
-        is_task:        isTask ? 1 : 0,
-        assigned_to:    isTask ? (assignedTo || null) : null,
-        client_id:      isTask ? (taskClientId || null) : null,
-        instructor_id:  isTask ? (taskInstructor || null) : null,
-        action_type_id: isTask ? (taskActionType || null) : null,
-      })
-      onNotesChanged([...notes, note])
-      cancel()
+      if (mode === 'task') {
+        const validRows = taskRows.filter(r => r.text.trim())
+        if (!validRows.length) return
+        const newNotes = []
+        for (const row of validRows) {
+          const note = await api.addRecruitingNote(entryId, {
+            text:           row.text.trim(),
+            is_task:        1,
+            assigned_to:    assignedTo || null,
+            client_id:      taskClientId || null,
+            instructor_id:  taskInstructor || null,
+            action_type_id: row.actionType || null,
+          })
+          newNotes.push(note)
+        }
+        onNotesChanged([...notes, ...newNotes])
+        cancel()
+      } else {
+        if (!text.trim()) return
+        const note = await api.addRecruitingNote(entryId, {
+          text,
+          is_task:        0,
+          assigned_to:    null,
+          client_id:      null,
+          instructor_id:  null,
+          action_type_id: null,
+        })
+        onNotesChanged([...notes, note])
+        cancel()
+      }
     } finally { setSaving(false) }
   }
 
@@ -238,12 +269,45 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
 
         {mode === 'task' && (
           <form onSubmit={handleAdd} className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-            <p className="text-xs font-semibold text-amber-800">New Task</p>
-            <textarea ref={textRef} value={text} onChange={e => setText(e.target.value)} rows={2}
-              placeholder={`Describe the task… (as ${user?.initials})`}
-              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }} />
-            <div className="flex flex-wrap gap-2">
+            <p className="text-xs font-semibold text-amber-800">New Task{taskRows.length > 1 ? 's' : ''}</p>
+
+            {/* Per-task rows */}
+            <div className="space-y-2">
+              {taskRows.map((row, idx) => (
+                <div key={row.id} className="flex gap-2 items-start">
+                  <div className="flex-1 space-y-1.5">
+                    <textarea
+                      value={row.text}
+                      onChange={e => updateTaskRow(idx, 'text', e.target.value)}
+                      rows={2}
+                      autoFocus={idx === 0 && taskRows.length === 1}
+                      placeholder={`Describe the task… (as ${user?.initials})`}
+                      className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                      onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }}
+                    />
+                    <select
+                      value={row.actionType}
+                      onChange={e => updateTaskRow(idx, 'actionType', e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                      <option value="">Action type…</option>
+                      {actionTypes?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                  {taskRows.length > 1 && (
+                    <button type="button" onClick={() => removeTaskRow(idx)}
+                      className="text-gray-300 hover:text-red-400 text-sm mt-1 flex-shrink-0">✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button type="button" onClick={addTaskRow}
+              className="text-xs text-amber-600 hover:text-amber-800 font-medium">
+              + Add another task
+            </button>
+
+            {/* Shared fields */}
+            <div className="flex flex-wrap gap-2 border-t border-amber-200 pt-2">
               <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
                 className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
                 <option value="">Assign to…</option>
@@ -259,12 +323,8 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
                 <option value="">Instructor…</option>
                 {instructors?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
               </select>
-              <select value={taskActionType} onChange={e => setTaskActionType(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
-                <option value="">Action type…</option>
-                {actionTypes?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
             </div>
+
             {(taskClientId || taskInstructor) && (
               <p className="text-[10px] text-amber-700">
                 Will link to:
@@ -273,10 +333,15 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
               </p>
             )}
             <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={saving || !text.trim()}
-                className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-amber-600">
-                {saving ? 'Saving…' : 'Add Task'}
-              </button>
+              {(() => {
+                const validCount = taskRows.filter(r => r.text.trim()).length
+                return (
+                  <button type="submit" disabled={saving || validCount === 0}
+                    className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-amber-600">
+                    {saving ? 'Saving…' : validCount > 1 ? `Add ${validCount} Tasks` : 'Add Task'}
+                  </button>
+                )
+              })()}
               <button type="button" onClick={cancel}
                 className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
                 Cancel
