@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { RemindersProvider, useRemindersContext } from '../context/RemindersContext'
+import AmberChat from './AmberChat'
 
 function Shell() {
   const { user, logout } = useAuth()
@@ -114,6 +115,9 @@ function Shell() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-6">
         <Outlet />
       </main>
+
+      {/* Amber floating chat */}
+      <AmberChat />
     </div>
   )
 }

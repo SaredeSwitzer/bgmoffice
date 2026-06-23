@@ -55,15 +55,32 @@ router.put('/:id', (req, res) => {
 
 // Add reply to task
 router.post('/:id/replies', (req, res) => {
-  const { text } = req.body;
+  const { text, assigned_to, action_type_id } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
   const task = db.prepare('SELECT id, replies FROM standalone_tasks WHERE id = ?').get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Not found' });
-  const existing = task.replies ? JSON.parse(task.replies) : [];
+
   const reply = { id: Date.now(), text: text.trim(), author: req.user.initials, created_at: new Date().toISOString() };
+
+  if (assigned_to) reply.assigned_to = assigned_to;
+
+  if (action_type_id) {
+    const at = db.prepare('SELECT name, color FROM action_types WHERE id = ?').get(Number(action_type_id));
+    if (at) { reply.action_type_name = at.name; reply.action_type_color = at.color; }
+  }
+
+  const existing = task.replies ? JSON.parse(task.replies) : [];
   db.prepare('UPDATE standalone_tasks SET replies = ? WHERE id = ?')
     .run(JSON.stringify([...existing, reply]), task.id);
-  res.status(201).json(reply);
+
+  const response = { reply };
+  if (assigned_to !== undefined) {
+    db.prepare('UPDATE standalone_tasks SET assigned_to = ? WHERE id = ?')
+      .run(assigned_to || null, task.id);
+    response.assigned_to = assigned_to || null;
+  }
+
+  res.status(201).json(response);
 });
 
 // Delete a reply

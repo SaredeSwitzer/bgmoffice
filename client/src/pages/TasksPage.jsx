@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import DateInput from '../components/DateInput'
 import { useSeenTasks } from '../hooks/useSeenTasks'
+import ActionTypeBadge from '../components/ActionTypeBadge'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -98,13 +99,15 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
-function TaskCard({ task, onUpdate, onDelete, isNew }) {
+function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes }) {
   const { user } = useAuth()
-  const [editing,    setEditing]    = useState(false)
-  const [saving,     setSaving]     = useState(false)
-  const [showReply,  setShowReply]  = useState(false)
-  const [replyText,  setReplyText]  = useState('')
-  const [replies,    setReplies]    = useState(() => {
+  const [editing,         setEditing]         = useState(false)
+  const [saving,          setSaving]          = useState(false)
+  const [showReply,       setShowReply]       = useState(false)
+  const [replyText,       setReplyText]       = useState('')
+  const [replyAssign,     setReplyAssign]     = useState('')
+  const [replyActionType, setReplyActionType] = useState('')
+  const [replies,         setReplies]         = useState(() => {
     try { return task.replies ? JSON.parse(task.replies) : [] } catch { return [] }
   })
   const replyRef = useRef(null)
@@ -140,9 +143,18 @@ function TaskCard({ task, onUpdate, onDelete, isNew }) {
     if (!replyText.trim()) return
     setSaving(true)
     try {
-      const reply = await api.addTaskReply(task.id, replyText.trim())
+      const opts = {}
+      if (replyAssign)     opts.assigned_to    = replyAssign
+      if (replyActionType) opts.action_type_id = Number(replyActionType)
+      const result = await api.addTaskReply(task.id, replyText.trim(), opts)
+      const reply = result.reply ?? result
       setReplies(prev => [...prev, reply])
+      if (result.assigned_to !== undefined) {
+        onUpdate({ ...task, assigned_to: result.assigned_to })
+      }
       setReplyText('')
+      setReplyAssign('')
+      setReplyActionType('')
       setShowReply(false)
     } finally { setSaving(false) }
   }
@@ -213,7 +225,21 @@ function TaskCard({ task, onUpdate, onDelete, isNew }) {
           {replies.map(r => (
             <div key={r.id} className="flex gap-2 text-xs items-start group">
               <span className="font-semibold text-gray-500 flex-shrink-0 mt-0.5">{r.author}</span>
-              <span className="text-gray-700 flex-1">{r.text}</span>
+              <div className="flex-1 min-w-0">
+                {(r.action_type_name || r.assigned_to) && (
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    {r.action_type_name && (
+                      <ActionTypeBadge name={r.action_type_name} color={r.action_type_color} size="xs" />
+                    )}
+                    {r.assigned_to && (
+                      <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full font-semibold">
+                        → {r.assigned_to}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <span className="text-gray-700">{r.text}</span>
+              </div>
               <span className="text-gray-300 flex-shrink-0">{fmtTs(r.created_at)}</span>
               <button onClick={() => handleDeleteReply(r.id)}
                 className="text-gray-300 hover:text-red-500 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
@@ -224,18 +250,34 @@ function TaskCard({ task, onUpdate, onDelete, isNew }) {
 
       {/* Reply form */}
       {showReply && (
-        <form onSubmit={handleReply} className="border-t border-gray-100 pt-2 mb-2 flex gap-2">
-          <input ref={replyRef} value={replyText} onChange={e => setReplyText(e.target.value)}
-            placeholder={`Reply as ${user?.initials}…`} autoFocus
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
-          <button type="submit" disabled={saving || !replyText.trim()}
-            className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40">
-            Send
-          </button>
-          <button type="button" onClick={() => { setShowReply(false); setReplyText('') }}
-            className="px-2 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">
-            ✕
-          </button>
+        <form onSubmit={handleReply} className="border-t border-gray-100 pt-2 mb-2 space-y-1.5">
+          <div className="flex gap-2">
+            <input ref={replyRef} value={replyText} onChange={e => setReplyText(e.target.value)}
+              placeholder={`Reply as ${user?.initials}…`} autoFocus
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
+            <button type="submit" disabled={saving || !replyText.trim()}
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40">
+              Send
+            </button>
+            <button type="button" onClick={() => { setShowReply(false); setReplyText(''); setReplyAssign(''); setReplyActionType('') }}
+              className="px-2 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg">
+              ✕
+            </button>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <select value={replyAssign} onChange={e => setReplyAssign(e.target.value)}
+              className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white text-gray-600">
+              <option value="">Assign to…</option>
+              {DELEGATES.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+            {actionTypes?.length > 0 && (
+              <select value={replyActionType} onChange={e => setReplyActionType(e.target.value)}
+                className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white text-gray-600">
+                <option value="">Action type…</option>
+                {actionTypes.map(at => <option key={at.id} value={at.id}>{at.name}</option>)}
+              </select>
+            )}
+          </div>
         </form>
       )}
 
@@ -261,7 +303,7 @@ function TaskCard({ task, onUpdate, onDelete, isNew }) {
 }
 
 // ── Task section (by type) ────────────────────────────────────────────────────
-function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType, isNewFn }) {
+function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType, isNewFn, actionTypes }) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -300,7 +342,7 @@ function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultTyp
           {tasks
             .sort((a, b) => (b.starred - a.starred) || (b.priority === 'urgent' ? 1 : -1))
             .map(t => (
-              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} isNew={isNewFn?.(t)} />
+              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} isNew={isNewFn?.(t)} actionTypes={actionTypes} />
             ))}
         </div>
       )}
@@ -323,6 +365,7 @@ export default function TasksPage() {
   const { seen, markSeen } = useSeenTasks(user?.initials)
 
   const [tasks, setTasks] = useState([])
+  const [actionTypes, setActionTypes] = useState([])
   const [loading, setLoading] = useState(true)
   const [showDone, setShowDone] = useState(false)
   const [filterAssignee, setFilterAssignee] = useState('')
@@ -337,7 +380,9 @@ export default function TasksPage() {
   }
 
   useEffect(() => {
-    api.getTasks().then(setTasks).finally(() => setLoading(false))
+    Promise.all([api.getTasks(), api.getActionTypes()])
+      .then(([t, at]) => { setTasks(t); setActionTypes(at) })
+      .finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
@@ -401,6 +446,7 @@ export default function TasksPage() {
             task={focusedTask}
             onUpdate={t => handleSectionUpdate(t, 'update')}
             onDelete={handleDelete}
+            actionTypes={actionTypes}
           />
         ) : (
           <p className="text-sm text-gray-400 italic">Task not found.</p>
@@ -426,13 +472,13 @@ export default function TasksPage() {
       </div>
 
       <TaskSection label="Tasks" borderColor="border-gray-300" tasks={openTasks}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} actionTypes={actionTypes} />
 
       <TaskSection label="Reference" borderColor="border-purple-300" tasks={openReference}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="reference" isNewFn={isNew} />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="reference" isNewFn={isNew} actionTypes={actionTypes} />
 
       <TaskSection label="Other" borderColor="border-blue-300" tasks={openOther}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" isNewFn={isNew} />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" isNewFn={isNew} actionTypes={actionTypes} />
 
       {/* Completed tasks (collapsible) */}
       {done.length > 0 && (
@@ -447,7 +493,7 @@ export default function TasksPage() {
           {showDone && (
             <div className="space-y-2">
               {filtered(done).map(t => (
-                <TaskCard key={t.id} task={t} onUpdate={t => handleSectionUpdate(t, 'update')} onDelete={handleDelete} />
+                <TaskCard key={t.id} task={t} onUpdate={t => handleSectionUpdate(t, 'update')} onDelete={handleDelete} actionTypes={actionTypes} />
               ))}
             </div>
           )}
