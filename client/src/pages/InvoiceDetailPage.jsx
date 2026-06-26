@@ -334,7 +334,7 @@ export default function InvoiceDetailPage() {
                       <input type="date" value={li.class_date || ''}
                         onChange={e => setLine(idx, 'class_date', e.target.value)}
                         className="w-36 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-                      <input type="number" min="0" step="0.01" value={li.unit_price}
+                      <input type="number" step="0.01" value={li.unit_price}
                         onChange={e => setLine(idx, 'unit_price', e.target.value)}
                         placeholder="0.00"
                         className="w-24 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
@@ -434,7 +434,7 @@ export default function InvoiceDetailPage() {
                     <tr key={i}>
                       <td className="px-4 py-2.5 text-gray-800">{li.description}</td>
                       <td className="px-4 py-2.5 text-gray-500 text-xs">{li.class_date ? fmtDate(li.class_date) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-gray-900">{fmtMoney(li.unit_price)}</td>
+                      <td className={`px-4 py-2.5 text-right font-medium ${li.unit_price < 0 ? 'text-red-600' : 'text-gray-900'}`}>{fmtMoney(li.unit_price)}</td>
                     </tr>
                   ))}
                 </tbody>
