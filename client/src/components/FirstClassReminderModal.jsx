@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { useRemindersContext } from '../context/RemindersContext'
 import SearchSelect from './SearchSelect'
-import DateInput from './DateInput'
-
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 export default function FirstClassReminderModal({ onClose }) {
@@ -13,7 +11,8 @@ export default function FirstClassReminderModal({ onClose }) {
   const [delegates,   setDelegates]   = useState([])
   const [client,      setClient]      = useState(null)
   const [instructor,  setInstructor]  = useState(null)
-  const [classDate,   setClassDate]   = useState('')
+  const today = new Date().toLocaleDateString('en-CA')
+  const [classDate,   setClassDate]   = useState(today)
   const [delegate,    setDelegate]    = useState('')
   const [notes,       setNotes]       = useState('')
   const [saving,      setSaving]      = useState(false)
@@ -109,11 +108,12 @@ export default function FirstClassReminderModal({ onClose }) {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Date of First Class *</label>
-            <DateInput
+            <input
+              type="date"
               required
               value={classDate}
-              onChange={v => setClassDate(v)}
-              className="w-full"
+              onChange={e => setClassDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
             <p className="text-[10px] text-gray-400 mt-0.5">The reminder will fire on this date</p>
           </div>

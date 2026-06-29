@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
-import DateInput from './DateInput'
 
 const REASONS = [
   'Away/Unavailable',
@@ -14,10 +13,11 @@ const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
 export default function InstructorCheckInModal({ onClose }) {
   const [instructors, setInstructors] = useState([])
+  const today = new Date().toLocaleDateString('en-CA')
   const [form, setForm] = useState({
     instructor: null,
     reason: '',
-    follow_up_date: '',
+    follow_up_date: today,
     delegate_name: '',
     notes: '',
   })
@@ -83,11 +83,12 @@ export default function InstructorCheckInModal({ onClose }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Follow-up Date <span className="text-red-500">*</span></label>
-            <DateInput
+            <input
+              type="date"
               required
               value={form.follow_up_date}
-              onChange={v => set('follow_up_date', v)}
-              className="w-full"
+              onChange={e => set('follow_up_date', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
           <div>

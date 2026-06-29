@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { useRemindersContext } from '../context/RemindersContext'
 import SearchSelect from './SearchSelect'
-import DateInput from './DateInput'
-
 export default function ResumingClassesModal({ onClose }) {
   const { refresh } = useRemindersContext()
   const [clients,     setClients]     = useState([])
@@ -11,7 +9,8 @@ export default function ResumingClassesModal({ onClose }) {
   const [delegates,   setDelegates]   = useState([])
   const [client,      setClient]      = useState(null)
   const [instructor,  setInstructor]  = useState(null)
-  const [followUpDate, setFollowUpDate] = useState('')
+  const today = new Date().toLocaleDateString('en-CA')
+  const [followUpDate, setFollowUpDate] = useState(today)
   const [delegate,    setDelegate]    = useState('')
   const [pauseReason, setPauseReason] = useState('')
   const [notes,       setNotes]       = useState('')
@@ -118,11 +117,12 @@ export default function ResumingClassesModal({ onClose }) {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Follow-up date *</label>
-            <DateInput
+            <input
+              type="date"
               required
               value={followUpDate}
-              onChange={v => setFollowUpDate(v)}
-              className="w-full"
+              onChange={e => setFollowUpDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
             <p className="text-[10px] text-gray-400 mt-0.5">When you want to be reminded</p>
           </div>

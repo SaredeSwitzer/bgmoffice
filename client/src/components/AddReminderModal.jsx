@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import { useRemindersContext } from '../context/RemindersContext'
 import SearchSelect from './SearchSelect'
-import DateInput from './DateInput'
 
 export default function AddReminderModal({
   onClose,
@@ -16,10 +15,11 @@ export default function AddReminderModal({
   const [delegates,   setDelegates]   = useState([])
   const [selectedClients,     setSelectedClients]     = useState([])
   const [selectedInstructors, setSelectedInstructors] = useState([])
+  const today = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD in local time
   const [form, setForm] = useState({
     title:         defaultTitle,
     notes:         '',
-    remind_on:     '',
+    remind_on:     today,
     delegate_name: defaultDelegate,
   })
   const [saving, setSaving] = useState(false)
@@ -101,11 +101,12 @@ export default function AddReminderModal({
           {/* Date */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Remind on *</label>
-            <DateInput
+            <input
+              type="date"
               required
               value={form.remind_on}
-              onChange={v => setForm(f => ({ ...f, remind_on: v }))}
-              className="w-full"
+              onChange={e => setForm(f => ({ ...f, remind_on: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
 
