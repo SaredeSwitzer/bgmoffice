@@ -4,7 +4,6 @@ import { api, uploadsUrl } from '../api/client'
 import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
-import DateInput from '../components/DateInput'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -462,8 +461,9 @@ export default function InstructorProfilePage() {
                     Signed
                   </label>
                   {editForm.contract_signed && (
-                    <DateInput value={editForm.contract_signed_date}
-                      onChange={v => setEditForm(f => ({ ...f, contract_signed_date: v }))} />
+                    <input type="date" value={editForm.contract_signed_date}
+                      onChange={e => setEditForm(f => ({ ...f, contract_signed_date: e.target.value }))}
+                      className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                   )}
                 </div>
               </div>

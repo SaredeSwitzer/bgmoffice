@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
-import DateInput from '../components/DateInput'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -330,7 +329,7 @@ function NoteThread({ notes, onNoteEdited, onNoteDeleted }) {
 function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdded }) {
   const [text, setText] = useState('')
   const [wantReminder, setWantReminder] = useState(false)
-  const [reminderDate, setReminderDate] = useState('')
+  const [reminderDate, setReminderDate] = useState(new Date().toLocaleDateString('en-CA'))
   const [reminderDelegate, setReminderDelegate] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -415,9 +414,11 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
         {wantReminder && (
           <div className="flex flex-wrap items-center gap-2 pl-5">
             <span className="text-xs text-gray-500">Remind on:</span>
-            <DateInput
+            <input
+              type="date"
               value={reminderDate}
-              onChange={v => setReminderDate(v)}
+              onChange={e => setReminderDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-300"
             />
             <select
               value={reminderDelegate}
@@ -484,7 +485,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
   const [editing, setEditing] = useState(false)
   const [showAtManager, setShowAtManager] = useState(false)
   const [showReminderForm, setShowReminderForm] = useState(false)
-  const [reminderForm, setReminderForm] = useState({ title: '', remind_on: '', delegate_name: '' })
+  const [reminderForm, setReminderForm] = useState({ title: '', remind_on: new Date().toLocaleDateString('en-CA'), delegate_name: '' })
   const [reminderSaving, setReminderSaving] = useState(false)
   const [editForm, setEditForm] = useState({
     action_type_ids: (item.action_types || []).map(at => at.id),
@@ -755,11 +756,12 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                     className="w-full border border-blue-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
                   <div className="flex flex-wrap gap-2 items-center">
-                    <DateInput
+                    <input
+                      type="date"
                       required
                       value={reminderForm.remind_on}
-                      onChange={v => setReminderForm(f => ({ ...f, remind_on: v }))}
-                      className="flex-1 min-w-0"
+                      onChange={e => setReminderForm(f => ({ ...f, remind_on: e.target.value }))}
+                      className="flex-1 min-w-0 border border-blue-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                     />
                     <select
                       value={reminderForm.delegate_name}

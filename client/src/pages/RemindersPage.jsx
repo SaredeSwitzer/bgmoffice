@@ -4,7 +4,6 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useRemindersContext } from '../context/RemindersContext'
 import AddReminderModal from '../components/AddReminderModal'
-import DateInput from '../components/DateInput'
 import FirstClassReminderModal from '../components/FirstClassReminderModal'
 import ResumingClassesModal from '../components/ResumingClassesModal'
 import InstructorCheckInModal from '../components/InstructorCheckInModal'
@@ -108,11 +107,12 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
           <div className="flex flex-wrap gap-2">
             <div className="w-full">
               <label className="block text-xs font-medium text-gray-600 mb-1">Date *</label>
-              <DateInput
+              <input
+                type="date"
                 required
                 value={form.remind_on}
-                onChange={v => setForm(f => ({ ...f, remind_on: v }))}
-                className="w-full"
+                onChange={e => setForm(f => ({ ...f, remind_on: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
               />
             </div>
             <div>

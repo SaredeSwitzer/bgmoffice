@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
-import DateInput from '../components/DateInput'
 
 const STATUS_COLORS = {
   draft:   'bg-gray-100 text-gray-600',
@@ -130,11 +129,13 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Date</label>
-                <DateInput value={form.invoice_date} onChange={v => setField('invoice_date', v)} className="w-full" />
+                <input type="date" value={form.invoice_date} onChange={e => setField('invoice_date', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
-                <DateInput value={form.due_date} onChange={v => setField('due_date', v)} className="w-full" />
+                <input type="date" value={form.due_date} onChange={e => setField('due_date', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
             </div>
 

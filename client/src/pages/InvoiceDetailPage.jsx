@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
-import DateInput from '../components/DateInput'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -284,15 +283,15 @@ export default function InvoiceDetailPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Date</label>
-                <DateInput value={editForm.invoice_date}
-                  onChange={v => setEditForm(f => ({ ...f, invoice_date: v }))}
-                  className="w-full" />
+                <input type="date" value={editForm.invoice_date}
+                  onChange={e => setEditForm(f => ({ ...f, invoice_date: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
-                <DateInput value={editForm.due_date}
-                  onChange={v => setEditForm(f => ({ ...f, due_date: v }))}
-                  className="w-full" />
+                <input type="date" value={editForm.due_date}
+                  onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>

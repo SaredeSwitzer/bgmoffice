@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
-import DateInput from '../components/DateInput'
 import { useSeenTasks } from '../hooks/useSeenTasks'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 
@@ -58,7 +57,8 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
-          <DateInput value={form.due_date} onChange={v => set('due_date', v)} className="w-full" />
+          <input type="date" value={form.due_date} onChange={e => set('due_date', e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
