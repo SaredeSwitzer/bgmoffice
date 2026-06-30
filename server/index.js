@@ -98,6 +98,7 @@ app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/reminders',    require('./routes/reminders'));
 app.use('/api/reference',    require('./routes/reference'));
 app.use('/api/recruiting',   require('./routes/recruiting'));
+app.use('/api/recruiting',   require('./routes/recruitingIntake'));
 app.use('/api/invoices',     require('./routes/invoices'));
 app.use('/api/tasks',        require('./routes/tasks'));
 app.use('/api/packages',     require('./routes/packages'));

@@ -6,7 +6,7 @@ import SearchSelect from '../components/SearchSelect'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import PhoneLink from '../components/PhoneLink'
 
-const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+const DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
 const CLASS_TYPE_LABELS = {
   ala_carte:      'A la carte',
@@ -1078,7 +1078,9 @@ function DaySection({ day, entries, clients, instructors, actionTypes, users, st
       >
         <div className="flex items-center gap-3">
           <span className="text-gray-400 text-sm w-4 text-center">{open ? '▾' : '▸'}</span>
-          <h2 className="text-base font-bold text-gray-800">{day}</h2>
+          <h2 className="text-base font-bold text-gray-800">
+            {day === 'Flexible' ? '📋 Flexible / New Intakes' : day}
+          </h2>
           <span className="text-xs font-semibold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
             {entries.length}
           </span>
@@ -1649,7 +1651,7 @@ export default function RecruitingPage() {
               onDeleted={handleEntryDeleted}
               onArchived={handleEntryArchived}
               onCreated={handleEntryCreated}
-              defaultOpen={day === 'Sunday'}
+              defaultOpen={day === 'Sunday' || day === 'Flexible'}
               targetEntryId={targetEntryId}
               forceOpen={!!query}
             />
