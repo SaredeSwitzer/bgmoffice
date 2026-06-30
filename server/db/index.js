@@ -108,7 +108,7 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS recruiting_entries (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    day_of_week    TEXT    NOT NULL CHECK(day_of_week IN ('Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday')),
+    day_of_week    TEXT    NOT NULL CHECK(day_of_week IN ('Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday')),
     time_slot      TEXT,
     neighborhood   TEXT,
     style          TEXT,
@@ -328,6 +328,51 @@ const migrations = [
   // preferred days/times — JSON array of {day, time} for multi-day entries (added 2026-06)
   `ALTER TABLE recruiting_entries ADD COLUMN preferred_days TEXT`,
 ];
+
+// Fix recruiting_entries CHECK constraint to allow 'Flexible' day_of_week (added 2026-06)
+try {
+  const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='recruiting_entries'").get()
+  if (tableInfo && !tableInfo.sql.includes("'Flexible'")) {
+    console.log('[migration] Rebuilding recruiting_entries to allow Flexible day_of_week...')
+    db.exec('PRAGMA foreign_keys = OFF')
+    db.exec('DROP TABLE IF EXISTS recruiting_entries_new')
+    db.exec(`
+      CREATE TABLE recruiting_entries_new (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        day_of_week     TEXT    NOT NULL CHECK(day_of_week IN ('Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday')),
+        time_slot       TEXT,
+        neighborhood    TEXT,
+        style           TEXT,
+        participants    TEXT,
+        client_name     TEXT,
+        client_id       INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+        address         TEXT,
+        phone           TEXT,
+        waiver_signed   INTEGER NOT NULL DEFAULT 0,
+        instructor_info TEXT,
+        client_rate     TEXT,
+        extra_data      TEXT,
+        created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+        created_by      TEXT,
+        instructor_id       INTEGER REFERENCES instructors(id) ON DELETE SET NULL,
+        action_type_id      INTEGER REFERENCES action_types(id) ON DELETE SET NULL,
+        assigned_to_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        archived            INTEGER NOT NULL DEFAULT 0,
+        class_type          TEXT,
+        class_dates         TEXT,
+        class_notes         TEXT,
+        preferred_days      TEXT
+      )
+    `)
+    db.exec('INSERT INTO recruiting_entries_new SELECT * FROM recruiting_entries')
+    db.exec('DROP TABLE recruiting_entries')
+    db.exec('ALTER TABLE recruiting_entries_new RENAME TO recruiting_entries')
+    db.exec('PRAGMA foreign_keys = ON')
+    console.log('[migration] recruiting_entries rebuilt with Flexible support')
+  }
+} catch (err) {
+  console.error('[migration] recruiting_entries rebuild failed:', err.message)
+}
 
 // instructor availability table (added 2026-06)
 db.exec(`

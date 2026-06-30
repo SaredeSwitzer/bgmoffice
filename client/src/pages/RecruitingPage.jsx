@@ -491,6 +491,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
   const [form, setForm] = useState(() => ({
     class_type:          entry?.class_type          || '',
     class_dates:         entry?.class_dates         || '',
+    time_slot:           entry?.time_slot           || '',
     neighborhood:        entry?.neighborhood        || '',
     style:               entry?.style               || '',
     participants:        entry?.participants        || '',
