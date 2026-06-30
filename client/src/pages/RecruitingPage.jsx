@@ -1674,21 +1674,6 @@ export default function RecruitingPage() {
           Entries
         </button>
         <button
-          onClick={() => setTab('flex')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            tab === 'flex'
-              ? 'border-blue-600 text-blue-700'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Flex
-          {(grouped['Flexible']?.length > 0) && (
-            <span className="ml-2 text-xs font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
-              {grouped['Flexible'].length}
-            </span>
-          )}
-        </button>
-        <button
           onClick={() => setTab('availability')}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === 'availability'
@@ -1714,6 +1699,25 @@ export default function RecruitingPage() {
               Showing archived entries. <button onClick={toggleArchived} className="underline hover:text-gray-800">Back to active entries</button>
             </p>
           )}
+          {/* Flex section always first */}
+          {(!query || (grouped['Flexible']?.length > 0)) && (
+            <DaySection
+              day="Flexible"
+              entries={grouped['Flexible'] || []}
+              clients={clients}
+              instructors={instructors}
+              actionTypes={actionTypes}
+              users={users}
+              styles={styles}
+              onUpdated={handleEntryUpdated}
+              onDeleted={handleEntryDeleted}
+              onArchived={handleEntryArchived}
+              onCreated={handleEntryCreated}
+              defaultOpen={true}
+              targetEntryId={targetEntryId}
+              forceOpen={!!query}
+            />
+          )}
           {WEEK_DAYS.filter(day => !query || (grouped[day]?.length > 0)).map(day => (
             <DaySection
               key={day}
@@ -1736,28 +1740,6 @@ export default function RecruitingPage() {
           {query && totalEntries === 0 && (
             <p className="text-sm text-gray-400 italic px-2">No entries match "{query}".</p>
           )}
-        </div>
-      ) : tab === 'flex' ? (
-        <div className="space-y-4">
-          <p className="text-xs text-gray-500">
-            Entries with flexible or multiple day options — including new intakes from the Google Form.
-          </p>
-          <DaySection
-            day="Flexible"
-            entries={grouped['Flexible'] || []}
-            clients={clients}
-            instructors={instructors}
-            actionTypes={actionTypes}
-            users={users}
-            styles={styles}
-            onUpdated={handleEntryUpdated}
-            onDeleted={handleEntryDeleted}
-            onArchived={handleEntryArchived}
-            onCreated={handleEntryCreated}
-            defaultOpen={true}
-            targetEntryId={targetEntryId}
-            forceOpen={false}
-          />
         </div>
       ) : (
         <InstructorAvailabilityTab
