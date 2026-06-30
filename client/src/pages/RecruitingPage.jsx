@@ -6,7 +6,9 @@ import SearchSelect from '../components/SearchSelect'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import PhoneLink from '../components/PhoneLink'
 
-const DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+const ALL_DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+const WEEK_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+const DAYS = ALL_DAYS
 
 const CLASS_TYPE_LABELS = {
   ala_carte:      'A la carte',
@@ -474,10 +476,20 @@ function StylesManagerModal({ styles, onChanged, onClose }) {
 function EntryForm({ day, entry, clients, instructors, actionTypes, users, styles, onSave, onCancel }) {
   const { user } = useAuth()
 
+  // Parse existing preferred_days or seed from entry's day/time
+  function initPreferredDays() {
+    if (entry?.preferred_days) {
+      try { return JSON.parse(entry.preferred_days) } catch { /* fall through */ }
+    }
+    const d = entry?.day_of_week || day
+    if (d && d !== 'Flexible') return [{ day: d, time: entry?.time_slot || '' }]
+    return []
+  }
+
+  const [preferredDays, setPreferredDays] = useState(initPreferredDays)
+
   const [form, setForm] = useState(() => ({
-    day_of_week:         entry?.day_of_week         || day,
     class_type:          entry?.class_type          || '',
-    time_slot:           entry?.time_slot           || '',
     class_dates:         entry?.class_dates         || '',
     neighborhood:        entry?.neighborhood        || '',
     style:               entry?.style               || '',
@@ -492,6 +504,17 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
     client_rate:         entry?.client_rate         || '',
     class_notes:         entry?.class_notes         || '',
   }))
+
+  function toggleDay(d) {
+    setPreferredDays(prev => {
+      const exists = prev.find(p => p.day === d)
+      return exists ? prev.filter(p => p.day !== d) : [...prev, { day: d, time: '' }]
+    })
+  }
+
+  function setDayTime(d, time) {
+    setPreferredDays(prev => prev.map(p => p.day === d ? { ...p, time } : p))
+  }
 
   const [clientObj,     setClientObj]     = useState(
     entry?.client_id ? clients.find(c => c.id === entry.client_id) || null : null
@@ -551,11 +574,13 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (preferredDays.length === 0) { setError('Select at least one day.'); return }
     setSaving(true)
     setError('')
     try {
       const payload = {
         ...form,
+        preferred_days: preferredDays,
         client_id:     form.client_id     || null,
         instructor_id: form.instructor_id || null,
         class_type:    form.class_type    || null,
@@ -575,14 +600,37 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      {!entry && (
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Day *</label>
-          <select value={form.day_of_week} onChange={e => setField('day_of_week', e.target.value)} className={selectCls}>
-            {DAYS.map(d => <option key={d}>{d}</option>)}
-          </select>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Day(s) * <span className="text-gray-400 font-normal">(select all that apply)</span>
+        </label>
+        <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          {WEEK_DAYS.map(d => {
+            const selected = preferredDays.find(p => p.day === d)
+            return (
+              <div key={d} className={`flex items-center gap-3 px-3 py-2 ${selected ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}>
+                <label className="flex items-center gap-2 cursor-pointer flex-shrink-0 w-28">
+                  <input type="checkbox" checked={!!selected} onChange={() => toggleDay(d)}
+                    className="w-3.5 h-3.5 accent-gray-800" />
+                  <span className="text-sm font-medium text-gray-700">{d}</span>
+                </label>
+                {selected && (
+                  <input
+                    type="text"
+                    value={selected.time}
+                    onChange={e => setDayTime(d, e.target.value)}
+                    placeholder="Time (e.g. 9–10am)"
+                    className="flex-1 border border-blue-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  />
+                )}
+              </div>
+            )
+          })}
         </div>
-      )}
+        {preferredDays.length > 1 && (
+          <p className="text-[11px] text-blue-600 mt-1 pl-1">Multiple days selected — entry will appear in the Flex tab.</p>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
@@ -970,8 +1018,25 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, styles, on
                     <p className="text-sm text-gray-800">{entry.class_type ? CLASS_TYPE_LABELS[entry.class_type] : <span className="text-gray-300">—</span>}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Time</p>
-                    <p className="text-sm text-gray-800">{entry.time_slot || <span className="text-gray-300">—</span>}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Day(s) & Time</p>
+                    {(() => {
+                      try {
+                        const pd = entry.preferred_days ? JSON.parse(entry.preferred_days) : null
+                        if (pd && pd.length > 0) {
+                          return (
+                            <div className="space-y-0.5">
+                              {pd.map((p, i) => (
+                                <p key={i} className="text-sm text-gray-800">
+                                  <span className="font-medium">{p.day}</span>
+                                  {p.time ? <span className="text-gray-500"> · {p.time}</span> : null}
+                                </p>
+                              ))}
+                            </div>
+                          )
+                        }
+                      } catch {}
+                      return <p className="text-sm text-gray-800">{entry.time_slot || <span className="text-gray-300">—</span>}</p>
+                    })()}
                   </div>
                   {entry.class_dates && (
                     <div className="col-span-2">
@@ -1078,9 +1143,7 @@ function DaySection({ day, entries, clients, instructors, actionTypes, users, st
       >
         <div className="flex items-center gap-3">
           <span className="text-gray-400 text-sm w-4 text-center">{open ? '▾' : '▸'}</span>
-          <h2 className="text-base font-bold text-gray-800">
-            {day === 'Flexible' ? '📋 Flexible / New Intakes' : day}
-          </h2>
+          <h2 className="text-base font-bold text-gray-800">{day}</h2>
           <span className="text-xs font-semibold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
             {entries.length}
           </span>
@@ -1529,16 +1592,15 @@ export default function RecruitingPage() {
   function handleEntryDeleted(id) {
     setGrouped(prev => {
       const next = {}
-      DAYS.forEach(d => { next[d] = (prev[d] || []).filter(e => e.id !== id) })
+      ALL_DAYS.forEach(d => { next[d] = (prev[d] || []).filter(e => e.id !== id) })
       return next
     })
   }
 
   function handleEntryArchived(updated) {
-    // Remove from current view (archived/unarchived toggle causes it to disappear)
     setGrouped(prev => {
       const next = {}
-      DAYS.forEach(d => { next[d] = (prev[d] || []).filter(e => e.id !== updated.id) })
+      ALL_DAYS.forEach(d => { next[d] = (prev[d] || []).filter(e => e.id !== updated.id) })
       return next
     })
   }
@@ -1552,8 +1614,8 @@ export default function RecruitingPage() {
 
   if (error) return <p className="text-red-600 text-sm">{error}</p>
 
-  const totalEntries  = DAYS.reduce((n, d) => n + (grouped[d]?.length || 0), 0)
-  const unfilledCount = DAYS.reduce((n, d) => n + (grouped[d] || []).filter(isUnfilled).length, 0)
+  const totalEntries  = ALL_DAYS.reduce((n, d) => n + (grouped[d]?.length || 0), 0)
+  const unfilledCount = ALL_DAYS.reduce((n, d) => n + (grouped[d] || []).filter(isUnfilled).length, 0)
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -1612,6 +1674,21 @@ export default function RecruitingPage() {
           Entries
         </button>
         <button
+          onClick={() => setTab('flex')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === 'flex'
+              ? 'border-blue-600 text-blue-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Flex
+          {(grouped['Flexible']?.length > 0) && (
+            <span className="ml-2 text-xs font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+              {grouped['Flexible'].length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setTab('availability')}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === 'availability'
@@ -1637,7 +1714,7 @@ export default function RecruitingPage() {
               Showing archived entries. <button onClick={toggleArchived} className="underline hover:text-gray-800">Back to active entries</button>
             </p>
           )}
-          {DAYS.filter(day => !query || (grouped[day]?.length > 0)).map(day => (
+          {WEEK_DAYS.filter(day => !query || (grouped[day]?.length > 0)).map(day => (
             <DaySection
               key={day}
               day={day}
@@ -1651,7 +1728,7 @@ export default function RecruitingPage() {
               onDeleted={handleEntryDeleted}
               onArchived={handleEntryArchived}
               onCreated={handleEntryCreated}
-              defaultOpen={day === 'Sunday' || day === 'Flexible'}
+              defaultOpen={day === 'Sunday'}
               targetEntryId={targetEntryId}
               forceOpen={!!query}
             />
@@ -1659,6 +1736,28 @@ export default function RecruitingPage() {
           {query && totalEntries === 0 && (
             <p className="text-sm text-gray-400 italic px-2">No entries match "{query}".</p>
           )}
+        </div>
+      ) : tab === 'flex' ? (
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Entries with flexible or multiple day options — including new intakes from the Google Form.
+          </p>
+          <DaySection
+            day="Flexible"
+            entries={grouped['Flexible'] || []}
+            clients={clients}
+            instructors={instructors}
+            actionTypes={actionTypes}
+            users={users}
+            styles={styles}
+            onUpdated={handleEntryUpdated}
+            onDeleted={handleEntryDeleted}
+            onArchived={handleEntryArchived}
+            onCreated={handleEntryCreated}
+            defaultOpen={true}
+            targetEntryId={targetEntryId}
+            forceOpen={false}
+          />
         </div>
       ) : (
         <InstructorAvailabilityTab

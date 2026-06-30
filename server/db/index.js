@@ -325,6 +325,8 @@ const migrations = [
   `ALTER TABLE instructors ADD COLUMN neighborhood TEXT`,
   `ALTER TABLE instructors       ADD COLUMN styles_taught TEXT`,
   `ALTER TABLE recruiting_entries ADD COLUMN class_notes  TEXT`,
+  // preferred days/times — JSON array of {day, time} for multi-day entries (added 2026-06)
+  `ALTER TABLE recruiting_entries ADD COLUMN preferred_days TEXT`,
 ];
 
 // instructor availability table (added 2026-06)

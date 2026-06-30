@@ -96,26 +96,40 @@ router.get('/client/:clientId', (req, res) => {
   res.json(entries);
 });
 
+// Derive day_of_week from preferred_days array: single → that day, multiple → Flexible
+function resolveDayOfWeek(preferredDays, explicitDay) {
+  if (Array.isArray(preferredDays) && preferredDays.length > 0) {
+    return preferredDays.length === 1 ? preferredDays[0].day : 'Flexible';
+  }
+  return explicitDay || 'Flexible';
+}
+
 router.post('/entries', (req, res) => {
   const {
-    day_of_week, time_slot, neighborhood, style, participants,
+    preferred_days, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
     instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
     class_type, class_dates, class_notes,
   } = req.body;
-  if (!day_of_week || !DAYS.includes(day_of_week))
+
+  const day_of_week = resolveDayOfWeek(preferred_days, req.body.day_of_week);
+  if (!DAYS.includes(day_of_week))
     return res.status(400).json({ error: 'Valid day_of_week required' });
+
+  // For single-day entries, pull the time from preferred_days if not given separately
+  const resolvedTime = time_slot ||
+    (Array.isArray(preferred_days) && preferred_days.length === 1 ? preferred_days[0].time : null);
 
   const result = db.prepare(`
     INSERT INTO recruiting_entries
       (day_of_week, time_slot, neighborhood, style, participants,
        client_name, client_id, address, phone, waiver_signed,
        instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id, created_by,
-       class_type, class_dates, class_notes)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       class_type, class_dates, class_notes, preferred_days)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     day_of_week,
-    time_slot           || null,
+    resolvedTime        || null,
     neighborhood        || null,
     style               || null,
     participants        || null,
@@ -133,6 +147,7 @@ router.post('/entries', (req, res) => {
     class_type          || null,
     class_dates         || null,
     class_notes         || null,
+    preferred_days ? JSON.stringify(preferred_days) : null,
   );
   res.status(201).json(getEntry(result.lastInsertRowid));
 });
@@ -142,22 +157,26 @@ router.put('/entries/:id', (req, res) => {
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
 
   const {
-    day_of_week, time_slot, neighborhood, style, participants,
+    preferred_days, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
     instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
     class_type, class_dates, class_notes,
   } = req.body;
+
+  const day_of_week = resolveDayOfWeek(preferred_days, req.body.day_of_week);
+  const resolvedTime = time_slot ||
+    (Array.isArray(preferred_days) && preferred_days.length === 1 ? preferred_days[0].time : null);
 
   db.prepare(`
     UPDATE recruiting_entries SET
       day_of_week=?, time_slot=?, neighborhood=?, style=?, participants=?,
       client_name=?, client_id=?, address=?, phone=?, waiver_signed=?,
       instructor_info=?, instructor_id=?, client_rate=?, action_type_id=?, assigned_to_user_id=?,
-      class_type=?, class_dates=?, class_notes=?
+      class_type=?, class_dates=?, class_notes=?, preferred_days=?
     WHERE id=?
   `).run(
     day_of_week         || null,
-    time_slot           || null,
+    resolvedTime        || null,
     neighborhood        || null,
     style               || null,
     participants        || null,
@@ -174,6 +193,7 @@ router.put('/entries/:id', (req, res) => {
     class_type          || null,
     class_dates         || null,
     class_notes         || null,
+    preferred_days ? JSON.stringify(preferred_days) : null,
     req.params.id,
   );
   res.json(getEntry(req.params.id));
