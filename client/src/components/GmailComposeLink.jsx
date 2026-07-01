@@ -7,7 +7,7 @@ function loadAccounts() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
 }
 
-export default function GmailComposeLink({ to, children, className, stopPropagation }) {
+export default function GmailComposeLink({ to, subject, body, children, className, stopPropagation }) {
   const [open,     setOpen]     = useState(false)
   const [accounts, setAccounts] = useState(loadAccounts)
   const [newAddr,  setNewAddr]  = useState('')
@@ -32,7 +32,10 @@ export default function GmailComposeLink({ to, children, className, stopPropagat
   function openGmail(sender) {
     localStorage.setItem(LAST_KEY, sender)
     setLastUsed(sender)
-    const url = `https://mail.google.com/mail/?authuser=${encodeURIComponent(sender)}&view=cm&fs=1&to=${encodeURIComponent(to)}`
+    const params = new URLSearchParams({ authuser: sender, view: 'cm', fs: '1', to })
+    if (subject) params.set('su', subject)
+    if (body)    params.set('body', body)
+    const url = `https://mail.google.com/mail/?${params.toString()}`
     window.open(url, '_blank', 'noopener,noreferrer')
     setOpen(false)
   }

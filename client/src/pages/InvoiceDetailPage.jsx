@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
+import GmailComposeLink from '../components/GmailComposeLink'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -126,12 +127,12 @@ export default function InvoiceDetailPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function emailInvoice() {
-    const subject = encodeURIComponent(`Invoice ${invoice.invoice_number} from BGM Office`)
-    const body = encodeURIComponent(
-      `Hi ${invoice.client_name || ''},\n\nPlease find your invoice attached below.\n\nInvoice: ${invoice.invoice_number}\nAmount Due: ${fmtMoney(invoice.total)}\nDue Date: ${fmtDate(invoice.due_date)}\n\nPay online here: ${getPaymentLink()}\n\nThank you!`
-    )
-    window.open(`mailto:${invoice.client_email || ''}?subject=${subject}&body=${body}`)
+  function emailSubject() {
+    return `Invoice ${invoice.invoice_number} from BGM Office`
+  }
+
+  function emailBody() {
+    return `Hi ${invoice.client_name || ''},\n\nPlease find your invoice below.\n\nInvoice: ${invoice.invoice_number}\nAmount Due: ${fmtMoney(invoice.total)}\nDue Date: ${fmtDate(invoice.due_date)}\n\nPay online here: ${getPaymentLink()}\n\nThank you!`
   }
 
   function downloadPDF() {
@@ -505,10 +506,14 @@ export default function InvoiceDetailPage() {
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
               {copied ? '✓ Copied!' : '🔗 Copy Payment Link'}
             </button>
-            <button onClick={emailInvoice}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
+            <GmailComposeLink
+              to={invoice.client_email || ''}
+              subject={emailSubject()}
+              body={emailBody()}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
+            >
               ✉️ Send by Email
-            </button>
+            </GmailComposeLink>
             <button onClick={downloadPDF}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
               📄 Download PDF
