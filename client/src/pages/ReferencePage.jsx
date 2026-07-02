@@ -17,12 +17,22 @@ function MarkdownPreview({ text }) {
       .replace(/^### (.+)$/gm, '<h3 class="text-base font-bold text-gray-800 mt-4 mb-1">$1</h3>')
       .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-gray-900 mt-5 mb-1">$1</h2>')
       .replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold text-gray-900 mt-5 mb-2">$1</h1>')
-      // Links [text](url) — opens in new tab; blocks javascript: URLs; adds https:// if no protocol
+      // Markdown links [text](url)
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
         const trimmed = url.trim()
         if (/^javascript:/i.test(trimmed)) return text
         const href = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
         return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">${text}</a>`
+      })
+      // Auto-link bare https?:// URLs (negative lookbehind avoids re-linking href values)
+      .replace(/(?<!href=")https?:\/\/[^\s<>"&]+/g, url => {
+        const clean = url.replace(/[.,!?;:)]+$/, '')
+        return `<a href="${clean}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">${clean}</a>`
+      })
+      // Auto-link bare www. URLs
+      .replace(/(?<!\/\/)(?<!\w)www\.[^\s<>"&]+/g, url => {
+        const clean = url.replace(/[.,!?;:)]+$/, '')
+        return `<a href="https://${clean}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">${clean}</a>`
       })
       // Bold + italic
       .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
@@ -82,7 +92,7 @@ function SectionEditor({ initial, onSave, onCancel, saving }) {
       <div>
         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
           Content
-          <span className="ml-2 font-normal normal-case text-gray-400">(Markdown supported — **bold**, *italic*, ## Heading, - list, [link text](url))</span>
+          <span className="ml-2 font-normal normal-case text-gray-400">(Markdown supported — **bold**, *italic*, ## Heading, - list · URLs auto-link)</span>
         </label>
         <textarea
           value={content}
