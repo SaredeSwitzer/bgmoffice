@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { useSeenTasks } from '../hooks/useSeenTasks'
 import ActionTypeBadge from '../components/ActionTypeBadge'
+import DashboardFilterBar from '../components/DashboardFilterBar'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -427,18 +428,24 @@ export default function TasksPage() {
 
     return (
       <div className="max-w-3xl mx-auto space-y-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
-          <button onClick={() => navigate('/tasks')}
-            className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">
-            See all {meta.label} tasks
-          </button>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate(-1)}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+            <button onClick={() => navigate('/tasks')}
+              className="text-xs text-gray-400 hover:text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1 hover:bg-gray-50">
+              See all {meta.label} tasks
+            </button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 px-4 py-3">
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-2">Open Tasks</p>
+            <DashboardFilterBar />
+          </div>
         </div>
 
         {focusedTask ? (

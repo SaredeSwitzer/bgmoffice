@@ -17,10 +17,12 @@ function MarkdownPreview({ text }) {
       .replace(/^### (.+)$/gm, '<h3 class="text-base font-bold text-gray-800 mt-4 mb-1">$1</h3>')
       .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-gray-900 mt-5 mb-1">$1</h2>')
       .replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold text-gray-900 mt-5 mb-2">$1</h1>')
-      // Links [text](url) — opens in new tab; blocks javascript: URLs
+      // Links [text](url) — opens in new tab; blocks javascript: URLs; adds https:// if no protocol
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
-        const safe = /^javascript:/i.test(url.trim()) ? '#' : url.trim()
-        return `<a href="${safe}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">${text}</a>`
+        const trimmed = url.trim()
+        if (/^javascript:/i.test(trimmed)) return text
+        const href = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">${text}</a>`
       })
       // Bold + italic
       .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
