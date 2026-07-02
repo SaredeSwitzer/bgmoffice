@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
+import DashboardFilterBar, { FILTER_ALL, FILTER_ANYONE, FILTER_STARRED, CATEGORY_FILTERS } from '../components/DashboardFilterBar'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -154,10 +155,6 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
 
 // ── Filter constants ──────────────────────────────────────────────────────────
 
-const FILTER_ALL     = 'all'
-const FILTER_ANYONE  = '__anyone__'
-const FILTER_STARRED = '__starred__'
-
 // Mirror of server constants — used for client-side category fallback
 const CLIENT_FACING_TYPES = [
   'FOLLOW UP WITH CLIENT',
@@ -181,22 +178,11 @@ function getItemCategories(item) {
   return cats.length ? cats : ['other']
 }
 
-const CATEGORY_FILTERS = [
-  { key: 'all',                 label: 'All' },
-  { key: 'client_followup',     label: 'Client F/U' },
-  { key: 'instructor_followup', label: 'Instructor F/U' },
-  { key: 'recruiting',          label: 'Recruiting' },
-  { key: 'reference',           label: 'Reference' },
-  { key: 'other',               label: 'Other' },
-]
-
 // ── Open Tasks table ──────────────────────────────────────────────────────────
 
-function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }) {
-  const [delegateFilter,  setDelegateFilter]  = useState(FILTER_ALL)
-  const [categoryFilter,  setCategoryFilter]  = useState('all')
-  const [sortCol,         setSortCol]         = useState(null)
-  const [sortDir,         setSortDir]         = useState('asc')
+function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar, delegateFilter, categoryFilter, onDelegateChange, onCategoryChange }) {
+  const [sortCol, setSortCol] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
 
   function handleSort(col) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -233,19 +219,7 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
     return filtered
   }, [items, delegateFilter, categoryFilter, sortCol, sortDir, myDelegateName])
 
-  const delegateFilters = [
-    { key: FILTER_ALL,     label: 'All' },
-    { key: FILTER_STARRED, label: '★ Starred' },
-    { key: FILTER_ANYONE,  label: 'Anyone' },
-    ...delegates.map(d => ({ key: d.name, label: d.name })),
-  ]
-
   const hasFilters = delegateFilter !== FILTER_ALL || categoryFilter !== 'all'
-
-  function resetFilters() {
-    setDelegateFilter(FILTER_ALL)
-    setCategoryFilter('all')
-  }
 
   return (
     <section>
@@ -255,45 +229,20 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar }
           {displayItems.length}{displayItems.length !== items.length ? ` of ${items.length}` : ''}
         </span>
         {hasFilters && (
-          <button onClick={resetFilters} className="text-xs text-gray-400 hover:text-gray-700 ml-1">
+          <button onClick={() => { onDelegateChange(FILTER_ALL); onCategoryChange('all') }} className="text-xs text-gray-400 hover:text-gray-700 ml-1">
             ✕ clear filters
           </button>
         )}
       </div>
 
-      <div className="mb-3 space-y-2">
-        {/* Assignee filter */}
-        <div className="flex flex-wrap gap-1.5">
-          {delegateFilters.map(({ key, label }) => (
-            <button key={key} onClick={() => setDelegateFilter(key)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                delegateFilter === key
-                  ? key === FILTER_STARRED ? 'bg-yellow-400 text-white' : 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Category filter */}
-        <div className="flex flex-wrap gap-1.5 items-center">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mr-1">Type:</span>
-          {CATEGORY_FILTERS.map(({ key, label }) => (
-            <button key={key} onClick={() => setCategoryFilter(key)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                categoryFilter === key
-                  ? key === 'recruiting'          ? 'bg-amber-500 text-white'
-                  : key === 'client_followup'     ? 'bg-green-600 text-white'
-                  : key === 'instructor_followup' ? 'bg-blue-600 text-white'
-                  : key === 'reference'           ? 'bg-purple-600 text-white'
-                  : 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-3">
+        <DashboardFilterBar
+          delegates={delegates}
+          activeDelegate={delegateFilter}
+          activeCategory={categoryFilter}
+          onDelegateChange={onDelegateChange}
+          onCategoryChange={onCategoryChange}
+        />
       </div>
 
       {displayItems.length === 0 ? (
@@ -344,6 +293,17 @@ export default function DashboardPage() {
   const [completedPackages, setCompletedPackages] = useState([])
   const [error,             setError]             = useState('')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const delegateFilter = searchParams.get('delegate') || FILTER_ALL
+  const categoryFilter = searchParams.get('category') || 'all'
+
+  function setDelegateFilter(key) {
+    setSearchParams(p => { const n = new URLSearchParams(p); n.set('delegate', key); return n }, { replace: true })
+  }
+  function setCategoryFilter(key) {
+    setSearchParams(p => { const n = new URLSearchParams(p); n.set('category', key); return n }, { replace: true })
+  }
 
   useEffect(() => {
     Promise.all([api.dashboard(), api.getDelegates(), api.getRecentlyCompletedPackages()])
@@ -426,6 +386,10 @@ export default function DashboardPage() {
         delegates={delegates}
         myDelegateName={myDelegateName}
         onStar={handleStar}
+        delegateFilter={delegateFilter}
+        categoryFilter={categoryFilter}
+        onDelegateChange={setDelegateFilter}
+        onCategoryChange={setCategoryFilter}
       />
     </div>
   )

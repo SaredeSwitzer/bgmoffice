@@ -4,6 +4,7 @@ import { api, uploadsUrl } from '../api/client'
 import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
+import DashboardFilterBar from '../components/DashboardFilterBar'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -376,13 +377,19 @@ export default function InstructorProfilePage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <button onClick={() => navigate(-1)}
-        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Back
-      </button>
+      <div className="space-y-3">
+        <button onClick={() => navigate(-1)}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+        <div className="bg-white rounded-xl border border-gray-100 px-4 py-3">
+          <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-2">Open Tasks</p>
+          <DashboardFilterBar />
+        </div>
+      </div>
 
       {/* Profile card */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
