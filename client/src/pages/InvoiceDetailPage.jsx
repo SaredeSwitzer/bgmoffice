@@ -135,21 +135,39 @@ export default function InvoiceDetailPage() {
     return `Hi ${invoice.client_name || ''},\n\nPlease find your invoice below.\n\nInvoice: ${invoice.invoice_number}\nAmount Due: ${fmtMoney(invoice.total)}\nDue Date: ${fmtDate(invoice.due_date)}\n\nPay online here: ${getPaymentLink()}\n\nThank you!`
   }
 
-  function downloadPDF() {
+  async function downloadPDF() {
     const doc = new jsPDF()
     const pageW = doc.internal.pageSize.getWidth()
 
-    // Header
-    doc.setFontSize(22)
-    doc.setFont('helvetica', 'bold')
-    doc.text('BGM OFFICE', 14, 20)
-    doc.setFontSize(10)
+    // Load logo
+    let logoY = 14
+    try {
+      const logoResp = await fetch('/logo.jpg')
+      const blob = await logoResp.blob()
+      const b64 = await new Promise(res => {
+        const reader = new FileReader()
+        reader.onloadend = () => res(reader.result)
+        reader.readAsDataURL(blob)
+      })
+      doc.addImage(b64, 'JPEG', 14, 10, 36, 18)
+      logoY = 30
+    } catch {
+      // fall back to text if logo fails
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Bring the Gym to Me, LLC', 14, 20)
+      logoY = 28
+    }
+
+    // Company address under logo
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(120)
-    doc.text('bgmoffice.com', 14, 27)
+    doc.text('Bring the Gym to Me, LLC', 14, logoY)
+    doc.text('346 New York Ave #5A, Brooklyn, NY 11213', 14, logoY + 5)
     doc.setTextColor(0)
 
-    // Invoice title + number
+    // Invoice title + number (top right)
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
     doc.text('INVOICE', pageW - 14, 20, { align: 'right' })
@@ -159,33 +177,37 @@ export default function InvoiceDetailPage() {
     doc.text(invoice.invoice_number, pageW - 14, 27, { align: 'right' })
     doc.setTextColor(0)
 
+    const dividerY = logoY + 12
+
     // Divider
     doc.setDrawColor(220)
-    doc.line(14, 32, pageW - 14, 32)
+    doc.line(14, dividerY, pageW - 14, dividerY)
+
+    const billY = dividerY + 8
 
     // Bill To + Dates
     doc.setFontSize(9)
     doc.setTextColor(120)
-    doc.text('BILL TO', 14, 40)
+    doc.text('BILL TO', 14, billY)
     doc.setTextColor(0)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.text(invoice.client_name || '—', 14, 47)
+    doc.text(invoice.client_name || '—', 14, billY + 7)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
 
     doc.setTextColor(120)
-    doc.text('INVOICE DATE', pageW - 14 - 50, 40, { align: 'left' })
-    doc.text('DUE DATE', pageW - 14 - 50, 48, { align: 'left' })
+    doc.text('INVOICE DATE', pageW - 14 - 50, billY, { align: 'left' })
+    doc.text('DUE DATE', pageW - 14 - 50, billY + 8, { align: 'left' })
     doc.setTextColor(0)
     doc.setFont('helvetica', 'bold')
-    doc.text(fmtDate(invoice.invoice_date), pageW - 14, 40, { align: 'right' })
-    doc.text(fmtDate(invoice.due_date), pageW - 14, 48, { align: 'right' })
+    doc.text(fmtDate(invoice.invoice_date), pageW - 14, billY, { align: 'right' })
+    doc.text(fmtDate(invoice.due_date), pageW - 14, billY + 8, { align: 'right' })
     doc.setFont('helvetica', 'normal')
 
     // Line items table
     autoTable(doc, {
-      startY: 60,
+      startY: billY + 18,
       head: [['Description', 'Class Date', 'Price']],
       body: invoice.line_items.map(li => [
         li.description,
@@ -232,6 +254,21 @@ export default function InvoiceDetailPage() {
       doc.setTextColor(60)
       doc.text(invoice.notes, 14, finalY + 13, { maxWidth: pageW / 2 - 20 })
     }
+
+    // Payment instructions
+    const payY = finalY + (invoice.notes ? 28 : 26)
+    doc.setDrawColor(220)
+    doc.line(14, payY, pageW - 14, payY)
+    doc.setFontSize(9)
+    doc.setTextColor(100)
+    doc.text('PAYMENT OPTIONS', 14, payY + 7)
+    doc.setFontSize(8.5)
+    doc.setTextColor(60)
+    doc.text('Credit card: Pay online at the link sent with this invoice.', 14, payY + 14)
+    doc.text('Check: Make payable to Bring the Gym to Me, LLC', 14, payY + 21)
+    doc.text('        Mail to: 346 New York Ave #5A, Brooklyn, NY 11213', 14, payY + 28)
+    doc.setTextColor(120)
+    doc.text(`(include invoice ${invoice.invoice_number} in the memo)`, 14, payY + 35)
 
     doc.save(`${invoice.invoice_number}.pdf`)
   }

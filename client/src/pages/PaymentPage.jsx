@@ -94,7 +94,7 @@ export default function PaymentPage() {
         const pk = pkData.publishable_key
 
         if (!pk) {
-          setError('Online payment is not yet configured for this account. Please contact BGM Office to arrange payment.')
+          // No Stripe key — still show the invoice + check payment option
           return
         }
 
@@ -149,8 +149,10 @@ export default function PaymentPage() {
       <div className="max-w-lg mx-auto space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">BGM Office</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Secure Payment</p>
+          <img src="/logo.jpg" alt="Bring the Gym to Me" className="h-20 mx-auto mb-3 object-contain" />
+          <p className="text-xs text-gray-400">Bring the Gym to Me, LLC</p>
+          <p className="text-xs text-gray-400">346 New York Ave #5A, Brooklyn, NY 11213</p>
+          <p className="text-xs text-gray-300 mt-2">Secure Payment</p>
         </div>
 
         {/* Invoice summary */}
@@ -224,8 +226,20 @@ export default function PaymentPage() {
           </div>
         )}
 
+        {/* Pay by check */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Pay by Check</h3>
+          <p className="text-sm text-gray-600 mb-1">
+            Make check payable to: <span className="font-semibold text-gray-900">Bring the Gym to Me, LLC</span>
+          </p>
+          <p className="text-sm text-gray-600">
+            Mail to: <span className="font-semibold text-gray-900">346 New York Ave #5A, Brooklyn, NY 11213</span>
+          </p>
+          <p className="text-xs text-gray-400 mt-2">Please include invoice #{invoice?.invoice_number} in the memo line.</p>
+        </div>
+
         <p className="text-center text-xs text-gray-400">
-          Payments are processed securely by Stripe. BGM Office never stores your card details.
+          Card payments are processed securely by Stripe. BGM Office never stores your card details.
         </p>
       </div>
     </div>
