@@ -314,25 +314,65 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
   )
 }
 
+const STATUS_ORDER = ['draft', 'sent', 'overdue', 'paid']
+
+function sortInvoices(invoices, col, dir) {
+  return [...invoices].sort((a, b) => {
+    let av, bv
+    if (col === 'invoice_number') { av = a.invoice_number; bv = b.invoice_number }
+    else if (col === 'client_name') { av = (a.client_name || '').toLowerCase(); bv = (b.client_name || '').toLowerCase() }
+    else if (col === 'invoice_date') { av = a.invoice_date || ''; bv = b.invoice_date || '' }
+    else if (col === 'due_date') { av = a.due_date || ''; bv = b.due_date || '' }
+    else if (col === 'total') { av = a.total || 0; bv = b.total || 0 }
+    else if (col === 'status') { av = STATUS_ORDER.indexOf(a.status); bv = STATUS_ORDER.indexOf(b.status) }
+    if (av < bv) return dir === 'asc' ? -1 : 1
+    if (av > bv) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
+function SortTh({ col, label, sortCol, sortDir, onSort, className = '' }) {
+  const active = sortCol === col
+  return (
+    <th
+      onClick={() => onSort(col)}
+      className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-gray-800 whitespace-nowrap ${className}`}
+    >
+      {label}
+      <span className="ml-1 inline-block w-3 text-gray-300">
+        {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+      </span>
+    </th>
+  )
+}
+
 export default function InvoicesPage() {
   const navigate = useNavigate()
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
-  const [clientFilter, setClientFilter] = useState(null)
-  const [clients, setClients] = useState([])
+  const [sortCol, setSortCol] = useState('invoice_number')
+  const [sortDir, setSortDir] = useState('desc')
   const [showNew, setShowNew] = useState(false)
-
-  useEffect(() => { api.getClients().then(setClients) }, [])
 
   function load() {
     const params = {}
     if (statusFilter) params.status = statusFilter
-    if (clientFilter?.id) params.client_id = clientFilter.id
     return api.getInvoices(params).then(setInvoices).finally(() => setLoading(false))
   }
 
-  useEffect(() => { setLoading(true); load() }, [statusFilter, clientFilter])
+  useEffect(() => { setLoading(true); load() }, [statusFilter])
+
+  function handleSort(col) {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
+
+  const sorted = sortInvoices(invoices, sortCol, sortDir)
 
   if (loading) return (
     <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
@@ -343,15 +383,6 @@ export default function InvoicesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-gray-900">Invoices</h1>
         <div className="flex gap-2 items-center flex-wrap">
-          <div className="w-48">
-            <SearchSelect
-              options={clients}
-              value={clientFilter}
-              onChange={setClientFilter}
-              placeholder="All Clients"
-              clearable
-            />
-          </div>
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
@@ -385,16 +416,24 @@ export default function InvoicesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Invoice #</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Due</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                <SortTh col="invoice_number" label="Invoice #" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortTh col="client_name"    label="Client"    sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortTh col="invoice_date"   label="Date"      sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="hidden sm:table-cell" />
+                <SortTh col="due_date"       label="Due"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="hidden sm:table-cell" />
+                <th
+                  onClick={() => handleSort('total')}
+                  className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-gray-800 whitespace-nowrap"
+                >
+                  Total
+                  <span className="ml-1 inline-block w-3 text-gray-300">
+                    {sortCol === 'total' ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                  </span>
+                </th>
+                <SortTh col="status" label="Status" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {invoices.map(inv => (
+              {sorted.map(inv => (
                 <tr
                   key={inv.id}
                   onClick={() => navigate(`/invoices/${inv.id}`)}
