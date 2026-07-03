@@ -44,7 +44,7 @@ function calcTotals(lineItems, taxRate) {
 // Get invoice for payment page
 router.get('/public/:id', (req, res) => {
   const row = db.prepare(`
-    SELECT i.*, cl.name AS client_name, cl.email AS client_email,
+    SELECT i.*, cl.name AS client_name, COALESCE(cl.invoice_email, cl.email) AS client_email,
            inst.name AS instructor_name
     FROM invoices i
     LEFT JOIN clients cl     ON cl.id   = i.client_id
@@ -81,7 +81,7 @@ router.post('/public/:id/pay', async (req, res) => {
     if (!clientSecret) {
       // Fetch client email for receipt
       const client = row.client_id
-        ? db.prepare('SELECT email FROM clients WHERE id=?').get(row.client_id)
+        ? db.prepare('SELECT COALESCE(invoice_email, email) AS email FROM clients WHERE id=?').get(row.client_id)
         : null;
 
       const intent = await stripe.paymentIntents.create({
@@ -131,7 +131,7 @@ router.get('/', (req, res) => {
 // Get single invoice
 router.get('/:id', (req, res) => {
   const row = db.prepare(`
-    SELECT i.*, cl.name AS client_name, cl.email AS client_email,
+    SELECT i.*, cl.name AS client_name, COALESCE(cl.invoice_email, cl.email) AS client_email,
            inst.name AS instructor_name
     FROM invoices i
     LEFT JOIN clients cl       ON cl.id   = i.client_id
@@ -164,7 +164,7 @@ router.post('/', (req, res) => {
     req.user.initials,
   );
   const row = db.prepare(`
-    SELECT i.*, cl.name AS client_name, cl.email AS client_email, inst.name AS instructor_name
+    SELECT i.*, cl.name AS client_name, COALESCE(cl.invoice_email, cl.email) AS client_email, inst.name AS instructor_name
     FROM invoices i
     LEFT JOIN clients cl ON cl.id = i.client_id
     LEFT JOIN instructors inst ON inst.id = i.instructor_id
@@ -193,7 +193,7 @@ router.put('/:id', (req, res) => {
     req.params.id,
   );
   const row = db.prepare(`
-    SELECT i.*, cl.name AS client_name, cl.email AS client_email, inst.name AS instructor_name
+    SELECT i.*, cl.name AS client_name, COALESCE(cl.invoice_email, cl.email) AS client_email, inst.name AS instructor_name
     FROM invoices i
     LEFT JOIN clients cl ON cl.id = i.client_id
     LEFT JOIN instructors inst ON inst.id = i.instructor_id

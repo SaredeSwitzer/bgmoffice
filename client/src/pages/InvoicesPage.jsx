@@ -351,8 +351,8 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
-  const [sortCol, setSortCol] = useState('invoice_number')
-  const [sortDir, setSortDir] = useState('desc')
+  const [sortCol, setSortCol] = useState(() => localStorage.getItem('inv_sort_col') || 'invoice_number')
+  const [sortDir, setSortDir] = useState(() => localStorage.getItem('inv_sort_dir') || 'desc')
   const [showNew, setShowNew] = useState(false)
 
   function load() {
@@ -365,10 +365,14 @@ export default function InvoicesPage() {
 
   function handleSort(col) {
     if (sortCol === col) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+      const dir = sortDir === 'asc' ? 'desc' : 'asc'
+      setSortDir(dir)
+      localStorage.setItem('inv_sort_dir', dir)
     } else {
       setSortCol(col)
       setSortDir('asc')
+      localStorage.setItem('inv_sort_col', col)
+      localStorage.setItem('inv_sort_dir', 'asc')
     }
   }
 

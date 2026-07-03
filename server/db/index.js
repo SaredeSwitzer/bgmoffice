@@ -327,6 +327,7 @@ const migrations = [
   `ALTER TABLE recruiting_entries ADD COLUMN class_notes  TEXT`,
   // preferred days/times — JSON array of {day, time} for multi-day entries (added 2026-06)
   `ALTER TABLE recruiting_entries ADD COLUMN preferred_days TEXT`,
+  `ALTER TABLE clients ADD COLUMN invoice_email TEXT`,
 ];
 
 // Fix recruiting_entries CHECK constraint to allow 'Flexible' day_of_week (added 2026-06)

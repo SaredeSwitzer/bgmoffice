@@ -557,6 +557,7 @@ export default function ClientProfilePage() {
         setClient(c)
         setEditForm({
           name: c.name, phone: c.phone || '', email: c.email || '',
+          invoice_email: c.invoice_email || '',
           preferred_contact: c.preferred_contact || '', notes: c.notes || '',
           rate_per_class: c.rate_per_class || '',
           contact_person_name: c.contact_person_name || '',
@@ -648,6 +649,12 @@ export default function ClientProfilePage() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                 <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Email <span className="text-gray-400 font-normal">(if different)</span></label>
+                <input value={editForm.invoice_email} onChange={e => setEditForm(f => ({ ...f, invoice_email: e.target.value }))}
+                  placeholder="billing@example.com"
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
               <div>
@@ -753,6 +760,11 @@ export default function ClientProfilePage() {
               </div>
             </div>
             <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
+            {client.invoice_email && (
+              <p className="text-xs text-gray-500 mt-1">
+                Invoice email: <span className="font-medium text-gray-700">{client.invoice_email}</span>
+              </p>
+            )}
 
             {/* Waiver status */}
             <div className="mt-3 flex items-center gap-2">
