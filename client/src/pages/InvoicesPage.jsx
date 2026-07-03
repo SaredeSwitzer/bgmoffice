@@ -319,15 +319,20 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
+  const [clientFilter, setClientFilter] = useState(null)
+  const [clients, setClients] = useState([])
   const [showNew, setShowNew] = useState(false)
+
+  useEffect(() => { api.getClients().then(setClients) }, [])
 
   function load() {
     const params = {}
     if (statusFilter) params.status = statusFilter
+    if (clientFilter?.id) params.client_id = clientFilter.id
     return api.getInvoices(params).then(setInvoices).finally(() => setLoading(false))
   }
 
-  useEffect(() => { setLoading(true); load() }, [statusFilter])
+  useEffect(() => { setLoading(true); load() }, [statusFilter, clientFilter])
 
   if (loading) return (
     <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
@@ -338,6 +343,15 @@ export default function InvoicesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-gray-900">Invoices</h1>
         <div className="flex gap-2 items-center flex-wrap">
+          <div className="w-48">
+            <SearchSelect
+              options={clients}
+              value={clientFilter}
+              onChange={setClientFilter}
+              placeholder="All Clients"
+              clearable
+            />
+          </div>
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
