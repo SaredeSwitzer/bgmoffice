@@ -58,6 +58,7 @@ export default function InvoiceDetailPage() {
       due_date: invoice.due_date || '',
       tax_rate: invoice.tax_rate || '',
       notes: invoice.notes || '',
+      send_to_email: invoice.client_email || '',
       line_items: invoice.line_items.length ? invoice.line_items.map(li => ({ ...li })) : [{ ...EMPTY_LINE }],
       status: invoice.status,
     })
@@ -83,22 +84,30 @@ export default function InvoiceDetailPage() {
     e.preventDefault()
     setSaving(true); setError('')
     try {
-      const updated = await api.updateInvoice(id, {
-        title: editForm.title || null,
-        client_id: editForm.client?.id || null,
-        instructor_id: editForm.instructor?.id || null,
-        invoice_date: editForm.invoice_date || null,
-        due_date: editForm.due_date || null,
-        tax_rate: Number(editForm.tax_rate || 0),
-        notes: editForm.notes || null,
-        status: editForm.status,
-        line_items: editForm.line_items.filter(li => li.description.trim()).map(li => ({
-          description: li.description.trim(),
-          class_date: li.class_date || null,
-          unit_price: Number(li.unit_price) || 0,
-        })),
-      })
-      setInvoice(updated)
+      const clientId = editForm.client?.id || invoice.client_id
+      const emailChanged = editForm.send_to_email.trim() !== (invoice.client_email || '')
+
+      const [updated] = await Promise.all([
+        api.updateInvoice(id, {
+          title: editForm.title || null,
+          client_id: editForm.client?.id || null,
+          instructor_id: editForm.instructor?.id || null,
+          invoice_date: editForm.invoice_date || null,
+          due_date: editForm.due_date || null,
+          tax_rate: Number(editForm.tax_rate || 0),
+          notes: editForm.notes || null,
+          status: editForm.status,
+          line_items: editForm.line_items.filter(li => li.description.trim()).map(li => ({
+            description: li.description.trim(),
+            class_date: li.class_date || null,
+            unit_price: Number(li.unit_price) || 0,
+          })),
+        }),
+        ...(emailChanged && clientId
+          ? [api.setClientInvoiceEmail(clientId, editForm.send_to_email.trim() || null)]
+          : []),
+      ])
+      setInvoice({ ...updated, client_email: editForm.send_to_email.trim() || updated.client_email })
       setEditing(false)
     } catch (err) {
       setError(err.message)
@@ -342,6 +351,17 @@ export default function InvoiceDetailPage() {
                   <option value="overdue">Overdue</option>
                 </select>
               </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Send invoice to (email)</label>
+                <input
+                  type="email"
+                  value={editForm.send_to_email}
+                  onChange={e => setEditForm(f => ({ ...f, send_to_email: e.target.value }))}
+                  placeholder="client@example.com"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+                />
+                <p className="text-[10px] text-gray-400 mt-0.5">Saved to client's invoice email. Used when sending this invoice.</p>
+              </div>
             </div>
 
             {/* Line items */}
@@ -544,14 +564,20 @@ export default function InvoiceDetailPage() {
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
               {copied ? '✓ Copied!' : '🔗 Copy Payment Link'}
             </button>
-            <GmailComposeLink
-              to={invoice.client_email || ''}
-              subject={emailSubject()}
-              body={emailBody()}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
-            >
-              ✉️ Send by Email
-            </GmailComposeLink>
+            <div className="flex flex-col gap-1">
+              <GmailComposeLink
+                to={invoice.client_email || ''}
+                subject={emailSubject()}
+                body={emailBody()}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
+              >
+                ✉️ Send by Email
+              </GmailComposeLink>
+              {invoice.client_email
+                ? <span className="text-[11px] text-gray-400 pl-1">to: {invoice.client_email}</span>
+                : <button onClick={startEdit} className="text-[11px] text-amber-600 hover:underline pl-1 text-left">+ Add send-to email</button>
+              }
+            </div>
             <button onClick={downloadPDF}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
               📄 Download PDF

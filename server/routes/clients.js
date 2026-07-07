@@ -79,6 +79,15 @@ router.put('/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id));
 });
 
+// Patch client (partial update — currently supports invoice_email only)
+router.patch('/:id', (req, res) => {
+  const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  const { invoice_email } = req.body;
+  db.prepare('UPDATE clients SET invoice_email=? WHERE id=?').run(invoice_email || null, req.params.id);
+  res.json({ ok: true });
+});
+
 // Delete client
 router.delete('/:id', (req, res) => {
   const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
