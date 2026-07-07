@@ -7,6 +7,7 @@ import AddReminderModal from '../components/AddReminderModal'
 import FirstClassReminderModal from '../components/FirstClassReminderModal'
 import ResumingClassesModal from '../components/ResumingClassesModal'
 import InstructorCheckInModal from '../components/InstructorCheckInModal'
+import WaiverContractReminderModal from '../components/WaiverContractReminderModal'
 import SearchSelect from '../components/SearchSelect'
 
 function fmtDate(iso) {
@@ -309,6 +310,7 @@ export default function RemindersPage() {
   const [showFirstClass, setShowFirstClass] = useState(false)
   const [showResuming,      setShowResuming]      = useState(false)
   const [showInstructorCheckIn, setShowInstructorCheckIn] = useState(false)
+  const [showWaiverContract,    setShowWaiverContract]    = useState(false)
 
   function load() {
     return api.getReminders().then(({ overdue: o, upcoming: u }) => {
@@ -373,6 +375,12 @@ export default function RemindersPage() {
             👤 Instructor Check-In
           </button>
           <button
+            onClick={() => setShowWaiverContract(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors shadow-sm"
+          >
+            📝 Sign Waiver / Contract
+          </button>
+          <button
             onClick={() => setShowAdd(true)}
             className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
           >
@@ -419,6 +427,9 @@ export default function RemindersPage() {
       )}
       {showInstructorCheckIn && (
         <InstructorCheckInModal onClose={() => { setShowInstructorCheckIn(false); load(); refreshBadge() }} />
+      )}
+      {showWaiverContract && (
+        <WaiverContractReminderModal onClose={() => { setShowWaiverContract(false); load(); refreshBadge() }} />
       )}
     </div>
   )
