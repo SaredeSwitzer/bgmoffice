@@ -89,6 +89,9 @@ export const api = {
   },
   deleteInstructorDocument: (id, docId) =>
     request(`/instructors/${id}/documents/${docId}`, { method: 'DELETE' }),
+  getInstructorNotes: (id) => request(`/instructors/${id}/notes`),
+  addInstructorNote: (id, text) => request(`/instructors/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  deleteInstructorNote: (id, noteId) => request(`/instructors/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
   // Cases
   getCases: (params = {}) => {

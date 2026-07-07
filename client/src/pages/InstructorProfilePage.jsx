@@ -305,11 +305,99 @@ function InstructorAvailabilitySection({ instructorId }) {
   )
 }
 
+// ── Feedback Notes ────────────────────────────────────────────────────────────
+
+function fmtNoteDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso + (iso.includes('T') ? '' : 'Z'))
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
+function FeedbackNotesSection({ instructorId, initialNotes }) {
+  const [notes, setNotes] = useState(initialNotes || [])
+  const [text, setText] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (!text.trim()) return
+    setSaving(true)
+    try {
+      const note = await api.addInstructorNote(instructorId, text.trim())
+      setNotes(n => [note, ...n])
+      setText('')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(noteId) {
+    if (!confirm('Delete this note?')) return
+    await api.deleteInstructorNote(instructorId, noteId)
+    setNotes(n => n.filter(x => x.id !== noteId))
+  }
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-amber-400">
+          Feedback Notes
+          {notes.length > 0 && (
+            <span className="ml-2 text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+              {notes.length}
+            </span>
+          )}
+        </h2>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5 space-y-4">
+        <form onSubmit={handleAdd} className="flex gap-2 items-start">
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }}
+            rows={2}
+            placeholder="Add a note… (Ctrl+Enter to save)"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
+          />
+          <button type="submit" disabled={saving || !text.trim()}
+            className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-gray-700 whitespace-nowrap">
+            {saving ? 'Saving…' : '+ Add'}
+          </button>
+        </form>
+
+        {notes.length === 0 ? (
+          <p className="text-sm text-gray-400 italic">No feedback notes yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {notes.map(n => (
+              <div key={n.id} className="group flex gap-3 items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-gray-400 mb-0.5">
+                    {fmtNoteDate(n.created_at)}{n.author && ` — ${n.author}`}
+                  </p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{n.text}</p>
+                </div>
+                <button
+                  onClick={() => handleDelete(n.id)}
+                  className="text-gray-200 hover:text-red-500 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-4"
+                  title="Delete note"
+                >✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function InstructorProfilePage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [instructor, setInstructor] = useState(null)
+  const [feedbackNotes, setFeedbackNotes] = useState([])
   const [cases, setCases] = useState([])
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
@@ -328,6 +416,7 @@ export default function InstructorProfilePage() {
     ])
       .then(([inst, cs, me, styles]) => {
         setInstructor(inst)
+        setFeedbackNotes(inst.feedback_notes || [])
         setIsAdmin(me.role === 'admin')
         setClassStyles(styles || [])
         setEditForm({
@@ -578,6 +667,12 @@ export default function InstructorProfilePage() {
         documents={docs}
         onDocAdded={doc => setInstructor(prev => ({ ...prev, documents: [...(prev.documents || []), doc] }))}
         onDocDeleted={docId => setInstructor(prev => ({ ...prev, documents: (prev.documents || []).filter(d => d.id !== docId) }))}
+      />
+
+      {/* Feedback Notes */}
+      <FeedbackNotesSection
+        instructorId={id}
+        initialNotes={feedbackNotes}
       />
 
       {/* Availability */}

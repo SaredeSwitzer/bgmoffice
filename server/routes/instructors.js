@@ -37,6 +37,9 @@ function getInstructorRow(id, isAdmin) {
   row.documents = db.prepare(
     'SELECT * FROM instructor_documents WHERE instructor_id = ? ORDER BY uploaded_at ASC'
   ).all(id);
+  row.feedback_notes = db.prepare(
+    'SELECT * FROM instructor_notes WHERE instructor_id = ? ORDER BY created_at DESC'
+  ).all(id);
   return row;
 }
 
@@ -172,6 +175,32 @@ router.delete('/:id/documents/:docId', (req, res) => {
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
   db.prepare('DELETE FROM instructor_documents WHERE id = ?').run(req.params.docId);
+  res.json({ success: true });
+});
+
+// ── Feedback Notes ────────────────────────────────────────────────────────────
+
+router.get('/:id/notes', (req, res) => {
+  res.json(db.prepare(
+    'SELECT * FROM instructor_notes WHERE instructor_id = ? ORDER BY created_at DESC'
+  ).all(req.params.id));
+});
+
+router.post('/:id/notes', (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
+  const result = db.prepare(
+    'INSERT INTO instructor_notes (instructor_id, text, author) VALUES (?, ?, ?)'
+  ).run(req.params.id, text.trim(), req.user.initials || null);
+  res.status(201).json(
+    db.prepare('SELECT * FROM instructor_notes WHERE id = ?').get(result.lastInsertRowid)
+  );
+});
+
+router.delete('/:id/notes/:noteId', (req, res) => {
+  db.prepare(
+    'DELETE FROM instructor_notes WHERE id = ? AND instructor_id = ?'
+  ).run(req.params.noteId, req.params.id);
   res.json({ success: true });
 });
 

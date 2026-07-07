@@ -523,4 +523,15 @@ db.prepare(`
   WHERE LOWER(title) IN ('how to run a report', 'vacation leave')
 `).run();
 
+// Instructor feedback notes (added 2026-07)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS instructor_notes (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    instructor_id INTEGER NOT NULL REFERENCES instructors(id) ON DELETE CASCADE,
+    text          TEXT    NOT NULL,
+    author        TEXT,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 module.exports = db;
