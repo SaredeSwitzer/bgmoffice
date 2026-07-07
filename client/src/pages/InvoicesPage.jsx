@@ -34,6 +34,7 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
     due_date: '',
     tax_rate: '',
     notes: '',
+    send_to_email: '',
     line_items: [{ ...EMPTY_LINE }],
   })
   const [saving, setSaving] = useState(false)
@@ -55,6 +56,16 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
       setShowImport(false)
     }
   }, [form.client?.id])
+
+  // Auto-populate send_to_email from client's saved email when client changes
+  useEffect(() => {
+    if (form.client?.id && clients.length) {
+      const c = clients.find(cl => cl.id === form.client.id)
+      if (c) setForm(f => ({ ...f, send_to_email: c.invoice_email || c.email || '' }))
+    } else if (!form.client?.id) {
+      setForm(f => ({ ...f, send_to_email: '' }))
+    }
+  }, [form.client?.id, clients])
 
   function setField(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -82,20 +93,29 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
     if (!form.line_items.some(li => li.description.trim())) { setError('Add at least one line item.'); return }
     setSaving(true); setError('')
     try {
-      const inv = await api.createInvoice({
-        title: form.title || null,
-        client_id: form.client.id,
-        instructor_id: form.instructor?.id || null,
-        invoice_date: form.invoice_date,
-        due_date: form.due_date || null,
-        tax_rate: taxRate,
-        notes: form.notes || null,
-        line_items: form.line_items.filter(li => li.description.trim()).map(li => ({
-          description: li.description.trim(),
-          class_date: li.class_date || null,
-          unit_price: Number(li.unit_price) || 0,
-        })),
-      })
+      const emailToSave = form.send_to_email.trim()
+      const clientForEmail = clients.find(c => c.id === form.client.id)
+      const existingEmail = clientForEmail?.invoice_email || clientForEmail?.email || ''
+
+      const [inv] = await Promise.all([
+        api.createInvoice({
+          title: form.title || null,
+          client_id: form.client.id,
+          instructor_id: form.instructor?.id || null,
+          invoice_date: form.invoice_date,
+          due_date: form.due_date || null,
+          tax_rate: taxRate,
+          notes: form.notes || null,
+          line_items: form.line_items.filter(li => li.description.trim()).map(li => ({
+            description: li.description.trim(),
+            class_date: li.class_date || null,
+            unit_price: Number(li.unit_price) || 0,
+          })),
+        }),
+        ...(emailToSave && emailToSave !== existingEmail
+          ? [api.setClientInvoiceEmail(form.client.id, emailToSave)]
+          : []),
+      ])
       onCreated(inv)
     } catch (err) {
       setError(err.message)
@@ -137,6 +157,17 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
                 <input type="date" value={form.due_date} onChange={e => setField('due_date', e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Send invoice to (email)</label>
+                <input
+                  type="email"
+                  value={form.send_to_email}
+                  onChange={e => setField('send_to_email', e.target.value)}
+                  placeholder="client@example.com"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+                />
+                <p className="text-[10px] text-gray-400 mt-0.5">Saved to client's invoice email. Used when sending this invoice.</p>
               </div>
             </div>
 
