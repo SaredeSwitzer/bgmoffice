@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar, { FILTER_ALL, FILTER_ANYONE, FILTER_STARRED, CATEGORY_FILTERS } from '../components/DashboardFilterBar'
+import { navClick } from '../utils/nav'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -372,7 +373,7 @@ export default function DashboardPage() {
                     </span>
                   )}
                 </div>
-                <button onClick={() => navigate(`/clients/${pkg.client_id}`)}
+                <button onClick={e => navClick(e, `/clients/${pkg.client_id}`, navigate)}
                   className="text-xs text-blue-600 hover:underline flex-shrink-0">View client →</button>
               </div>
             ))}

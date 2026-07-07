@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
+import { navClick, auxNavClick } from '../utils/nav'
 
 const STATUS_COLORS = {
   draft:   'bg-gray-100 text-gray-600',
@@ -440,7 +441,8 @@ export default function InvoicesPage() {
               {sorted.map(inv => (
                 <tr
                   key={inv.id}
-                  onClick={() => navigate(`/invoices/${inv.id}`)}
+                  onClick={e => navClick(e, `/invoices/${inv.id}`, navigate)}
+                  onAuxClick={e => auxNavClick(e, `/invoices/${inv.id}`)}
                   className="cursor-pointer hover:bg-gray-50 transition-colors"
                 >
                   <td className="px-4 py-3">

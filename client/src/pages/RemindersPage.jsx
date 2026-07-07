@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
+import { navClick } from '../utils/nav'
 import { useAuth } from '../context/AuthContext'
 import { useRemindersContext } from '../context/RemindersContext'
 import AddReminderModal from '../components/AddReminderModal'
@@ -213,7 +214,7 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
           )}
           {reminder.case_id && (
             <button
-              onClick={() => navigate(`/cases/${reminder.case_id}`)}
+              onClick={e => navClick(e, `/cases/${reminder.case_id}`, navigate)}
               className="text-xs text-blue-600 hover:underline font-medium"
             >
               View Case →

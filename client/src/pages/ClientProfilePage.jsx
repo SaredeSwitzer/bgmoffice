@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
+import { navClick, auxNavClick } from '../utils/nav'
 import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
@@ -496,7 +497,8 @@ function InvoicesSection({ clientId, clientName }) {
               {invoices.map(inv => (
                 <tr
                   key={inv.id}
-                  onClick={() => navigate(`/invoices/${inv.id}`)}
+                  onClick={e => navClick(e, `/invoices/${inv.id}`, navigate)}
+                  onAuxClick={e => auxNavClick(e, `/invoices/${inv.id}`)}
                   className="cursor-pointer hover:bg-gray-50 transition-colors"
                 >
                   <td className="px-4 py-2.5">
