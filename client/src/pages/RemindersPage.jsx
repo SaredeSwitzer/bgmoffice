@@ -30,6 +30,85 @@ function fmtShort(iso) {
   return fmt(iso)
 }
 
+// ── Follow-up modal ───────────────────────────────────────────────────────────
+
+function FollowUpModal({ reminder, onClose, onAddReminder, navigate }) {
+  const [selected, setSelected] = useState('')
+
+  const clientId     = reminder.client_id
+  const clientName   = reminder.case_client_name || reminder.client_name
+  const instructorId = reminder.instructor_id
+  const instructorName = reminder.case_instructor_name || reminder.instructor_name
+
+  const options = [
+    ...(reminder.case_id
+      ? [{ value: `case:${reminder.case_id}`, label: `Go to Case →${clientName ? ` (${clientName})` : ''}` }]
+      : []),
+    ...(clientId
+      ? [{ value: `client:${clientId}`, label: `Go to Client Profile →${clientName ? ` (${clientName})` : ''}` }]
+      : []),
+    ...(instructorId
+      ? [{ value: `instructor:${instructorId}`, label: `Go to Instructor Profile →${instructorName ? ` (${instructorName})` : ''}` }]
+      : []),
+    { value: 'add-reminder', label: 'Add a New Reminder' },
+    { value: 'tasks',        label: 'Go to Tasks →' },
+    { value: 'invoices',     label: 'Go to Invoices →' },
+    { value: 'clients',      label: 'Go to Clients →' },
+    { value: 'recruiting',   label: 'Go to Recruiting →' },
+  ]
+
+  function handleGo() {
+    if (!selected) return
+    if (selected === 'add-reminder') {
+      onAddReminder()
+      return
+    }
+    const [type, id] = selected.split(':')
+    if (type === 'case')       navigate(`/cases/${id}`)
+    else if (type === 'client')      navigate(`/clients/${id}`)
+    else if (type === 'instructor')  navigate(`/instructors/${id}`)
+    else navigate(`/${selected}`)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+        <div className="text-center mb-5">
+          <div className="text-3xl mb-2">✅</div>
+          <h2 className="text-base font-bold text-gray-900">Marked as done!</h2>
+          <p className="text-sm text-gray-500 mt-1">Would you like to assign a follow-up?</p>
+        </div>
+        <select
+          value={selected}
+          onChange={e => setSelected(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
+        >
+          <option value="">Select a follow-up action…</option>
+          {options.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <button
+            onClick={handleGo}
+            disabled={!selected}
+            className="flex-1 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg disabled:opacity-40 hover:bg-gray-700 transition-colors"
+          >
+            Go
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 border border-gray-300 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            No Thanks
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Reminder row with inline edit ─────────────────────────────────────────────
 
 function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors }) {
@@ -67,7 +146,7 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
 
   async function handleDone() {
     setLoading(true)
-    await onDone(reminder.id)
+    await onDone(reminder)
   }
 
   async function handleSave(e) {
@@ -301,6 +380,7 @@ function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, 
 
 export default function RemindersPage() {
   const { refresh: refreshBadge } = useRemindersContext()
+  const navigate = useNavigate()
   const [overdue,     setOverdue]     = useState([])
   const [upcoming,    setUpcoming]    = useState([])
   const [delegates,   setDelegates]   = useState([])
@@ -312,6 +392,7 @@ export default function RemindersPage() {
   const [showResuming,      setShowResuming]      = useState(false)
   const [showInstructorCheckIn, setShowInstructorCheckIn] = useState(false)
   const [showWaiverContract,    setShowWaiverContract]    = useState(false)
+  const [followUpReminder, setFollowUpReminder] = useState(null)
 
   function load() {
     return api.getReminders().then(({ overdue: o, upcoming: u }) => {
@@ -329,10 +410,11 @@ export default function RemindersPage() {
     ]).finally(() => setLoading(false))
   }, [])
 
-  async function handleDone(id) {
-    await api.markReminderDone(id)
+  async function handleDone(reminder) {
+    await api.markReminderDone(reminder.id)
     await load()
     refreshBadge()
+    setFollowUpReminder(reminder)
   }
 
   async function handleDelete(id) {
@@ -431,6 +513,14 @@ export default function RemindersPage() {
       )}
       {showWaiverContract && (
         <WaiverContractReminderModal onClose={() => { setShowWaiverContract(false); load(); refreshBadge() }} />
+      )}
+      {followUpReminder && (
+        <FollowUpModal
+          reminder={followUpReminder}
+          navigate={navigate}
+          onClose={() => setFollowUpReminder(null)}
+          onAddReminder={() => { setFollowUpReminder(null); setShowAdd(true) }}
+        />
       )}
     </div>
   )
