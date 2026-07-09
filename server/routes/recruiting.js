@@ -96,6 +96,18 @@ router.get('/client/:clientId', (req, res) => {
   res.json(entries);
 });
 
+router.get('/instructor/:instructorId', (req, res) => {
+  const entries = db.prepare(`${ENTRY_JOIN} WHERE re.instructor_id = ? ORDER BY re.created_at DESC`)
+    .all(req.params.instructorId);
+  entries.forEach(e => {
+    const notes = db.prepare(
+      'SELECT * FROM recruiting_notes WHERE entry_id = ? ORDER BY created_at ASC'
+    ).all(e.id);
+    e.notes = attachNoteActionTypes(notes);
+  });
+  res.json(entries);
+});
+
 // Derive day_of_week from preferred_days array: single → that day, multiple → Flexible
 function resolveDayOfWeek(preferredDays, explicitDay) {
   if (Array.isArray(preferredDays) && preferredDays.length > 0) {

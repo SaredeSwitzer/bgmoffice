@@ -9,8 +9,14 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ── GET / — { overdue, upcoming } ────────────────────────────────────────────
+// ── GET / — { overdue, upcoming } — optional ?client_id or ?instructor_id ────
 router.get('/', (req, res) => {
+  const { client_id, instructor_id } = req.query;
+  const filters = [`r.status = 'pending'`];
+  const params  = [];
+  if (client_id)     { filters.push('r.client_id = ?');     params.push(client_id); }
+  if (instructor_id) { filters.push('r.instructor_id = ?'); params.push(instructor_id); }
+
   const rows = db.prepare(`
     SELECT
       r.*,
@@ -26,9 +32,9 @@ router.get('/', (req, res) => {
     LEFT JOIN cases        cas ON cas.id = COALESCE(r.case_id, ai.case_id)
     LEFT JOIN clients      cl2 ON cl2.id = cas.client_id
     LEFT JOIN instructors  i2  ON i2.id  = cas.instructor_id
-    WHERE r.status = 'pending'
+    WHERE ${filters.join(' AND ')}
     ORDER BY r.remind_on ASC
-  `).all();
+  `).all(...params);
 
   const t = today();
   const hydrate = r => ({ ...r, case_id: r.resolved_case_id });

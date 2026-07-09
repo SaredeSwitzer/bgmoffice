@@ -123,6 +123,8 @@ export const api = {
 
   // Reminders
   getReminders: () => request('/reminders'),
+  getRemindersByClient: (clientId) => request(`/reminders?client_id=${clientId}`),
+  getRemindersByInstructor: (instructorId) => request(`/reminders?instructor_id=${instructorId}`),
   createReminder: (data) =>
     request('/reminders', { method: 'POST', body: JSON.stringify(data) }),
   updateReminder: (id, data) =>
@@ -152,6 +154,7 @@ export const api = {
     return request(`/recruiting${qs ? `?${qs}` : ''}`)
   },
   getRecruitingByClient: (clientId) => request(`/recruiting/client/${clientId}`),
+  getRecruitingByInstructor: (instructorId) => request(`/recruiting/instructor/${instructorId}`),
   createRecruitingEntry: (data) =>
     request('/recruiting/entries', { method: 'POST', body: JSON.stringify(data) }),
   updateRecruitingEntry: (id, data) =>

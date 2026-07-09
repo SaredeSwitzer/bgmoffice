@@ -399,6 +399,8 @@ export default function InstructorProfilePage() {
   const [instructor, setInstructor] = useState(null)
   const [feedbackNotes, setFeedbackNotes] = useState([])
   const [cases, setCases] = useState([])
+  const [recruitingEntries, setRecruitingEntries] = useState([])
+  const [reminders, setReminders] = useState([])
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
@@ -413,8 +415,10 @@ export default function InstructorProfilePage() {
       api.getCases({ instructor_id: id }),
       api.me(),
       api.getClassStyles(),
+      api.getRecruitingByInstructor(id),
+      api.getRemindersByInstructor(id),
     ])
-      .then(([inst, cs, me, styles]) => {
+      .then(([inst, cs, me, styles, recr, rems]) => {
         setInstructor(inst)
         setFeedbackNotes(inst.feedback_notes || [])
         setIsAdmin(me.role === 'admin')
@@ -433,6 +437,8 @@ export default function InstructorProfilePage() {
           styles_taught: inst.styles_taught || '',
         })
         setCases(cs)
+        setRecruitingEntries(recr)
+        setReminders([...(rems.overdue || []), ...(rems.upcoming || [])])
       })
       .catch(e => setError(e.message))
   }, [id])
@@ -679,6 +685,84 @@ export default function InstructorProfilePage() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
         <InstructorAvailabilitySection instructorId={id} />
       </div>
+
+      {/* Recruiting */}
+      {recruitingEntries.length > 0 && (
+        <section>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-3 pl-1 border-l-4 border-indigo-400">
+            Recruiting
+            <span className="ml-2 text-xs font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+              {recruitingEntries.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {recruitingEntries.map(entry => (
+              <div key={entry.id} className={`bg-white border rounded-xl px-4 py-3 ${entry.archived ? 'border-gray-100 opacity-60' : 'border-gray-200'}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                      <span className="font-semibold text-gray-700">{entry.day_of_week}</span>
+                      {entry.time_slot && <span>{entry.time_slot}</span>}
+                      {entry.client_name && <span>· {entry.client_name}</span>}
+                      {entry.neighborhood && <span>· {entry.neighborhood}</span>}
+                      {entry.style && <span>· {entry.style}</span>}
+                      {entry.archived && <span className="text-gray-400 italic">archived</span>}
+                    </div>
+                    {entry.address && <p className="text-xs text-gray-400 mt-0.5">{entry.address}</p>}
+                    {entry.action_type_name && (
+                      <span className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                        style={{ background: entry.action_type_color + '22', color: entry.action_type_color }}>
+                        {entry.action_type_name}
+                      </span>
+                    )}
+                  </div>
+                  <Link
+                    to={`/recruiting?entry=${entry.id}`}
+                    className="text-xs text-indigo-600 hover:underline flex-shrink-0"
+                  >
+                    View →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Reminders */}
+      {reminders.length > 0 && (
+        <section>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-3 pl-1 border-l-4 border-yellow-400">
+            Reminders
+            <span className="ml-2 text-xs font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+              {reminders.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {reminders.map(rem => {
+              const isOverdue = rem.remind_on < new Date().toISOString().slice(0, 10)
+              return (
+                <div key={rem.id} className={`bg-white border rounded-xl px-4 py-3 ${isOverdue ? 'border-red-200' : 'border-gray-200'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{rem.title}</p>
+                      {rem.notes && <p className="text-xs text-gray-500 mt-0.5">{rem.notes}</p>}
+                      <p className={`text-[10px] mt-1 font-semibold ${isOverdue ? 'text-red-500' : 'text-gray-400'}`}>
+                        {isOverdue ? 'Overdue · ' : ''}
+                        {new Date(rem.remind_on + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {rem.created_by ? ` — ${rem.created_by}` : ''}
+                      </p>
+                    </div>
+                    <Link to="/reminders" className="text-xs text-yellow-600 hover:underline flex-shrink-0">
+                      View →
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Case history */}
       <section>
