@@ -1,5 +1,6 @@
-const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api'
-const API_ROOT = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+// Production: same-origin relative (/api via vercel.json rewrite). Dev: local server.
+const API_ROOT = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001')
+const BASE = API_ROOT + '/api'
 
 export function uploadsUrl(filename) {
   if (!filename) return null
