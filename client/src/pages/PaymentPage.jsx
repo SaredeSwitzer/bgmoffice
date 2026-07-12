@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import { api } from '../api/client'
-
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+import { api, API_ROOT } from '../api/client'
 
 function fmtMoney(n) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0)
@@ -70,7 +68,7 @@ function CheckoutForm({ invoice, onPaid }) {
 // ── Main payment page ─────────────────────────────────────────────────────────
 
 export default function PaymentPage() {
-  const { id } = useParams()
+  const { token } = useParams()
   const [invoice, setInvoice] = useState(null)
   const [stripePromise, setStripePromise] = useState(null)
   const [clientSecret, setClientSecret] = useState(null)
@@ -82,14 +80,14 @@ export default function PaymentPage() {
     async function init() {
       try {
         // Load public invoice data
-        const inv = await api.getPublicInvoice(id)
+        const inv = await api.getPublicInvoice(token)
         if (inv.error) { setError(inv.error); return }
         setInvoice(inv)
 
         if (inv.status === 'paid') { setPaid(true); return }
 
         // Get Stripe publishable key from server (stored in app_settings or env var)
-        const pkRes = await fetch(`${BASE}/api/settings/stripe-public`)
+        const pkRes = await fetch(`${API_ROOT}/api/settings/stripe-public`)
         const pkData = await pkRes.json()
         const pk = pkData.publishable_key
 
@@ -99,7 +97,7 @@ export default function PaymentPage() {
         }
 
         // Create / retrieve payment intent
-        const piRes = await api.createPaymentIntent(id)
+        const piRes = await api.createPaymentIntent(token)
         if (piRes.error) { setError(piRes.error); return }
         setClientSecret(piRes.clientSecret)
         setStripePromise(loadStripe(pk))
@@ -110,7 +108,7 @@ export default function PaymentPage() {
       }
     }
     init()
-  }, [id])
+  }, [token])
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">

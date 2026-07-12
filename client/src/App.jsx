@@ -26,7 +26,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           {/* Public payment page — no auth */}
-          <Route path="/pay/:id" element={<PaymentPage />} />
+          <Route path="/pay/:token" element={<PaymentPage />} />
           <Route
             element={
               <ProtectedRoute>

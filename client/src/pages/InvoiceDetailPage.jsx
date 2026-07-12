@@ -127,8 +127,10 @@ export default function InvoiceDetailPage() {
     navigate('/invoices')
   }
 
+  // The pay link is keyed on the invoice's random public_token, not its id — the token
+  // is the only thing keeping the invoice private, so the link is the secret.
   function getPaymentLink() {
-    return `${window.location.origin}/pay/${id}`
+    return `${window.location.origin}/pay/${invoice?.public_token}`
   }
 
   function copyLink() {
@@ -582,7 +584,7 @@ export default function InvoiceDetailPage() {
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
               📄 Download PDF
             </button>
-            <a href={`/pay/${id}`} target="_blank" rel="noopener noreferrer"
+            <a href={getPaymentLink()} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
               👁 Preview Payment Page
             </a>

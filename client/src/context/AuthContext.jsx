@@ -22,11 +22,20 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('bgm:session-expired', onSessionExpired)
   }, [])
 
-  async function login(email, password) {
-    const data = await api.login(email, password)
+  // Both sign-in paths end in the same token — the code path just proves who you are
+  // with an emailed code instead of a password.
+  function accept(data) {
     localStorage.setItem('bgm_token', data.token)
     setUser(data.user)
     return data.user
+  }
+
+  async function login(email, password) {
+    return accept(await api.login(email, password))
+  }
+
+  async function loginWithCode(email, code) {
+    return accept(await api.verifyCode(email, code))
   }
 
   function logout() {
@@ -35,7 +44,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithCode, logout }}>
       {children}
     </AuthContext.Provider>
   )

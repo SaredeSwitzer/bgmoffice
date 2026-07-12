@@ -43,17 +43,28 @@ const INVOICE_JOIN = `
 `;
 
 // ── Public routes (no auth) ───────────────────────────────────────────────────
+//
+// These back the pay-by-link page, so they're open to the world on purpose. They are
+// keyed on `public_token` (16 random bytes), NOT on the invoice id. They used to take
+// the id — which is a sequential integer — so anyone could walk /public/1, /public/2 …
+// and read every invoice, client name and email included, without logging in.
+//
+// The token IS the credential. Never expose one anywhere but the pay link itself.
 
-router.get('/public/:id', async (req, res) => {
-  const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
+router.get('/public/:token', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    `${INVOICE_JOIN} WHERE i.public_token = $1`, [req.params.token]
+  );
   if (!row) return res.status(404).json({ error: 'Invoice not found' });
   const invoice = enrichInvoice(row);
   delete invoice.stripe_client_secret;
   res.json(invoice);
 });
 
-router.post('/public/:id/pay', async (req, res) => {
-  const { rows: [row] } = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+router.post('/public/:token/pay', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    'SELECT * FROM invoices WHERE public_token = $1', [req.params.token]
+  );
   if (!row) return res.status(404).json({ error: 'Invoice not found' });
   if (row.status === 'paid') return res.status(409).json({ error: 'Already paid' });
 

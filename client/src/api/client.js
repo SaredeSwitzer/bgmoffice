@@ -1,5 +1,7 @@
 // Production: same-origin relative (/api via vercel.json rewrite). Dev: local server.
-const API_ROOT = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001')
+// Exported because anything that builds its own URL must use this — hardcoding a
+// localhost fallback is what silently broke the deployed app once already.
+export const API_ROOT = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001')
 const BASE = API_ROOT + '/api'
 
 export function uploadsUrl(filename) {
@@ -23,7 +25,11 @@ async function request(path, options = {}) {
     },
   })
   const data = await res.json()
-  if (res.status === 401 && path !== '/auth/login') {
+  // A 401 from the sign-in endpoints means "wrong password / wrong code" — the visitor
+  // isn't logged in yet, so there's no session to expire. Only a 401 elsewhere means a
+  // live session went stale.
+  const SIGN_IN_PATHS = ['/auth/login', '/auth/request-code', '/auth/verify-code']
+  if (res.status === 401 && !SIGN_IN_PATHS.includes(path)) {
     localStorage.removeItem('bgm_token')
     window.dispatchEvent(new Event('bgm:session-expired'))
   }
@@ -43,7 +49,11 @@ export const api = {
   deleteTaskReply: (id, replyId) => request(`/tasks/${id}/replies/${replyId}`, { method: 'DELETE' }),
   deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
 
-  // Auth
+  // Auth — code sign-in is the everyday path, password is the backup
+  requestCode: (email) =>
+    request('/auth/request-code', { method: 'POST', body: JSON.stringify({ email }) }),
+  verifyCode: (email, code) =>
+    request('/auth/verify-code', { method: 'POST', body: JSON.stringify({ email, code }) }),
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: () => request('/auth/me'),
@@ -235,9 +245,10 @@ export const api = {
   setInvoiceStatus: (id, status) => request(`/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deleteInvoice: (id) => request(`/invoices/${id}`, { method: 'DELETE' }),
 
-  // Public invoice (no auth needed — used by payment page)
-  getPublicInvoice: (id) => fetch(`${BASE}/invoices/public/${id}`).then(r => r.json()),
-  createPaymentIntent: (id) => fetch(`${BASE}/invoices/public/${id}/pay`, { method: 'POST' }).then(r => r.json()),
+  // Public invoice (no auth — used by the pay page). Keyed on the invoice's random
+  // public_token, never its id: the token is what stops strangers reading every invoice.
+  getPublicInvoice: (token) => fetch(`${BASE}/invoices/public/${token}`).then(r => r.json()),
+  createPaymentIntent: (token) => fetch(`${BASE}/invoices/public/${token}/pay`, { method: 'POST' }).then(r => r.json()),
 
   // Class packages
   getClientPackages: (clientId) => request(`/packages/client/${clientId}`),
