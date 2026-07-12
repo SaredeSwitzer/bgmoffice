@@ -17,6 +17,9 @@ setInterval(runBackup, 24 * 60 * 60 * 1000);
 
 const app = express();
 
+// Trust Railway's proxy so express-rate-limit can read X-Forwarded-For correctly
+app.set('trust proxy', 1);
+
 // Allow the Netlify frontend. ALLOWED_ORIGIN can be a comma-separated list.
 // Falls back to bgmoffice.netlify.app so it works even if the env var isn't set.
 const rawOrigins = process.env.ALLOWED_ORIGIN || 'https://bgmoffice.netlify.app';
