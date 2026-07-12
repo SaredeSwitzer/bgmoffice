@@ -1,7 +1,53 @@
 # BGM Office — Claude Code Guide
 
-Internal operations app for a private fitness/wellness business. Manages clients, instructors,
-cases, invoices, scheduling, and recruiting.
+Internal operations app for a private fitness/wellness business ("Bring the Gym to Me").
+Manages clients, instructors, cases, invoices, scheduling, and recruiting.
+
+## Working agreement — READ THIS FIRST
+
+The owner, Sarede, is **not a programmer**. This app was built and is maintained almost
+entirely by AI agents. That changes how you should work:
+
+- **Do the work, don't hand her instructions.** You have the tools to act. The Vercel CLI
+  is installed and authenticated, the Supabase MCP is configured, and you can run SQL and
+  deploy directly. Never end a turn with "now run these commands" if you could have run them
+  yourself. Making her copy-paste terminal commands is what used to frustrate her.
+- **Explain in plain language, briefly.** Say what you did and what it means for her
+  business, not how the internals work. No walls of jargon.
+- **Prefer safe, reversible steps, and say when something isn't reversible.** Before anything
+  that could log users out, change a password, touch payments, or delete data, tell her
+  plainly and confirm.
+- **Never reintroduce the old stack.** This app was migrated off SQLite / Railway / Netlify
+  on 2026-07-12. If you see those mentioned in an old file or comment, it is stale. Postgres
+  on Supabase, hosted on Vercel, is the truth.
+- **Deploy with `vercel --prod` from the repo** — this works even if the code hasn't been
+  pushed to GitHub yet (Vercel builds from the local directory). You do not need to wait for
+  a git push to ship a fix.
+- **There is a human backstop.** Sarede's friend Yidy helps with the hard/credentialed parts
+  (DNS, billing, accounts). If something needs a login only she has, say so clearly and stop.
+
+## Current state & open items (as of 2026-07-12)
+
+The migration is complete and the app is live and working at https://bgmoffice.vercel.app.
+Login works against real data. A full review lives in `ROADMAP.md` — read it before making
+architectural changes.
+
+Security done:
+- Row Level Security is now ENABLED on all tables (the DB was previously reachable through
+  Supabase's public REST API). Do not disable it. The app connects as the `postgres` owner,
+  which bypasses RLS, so RLS being on does not affect the app.
+- `JWT_SECRET` was rotated on 2026-07-12 (the old one had leaked into git history).
+
+Still open (see ROADMAP.md for detail):
+- **DNS**: `bgmoffice.com` may still point at the old Netlify host. The live app is on Vercel.
+  Changing this needs the owner's Porkbun login — a human task.
+- **Default admin password** `admin@bgmoffice.com` / `admin123` is still live. Should be
+  changed, but only with the owner present so she isn't locked out.
+- **Stripe webhook** skips signature verification when no secret is set — should be made to
+  require `STRIPE_WEBHOOK_SECRET`.
+- **Data model**: `*_at` columns are stored as TEXT and booleans as integers (SQLite
+  leftovers). Fix before the dataset grows. Details in ROADMAP.md Phase 2.
+- No automated tests, CI, or error monitoring yet.
 
 ## Stack
 
@@ -60,7 +106,8 @@ There is no auto-migration on startup any more. The schema lives in Supabase, an
 by running SQL against the Supabase project directly (project ref `fzaknqlbtjyepntfztgk`) — via
 the Supabase MCP, the SQL editor in the dashboard, or `psql` with `DATABASE_URL`.
 
-Apply the schema change first, then ship the code that depends on it.
+Apply the schema change first, then ship the code that depends on it. When you create a new
+table, immediately `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` on it (see Security above).
 
 ## Running locally
 
@@ -82,7 +129,7 @@ Set in the Vercel dashboard (or `vercel env add`), and mirrored in `server/.env`
   reach the database at all. This is the one that is easy to forget.
 - `JWT_SECRET` — signs auth tokens
 - `ALLOWED_ORIGIN` — CORS origin
-- `SUPABASE_URL` — currently unused by the server; kept for future use
+- `SUPABASE_URL` — used by the `/uploads` proxy to Supabase Storage
 - `GOOGLE_FORMS_WEBHOOK_SECRET` — guards the recruiting intake webhook
 - `STRIPE_SECRET_KEY` — optional; the app prefers the key stored in the `app_settings` table
   and only falls back to this env var
@@ -126,10 +173,11 @@ to do anything. `vercel logs <url>` for runtime errors.
 
 ## Backups
 
-Handled by Supabase (managed, automatic). The old `server/db/backup.js` cron was deleted with
-the SQLite migration — do not reintroduce it.
+Handled by Supabase (managed, automatic). The old SQLite backup cron was deleted with the
+migration — do not reintroduce it.
 
-## Known issues
+## Related
 
-- The admin login is still `admin@bgmoffice.com` / `admin123` on a live, public app. Change it.
-- `bgmoffice.com` DNS (at Porkbun) may still point at Netlify. The live app is on Vercel.
+- `ROADMAP.md` — full code review and prioritized improvement plan. Read before big changes.
+- Sarede also runs a personal assistant called "Amber" (in a separate repo) that logs into
+  this app's API. If you change the auth flow or the login endpoint, Amber may need updating.
