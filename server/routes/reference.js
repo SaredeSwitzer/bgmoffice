@@ -1,71 +1,57 @@
 const express = require('express');
-const db = require('../db');
+const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
 
-// GET all sections ordered by display_order
-router.get('/', (req, res) => {
-  const sections = db.prepare(
-    'SELECT * FROM reference_sections ORDER BY display_order ASC, id ASC'
-  ).all();
-  res.json(sections);
+router.get('/', async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM reference_sections ORDER BY display_order ASC, id ASC');
+  res.json(rows);
 });
 
-// POST new section (any authenticated user)
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { title, content, display_order } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'title required' });
 
-  // Default display_order to end of list
-  const maxOrder = db.prepare(
-    'SELECT COALESCE(MAX(display_order), 0) AS m FROM reference_sections'
-  ).get().m;
-
-  const result = db.prepare(
+  const { rows: [max] } = await pool.query('SELECT COALESCE(MAX(display_order), 0) AS m FROM reference_sections');
+  const { rows: [section] } = await pool.query(
     `INSERT INTO reference_sections (title, content, display_order, created_by)
-     VALUES (?, ?, ?, ?)`
-  ).run(
-    title.trim(),
-    content ?? '',
-    display_order ?? maxOrder + 1,
-    req.user.name,
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [title.trim(), content ?? '', display_order ?? (max.m + 1), req.user.name]
   );
-  res.status(201).json(db.prepare('SELECT * FROM reference_sections WHERE id = ?').get(result.lastInsertRowid));
+  res.status(201).json(section);
 });
 
-// PUT update section (any authenticated user)
-router.put('/:id', (req, res) => {
-  const row = db.prepare('SELECT id FROM reference_sections WHERE id = ?').get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'Section not found' });
+router.put('/:id', async (req, res) => {
+  const { rows: [existing] } = await pool.query('SELECT id FROM reference_sections WHERE id = $1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Section not found' });
 
   const { title, content, display_order } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: 'title required' });
 
-  db.prepare(
+  const { rows: [section] } = await pool.query(
     `UPDATE reference_sections
-     SET title=?, content=?, display_order=?, updated_at=datetime('now')
-     WHERE id=?`
-  ).run(title.trim(), content ?? '', display_order ?? 0, req.params.id);
-  res.json(db.prepare('SELECT * FROM reference_sections WHERE id = ?').get(req.params.id));
+     SET title=$1, content=$2, display_order=$3, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS')
+     WHERE id=$4 RETURNING *`,
+    [title.trim(), content ?? '', display_order ?? 0, req.params.id]
+  );
+  res.json(section);
 });
 
-// PATCH reorder — expects body: { items: [{id, display_order}] }
-router.patch('/reorder', (req, res) => {
+router.patch('/reorder', async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const { items } = req.body;
   if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
-  const stmt = db.prepare('UPDATE reference_sections SET display_order=? WHERE id=?');
-  const updateAll = db.transaction(() => items.forEach(({ id, display_order }) => stmt.run(display_order, id)));
-  updateAll();
+  await Promise.all(items.map(({ id, display_order }) =>
+    pool.query('UPDATE reference_sections SET display_order=$1 WHERE id=$2', [display_order, id])
+  ));
   res.json({ ok: true });
 });
 
-// DELETE section (any authenticated user)
-router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM reference_sections WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Section not found' });
+router.delete('/:id', async (req, res) => {
+  const result = await pool.query('DELETE FROM reference_sections WHERE id = $1', [req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Section not found' });
   res.json({ success: true });
 });
 

@@ -1,150 +1,145 @@
 const express = require('express');
-const db = require('../db');
+const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const ACTION_TYPES_SQL = `
-  SELECT at.id, at.name, at.color, at.order_index
-  FROM action_item_action_types aiat
-  JOIN action_types at ON at.id = aiat.action_type_id
-  WHERE aiat.action_item_id = ?
-  ORDER BY at.order_index ASC
-`;
-
-function getItem(id) {
-  const item = db.prepare(`
-    SELECT ai.id, ai.case_id, ai.status, ai.initial_note,
-           ai.created_at, ai.created_by, ai.resolved_at, ai.starred, ai.updated_at,
-           d.id AS delegate_id, d.name AS delegate_name
-    FROM action_items ai
-    LEFT JOIN delegates d ON d.id = ai.delegate_id
-    WHERE ai.id = ?
-  `).get(id);
+async function getItem(id) {
+  const { rows: [item] } = await pool.query(
+    `SELECT ai.id, ai.case_id, ai.status, ai.initial_note,
+            ai.created_at, ai.created_by, ai.resolved_at, ai.starred, ai.updated_at,
+            d.id AS delegate_id, d.name AS delegate_name
+     FROM action_items ai
+     LEFT JOIN delegates d ON d.id = ai.delegate_id
+     WHERE ai.id = $1`,
+    [id]
+  );
   if (!item) return null;
 
-  item.action_types = db.prepare(ACTION_TYPES_SQL).all(id);
-  // Legacy single-value fields kept for any code still reading them
-  item.action_type_id    = item.action_types[0]?.id    ?? null;
-  item.action_type_name  = item.action_types.map(a => a.name).join(', ');
-  item.action_type_color = item.action_types[0]?.color ?? 'gray';
+  const { rows: actionTypes } = await pool.query(
+    `SELECT at.id, at.name, at.color, at.order_index
+     FROM action_item_action_types aiat
+     JOIN action_types at ON at.id = aiat.action_type_id
+     WHERE aiat.action_item_id = $1
+     ORDER BY at.order_index ASC`,
+    [id]
+  );
+  item.action_types      = actionTypes;
+  item.action_type_id    = actionTypes[0]?.id    ?? null;
+  item.action_type_name  = actionTypes.map(a => a.name).join(', ');
+  item.action_type_color = actionTypes[0]?.color ?? 'gray';
 
-  item.notes = db.prepare(
-    'SELECT * FROM follow_up_notes WHERE action_item_id = ? ORDER BY created_at ASC'
-  ).all(id);
-  item.reminders = db.prepare(
+  const { rows: notes } = await pool.query(
+    'SELECT * FROM follow_up_notes WHERE action_item_id = $1 ORDER BY created_at ASC',
+    [id]
+  );
+  item.notes = notes;
+
+  const { rows: reminders } = await pool.query(
     `SELECT id, title, remind_on, delegate_name, status, created_by, created_at
-     FROM reminders WHERE action_item_id = ? AND status = 'pending' ORDER BY remind_on ASC`
-  ).all(id);
+     FROM reminders WHERE action_item_id = $1 AND status = 'pending' ORDER BY remind_on ASC`,
+    [id]
+  );
+  item.reminders = reminders;
   return item;
 }
 
-function setActionTypes(itemId, actionTypeIds) {
-  db.prepare('DELETE FROM action_item_action_types WHERE action_item_id = ?').run(itemId);
+async function setActionTypes(itemId, actionTypeIds) {
+  await pool.query('DELETE FROM action_item_action_types WHERE action_item_id = $1', [itemId]);
   if (actionTypeIds?.length) {
-    const ins = db.prepare(
-      'INSERT OR IGNORE INTO action_item_action_types (action_item_id, action_type_id) VALUES (?, ?)'
+    await Promise.all(
+      actionTypeIds.map(atId =>
+        pool.query(
+          'INSERT INTO action_item_action_types (action_item_id, action_type_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+          [itemId, atId]
+        )
+      )
     );
-    db.transaction(() => actionTypeIds.forEach(atId => ins.run(itemId, atId)))();
   }
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-
-// Create action item
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { case_id, action_type_ids, delegate_id, initial_note } = req.body;
-  if (!case_id || !action_type_ids?.length) {
-    return res.status(400).json({ error: 'case_id and action_type_ids required' });
-  }
-  const result = db.prepare(
-    'INSERT INTO action_items (case_id, action_type_id, delegate_id, initial_note, created_by) VALUES (?, ?, ?, ?, ?)'
-  ).run(case_id, action_type_ids[0] ?? null, delegate_id ?? null, initial_note ?? null, req.user.initials);
+  if (!case_id || !action_type_ids?.length) return res.status(400).json({ error: 'case_id and action_type_ids required' });
 
-  setActionTypes(result.lastInsertRowid, action_type_ids);
-  res.status(201).json(getItem(result.lastInsertRowid));
+  const { rows: [item] } = await pool.query(
+    'INSERT INTO action_items (case_id, action_type_id, delegate_id, initial_note, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    [case_id, action_type_ids[0] ?? null, delegate_id ?? null, initial_note ?? null, req.user.initials]
+  );
+  await setActionTypes(item.id, action_type_ids);
+  res.status(201).json(await getItem(item.id));
 });
 
-// Update action item
-router.put('/:id', (req, res) => {
-  const item = db.prepare('SELECT id FROM action_items WHERE id = ?').get(req.params.id);
-  if (!item) return res.status(404).json({ error: 'Action item not found' });
+router.put('/:id', async (req, res) => {
+  const { rows: [existing] } = await pool.query('SELECT id FROM action_items WHERE id = $1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Action item not found' });
 
   const { action_type_ids, delegate_id, initial_note } = req.body;
-  db.prepare(
-    `UPDATE action_items SET action_type_id=?, delegate_id=?, initial_note=?, updated_at=datetime('now') WHERE id=?`
-  ).run(action_type_ids?.[0] ?? null, delegate_id ?? null, initial_note ?? null, req.params.id);
-
-  setActionTypes(req.params.id, action_type_ids ?? []);
-  res.json(getItem(req.params.id));
+  await pool.query(
+    `UPDATE action_items SET action_type_id=$1, delegate_id=$2, initial_note=$3, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$4`,
+    [action_type_ids?.[0] ?? null, delegate_id ?? null, initial_note ?? null, req.params.id]
+  );
+  await setActionTypes(req.params.id, action_type_ids ?? []);
+  res.json(await getItem(req.params.id));
 });
 
-// Toggle starred
-router.patch('/:id/star', (req, res) => {
-  const { starred } = req.body;
-  const result = db.prepare('UPDATE action_items SET starred=? WHERE id=?').run(starred ? 1 : 0, req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Action item not found' });
-  res.json(getItem(req.params.id));
+router.patch('/:id/star', async (req, res) => {
+  const result = await pool.query('UPDATE action_items SET starred=$1 WHERE id=$2', [req.body.starred ? 1 : 0, req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Action item not found' });
+  res.json(await getItem(req.params.id));
 });
 
-// Toggle status open/resolved
-router.patch('/:id/status', (req, res) => {
+router.patch('/:id/status', async (req, res) => {
   const { status } = req.body;
-  if (!['open', 'resolved'].includes(status)) {
-    return res.status(400).json({ error: 'status must be open or resolved' });
-  }
+  if (!['open', 'resolved'].includes(status)) return res.status(400).json({ error: 'status must be open or resolved' });
   const resolved_at = status === 'resolved' ? new Date().toISOString() : null;
-  const result = db.prepare(
-    'UPDATE action_items SET status=?, resolved_at=? WHERE id=?'
-  ).run(status, resolved_at, req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Action item not found' });
-  res.json(getItem(req.params.id));
+  const result = await pool.query('UPDATE action_items SET status=$1, resolved_at=$2 WHERE id=$3', [status, resolved_at, req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Action item not found' });
+  res.json(await getItem(req.params.id));
 });
 
-// Delete action item
-router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM action_items WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Action item not found' });
+router.delete('/:id', async (req, res) => {
+  const result = await pool.query('DELETE FROM action_items WHERE id = $1', [req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Action item not found' });
   res.json({ success: true });
 });
 
-// Edit a follow-up note (own note or admin)
-router.put('/:id/notes/:noteId', (req, res) => {
+router.put('/:id/notes/:noteId', async (req, res) => {
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'text required' });
-  const note = db.prepare(
-    'SELECT * FROM follow_up_notes WHERE id = ? AND action_item_id = ?'
-  ).get(req.params.noteId, req.params.id);
+  const { rows: [note] } = await pool.query(
+    'SELECT * FROM follow_up_notes WHERE id = $1 AND action_item_id = $2',
+    [req.params.noteId, req.params.id]
+  );
   if (!note) return res.status(404).json({ error: 'Note not found' });
   if (note.author_initials !== req.user.initials && req.user.role !== 'admin')
     return res.status(403).json({ error: 'Not authorized' });
-  db.prepare(
-    `UPDATE follow_up_notes SET text=?, updated_at=datetime('now') WHERE id=?`
-  ).run(text.trim(), req.params.noteId);
-  res.json(db.prepare('SELECT * FROM follow_up_notes WHERE id = ?').get(req.params.noteId));
+  const { rows: [updated] } = await pool.query(
+    `UPDATE follow_up_notes SET text=$1, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$2 RETURNING *`,
+    [text.trim(), req.params.noteId]
+  );
+  res.json(updated);
 });
 
-// Add follow-up note — author always taken from JWT, never trusted from body
-router.post('/:id/notes', (req, res) => {
+router.post('/:id/notes', async (req, res) => {
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'text required' });
-  const item = db.prepare('SELECT id FROM action_items WHERE id = ?').get(req.params.id);
-  if (!item) return res.status(404).json({ error: 'Action item not found' });
-  const result = db.prepare(
-    'INSERT INTO follow_up_notes (action_item_id, text, author_initials) VALUES (?, ?, ?)'
-  ).run(req.params.id, text.trim(), req.user.initials);
-  res.status(201).json(db.prepare('SELECT * FROM follow_up_notes WHERE id = ?').get(result.lastInsertRowid));
+  const { rows: [existing] } = await pool.query('SELECT id FROM action_items WHERE id = $1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Action item not found' });
+  const { rows: [note] } = await pool.query(
+    'INSERT INTO follow_up_notes (action_item_id, text, author_initials) VALUES ($1,$2,$3) RETURNING *',
+    [req.params.id, text.trim(), req.user.initials]
+  );
+  res.status(201).json(note);
 });
 
-// Delete follow-up note
-router.delete('/:id/notes/:noteId', (req, res) => {
-  const result = db.prepare(
-    'DELETE FROM follow_up_notes WHERE id = ? AND action_item_id = ?'
-  ).run(req.params.noteId, req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Note not found' });
+router.delete('/:id/notes/:noteId', async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM follow_up_notes WHERE id = $1 AND action_item_id = $2',
+    [req.params.noteId, req.params.id]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
   res.json({ success: true });
 });
 

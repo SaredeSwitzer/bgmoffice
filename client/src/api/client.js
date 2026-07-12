@@ -2,7 +2,9 @@ const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api'
 const API_ROOT = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export function uploadsUrl(filename) {
-  return filename ? `${API_ROOT}/uploads/${filename}` : null
+  if (!filename) return null
+  if (filename.startsWith('https://') || filename.startsWith('http://')) return filename
+  return `${API_ROOT}/uploads/${filename}`
 }
 
 function getToken() {

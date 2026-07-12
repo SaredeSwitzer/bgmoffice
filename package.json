@@ -4,7 +4,20 @@
   "private": true,
   "scripts": {
     "dev": "concurrently --names \"server,client\" --prefix-colors \"blue,green\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
-    "start": "npm run start --prefix server"
+    "start": "npm run start --prefix server",
+    "build": "cd client && npm install && npm run build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.3",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "pg": "^8.13.3",
+    "stripe": "^22.2.0"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
