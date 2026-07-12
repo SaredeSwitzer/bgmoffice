@@ -6,44 +6,41 @@ Internal operations app for managing private fitness/wellness instructors and cl
 
 ```
 bgmoffice/
+├── api/        Vercel serverless entry (re-exports the Express app)
 ├── client/     React + Tailwind + React Router frontend
-└── server/     Node.js + Express + SQLite backend
+└── server/     Node.js + Express API, PostgreSQL (Supabase)
 ```
 
 ## Quick Start
 
-### Server
 ```bash
-cd server
 npm install
-npm run seed      # create & seed the database
-npm run dev       # start with file-watching
+npm run dev
 ```
 
-Server runs on http://localhost:3001
+- Server: http://localhost:3001
+- Client: http://localhost:5173
 
-### Client
-```bash
-cd client
-npm install
-npm run dev       # start Vite dev server
-```
-
-Client runs on http://localhost:5173
-
-## Default Credentials
-
-| Role  | Email                  | Password   |
-|-------|------------------------|------------|
-| Admin | admin@bgmoffice.com    | admin123   |
-| Staff | lyra@bgmoffice.com     | staff123   |
-| Staff | maria@bgmoffice.com    | staff123   |
-| Staff | sarede@bgmoffice.com   | staff123   |
-| Staff | claire@bgmoffice.com   | staff123   |
+Copy `server/.env.example` to `server/.env` and fill it in first. `DATABASE_URL` (the Supabase
+connection string) is required — there is no local database, so local dev talks to the live
+Supabase Postgres.
 
 ## Tech Stack
 
-- **Frontend**: React 18, Vite, Tailwind CSS, React Router v6
-- **Backend**: Node.js, Express 5, better-sqlite3
-- **Auth**: bcryptjs, JWT (stored in localStorage)
-- **Database**: SQLite (file: `server/db/bgmoffice.db`)
+- Frontend: React 19, Vite, Tailwind CSS v4, React Router v7
+- Backend: Node.js, Express 5, deployed as a single Vercel serverless function
+- Database: PostgreSQL on Supabase, via the `pg` driver (raw SQL)
+- Auth: bcryptjs + JWT, stored in localStorage
+- Payments: Stripe
+- Hosting: Vercel
+
+## Deploying
+
+```bash
+vercel --prod
+```
+
+## Notes
+
+Migrated from SQLite/Railway/Netlify to PostgreSQL/Supabase/Vercel on 2026-07-12.
+See `CLAUDE.md` for conventions and environment variables.

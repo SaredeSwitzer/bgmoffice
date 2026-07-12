@@ -10,3 +10,5 @@ server/db/uploads/
 
 # Local Netlify folder
 .netlify
+.vercel
+.env*
