@@ -58,7 +58,55 @@ app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), asy
 
 app.use(express.json());
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+// Real health check, replacing a `res.json({status:'ok'})` stub that would have reported
+// "ok" through every outage this app has actually had — the Express process was never the
+// thing that broke. What broke was: the DB URL missing, the Stripe key unreachable, no
+// webhook registered, email unconfigured. So check *those*.
+//
+// Public on purpose (an uptime monitor has to reach it without a login). It returns only
+// booleans — never a secret value.
+//
+// 200 = everything a customer needs is working.
+// 503 = something is broken that will cost her money or lock her out. Page someone.
+app.get('/api/health', async (req, res) => {
+  const pool = require('./db/pg');
+  const checks = {};
+
+  // The database is the app. If this fails, nothing else matters.
+  try {
+    const { rows } = await pool.query('SELECT count(*)::int AS n FROM users WHERE active = 1');
+    checks.database = true;
+    checks.users_present = rows[0].n > 0;
+  } catch {
+    checks.database = false;
+    checks.users_present = false;
+  }
+
+  // Config that has silently gone missing before. Each of these was a real outage.
+  let settings = {};
+  try {
+    const { rows } = await pool.query(
+      "SELECT key, value FROM app_settings WHERE key IN ('stripe_secret_key','stripe_publishable_key','stripe_webhook_secret')"
+    );
+    settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  } catch { /* database check above already failed */ }
+
+  checks.jwt_secret       = Boolean(process.env.JWT_SECRET);
+  checks.allowed_origin   = Boolean(process.env.ALLOWED_ORIGIN);      // empty here broke browser login
+  checks.email_sending    = Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM); // no email = nobody can log in
+  checks.stripe_keys      = Boolean(settings.stripe_secret_key && settings.stripe_publishable_key);
+  checks.stripe_webhook   = Boolean(settings.stripe_webhook_secret); // missing = payments never marked paid
+
+  const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k);
+  const healthy = failed.length === 0;
+
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'ok' : 'degraded',
+    failed,
+    checks,
+    checked_at: new Date().toISOString(),
+  });
+});
 
 // Public: Stripe publishable key
 app.get('/api/settings/stripe-public', async (req, res) => {

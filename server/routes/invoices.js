@@ -77,7 +77,18 @@ router.post('/public/:token/pay', async (req, res) => {
     if (row.stripe_payment_intent_id) {
       const existing = await stripe.paymentIntents.retrieve(row.stripe_payment_intent_id);
       if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(existing.status)) {
-        clientSecret = existing.client_secret;
+        // Re-sync the amount before reusing the intent. Editing an invoice after its pay link
+        // was opened used to leave a stale PaymentIntent behind, and we'd hand the client that
+        // old intent — charging whatever the invoice USED to say. Found live: INV-2026-007 was
+        // a $40 invoice whose intent still wanted $240. Charging a real client 6x the invoice
+        // is not a rounding error, it's a lost client.
+        const amount = Math.round(row.total * 100);
+        if (existing.amount !== amount) {
+          const updated = await stripe.paymentIntents.update(existing.id, { amount });
+          clientSecret = updated.client_secret;
+        } else {
+          clientSecret = existing.client_secret;
+        }
       }
     }
 
