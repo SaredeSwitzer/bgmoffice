@@ -124,6 +124,8 @@ app.use('/uploads', (req, res) => {
 });
 
 app.use('/api/auth',         require('./routes/auth'));
+app.use('/api/auth/passkeys', require('./routes/passkeys'));
+
 app.use('/api/clients',      require('./routes/clients'));
 app.use('/api/instructors',  require('./routes/instructors'));
 app.use('/api/cases',        require('./routes/cases'));

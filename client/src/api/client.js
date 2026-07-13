@@ -28,7 +28,10 @@ async function request(path, options = {}) {
   // A 401 from the sign-in endpoints means "wrong password / wrong code" — the visitor
   // isn't logged in yet, so there's no session to expire. Only a 401 elsewhere means a
   // live session went stale.
-  const SIGN_IN_PATHS = ['/auth/login', '/auth/request-code', '/auth/verify-code']
+  const SIGN_IN_PATHS = [
+    '/auth/login', '/auth/request-code', '/auth/verify-code',
+    '/auth/passkeys/login', '/auth/passkeys/login/options',
+  ]
   if (res.status === 401 && !SIGN_IN_PATHS.includes(path)) {
     localStorage.removeItem('bgm_token')
     window.dispatchEvent(new Event('bgm:session-expired'))
@@ -57,6 +60,17 @@ export const api = {
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: () => request('/auth/me'),
+
+  // Passkey (Touch ID / Face ID). Sign-in needs no email: the browser offers whichever passkey
+  // it holds for this site, so it's open -> touch -> in.
+  passkeyLoginOptions: () => request('/auth/passkeys/login/options', { method: 'POST' }),
+  passkeyLogin: (response) =>
+    request('/auth/passkeys/login', { method: 'POST', body: JSON.stringify({ response }) }),
+  passkeyRegisterOptions: () => request('/auth/passkeys/register/options', { method: 'POST' }),
+  passkeyRegister: (response, label) =>
+    request('/auth/passkeys/register', { method: 'POST', body: JSON.stringify({ response, label }) }),
+  getPasskeys: () => request('/auth/passkeys'),
+  deletePasskey: (id) => request(`/auth/passkeys/${id}`, { method: 'DELETE' }),
 
   // Dashboard
   dashboard: () => request('/dashboard'),

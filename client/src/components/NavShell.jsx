@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import PasskeyPrompt from './PasskeyPrompt'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { RemindersProvider, useRemindersContext } from '../context/RemindersContext'
@@ -40,6 +41,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      <PasskeyPrompt />
 
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">

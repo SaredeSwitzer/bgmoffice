@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../api/client'
+import { browserSupportsWebAuthn } from '@simplewebauthn/browser'
 
 // Sign-in has two paths. The everyday one is a 6-digit code emailed to you — nothing to
 // remember, nothing to leak. The password path stays as a backup for when email is down;
@@ -10,8 +11,11 @@ import { api } from '../api/client'
 // Steps: 'email' → 'code' (the code path), or 'password' (the backup path).
 
 export default function LoginPage() {
-  const { login, loginWithCode } = useAuth()
+  const { login, loginWithCode, loginWithPasskey } = useAuth()
   const navigate = useNavigate()
+  // Only offer the passkey button where it can actually work — showing a Touch ID button that
+  // does nothing is worse than not showing one.
+  const [canPasskey] = useState(() => browserSupportsWebAuthn())
 
   const [step, setStep] = useState('email')
   const [email, setEmail] = useState('')
@@ -51,6 +55,19 @@ export default function LoginPage() {
     })
   }
 
+  const signInWithPasskey = () => {
+    run(async () => {
+      try {
+        await loginWithPasskey()
+        navigate('/')
+      } catch (err) {
+        // The user cancelling the Touch ID prompt is not an error worth shouting about.
+        if (err?.name === 'NotAllowedError' || /abort/i.test(err?.message || '')) return
+        throw err
+      }
+    })
+  }
+
   const submitPassword = (e) => {
     e.preventDefault()
     run(async () => {
@@ -84,6 +101,28 @@ export default function LoginPage() {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded mb-4">
               {error}
+            </div>
+          )}
+
+          {step === 'email' && canPasskey && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={signInWithPasskey}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-900 text-sm font-medium py-2 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M12 11c1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3 1.3 3 3 3z" />
+                  <path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" />
+                </svg>
+                Sign in with Touch ID
+              </button>
+              <div className="flex items-center gap-3 my-4">
+                <div className="h-px bg-gray-200 flex-1" />
+                <span className="text-xs text-gray-400">or</span>
+                <div className="h-px bg-gray-200 flex-1" />
+              </div>
             </div>
           )}
 

@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const pool     = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { sendLoginCode } = require('../lib/mailer');
+const { signToken, publicUser } = require('../lib/token');
 
 const router = express.Router();
 
@@ -29,18 +30,6 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many login attempts — try again in 15 minutes.' },
 });
-
-function signToken(user) {
-  return jwt.sign(
-    { id: user.id, name: user.name, initials: user.initials, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: '8h' }
-  );
-}
-
-function publicUser(user) {
-  return { id: user.id, name: user.name, initials: user.initials, email: user.email, role: user.role };
-}
 
 // A user may type either their login name (maria@bgmoffice.com) or the real address the
 // code is delivered to (maria@gmail.com) — both find the same account.
