@@ -10,6 +10,7 @@ import autoTable from 'jspdf-autotable'
 const STATUS_COLORS = {
   draft:   'bg-gray-100 text-gray-600',
   sent:    'bg-blue-100 text-blue-700',
+  partial: 'bg-amber-100 text-amber-700',
   paid:    'bg-green-100 text-green-700',
   overdue: 'bg-red-100 text-red-700',
 }
@@ -36,18 +37,62 @@ export default function InvoiceDetailPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [payments, setPayments] = useState([])
+  const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [paymentForm, setPaymentForm] = useState(null)
+  const [savingPayment, setSavingPayment] = useState(false)
+
+  function loadPayments() {
+    return api.getInvoicePayments(id).then(setPayments)
+  }
 
   useEffect(() => {
     Promise.all([
       api.getInvoice(id),
       api.getClients(),
       api.getInstructors(),
-    ]).then(([inv, c, i]) => {
+      api.getInvoicePayments(id),
+    ]).then(([inv, c, i, p]) => {
       setInvoice(inv)
       setClients(c)
       setInstructors(i)
+      setPayments(p)
     }).catch(e => setError(e.message))
   }, [id])
+
+  const balanceDue = invoice ? Math.max(invoice.total - (invoice.amount_paid || 0), 0) : 0
+
+  function startPaymentForm() {
+    setPaymentForm({ amount: balanceDue ? balanceDue.toFixed(2) : '', paid_date: new Date().toISOString().slice(0, 10), method: 'cash', note: '' })
+    setShowPaymentForm(true)
+  }
+
+  async function handleRecordPayment(e) {
+    e.preventDefault()
+    setSavingPayment(true); setError('')
+    try {
+      const updated = await api.addInvoicePayment(id, {
+        amount: Number(paymentForm.amount),
+        paid_date: paymentForm.paid_date,
+        method: paymentForm.method,
+        note: paymentForm.note || null,
+      })
+      setInvoice(updated)
+      await loadPayments()
+      setShowPaymentForm(false)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingPayment(false)
+    }
+  }
+
+  async function handleDeletePayment(paymentId) {
+    if (!confirm('Remove this payment record? This cannot be undone.')) return
+    const updated = await api.deleteInvoicePayment(id, paymentId)
+    setInvoice(updated)
+    await loadPayments()
+  }
 
   function startEdit() {
     setEditForm({
@@ -349,6 +394,7 @@ export default function InvoiceDetailPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
                   <option value="draft">Draft</option>
                   <option value="sent">Sent</option>
+                  <option value="partial">Partial</option>
                   <option value="paid">Paid</option>
                   <option value="overdue">Overdue</option>
                 </select>
@@ -515,8 +561,40 @@ export default function InvoiceDetailPage() {
                 <div className="flex justify-between font-bold text-gray-900 text-base border-t border-gray-100 pt-1">
                   <span>Total Due</span><span>{fmtMoney(invoice.total)}</span>
                 </div>
+                {invoice.amount_paid > 0 && (
+                  <>
+                    <div className="flex justify-between text-green-600">
+                      <span>Paid</span><span>{fmtMoney(invoice.amount_paid)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-gray-900 border-t border-gray-100 pt-1">
+                      <span>Balance Due</span><span>{fmtMoney(balanceDue)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
+
+            {/* Payment history */}
+            {payments.length > 0 && (
+              <div className="mt-4 border border-gray-100 rounded-xl overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                  Payments Recorded
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {payments.map(p => (
+                    <div key={p.id} className="flex items-center justify-between px-4 py-2 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-800">{fmtMoney(p.amount)}</span>
+                        <span className="text-gray-400 text-xs ml-2">{fmtDate(p.paid_date)}{p.method && ` · ${p.method}`}</span>
+                        {p.note && <span className="text-gray-400 text-xs ml-2 italic">{p.note}</span>}
+                      </div>
+                      <button onClick={() => handleDeletePayment(p.id)}
+                        className="text-gray-300 hover:text-red-500 text-xs">✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {invoice.notes && (
               <div className="mt-4 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-600 border border-gray-100">
@@ -560,6 +638,12 @@ export default function InvoiceDetailPage() {
                 Revert to Draft
               </button>
             )}
+            {invoice.status !== 'paid' && (
+              <button onClick={startPaymentForm}
+                className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600">
+                💵 Record Partial Payment
+              </button>
+            )}
 
             {/* Send options */}
             <button onClick={copyLink}
@@ -588,6 +672,64 @@ export default function InvoiceDetailPage() {
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">
               👁 Preview Payment Page
             </a>
+          </div>
+        </div>
+      )}
+
+      {showPaymentForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="px-6 pt-6 pb-2">
+              <h3 className="font-bold text-gray-900 text-lg">Record Partial Payment</h3>
+              <p className="text-xs text-gray-400 mt-1">Balance due: {fmtMoney(balanceDue)}</p>
+            </div>
+            <form onSubmit={handleRecordPayment} className="px-6 py-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Amount</label>
+                <input type="number" min="0.01" step="0.01" required autoFocus
+                  value={paymentForm.amount}
+                  onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Date Paid</label>
+                <input type="date" required
+                  value={paymentForm.paid_date}
+                  onChange={e => setPaymentForm(f => ({ ...f, paid_date: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Method</label>
+                <select value={paymentForm.method}
+                  onChange={e => setPaymentForm(f => ({ ...f, method: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                  <option value="cash">Cash</option>
+                  <option value="check">Check</option>
+                  <option value="zelle">Zelle</option>
+                  <option value="venmo">Venmo</option>
+                  <option value="card">Card</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Note (optional)</label>
+                <input value={paymentForm.note}
+                  onChange={e => setPaymentForm(f => ({ ...f, note: e.target.value }))}
+                  placeholder="e.g. check #1042"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              {error && <p className="text-xs text-red-600">{error}</p>}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={savingPayment}
+                  className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700">
+                  {savingPayment ? 'Saving…' : 'Save Payment'}
+                </button>
+                <button type="button" onClick={() => { setShowPaymentForm(false); setError('') }}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

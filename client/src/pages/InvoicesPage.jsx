@@ -7,6 +7,7 @@ import { navClick, auxNavClick } from '../utils/nav'
 const STATUS_COLORS = {
   draft:   'bg-gray-100 text-gray-600',
   sent:    'bg-blue-100 text-blue-700',
+  partial: 'bg-amber-100 text-amber-700',
   paid:    'bg-green-100 text-green-700',
   overdue: 'bg-red-100 text-red-700',
 }
@@ -346,7 +347,7 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
   )
 }
 
-const STATUS_ORDER = ['draft', 'sent', 'overdue', 'paid']
+const STATUS_ORDER = ['draft', 'sent', 'partial', 'overdue', 'paid']
 
 function sortInvoices(invoices, col, dir) {
   return [...invoices].sort((a, b) => {
@@ -427,6 +428,7 @@ export default function InvoicesPage() {
             <option value="">All Statuses</option>
             <option value="draft">Draft</option>
             <option value="sent">Sent</option>
+            <option value="partial">Partial</option>
             <option value="paid">Paid</option>
             <option value="overdue">Overdue</option>
           </select>

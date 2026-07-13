@@ -258,6 +258,9 @@ export const api = {
   updateInvoice: (id, data) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   setInvoiceStatus: (id, status) => request(`/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   deleteInvoice: (id) => request(`/invoices/${id}`, { method: 'DELETE' }),
+  getInvoicePayments: (id) => request(`/invoices/${id}/payments`),
+  addInvoicePayment: (id, data) => request(`/invoices/${id}/payments`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteInvoicePayment: (id, paymentId) => request(`/invoices/${id}/payments/${paymentId}`, { method: 'DELETE' }),
 
   // Public invoice (no auth — used by the pay page). Keyed on the invoice's random
   // public_token, never its id: the token is what stops strangers reading every invoice.

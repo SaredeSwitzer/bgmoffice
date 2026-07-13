@@ -173,6 +173,65 @@ router.put('/:id', async (req, res) => {
   res.json(enrichInvoice(row));
 });
 
+// ── Partial payments ───────────────────────────────────────────────────────
+// Manual record of cash/check/etc payments that don't go through Stripe. Recomputes
+// amount_paid and status (partial/paid) from the sum of all logged payments, so it
+// stays correct even if a payment is deleted later.
+
+async function recalcPaid(invoiceId) {
+  const { rows: [{ sum }] } = await pool.query(
+    'SELECT COALESCE(SUM(amount), 0) AS sum FROM invoice_payments WHERE invoice_id=$1', [invoiceId]
+  );
+  const { rows: [inv] } = await pool.query('SELECT total, status FROM invoices WHERE id=$1', [invoiceId]);
+  let status = inv.status;
+  let paid_at = null;
+  if (Number(sum) >= Number(inv.total) && Number(inv.total) > 0) {
+    status = 'paid';
+    paid_at = new Date().toISOString();
+  } else if (Number(sum) > 0) {
+    status = 'partial';
+  } else if (status === 'partial') {
+    status = 'sent';
+  }
+  await pool.query(
+    "UPDATE invoices SET amount_paid=$1, status=$2, paid_at=$3, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$4",
+    [sum, status, paid_at, invoiceId]
+  );
+}
+
+router.get('/:id/payments', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT * FROM invoice_payments WHERE invoice_id=$1 ORDER BY paid_date DESC, id DESC', [req.params.id]
+  );
+  res.json(rows);
+});
+
+router.post('/:id/payments', async (req, res) => {
+  const { amount, paid_date, method, note } = req.body;
+  if (!(Number(amount) > 0)) return res.status(400).json({ error: 'Amount must be greater than 0' });
+  const { rows: [existing] } = await pool.query('SELECT id FROM invoices WHERE id=$1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Invoice not found' });
+
+  await pool.query(
+    `INSERT INTO invoice_payments (invoice_id, amount, paid_date, method, note, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [req.params.id, Number(amount), paid_date || new Date().toISOString().slice(0, 10), method || null, note || null, req.user.initials]
+  );
+  await recalcPaid(req.params.id);
+  const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
+  res.status(201).json(enrichInvoice(row));
+});
+
+router.delete('/:id/payments/:paymentId', async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM invoice_payments WHERE id=$1 AND invoice_id=$2', [req.params.paymentId, req.params.id]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Payment not found' });
+  await recalcPaid(req.params.id);
+  const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
+  res.json(enrichInvoice(row));
+});
+
 router.patch('/:id/status', async (req, res) => {
   const { status } = req.body;
   if (!['draft','sent','paid','overdue'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
