@@ -621,7 +621,7 @@ export default function InvoiceDetailPage() {
               </button>
             )}
             {invoice.status !== 'paid' && (
-              <button onClick={() => handleStatusChange('paid')}
+              <button onClick={startPaymentForm}
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
                 Mark as Paid
               </button>
@@ -680,7 +680,7 @@ export default function InvoiceDetailPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
             <div className="px-6 pt-6 pb-2">
-              <h3 className="font-bold text-gray-900 text-lg">Record Partial Payment</h3>
+              <h3 className="font-bold text-gray-900 text-lg">Record Payment</h3>
               <p className="text-xs text-gray-400 mt-1">Balance due: {fmtMoney(balanceDue)}</p>
             </div>
             <form onSubmit={handleRecordPayment} className="px-6 py-4 space-y-3">
