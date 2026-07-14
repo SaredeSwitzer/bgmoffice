@@ -35,8 +35,8 @@ export function AuthProvider({ children }) {
     return accept(await api.login(email, password))
   }
 
-  async function loginWithCode(email, code) {
-    return accept(await api.verifyCode(email, code))
+  async function loginWithCode(email, code, accountId) {
+    return accept(await api.verifyCode(email, code, accountId))
   }
 
   // Touch ID / Face ID. Two round trips: get a challenge, let the device sign it, send it back.

@@ -53,10 +53,12 @@ export const api = {
   deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
 
   // Auth — code sign-in is the everyday path, password is the backup
-  requestCode: (email) =>
-    request('/auth/request-code', { method: 'POST', body: JSON.stringify({ email }) }),
-  verifyCode: (email, code) =>
-    request('/auth/verify-code', { method: 'POST', body: JSON.stringify({ email, code }) }),
+  // account_id disambiguates when one email maps to several accounts (Sarede is both the admin
+  // and a staff user, and both codes go to the same inbox).
+  requestCode: (email, account_id) =>
+    request('/auth/request-code', { method: 'POST', body: JSON.stringify({ email, account_id }) }),
+  verifyCode: (email, code, account_id) =>
+    request('/auth/verify-code', { method: 'POST', body: JSON.stringify({ email, code, account_id }) }),
   login: (email, password) =>
     request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: () => request('/auth/me'),

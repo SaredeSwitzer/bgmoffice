@@ -33,15 +33,25 @@ const loginLimiter = rateLimit({
 
 // A user may type either their login name (maria@bgmoffice.com) or the real address the
 // code is delivered to (maria@gmail.com) — both find the same account.
-async function findUser(email) {
+//
+// ONE EMAIL CAN MAP TO SEVERAL ACCOUNTS. Sarede is both `admin@bgmoffice.com` (the admin) and
+// `sarede@bgmoffice.com` (a staff user), and both deliver codes to sarede@bringthegymtome.com.
+// The old code did `LIMIT 1`, so she ALWAYS landed on Admin and could never reach her own staff
+// account. Return them all and let her pick.
+async function findUsers(email) {
   const { rows } = await pool.query(
     `SELECT * FROM users
       WHERE active = 1
         AND (lower(email) = lower($1) OR lower(login_email) = lower($1))
-      LIMIT 1`,
+      ORDER BY id`,
     [String(email).trim()]
   );
-  return rows[0] || null;
+  return rows;
+}
+
+// What the login screen shows in the "which account?" picker. Never a secret.
+function accountChoice(u) {
+  return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
 
 function hashCode(code) {
@@ -59,10 +69,20 @@ function maskEmail(email) {
 // ── 1. Code sign-in ───────────────────────────────────────────────────────────
 
 router.post('/request-code', loginLimiter, async (req, res) => {
-  const { email } = req.body;
+  const { email, account_id } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required' });
 
-  const user = await findUser(email);
+  const users = await findUsers(email);
+
+  // Ambiguous email → don't guess. Hand the choice back to the screen, THEN send a code for the
+  // account she actually picked, so the code is tied to that one account.
+  if (users.length > 1 && !account_id) {
+    return res.json({ choose: users.map(accountChoice) });
+  }
+
+  const user = account_id
+    ? users.find((u) => String(u.id) === String(account_id))
+    : users[0];
   // Deliberately NOT a generic "if that account exists, we sent a code". This is a
   // 4-person internal tool whose addresses are already known; telling Sarede plainly
   // that she mistyped is worth more than hiding which accounts exist. A wrong address
@@ -105,10 +125,15 @@ router.post('/request-code', loginLimiter, async (req, res) => {
 });
 
 router.post('/verify-code', loginLimiter, async (req, res) => {
-  const { email, code } = req.body;
+  const { email, code, account_id } = req.body;
   if (!email || !code) return res.status(400).json({ error: 'Email and code required' });
 
-  const user = await findUser(email);
+  const users = await findUsers(email);
+  // The code was issued to ONE account. If she picked one, verify against that; otherwise there
+  // was only ever one to begin with.
+  const user = account_id
+    ? users.find((u) => String(u.id) === String(account_id))
+    : users[0];
   if (!user) return res.status(401).json({ error: 'That code is wrong or has expired.' });
 
   const { rows: [record] } = await pool.query(
@@ -145,8 +170,11 @@ router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-  const user = await findUser(email);
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+  // No chooser needed here: the accounts have different passwords, so the password itself says
+  // which one she means.
+  const users = await findUsers(email);
+  const user = users.find((u) => bcrypt.compareSync(password, u.password_hash));
+  if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 

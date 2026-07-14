@@ -18,6 +18,10 @@ export default function LoginPage() {
   const [canPasskey] = useState(() => browserSupportsWebAuthn())
 
   const [step, setStep] = useState('email')
+  // When one email maps to several accounts (Sarede is both Admin and a staff user), we ask which
+  // one she means BEFORE sending a code — so the code belongs to that account.
+  const [accounts, setAccounts] = useState([])
+  const [accountId, setAccountId] = useState(null)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
@@ -37,20 +41,30 @@ export default function LoginPage() {
     }
   }
 
-  const requestCode = (e) => {
-    e.preventDefault()
+  const requestCode = (e, forAccountId = accountId) => {
+    e?.preventDefault?.()
     run(async () => {
-      const res = await api.requestCode(email)
+      const res = await api.requestCode(email, forAccountId)
+      if (res.choose) {
+        setAccounts(res.choose)
+        setStep('account')
+        return
+      }
       setSentTo(res.sent_to)
       setCode('')
       setStep('code')
     })
   }
 
+  const pickAccount = (id) => {
+    setAccountId(id)
+    requestCode(null, id)
+  }
+
   const submitCode = (e) => {
     e.preventDefault()
     run(async () => {
-      await loginWithCode(email, code)
+      await loginWithCode(email, code, accountId)
       navigate('/')
     })
   }
@@ -80,6 +94,7 @@ export default function LoginPage() {
     setError('')
     setCode('')
     setPassword('')
+    setAccountId(null)
     setStep(next)
   }
 
@@ -153,6 +168,34 @@ export default function LoginPage() {
                 </button>
               </div>
             </form>
+          )}
+
+          {step === 'account' && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-700">Which account?</p>
+              <p className="text-xs text-gray-500 -mt-2">
+                That email is used by more than one account.
+              </p>
+              {accounts.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => pickAccount(a.id)}
+                  disabled={loading}
+                  className="w-full text-left border border-gray-300 rounded-lg px-3 py-2 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <div className="text-sm font-medium text-gray-900">{a.name}</div>
+                  <div className="text-xs text-gray-500">
+                    {a.role === 'admin' ? 'Admin — full access' : 'Staff'}
+                  </div>
+                </button>
+              ))}
+              <div className="text-center pt-1">
+                <button type="button" onClick={() => switchTo('email')} className={linkClass}>
+                  Use a different email
+                </button>
+              </div>
+            </div>
           )}
 
           {step === 'code' && (
