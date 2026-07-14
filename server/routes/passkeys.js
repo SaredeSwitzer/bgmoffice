@@ -80,7 +80,7 @@ router.post('/register/options', requireAuth, async (req, res) => {
     })),
     authenticatorSelection: {
       residentKey: 'required',      // discoverable: lets her sign in WITHOUT typing an email
-      userVerification: 'preferred', // Touch ID / Face ID / device PIN
+      userVerification: 'required', // Touch ID / Face ID / device PIN — must match the verify step
     },
   });
 
@@ -108,6 +108,10 @@ router.post('/register', requireAuth, async (req, res) => {
       ).challenge,
       expectedOrigin: ORIGINS,
       expectedRPID: RP_ID,
+      // Keep in step with `userVerification: 'required'` in the options above. If the options
+      // only *prefer* it, the authenticator may skip the biometric and this check then rejects
+      // a legitimate sign-in — which is exactly how Touch ID broke for Maria.
+      requireUserVerification: true,
     });
   } catch (err) {
     return res.status(400).json({ error: err.message });
@@ -140,7 +144,7 @@ router.post('/register', requireAuth, async (req, res) => {
 router.post('/login/options', async (req, res) => {
   const options = await generateAuthenticationOptions({
     rpID: RP_ID,
-    userVerification: 'preferred',
+    userVerification: 'required',
     // No allowCredentials: the browser offers whichever passkey it has for this site, so she
     // never types an email. That is the whole point — open, touch, in.
   });
@@ -176,6 +180,10 @@ router.post('/login', async (req, res) => {
       expectedChallenge: challenge,
       expectedOrigin: ORIGINS,
       expectedRPID: RP_ID,
+      // Keep in step with `userVerification: 'required'` in the options above. If the options
+      // only *prefer* it, the authenticator may skip the biometric and this check then rejects
+      // a legitimate sign-in — which is exactly how Touch ID broke for Maria.
+      requireUserVerification: true,
       credential: {
         id: pk.credential_id,
         publicKey: Buffer.from(pk.public_key, 'base64url'),
