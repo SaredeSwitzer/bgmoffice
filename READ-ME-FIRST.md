@@ -92,3 +92,23 @@ You're in good shape. You didn't need to buy anything — you needed the wiring 
 is. Anything confusing, just text.
 
 – Yidy
+
+
+---
+
+## Update — July 15 (from Yidy, while you were away)
+
+Looked over the intake-form fix you committed (the recruiting Google Form that feeds new client
+requests into BGM Office). It's good work. I tightened one part of it:
+
+Your new "which day of the week is this class" detection could get confused when a client's
+answer named two different days — e.g. *"Tuesdays 5pm, can start next Monday"* — and it would
+give up and mark the class **Flexible** even though it's clearly a Tuesday. It now prefers the
+recurring day (the one written as a plural, "Tuesdays") and only falls back to Flexible when the
+answer is genuinely ambiguous. I tested it against a batch of realistic answers and it's solid.
+
+Nothing for you to do — new intake entries will just fill in the day more often now. It's
+committed on your laptop but not pushed yet; it'll go up next time you Sync/Push (or when we do
+the web-address switch together).
+
+– Yidy

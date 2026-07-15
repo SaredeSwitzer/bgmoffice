@@ -7,10 +7,18 @@ const INTAKE_BY_INITIALS = { Sarede: 'S', Lyra: 'L', Claire: 'C' };
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+// The free-text schedule field often also names a *start date* ("start next
+// Monday"), which can introduce a second weekday and make a clearly-recurring
+// class look ambiguous. Recurring class days are usually written as plurals
+// ("Tuesdays"), so prefer a lone plural day before falling back to a lone
+// singular mention. Only commit to a day when exactly one candidate remains;
+// \b word boundaries keep "Tuesdays" from also matching the singular pass.
 function detectDayOfWeek(timeSlot) {
   if (!timeSlot) return 'Flexible';
-  const mentioned = WEEKDAYS.filter(day => new RegExp(day, 'i').test(timeSlot));
-  return mentioned.length === 1 ? mentioned[0] : 'Flexible';
+  const plural = WEEKDAYS.filter(day => new RegExp(`\\b${day}s\\b`, 'i').test(timeSlot));
+  if (plural.length === 1) return plural[0];
+  const singular = WEEKDAYS.filter(day => new RegExp(`\\b${day}\\b`, 'i').test(timeSlot));
+  return singular.length === 1 ? singular[0] : 'Flexible';
 }
 
 // Match on a short, stable prefix rather than the full label text — the live
