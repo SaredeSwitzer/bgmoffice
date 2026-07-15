@@ -52,15 +52,21 @@ async function getInstructorRow(id) {
 
 router.get('/', async (req, res) => {
   const { q } = req.query;
+  // Include styles_taught + neighborhood so the directory can filter/display by
+  // "what they teach" and "where they're based" (searchable instructor directory).
+  const cols = 'id, name, phone, email, specialties, styles_taught, neighborhood, pay_rate, photo_url';
   let rows;
   if (q) {
     const like = `%${q}%`;
     ({ rows } = await pool.query(
-      'SELECT id, name, phone, email, specialties, photo_url FROM instructors WHERE name ILIKE $1 OR phone ILIKE $2 OR email ILIKE $3 OR specialties ILIKE $4 ORDER BY name',
-      [like, like, like, like]
+      `SELECT ${cols} FROM instructors
+        WHERE name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1
+           OR specialties ILIKE $1 OR styles_taught ILIKE $1 OR neighborhood ILIKE $1
+        ORDER BY name`,
+      [like]
     ));
   } else {
-    ({ rows } = await pool.query('SELECT id, name, phone, email, specialties, photo_url FROM instructors ORDER BY name'));
+    ({ rows } = await pool.query(`SELECT ${cols} FROM instructors ORDER BY name`));
   }
   res.json(rows);
 });
