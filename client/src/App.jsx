@@ -18,6 +18,7 @@ import TasksPage from './pages/TasksPage'
 import InvoicesPage from './pages/InvoicesPage'
 import InvoiceDetailPage from './pages/InvoiceDetailPage'
 import PaymentPage from './pages/PaymentPage'
+import SchedulePage from './pages/SchedulePage'
 
 export default function App() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="clients/:id" element={<ClientProfilePage />} />
             <Route path="instructors" element={<InstructorsPage />} />
             <Route path="instructors/:id" element={<InstructorProfilePage />} />
+            <Route path="schedule" element={<SchedulePage />} />
             <Route
               path="settings"
               element={

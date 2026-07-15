@@ -278,6 +278,23 @@ export const api = {
   logSession: (packageId, data) => request(`/packages/${packageId}/sessions`, { method: 'POST', body: JSON.stringify(data) }),
   deleteSession: (packageId, sessionId) => request(`/packages/${packageId}/sessions/${sessionId}`, { method: 'DELETE' }),
 
+  // Scheduling — recurring class arrangements + their dated occurrences
+  getClassSchedules: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString()
+    return request(`/schedule/schedules${qs ? `?${qs}` : ''}`)
+  },
+  createClassSchedule: (data) => request('/schedule/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  updateClassSchedule: (id, data) => request(`/schedule/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteClassSchedule: (id) => request(`/schedule/schedules/${id}`, { method: 'DELETE' }),
+  getClassSessions: (start, end, params = {}) => {
+    const qs = new URLSearchParams({ start, end, ...params }).toString()
+    return request(`/schedule/sessions?${qs}`)
+  },
+  createClassSession: (data) => request('/schedule/sessions', { method: 'POST', body: JSON.stringify(data) }),
+  updateClassSession: (id, data) => request(`/schedule/sessions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteClassSession: (id) => request(`/schedule/sessions/${id}`, { method: 'DELETE' }),
+  generateClassWeek: (week_start) => request('/schedule/generate', { method: 'POST', body: JSON.stringify({ week_start }) }),
+
   // Stripe settings (admin)
   getStripeSettings: () => request('/settings/stripe'),
   saveStripeSettings: (data) => request('/settings/stripe', { method: 'POST', body: JSON.stringify(data) }),
