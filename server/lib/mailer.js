@@ -60,4 +60,34 @@ async function sendLoginCode(to, code) {
   }
 }
 
-module.exports = { sendLoginCode, isConfigured };
+// Generic transactional send (instructor confirmations, etc.). Same Resend path as the
+// login code. Throws in production if email isn't configured so a caller can surface it;
+// in dev it logs instead of silently dropping.
+async function sendMail({ to, subject, text, html, replyTo }) {
+  if (!to) throw new Error('No recipient email');
+  if (!isConfigured()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Email is not configured (RESEND_API_KEY / MAIL_FROM missing)');
+    }
+    console.log(`\n[dev] email to ${to}: ${subject}\n${text || ''}\n`);
+    return;
+  }
+  const res = await fetch(RESEND_ENDPOINT, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: process.env.MAIL_FROM,
+      to: [to],
+      subject,
+      ...(text ? { text } : {}),
+      ...(html ? { html } : {}),
+      ...(replyTo ? { reply_to: replyTo } : {}),
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Resend rejected the email (${res.status}): ${body.slice(0, 200)}`);
+  }
+}
+
+module.exports = { sendLoginCode, sendMail, isConfigured };

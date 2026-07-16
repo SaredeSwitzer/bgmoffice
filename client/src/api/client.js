@@ -302,6 +302,13 @@ export const api = {
   toggleClassNoteDone: (noteId) => request(`/schedule/notes/${noteId}/done`, { method: 'PATCH' }),
   deleteClassNote: (noteId) => request(`/schedule/notes/${noteId}`, { method: 'DELETE' }),
 
+  // Instructor confirmation email — preview (fills the template from the class) then send.
+  getConfirmationPreview: (scheduleId) => request(`/schedule/schedules/${scheduleId}/confirmation-preview`),
+  sendConfirmation: (scheduleId, data = {}) => request(`/schedule/schedules/${scheduleId}/send-confirmation`, { method: 'POST', body: JSON.stringify(data) }),
+  // Editable confirmation template (admin)
+  getConfirmationTemplate: () => request('/settings/confirmation-template'),
+  saveConfirmationTemplate: (data) => request('/settings/confirmation-template', { method: 'POST', body: JSON.stringify(data) }),
+
   // Recurring CC billing (Stripe saved cards) + card-on-file
   // Public save-card link (no auth):
   getSaveCard: (token) => fetch(`${BASE}/billing/save-card/${token}`).then(r => r.json()),

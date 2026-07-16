@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, Fragment } from 'react'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
 import ClassNotes from '../components/ClassNotes'
+import ConfirmClassModal from '../components/ConfirmClassModal'
 
 // Small pill showing a class's note / open-task counts; also the button that expands notes.
 function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
@@ -56,6 +57,9 @@ export default function SchedulePage() {
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(BLANK_SCHEDULE)
   const [saving, setSaving] = useState(false)
+
+  // Recurring class whose instructor-confirmation email modal is open.
+  const [confirmSchedule, setConfirmSchedule] = useState(null)
 
   // Which class's notes panel is open, keyed like 'session-12' / 'schedule-5'.
   const [openNotes, setOpenNotes] = useState(null)
@@ -322,6 +326,16 @@ export default function SchedulePage() {
                       <p className="text-sm font-semibold text-gray-800">{money(s.charge_amount)}</p>
                       <p className="text-[11px] text-gray-400">{s.payment_method || '—'}</p>
                     </div>
+                    {s.instructor_id && (
+                      <button onClick={() => setConfirmSchedule(s)} title="Email the instructor a class confirmation"
+                        className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
+                          s.confirmation_sent_at
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}>
+                        {s.confirmation_sent_at ? '✓ Emailed' : 'Email'}
+                      </button>
+                    )}
                     <NotesToggle open={openNotes === `schedule-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
                       onClick={() => toggleNotes(`schedule-${s.id}`)} />
                     <button onClick={() => toggleSchedulePause(s)}
@@ -338,6 +352,15 @@ export default function SchedulePage() {
             </div>
           )}
         </>
+      )}
+
+      {confirmSchedule && (
+        <ConfirmClassModal
+          schedule={confirmSchedule}
+          onClose={() => setConfirmSchedule(null)}
+          onSent={(r) => setSchedules(prev => prev.map(x =>
+            x.id === confirmSchedule.id ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))}
+        />
       )}
     </div>
   )

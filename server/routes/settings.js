@@ -136,4 +136,27 @@ router.post('/stripe', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Instructor confirmation email template (editable wording). Placeholders in {curly braces}
+// are filled from the class when sending: {instructor_name} {client_name} {day} {time}
+// {location} {style} {rate}.
+router.get('/confirmation-template', async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT key, value FROM app_settings WHERE key IN ('instructor_confirm_subject','instructor_confirm_body')"
+  );
+  const m = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  res.json({ subject: m.instructor_confirm_subject || '', body: m.instructor_confirm_body || '' });
+});
+
+router.post('/confirmation-template', async (req, res) => {
+  const { subject, body } = req.body;
+  const upsert = (key, val) => pool.query(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, to_char(NOW(),'YYYY-MM-DD HH24:MI:SS'))
+     ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at`,
+    [key, val]
+  );
+  if (subject !== undefined) await upsert('instructor_confirm_subject', subject);
+  if (body !== undefined)    await upsert('instructor_confirm_body', body);
+  res.json({ ok: true });
+});
+
 module.exports = router;
