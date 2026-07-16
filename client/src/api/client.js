@@ -295,6 +295,21 @@ export const api = {
   deleteClassSession: (id) => request(`/schedule/sessions/${id}`, { method: 'DELETE' }),
   generateClassWeek: (week_start) => request('/schedule/generate', { method: 'POST', body: JSON.stringify({ week_start }) }),
 
+  // Recurring CC billing (Stripe saved cards) + card-on-file
+  // Public save-card link (no auth):
+  getSaveCard: (token) => fetch(`${BASE}/billing/save-card/${token}`).then(r => r.json()),
+  createSaveCardIntent: (token) => fetch(`${BASE}/billing/save-card/${token}/intent`, { method: 'POST' }).then(r => r.json()),
+  confirmSaveCard: (token, setup_intent_id) => fetch(`${BASE}/billing/save-card/${token}/confirm`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_intent_id }),
+  }).then(r => r.json()),
+  // Staff (authed):
+  getClientSaveLink: (clientId) => request(`/billing/clients/${clientId}/save-link`, { method: 'POST' }),
+  createClientSetupIntent: (clientId) => request(`/billing/clients/${clientId}/setup-intent`, { method: 'POST' }),
+  confirmClientCard: (clientId, setup_intent_id) => request(`/billing/clients/${clientId}/confirm-card`, { method: 'POST', body: JSON.stringify({ setup_intent_id }) }),
+  removeClientCard: (clientId) => request(`/billing/clients/${clientId}/card`, { method: 'DELETE' }),
+  getBillingWeek: (start) => request(`/billing/week?start=${start}`),
+  chargeBilling: (week_start, items) => request('/billing/charge', { method: 'POST', body: JSON.stringify({ week_start, items }) }),
+
   // Stripe settings (admin)
   getStripeSettings: () => request('/settings/stripe'),
   saveStripeSettings: (data) => request('/settings/stripe', { method: 'POST', body: JSON.stringify(data) }),

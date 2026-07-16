@@ -140,6 +140,7 @@ app.use('/api/invoices',     require('./routes/invoices'));
 app.use('/api/tasks',        require('./routes/tasks'));
 app.use('/api/packages',     require('./routes/packages'));
 app.use('/api/schedule',     require('./routes/schedule'));
+app.use('/api/billing',      require('./routes/billing'));
 
 // Action type lookups (any authenticated user)
 const { requireAuth } = require('./middleware/auth');

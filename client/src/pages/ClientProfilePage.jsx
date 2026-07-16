@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { api } from '../api/client'
 import { navClick, auxNavClick } from '../utils/nav'
 import ContactInfo from '../components/ContactInfo'
@@ -535,6 +537,100 @@ function InvoicesSection({ clientId, clientName }) {
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Card on File (Stripe) — save a card for weekly CC billing ─────────────────
+function CardKeyForm({ clientId, onDone, onCancel }) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [submitting, setSubmitting] = useState(false)
+  const [err, setErr] = useState('')
+  async function submit(e) {
+    e.preventDefault()
+    if (!stripe || !elements) return
+    setSubmitting(true); setErr('')
+    const { error, setupIntent } = await stripe.confirmSetup({ elements, redirect: 'if_required' })
+    if (error) { setErr(error.message || 'Could not save card.'); setSubmitting(false); return }
+    if (setupIntent?.status === 'succeeded') {
+      const r = await api.confirmClientCard(clientId, setupIntent.id)
+      if (r.error) { setErr(r.error); setSubmitting(false); return }
+      onDone()
+    } else { setErr('Card setup did not complete.'); setSubmitting(false) }
+  }
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <PaymentElement />
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      <div className="flex gap-2">
+        <button type="submit" disabled={!stripe || submitting} className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          {submitting ? 'Saving…' : 'Save Card'}
+        </button>
+        <button type="button" onClick={onCancel} className="px-4 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">Cancel</button>
+      </div>
+    </form>
+  )
+}
+
+function CardOnFileSection({ clientId, client, onChange }) {
+  const [keying, setKeying] = useState(false)
+  const [stripePromise, setStripePromise] = useState(null)
+  const [clientSecret, setClientSecret] = useState(null)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function startKey() {
+    setBusy(true)
+    try {
+      const r = await api.createClientSetupIntent(clientId)
+      if (r.error || !r.publishable_key) { alert(r.error || 'Card processing is not configured.'); return }
+      setClientSecret(r.clientSecret); setStripePromise(loadStripe(r.publishable_key)); setKeying(true)
+    } finally { setBusy(false) }
+  }
+  async function copyLink() {
+    const r = await api.getClientSaveLink(clientId)
+    if (r.token) {
+      await navigator.clipboard.writeText(`${window.location.origin}/save-card/${r.token}`)
+      setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500)
+    }
+  }
+  async function remove() {
+    if (!confirm('Remove the saved card?')) return
+    await api.removeClientCard(clientId); onChange()
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
+      <h3 className="font-semibold text-gray-800 text-sm mb-3">Card on File</h3>
+      {client.card_last4 ? (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-700">
+            {client.card_brand ? `${client.card_brand} ` : ''}•••• {client.card_last4}
+            <span className="text-xs text-gray-400 ml-2">on file for weekly billing</span>
+          </p>
+          <button onClick={remove} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-400 italic">No card saved. Needed to charge this client via weekly CC billing.</p>
+      )}
+      {!keying && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button onClick={startKey} disabled={busy} className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+            {busy ? '…' : client.card_last4 ? 'Replace card' : 'Key a card now'}
+          </button>
+          <button onClick={copyLink} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
+            {linkCopied ? '✓ Link copied' : 'Copy save-card link'}
+          </button>
+        </div>
+      )}
+      {keying && clientSecret && stripePromise && (
+        <div className="mt-3">
+          <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+            <CardKeyForm clientId={clientId} onDone={() => { setKeying(false); onChange() }} onCancel={() => setKeying(false)} />
+          </Elements>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ClientProfilePage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -902,6 +998,8 @@ export default function ClientProfilePage() {
       )}
 
       {/* Class Packages */}
+      <CardOnFileSection clientId={id} client={client} onChange={() => api.getClient(id).then(setClient)} />
+
       <PackagesSection clientId={id} instructors={instructors} />
 
       {/* Invoices */}

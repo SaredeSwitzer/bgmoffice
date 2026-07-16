@@ -23,6 +23,7 @@ function Shell() {
     { to: '/clients',     label: 'Clients' },
     { to: '/instructors', label: 'Instructors' },
     { to: '/schedule',   label: 'Schedule' },
+    { to: '/billing',    label: 'Billing' },
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
     { to: '/invoices',   label: 'Invoices' },
     { to: '/recruiting', label: 'Recruiting' },

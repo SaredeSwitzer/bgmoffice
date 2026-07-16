@@ -18,7 +18,9 @@ import TasksPage from './pages/TasksPage'
 import InvoicesPage from './pages/InvoicesPage'
 import InvoiceDetailPage from './pages/InvoiceDetailPage'
 import PaymentPage from './pages/PaymentPage'
+import SaveCardPage from './pages/SaveCardPage'
 import SchedulePage from './pages/SchedulePage'
+import BillingPage from './pages/BillingPage'
 
 export default function App() {
   return (
@@ -28,6 +30,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           {/* Public payment page — no auth */}
           <Route path="/pay/:token" element={<PaymentPage />} />
+          <Route path="/save-card/:token" element={<SaveCardPage />} />
           <Route
             element={
               <ProtectedRoute>
@@ -51,6 +54,7 @@ export default function App() {
             <Route path="instructors" element={<InstructorsPage />} />
             <Route path="instructors/:id" element={<InstructorProfilePage />} />
             <Route path="schedule" element={<SchedulePage />} />
+            <Route path="billing" element={<BillingPage />} />
             <Route
               path="settings"
               element={
