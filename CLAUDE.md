@@ -20,9 +20,11 @@ entirely by AI agents. That changes how you should work:
 - **Never reintroduce the old stack.** This app was migrated off SQLite / Railway / Netlify
   on 2026-07-12. If you see those mentioned in an old file or comment, it is stale. Postgres
   on Supabase, hosted on Vercel, is the truth.
-- **Deploy with `vercel --prod` from the repo** — this works even if the code hasn't been
-  pushed to GitHub yet (Vercel builds from the local directory). You do not need to wait for
-  a git push to ship a fix.
+- **Deploy by committing and pushing to `main`.** The Vercel project is git-connected, so a
+  push to GitHub `main` auto-deploys to production (bgmoffice.com). Commit your change and
+  `git push` — that push *is* the deploy. Git is the source of truth; don't let prod get ahead
+  of it. (`vercel --prod` still works as an emergency fallback when you truly can't push, but
+  it leaves git behind, so avoid it — push instead.)
 - **There is a human backstop.** Sarede's friend Yidy helps with the hard/credentialed parts
   (DNS, billing, accounts). If something needs a login only she has, say so clearly and stop.
 
@@ -139,12 +141,16 @@ at build time, so a change alone does nothing.
 
 ## Deploying
 
+The Vercel project is **git-connected** — pushing to GitHub `main` auto-deploys to production
+(bgmoffice.com). So shipping is just:
+
 ```bash
-vercel --prod     # from the repo root; the project is already linked
+git add -A && git commit -m "…" && git push origin main   # auto-deploys to prod
 ```
 
-The Vercel CLI is installed and authenticated, so an agent can deploy without asking the user
-to do anything. `vercel logs <url>` for runtime errors.
+Run the DB migration first if the change adds one: `node server/db/migrate.js` (safe to re-run).
+`vercel logs <url>` for runtime errors. `vercel --prod` is an emergency-only fallback (it ships
+without a push and leaves git behind — prefer pushing so version control stays the truth).
 
 ## Auth flow
 
