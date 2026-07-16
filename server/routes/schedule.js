@@ -27,7 +27,9 @@ function isDate(v) {
 // A schedule with client + instructor names attached (for list/detail views).
 async function getScheduleRow(id) {
   const { rows: [row] } = await pool.query(
-    `SELECT cs.*, c.name AS client_name, i.name AS instructor_name
+    `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
+            (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id)::int AS note_count,
+            (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_schedules cs
        JOIN clients c      ON c.id = cs.client_id
        LEFT JOIN instructors i ON i.id = cs.instructor_id
@@ -46,7 +48,9 @@ router.get('/schedules', async (req, res) => {
   if (client_id) { args.push(client_id); where.push(`cs.client_id = $${args.length}`); }
   if (status)    { args.push(status);    where.push(`cs.status = $${args.length}`); }
   const { rows } = await pool.query(
-    `SELECT cs.*, c.name AS client_name, i.name AS instructor_name
+    `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
+            (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id)::int AS note_count,
+            (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_schedules cs
        JOIN clients c      ON c.id = cs.client_id
        LEFT JOIN instructors i ON i.id = cs.instructor_id
@@ -131,7 +135,9 @@ router.get('/sessions', async (req, res) => {
   if (instructor_id) { args.push(instructor_id); where.push(`s.instructor_id = $${args.length}`); }
 
   const { rows } = await pool.query(
-    `SELECT s.*, c.name AS client_name, i.name AS instructor_name
+    `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
+            (SELECT COUNT(*) FROM class_notes n WHERE n.session_id = s.id)::int AS note_count,
+            (SELECT COUNT(*) FROM class_notes n WHERE n.session_id = s.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_sessions s
        JOIN clients c      ON c.id = s.client_id
        LEFT JOIN instructors i ON i.id = s.instructor_id
@@ -215,6 +221,88 @@ router.post('/generate', async (req, res) => {
     [week_start]
   );
   res.status(201).json({ created: rows.length, week_start });
+});
+
+// ── Notes & tasks on a class ───────────────────────────────────────────────────
+// Attached to either a recurring class (schedule) or a dated session. Each row is a
+// plain note, or a task (is_task) that can be checked off (is_done). Same shape for
+// both parents; the two POST/GET routes below just differ by which id column they set.
+
+async function listClassNotes(col, id) {
+  const { rows } = await pool.query(
+    `SELECT * FROM class_notes WHERE ${col} = $1 ORDER BY is_done ASC, created_at ASC`, [id]
+  );
+  return rows;
+}
+
+async function addClassNote(col, id, body, initials) {
+  const text = (body.text || '').trim();
+  if (!text) { const e = new Error('Text required'); e.status = 400; throw e; }
+  const { rows: [note] } = await pool.query(
+    `INSERT INTO class_notes (${col}, text, is_task, author) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [id, text, body.is_task ? true : false, initials || null]
+  );
+  return note;
+}
+
+router.get('/schedules/:id/notes', async (req, res) => {
+  const { rows: [s] } = await pool.query('SELECT id FROM class_schedules WHERE id=$1', [req.params.id]);
+  if (!s) return res.status(404).json({ error: 'Schedule not found' });
+  res.json(await listClassNotes('schedule_id', req.params.id));
+});
+
+router.post('/schedules/:id/notes', async (req, res) => {
+  const { rows: [s] } = await pool.query('SELECT id FROM class_schedules WHERE id=$1', [req.params.id]);
+  if (!s) return res.status(404).json({ error: 'Schedule not found' });
+  try {
+    res.status(201).json(await addClassNote('schedule_id', req.params.id, req.body, req.user.initials));
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+router.get('/sessions/:id/notes', async (req, res) => {
+  const { rows: [s] } = await pool.query('SELECT id FROM class_sessions WHERE id=$1', [req.params.id]);
+  if (!s) return res.status(404).json({ error: 'Session not found' });
+  res.json(await listClassNotes('session_id', req.params.id));
+});
+
+router.post('/sessions/:id/notes', async (req, res) => {
+  const { rows: [s] } = await pool.query('SELECT id FROM class_sessions WHERE id=$1', [req.params.id]);
+  if (!s) return res.status(404).json({ error: 'Session not found' });
+  try {
+    res.status(201).json(await addClassNote('session_id', req.params.id, req.body, req.user.initials));
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+// Edit text / convert note<->task
+router.patch('/notes/:noteId', async (req, res) => {
+  const { rows: [note] } = await pool.query('SELECT * FROM class_notes WHERE id=$1', [req.params.noteId]);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  const text    = req.body.text    !== undefined ? String(req.body.text).trim() : note.text;
+  const is_task = req.body.is_task !== undefined ? !!req.body.is_task            : note.is_task;
+  if (!text) return res.status(400).json({ error: 'Text required' });
+  const { rows: [updated] } = await pool.query(
+    'UPDATE class_notes SET text=$1, is_task=$2, updated_at=now() WHERE id=$3 RETURNING *',
+    [text, is_task, req.params.noteId]
+  );
+  res.json(updated);
+});
+
+// Toggle a task done/undone
+router.patch('/notes/:noteId/done', async (req, res) => {
+  const { rows: [note] } = await pool.query('SELECT * FROM class_notes WHERE id=$1', [req.params.noteId]);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  const nowDone = !note.is_done;
+  const { rows: [updated] } = await pool.query(
+    'UPDATE class_notes SET is_done=$1, done_at=$2, updated_at=now() WHERE id=$3 RETURNING *',
+    [nowDone, nowDone ? new Date().toISOString() : null, req.params.noteId]
+  );
+  res.json(updated);
+});
+
+router.delete('/notes/:noteId', async (req, res) => {
+  const result = await pool.query('DELETE FROM class_notes WHERE id=$1', [req.params.noteId]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
+  res.json({ success: true });
 });
 
 module.exports = router;

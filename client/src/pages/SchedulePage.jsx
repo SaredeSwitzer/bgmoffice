@@ -1,6 +1,22 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Fragment } from 'react'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
+import ClassNotes from '../components/ClassNotes'
+
+// Small pill showing a class's note / open-task counts; also the button that expands notes.
+function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
+  const label = openTasks > 0 ? `${openTasks} to-do` : (noteCount > 0 ? `${noteCount} note${noteCount === 1 ? '' : 's'}` : 'Notes')
+  return (
+    <button onClick={onClick} title="Notes & tasks"
+      className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
+        openTasks > 0
+          ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+          : (noteCount > 0 ? 'border-gray-300 bg-gray-50 text-gray-600 hover:bg-gray-100' : 'border-gray-200 text-gray-400 hover:bg-gray-50')
+      } ${open ? 'ring-1 ring-gray-400' : ''}`}>
+      {label}
+    </button>
+  )
+}
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Other']
@@ -40,6 +56,18 @@ export default function SchedulePage() {
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(BLANK_SCHEDULE)
   const [saving, setSaving] = useState(false)
+
+  // Which class's notes panel is open, keyed like 'session-12' / 'schedule-5'.
+  const [openNotes, setOpenNotes] = useState(null)
+  const toggleNotes = (key) => setOpenNotes(prev => (prev === key ? null : key))
+  // Keep the row's badge in sync after edits inside the panel, without a full reload.
+  function applyCounts(kind, id, rows) {
+    const note_count = rows.length
+    const open_task_count = rows.filter(n => n.is_task && !n.is_done).length
+    const patch = s => s.id === id ? { ...s, note_count, open_task_count } : s
+    if (kind === 'session') setSessions(prev => prev.map(patch))
+    else setSchedules(prev => prev.map(patch))
+  }
 
   useEffect(() => {
     api.getClients().then(setClients).catch(() => {})
@@ -178,23 +206,30 @@ export default function SchedulePage() {
                       {dayName} · {parseLocal(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </div>
                     {rows.map((s, r) => (
-                      <div key={s.id} className={`flex items-center gap-3 px-4 py-3 ${r > 0 ? 'border-t border-gray-100' : ''}`}>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5 truncate">
-                            {s.instructor_name || 'No instructor'}{s.start_time ? ` · ${s.start_time.slice(0, 5)}` : ''}{s.style ? ` · ${s.style}` : ''}
-                          </p>
+                      <Fragment key={s.id}>
+                        <div className={`flex items-center gap-3 px-4 py-3 ${r > 0 ? 'border-t border-gray-100' : ''}`}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">
+                              {s.instructor_name || 'No instructor'}{s.start_time ? ` · ${s.start_time.slice(0, 5)}` : ''}{s.style ? ` · ${s.style}` : ''}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold text-gray-800">{money(s.charge_amount)}</p>
+                            <p className="text-[11px] text-gray-400">{s.payment_method || '—'}</p>
+                          </div>
+                          <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
+                            onClick={() => toggleNotes(`session-${s.id}`)} />
+                          <select value={s.status} onChange={e => setSessionStatus(s.id, e.target.value)}
+                            className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 text-gray-600 bg-white">
+                            {SESSION_STATUS.map(st => <option key={st} value={st}>{st.replace('_', ' ')}</option>)}
+                          </select>
+                          <button onClick={() => removeSession(s.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-semibold text-gray-800">{money(s.charge_amount)}</p>
-                          <p className="text-[11px] text-gray-400">{s.payment_method || '—'}</p>
-                        </div>
-                        <select value={s.status} onChange={e => setSessionStatus(s.id, e.target.value)}
-                          className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 text-gray-600 bg-white">
-                          {SESSION_STATUS.map(st => <option key={st} value={st}>{st.replace('_', ' ')}</option>)}
-                        </select>
-                        <button onClick={() => removeSession(s.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
-                      </div>
+                        {openNotes === `session-${s.id}` && (
+                          <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
+                        )}
+                      </Fragment>
                     ))}
                   </div>
                 )
@@ -274,24 +309,31 @@ export default function SchedulePage() {
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               {schedules.map((s, i) => (
-                <div key={s.id} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''} ${s.status === 'paused' ? 'opacity-50' : ''}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">
-                      {s.weekday != null ? WEEKDAYS[s.weekday] : 'Flexible'}{s.start_time ? ` · ${s.start_time.slice(0, 5)}` : ''}
-                      {' · '}{s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
-                    </p>
+                <Fragment key={s.id}>
+                  <div className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''} ${s.status === 'paused' ? 'opacity-50' : ''}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">
+                        {s.weekday != null ? WEEKDAYS[s.weekday] : 'Flexible'}{s.start_time ? ` · ${s.start_time.slice(0, 5)}` : ''}
+                        {' · '}{s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold text-gray-800">{money(s.charge_amount)}</p>
+                      <p className="text-[11px] text-gray-400">{s.payment_method || '—'}</p>
+                    </div>
+                    <NotesToggle open={openNotes === `schedule-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
+                      onClick={() => toggleNotes(`schedule-${s.id}`)} />
+                    <button onClick={() => toggleSchedulePause(s)}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-50">
+                      {s.status === 'active' ? 'Pause' : 'Resume'}
+                    </button>
+                    <button onClick={() => removeSchedule(s.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold text-gray-800">{money(s.charge_amount)}</p>
-                    <p className="text-[11px] text-gray-400">{s.payment_method || '—'}</p>
-                  </div>
-                  <button onClick={() => toggleSchedulePause(s)}
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-50">
-                    {s.status === 'active' ? 'Pause' : 'Resume'}
-                  </button>
-                  <button onClick={() => removeSchedule(s.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
-                </div>
+                  {openNotes === `schedule-${s.id}` && (
+                    <ClassNotes kind="schedule" id={s.id} onCountChange={rows => applyCounts('schedule', s.id, rows)} />
+                  )}
+                </Fragment>
               ))}
             </div>
           )}

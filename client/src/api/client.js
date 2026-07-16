@@ -295,6 +295,13 @@ export const api = {
   deleteClassSession: (id) => request(`/schedule/sessions/${id}`, { method: 'DELETE' }),
   generateClassWeek: (week_start) => request('/schedule/generate', { method: 'POST', body: JSON.stringify({ week_start }) }),
 
+  // Notes & to-do tasks on a class — attach to a recurring class ('schedule') or a dated 'session'.
+  getClassNotes: (kind, id) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`),
+  addClassNote: (kind, id, data) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`, { method: 'POST', body: JSON.stringify(data) }),
+  updateClassNote: (noteId, data) => request(`/schedule/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  toggleClassNoteDone: (noteId) => request(`/schedule/notes/${noteId}/done`, { method: 'PATCH' }),
+  deleteClassNote: (noteId) => request(`/schedule/notes/${noteId}`, { method: 'DELETE' }),
+
   // Recurring CC billing (Stripe saved cards) + card-on-file
   // Public save-card link (no auth):
   getSaveCard: (token) => fetch(`${BASE}/billing/save-card/${token}`).then(r => r.json()),
