@@ -56,3 +56,13 @@ The weekly run **prepares** charges, Sarede **approves**, then it charges — mi
 3. Weekly review endpoint + Billing page.
 4. Charge endpoint (off-session) — test one real charge end-to-end.
 5. Onboard a few recurring clients (save-card links), then run the first weekly review with Sarede.
+
+
+## Confirmed with Sarede + Yidy (2026-07-15)
+- **Variable weekly, NOT fixed subscriptions.** Do NOT use Stripe Subscriptions/Billing schedules.
+  Each week is computed fresh from that week's actual `class_sessions` — only classes that happened
+  get charged. Saved card + off-session PaymentIntent per computed amount. (This is why saved-card +
+  weekly-run beats Subscriptions.)
+- **USAePay stays live as the fallback.** If not all recurring clients have saved a card in Stripe by
+  the first run, run THIS week's charges on USAePay as usual (Amber's existing flow). Cut over per
+  client as cards are collected — no hard switchover date.
