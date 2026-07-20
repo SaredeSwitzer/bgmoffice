@@ -118,6 +118,16 @@ export default function InvoiceDetailPage() {
     })
   }
 
+  function moveLine(idx, dir) {
+    setEditForm(f => {
+      const li = [...f.line_items]
+      const target = idx + dir
+      if (target < 0 || target >= li.length) return f
+      ;[li[idx], li[target]] = [li[target], li[idx]]
+      return { ...f, line_items: li }
+    })
+  }
+
   const subtotal = editing
     ? (editForm?.line_items || []).reduce((s, li) => s + Number(li.unit_price || 0), 0)
     : invoice?.subtotal || 0
@@ -433,6 +443,14 @@ export default function InvoiceDetailPage() {
               <div className="space-y-3">
                 {editForm.line_items.map((li, idx) => (
                   <div key={idx} className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                    <div className="flex flex-col shrink-0">
+                      <button type="button" disabled={idx === 0}
+                        onClick={() => moveLine(idx, -1)}
+                        className="text-gray-300 hover:text-gray-700 disabled:opacity-20 disabled:hover:text-gray-300 leading-none text-xs px-1">▲</button>
+                      <button type="button" disabled={idx === editForm.line_items.length - 1}
+                        onClick={() => moveLine(idx, 1)}
+                        className="text-gray-300 hover:text-gray-700 disabled:opacity-20 disabled:hover:text-gray-300 leading-none text-xs px-1">▼</button>
+                    </div>
                     <input value={li.description} onChange={e => setLine(idx, 'description', e.target.value)}
                       placeholder="Description…"
                       className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
