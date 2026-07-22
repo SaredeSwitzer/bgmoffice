@@ -115,7 +115,7 @@ export default function SaveCardPage() {
           <p className="text-xs text-gray-500 mb-4">
             {info?.has_card
               ? `A card ending in ${info.card_last4} is already on file. Add a new one below to replace it.`
-              : 'Your card will be securely saved and charged weekly only for the classes you actually have. You’ll never be charged without your classes taking place.'}
+              : 'Your card will be securely saved and charged weekly for the classes you have. Our 24-hour cancellation policy applies — classes cancelled with less than 24 hours notice are still charged.'}
           </p>
           {clientSecret && stripePromise && (
             <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { fontFamily: 'system-ui, sans-serif' } } }}>
