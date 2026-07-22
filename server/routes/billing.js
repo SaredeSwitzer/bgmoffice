@@ -2,6 +2,7 @@ const express = require('express');
 const crypto  = require('crypto');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { notifyCrew } = require('../lib/notifyCrew');
 
 const router = express.Router();
 
@@ -77,11 +78,12 @@ router.post('/save-card/:token/intent', async (req, res) => {
 
 router.post('/save-card/:token/confirm', async (req, res) => {
   const { setup_intent_id } = req.body;
-  const { rows: [client] } = await pool.query('SELECT id FROM clients WHERE pay_token=$1', [req.params.token]);
+  const { rows: [client] } = await pool.query('SELECT id, name FROM clients WHERE pay_token=$1', [req.params.token]);
   if (!client) return res.status(404).json({ error: 'Link not found' });
   const stripe = await getStripe();
   try {
     const info = await storeCardFromSetupIntent(client.id, setup_intent_id, stripe);
+    notifyCrew(`${client.name} just saved a card via their save-card link — ${info.card_brand || 'card'} ending ${info.card_last4 || '????'}.`);
     res.json({ ok: true, ...info });
   } catch (err) {
     res.status(400).json({ error: err.message });
