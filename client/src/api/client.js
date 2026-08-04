@@ -295,6 +295,13 @@ export const api = {
   deleteClassSession: (id) => request(`/schedule/sessions/${id}`, { method: 'DELETE' }),
   generateClassWeek: (week_start) => request('/schedule/generate', { method: 'POST', body: JSON.stringify({ week_start }) }),
 
+  // Instructor accounts only — the caller's own classes. The server scopes this to the
+  // instructor_id in the session, so there is no id to pass and none can be forged here.
+  getMySessions: (start, end) => {
+    const qs = new URLSearchParams({ start, end }).toString()
+    return request(`/schedule/my-sessions?${qs}`)
+  },
+
   // Notes & to-do tasks on a class — attach to a recurring class ('schedule') or a dated 'session'.
   getClassNotes: (kind, id) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`),
   addClassNote: (kind, id, data) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`, { method: 'POST', body: JSON.stringify(data) }),

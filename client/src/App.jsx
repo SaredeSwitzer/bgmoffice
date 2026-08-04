@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import NavShell from './components/NavShell'
+import InstructorShell from './components/InstructorShell'
+import RoleHome from './components/RoleHome'
+import InstructorMyClassesPage from './pages/InstructorMyClassesPage'
 import LoginPage from './pages/LoginPage'
 import MyTasksPage from './pages/MyTasksPage'
 import DashboardPage from './pages/DashboardPage'
@@ -31,15 +34,26 @@ export default function App() {
           {/* Public payment page — no auth */}
           <Route path="/pay/:token" element={<PaymentPage />} />
           <Route path="/save-card/:token" element={<SaveCardPage />} />
+          {/* Instructor accounts: their own week only, in a shell with no staff nav. */}
           <Route
             element={
-              <ProtectedRoute>
+              <ProtectedRoute instructorOnly>
+                <InstructorShell />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="my-classes" element={<InstructorMyClassesPage />} />
+          </Route>
+
+          <Route
+            element={
+              <ProtectedRoute staffOnly>
                 <NavShell />
               </ProtectedRoute>
             }
           >
-            {/* Default landing → Dashboard */}
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            {/* Default landing depends on role: instructors → my-classes, staff → dashboard */}
+            <Route index element={<RoleHome />} />
             <Route path="my-tasks" element={<MyTasksPage />} />
             <Route path="reminders" element={<RemindersPage />} />
             <Route path="reference" element={<ReferencePage />} />
@@ -64,7 +78,9 @@ export default function App() {
               }
             />
           </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          {/* Unknown path → "/" so RoleHome decides where this account belongs. Sending it
+              straight to /dashboard would bounce an instructor through the staff shell. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
