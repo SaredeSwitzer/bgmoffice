@@ -183,7 +183,8 @@ router.post('/login', loginLimiter, async (req, res) => {
 
 router.get('/me', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT id, name, initials, email, role, instructor_id FROM users WHERE id = $1',
+    // ::int so instructor_id arrives as a number — BIGINT would come back as a string.
+    'SELECT id, name, initials, email, role, instructor_id::int FROM users WHERE id = $1',
     [req.user.id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'User not found' });

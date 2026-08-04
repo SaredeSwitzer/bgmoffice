@@ -9,10 +9,18 @@ const jwt = require('jsonwebtoken');
 // secret beyond identity + role, and any account can be cut off instantly with users.active = 0.
 // instructor_id rides along so the scoped endpoints never have to re-look-up which instructor
 // this account is. Null for admin/staff; the DB refuses an 'instructor' row without one.
+//
+// Coerced to a number because instructor_id is BIGINT and node-postgres hands those back as
+// strings — so it would otherwise reach the client as "58", and any === comparison against a
+// numeric id would quietly be false.
+function instructorId(user) {
+  return user.instructor_id == null ? null : Number(user.instructor_id);
+}
+
 function signToken(user) {
   return jwt.sign(
     { id: user.id, name: user.name, initials: user.initials, email: user.email, role: user.role,
-      instructor_id: user.instructor_id ?? null },
+      instructor_id: instructorId(user) },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
@@ -20,7 +28,7 @@ function signToken(user) {
 
 function publicUser(user) {
   return { id: user.id, name: user.name, initials: user.initials, email: user.email, role: user.role,
-           instructor_id: user.instructor_id ?? null };
+           instructor_id: instructorId(user) };
 }
 
 module.exports = { signToken, publicUser };
