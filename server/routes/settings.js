@@ -76,18 +76,48 @@ router.delete('/delegates/:id', async (req, res) => {
 });
 
 router.get('/users', async (req, res) => {
-  const { rows } = await pool.query('SELECT id, name, initials, email, role, active, created_at FROM users ORDER BY name');
+  const { rows } = await pool.query(
+    `SELECT u.id, u.name, u.initials, u.email, u.role, u.active, u.created_at,
+            u.instructor_id, i.name AS instructor_name
+       FROM users u
+       LEFT JOIN instructors i ON i.id = u.instructor_id
+      ORDER BY u.name`
+  );
   res.json(rows);
 });
 
+// An 'instructor' account must point at exactly one instructor record, and a non-instructor
+// account must not point at one. The DB enforces the first half (users_instructor_link_check);
+// this resolves and validates the link so the caller gets a clear 400 instead of a 500 from a
+// constraint violation. Returns { error } on failure, { value } on success.
+async function resolveInstructorLink(role, instructor_id) {
+  if (role !== 'instructor') return { value: null };
+  if (instructor_id === undefined || instructor_id === null || instructor_id === '')
+    return { error: 'instructor_id is required when role is instructor' };
+
+  const id = Number(instructor_id);
+  if (!Number.isInteger(id)) return { error: 'instructor_id must be a number' };
+
+  const { rows: [instructor] } = await pool.query('SELECT id FROM instructors WHERE id = $1', [id]);
+  if (!instructor) return { error: `No instructor with id ${id}` };
+
+  return { value: id };
+}
+
 router.post('/users', async (req, res) => {
-  const { name, initials, email, password, role } = req.body;
+  const { name, initials, email, password, role, instructor_id } = req.body;
   if (!name || !initials || !email || !password || !role)
     return res.status(400).json({ error: 'name, initials, email, password, role required' });
+
+  const link = await resolveInstructorLink(role, instructor_id);
+  if (link.error) return res.status(400).json({ error: link.error });
+
   const password_hash = bcrypt.hashSync(password, 10);
   const { rows: [user] } = await pool.query(
-    'INSERT INTO users (name, initials, email, password_hash, role) VALUES ($1,$2,$3,$4,$5) RETURNING id, name, initials, email, role, active',
-    [name, initials, email, password_hash, role]
+    `INSERT INTO users (name, initials, email, password_hash, role, instructor_id)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id, name, initials, email, role, active, instructor_id`,
+    [name, initials, email, password_hash, role, link.value]
   );
   res.status(201).json(user);
 });
@@ -95,14 +125,20 @@ router.post('/users', async (req, res) => {
 router.put('/users/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT id FROM users WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'User not found' });
-  const { name, initials, email, role, password } = req.body;
+  const { name, initials, email, role, password, instructor_id } = req.body;
+
+  // Also covers switching an existing account to/from 'instructor': promoting without a link
+  // would otherwise fail the DB constraint with a 500, and demoting has to clear the link.
+  const link = await resolveInstructorLink(role, instructor_id);
+  if (link.error) return res.status(400).json({ error: link.error });
+
   if (password) {
     const password_hash = bcrypt.hashSync(password, 10);
-    await pool.query('UPDATE users SET name=$1, initials=$2, email=$3, role=$4, password_hash=$5 WHERE id=$6', [name, initials, email, role, password_hash, req.params.id]);
+    await pool.query('UPDATE users SET name=$1, initials=$2, email=$3, role=$4, password_hash=$5, instructor_id=$6 WHERE id=$7', [name, initials, email, role, password_hash, link.value, req.params.id]);
   } else {
-    await pool.query('UPDATE users SET name=$1, initials=$2, email=$3, role=$4 WHERE id=$5', [name, initials, email, role, req.params.id]);
+    await pool.query('UPDATE users SET name=$1, initials=$2, email=$3, role=$4, instructor_id=$5 WHERE id=$6', [name, initials, email, role, link.value, req.params.id]);
   }
-  const { rows: [user] } = await pool.query('SELECT id, name, initials, email, role, active FROM users WHERE id = $1', [req.params.id]);
+  const { rows: [user] } = await pool.query('SELECT id, name, initials, email, role, active, instructor_id FROM users WHERE id = $1', [req.params.id]);
   res.json(user);
 });
 
