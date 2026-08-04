@@ -123,6 +123,13 @@ app.use('/uploads', (req, res) => {
   res.redirect(`${SUPABASE_URL}/storage/v1/object/public/bgm-uploads/${filename}`);
 });
 
+// Deny-by-default for instructor accounts. Must stay ABOVE every /api router: each route file
+// does a blanket router.use(requireAuth), so without this an instructor account could read and
+// write every client, pay rate and invoice. Anything added later is closed to instructors until
+// it is explicitly allowlisted in instructorScope.js.
+const { denyInstructor } = require('./middleware/instructorScope');
+app.use('/api', denyInstructor);
+
 app.use('/api/auth',         require('./routes/auth'));
 app.use('/api/auth/passkeys', require('./routes/passkeys'));
 

@@ -183,7 +183,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
 router.get('/me', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT id, name, initials, email, role FROM users WHERE id = $1',
+    'SELECT id, name, initials, email, role, instructor_id FROM users WHERE id = $1',
     [req.user.id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'User not found' });

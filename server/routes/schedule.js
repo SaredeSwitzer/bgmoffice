@@ -122,6 +122,38 @@ router.delete('/schedules/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+// ── The signed-in instructor's own classes ─────────────────────────────────────
+
+// GET /my-sessions?start=YYYY-MM-DD&end=YYYY-MM-DD
+//
+// Deliberately NOT `SELECT s.*` the way GET /sessions below does: s.* includes
+// charge_amount — what the client pays — which an instructor must never see. Columns are
+// listed one by one so a column added to class_sessions later cannot leak here by default.
+// An instructor sees their own instructor_pay, and nothing about anybody else's.
+router.get('/my-sessions', async (req, res) => {
+  if (req.user?.role !== 'instructor' || !req.user.instructor_id) {
+    return res.status(403).json({ error: 'Instructor account required' });
+  }
+  const { start, end } = req.query;
+  if (!isDate(start) || !isDate(end)) {
+    return res.status(400).json({ error: 'start and end (YYYY-MM-DD) are required' });
+  }
+  const { rows } = await pool.query(
+    `SELECT s.id, s.session_date, s.start_time, s.style, s.status,
+            s.instructor_pay,
+            c.name AS client_name,
+            sch.location, sch.special_instructions
+       FROM class_sessions s
+       JOIN clients c                ON c.id  = s.client_id
+       LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
+      WHERE s.instructor_id = $3
+        AND s.session_date BETWEEN $1 AND $2
+      ORDER BY s.session_date, s.start_time NULLS LAST`,
+    [start, end, req.user.instructor_id]
+  );
+  res.json(rows);
+});
+
 // ── Dated sessions (the weekly report Amber reads) ─────────────────────────────
 
 // GET /sessions?start=YYYY-MM-DD&end=YYYY-MM-DD  — the week's classes, with names.
