@@ -127,8 +127,8 @@ router.post('/public/:token/pay', async (req, res) => {
 router.use(requireAuth);
 
 router.get('/', async (req, res) => {
-  const { status, client_id } = req.query;
-  const conditions = ['1=1'];
+  const { status, client_id, archived } = req.query;
+  const conditions = [`i.archived = ${archived === '1' ? 1 : 0}`];
   const params = [];
   if (status)    { conditions.push(`i.status = $${params.push(status)}`); }
   if (client_id) { conditions.push(`i.client_id = $${params.push(client_id)}`); }
@@ -242,6 +242,36 @@ router.patch('/:id/status', async (req, res) => {
   );
   const { rows: [row] } = await pool.query('SELECT * FROM invoices WHERE id=$1', [req.params.id]);
   res.json(enrichInvoice(row));
+});
+
+router.patch('/:id/archive', async (req, res) => {
+  const { rows: [existing] } = await pool.query('SELECT id, archived FROM invoices WHERE id=$1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Invoice not found' });
+  const newArchived = existing.archived ? 0 : 1;
+  await pool.query(
+    "UPDATE invoices SET archived=$1, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$2",
+    [newArchived, req.params.id]
+  );
+  const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
+  res.json(enrichInvoice(row));
+});
+
+// Copies a past invoice into a fresh draft — line items, client, instructor, tax rate and
+// notes carry over, but dates reset to today, status resets to draft, and nothing
+// payment-related (Stripe intent, amount paid, paid_at) follows along.
+router.post('/:id/duplicate', async (req, res) => {
+  const { rows: [src] } = await pool.query('SELECT * FROM invoices WHERE id=$1', [req.params.id]);
+  if (!src) return res.status(404).json({ error: 'Invoice not found' });
+
+  const invoice_number = await nextInvoiceNumber();
+  const { rows: [inv] } = await pool.query(
+    `INSERT INTO invoices
+       (invoice_number, title, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+    [invoice_number, src.title, src.client_id, src.instructor_id, src.line_items, src.subtotal, src.tax_rate, src.tax_amount, src.total, src.notes, new Date().toISOString().slice(0, 10), null, req.user.initials]
+  );
+  const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [inv.id]);
+  res.status(201).json(enrichInvoice(row));
 });
 
 router.delete('/:id', async (req, res) => {

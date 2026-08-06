@@ -182,6 +182,16 @@ export default function InvoiceDetailPage() {
     navigate('/invoices')
   }
 
+  async function handleArchive() {
+    const updated = await api.archiveInvoice(id)
+    setInvoice(updated)
+  }
+
+  async function handleDuplicate() {
+    const dup = await api.duplicateInvoice(id)
+    navigate(`/invoices/${dup.id}`)
+  }
+
   // The pay link is keyed on the invoice's random public_token, not its id — the token
   // is the only thing keeping the invoice private, so the link is the secret.
   function getPaymentLink() {
@@ -517,6 +527,11 @@ export default function InvoiceDetailPage() {
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[invoice.status]}`}>
                     {invoice.status}
                   </span>
+                  {!!invoice.archived && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+                      Archived
+                    </span>
+                  )}
                 </div>
                 {invoice.title && (
                   <p className="text-base font-semibold text-gray-800 mb-1">{invoice.title}</p>
@@ -535,6 +550,14 @@ export default function InvoiceDetailPage() {
                 <button onClick={startEdit}
                   className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg hover:bg-gray-50">
                   Edit
+                </button>
+                <button onClick={handleDuplicate}
+                  className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg hover:bg-gray-50">
+                  Duplicate
+                </button>
+                <button onClick={handleArchive}
+                  className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg hover:bg-gray-50">
+                  {invoice.archived ? 'Unarchive' : 'Archive'}
                 </button>
                 <button onClick={handleDelete}
                   className="px-3 py-1.5 border border-red-200 text-red-600 text-xs rounded-lg hover:bg-red-50">

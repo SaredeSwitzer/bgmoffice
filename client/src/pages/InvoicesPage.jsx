@@ -384,17 +384,30 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const [sortCol, setSortCol] = useState(() => localStorage.getItem('inv_sort_col') || 'invoice_number')
   const [sortDir, setSortDir] = useState(() => localStorage.getItem('inv_sort_dir') || 'desc')
   const [showNew, setShowNew] = useState(false)
 
   function load() {
-    const params = {}
+    const params = { archived: showArchived ? '1' : '0' }
     if (statusFilter) params.status = statusFilter
     return api.getInvoices(params).then(setInvoices).finally(() => setLoading(false))
   }
 
-  useEffect(() => { setLoading(true); load() }, [statusFilter])
+  useEffect(() => { setLoading(true); load() }, [statusFilter, showArchived])
+
+  async function handleArchive(e, inv) {
+    e.stopPropagation()
+    const updated = await api.archiveInvoice(inv.id)
+    setInvoices(list => list.filter(i => i.id !== updated.id))
+  }
+
+  async function handleDuplicate(e, inv) {
+    e.stopPropagation()
+    const dup = await api.duplicateInvoice(inv.id)
+    navigate(`/invoices/${dup.id}`)
+  }
 
   function handleSort(col) {
     if (sortCol === col) {
@@ -432,6 +445,10 @@ export default function InvoicesPage() {
             <option value="paid">Paid</option>
             <option value="overdue">Overdue</option>
           </select>
+          <label className="flex items-center gap-1.5 text-sm text-gray-600 select-none cursor-pointer">
+            <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} />
+            Show archived
+          </label>
           <button
             onClick={() => setShowNew(true)}
             className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
@@ -443,11 +460,15 @@ export default function InvoicesPage() {
 
       {invoices.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-12 text-center">
-          <p className="text-gray-400 text-sm italic">No invoices yet.</p>
-          <button onClick={() => setShowNew(true)}
-            className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700">
-            Create your first invoice
-          </button>
+          <p className="text-gray-400 text-sm italic">
+            {showArchived ? 'No archived invoices.' : 'No invoices yet.'}
+          </p>
+          {!showArchived && (
+            <button onClick={() => setShowNew(true)}
+              className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700">
+              Create your first invoice
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -468,6 +489,7 @@ export default function InvoicesPage() {
                   </span>
                 </th>
                 <SortTh col="status" label="Status" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -490,6 +512,16 @@ export default function InvoicesPage() {
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[inv.status]}`}>
                       {inv.status}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <button onClick={e => handleDuplicate(e, inv)}
+                      className="text-xs text-gray-500 hover:text-gray-800 mr-3">
+                      Duplicate
+                    </button>
+                    <button onClick={e => handleArchive(e, inv)}
+                      className="text-xs text-gray-500 hover:text-gray-800">
+                      {showArchived ? 'Unarchive' : 'Archive'}
+                    </button>
                   </td>
                 </tr>
               ))}
