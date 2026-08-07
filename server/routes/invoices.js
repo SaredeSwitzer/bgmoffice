@@ -120,17 +120,17 @@ router.get('/', async (req, res) => {
   res.json(rows.map(enrichInvoice));
 });
 
-// Auto-generated monthly drafts (built by the weekly sync) whose billing month has fully
-// passed — nothing gets sent on its own; this is just what the Dashboard alerts on so
-// invoices don't sit forgotten in Drafts once a month wraps up.
+// Every auto-generated draft (built by the daily sync) — the current month's are still
+// building up class by class, past months' are done and just waiting on a send. Nothing
+// gets sent on its own; this is what the Dashboard shows so staff can review as they go
+// instead of only once a month closes out.
 router.get('/ready-to-send', async (req, res) => {
   const currentPeriod = new Date().toISOString().slice(0, 7);
   const { rows } = await pool.query(
-    `${INVOICE_JOIN} WHERE i.auto_generated = true AND i.status = 'draft' AND i.billing_period < $1
-      ORDER BY i.billing_period, cl.name`,
-    [currentPeriod]
+    `${INVOICE_JOIN} WHERE i.auto_generated = true AND i.status = 'draft'
+      ORDER BY i.billing_period, cl.name`
   );
-  res.json(rows.map(enrichInvoice));
+  res.json(rows.map(r => ({ ...enrichInvoice(r), is_current_month: r.billing_period === currentPeriod })));
 });
 
 router.get('/:id', async (req, res) => {

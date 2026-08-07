@@ -415,7 +415,7 @@ export default function DashboardPage() {
       {readyInvoices.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4">
           <h2 className="text-sm font-bold uppercase tracking-widest text-blue-700 mb-3">
-            📄 Invoices Ready to Review
+            📄 Invoices to Review
             <span className="ml-2 text-xs font-semibold bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
               {readyInvoices.length}
             </span>
@@ -427,9 +427,14 @@ export default function DashboardPage() {
                   <span className="text-sm font-semibold text-gray-800">{inv.client_name}</span>
                   <span className="text-xs text-gray-500 ml-2">{inv.title}</span>
                   <span className="text-xs text-gray-400 ml-2">— ${Number(inv.total).toFixed(0)}</span>
+                  {inv.is_current_month && (
+                    <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full ml-2">still building</span>
+                  )}
                 </div>
                 <button onClick={e => navClick(e, `/invoices/${inv.id}`, navigate)}
-                  className="text-xs text-blue-600 hover:underline flex-shrink-0">Review & send →</button>
+                  className="text-xs text-blue-600 hover:underline flex-shrink-0">
+                  {inv.is_current_month ? 'View →' : 'Review & send →'}
+                </button>
               </div>
             ))}
           </div>
