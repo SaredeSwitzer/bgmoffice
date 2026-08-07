@@ -64,11 +64,24 @@ async function syncInvoices(sessions) {
   }
 
   let invoicesTouched = 0;
+  let skippedManual = 0;
   for (const { client_id, period, sessions: group } of byClientPeriod.values()) {
     const { rows: [existing] } = await pool.query(
       `SELECT * FROM invoices WHERE client_id = $1 AND billing_period = $2 AND auto_generated = true`,
       [client_id, period]
     );
+
+    // If staff already billed this client for this month by hand, don't create a second,
+    // duplicate invoice — that's real money and a human already handled it. Only skips
+    // starting a NEW auto invoice; an existing auto invoice still gets extended normally.
+    if (!existing) {
+      const { rows: [manual] } = await pool.query(
+        `SELECT id FROM invoices WHERE client_id = $1 AND auto_generated = false
+           AND to_char(invoice_date::date, 'YYYY-MM') = $2 LIMIT 1`,
+        [client_id, period]
+      );
+      if (manual) { skippedManual++; continue; }
+    }
 
     let invoiceId, lineItems;
     if (existing) {
@@ -111,7 +124,7 @@ async function syncInvoices(sessions) {
     );
     invoicesTouched++;
   }
-  return invoicesTouched;
+  return { invoicesTouched, skippedManual };
 }
 
 // Core sync over an explicit [startDate, endDate] range (both 'YYYY-MM-DD', inclusive).
@@ -125,7 +138,7 @@ async function syncDateRange(startDate, endDate) {
   );
 
   const packagesDeducted = await syncPackages(sessions);
-  const invoicesTouched  = await syncInvoices(sessions);
+  const { invoicesTouched, skippedManual } = await syncInvoices(sessions);
 
   return {
     start: startDate,
@@ -133,6 +146,7 @@ async function syncDateRange(startDate, endDate) {
     sessions_seen: sessions.length,
     packages_deducted: packagesDeducted,
     invoices_touched: invoicesTouched,
+    skipped_already_manually_invoiced: skippedManual,
   };
 }
 
