@@ -21,7 +21,6 @@ function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Other']
-const SESSION_STATUS = ['scheduled', 'completed', 'cancelled', 'no_show']
 
 // Local YYYY-MM-DD (never toISOString — that shifts the day off UTC).
 function ymd(d) {
@@ -102,11 +101,6 @@ export default function SchedulePage() {
     } finally {
       setGenerating(false)
     }
-  }
-
-  async function setSessionStatus(id, status) {
-    setSessions(prev => prev.map(s => s.id === id ? { ...s, status } : s))
-    try { await api.updateClassSession(id, { status }) } catch { loadWeek() }
   }
 
   async function removeSession(id) {
@@ -220,7 +214,7 @@ export default function SchedulePage() {
                             <p className="text-[11px] text-gray-300 italic text-center pt-3">No classes</p>
                           ) : rows.map(s => (
                             <Fragment key={s.id}>
-                              <div className={`border rounded-lg p-2 text-xs ${s.status === 'cancelled' ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-gray-200'}`}>
+                              <div className="border border-gray-200 rounded-lg p-2 text-xs">
                                 <div className="flex items-start justify-between gap-1">
                                   <span className="font-semibold text-gray-700">{s.start_time ? s.start_time.slice(0, 5) : '—'}</span>
                                   <button onClick={() => removeSession(s.id)} className="text-gray-300 hover:text-red-500 leading-none text-sm">×</button>
@@ -234,10 +228,6 @@ export default function SchedulePage() {
                                   <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
                                     onClick={() => toggleNotes(`session-${s.id}`)} />
                                 </div>
-                                <select value={s.status} onChange={e => setSessionStatus(s.id, e.target.value)}
-                                  className="w-full mt-1 text-[10px] border border-gray-200 rounded px-1 py-0.5 text-gray-600 bg-white">
-                                  {SESSION_STATUS.map(st => <option key={st} value={st}>{st.replace('_', ' ')}</option>)}
-                                </select>
                               </div>
                               {openNotes === `session-${s.id}` && (
                                 <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
