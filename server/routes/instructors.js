@@ -115,6 +115,11 @@ router.put('/:id', async (req, res) => {
        WHERE id=$7`,
       [phone || null, email || null, mailing_address || null, neighborhood || null, styles_taught || null, specialties || null, req.params.id]
     );
+    // Keep the login email in sync — instructors only ever see one "email" field and
+    // shouldn't have to know their contact info and login credential are separate rows.
+    if (email) {
+      await pool.query('UPDATE users SET email=$1 WHERE id=$2', [email, req.user.id]);
+    }
     const row = await getInstructorRow(req.params.id);
     const { ssn, feedback_notes, ...safe } = row;
     return res.json(safe);
