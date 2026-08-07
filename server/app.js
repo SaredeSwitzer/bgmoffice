@@ -148,6 +148,7 @@ app.use('/api/tasks',        require('./routes/tasks'));
 app.use('/api/packages',     require('./routes/packages'));
 app.use('/api/schedule',     require('./routes/schedule'));
 app.use('/api/billing',      require('./routes/billing'));
+app.use('/api/cron',         require('./routes/cron'));
 
 // Action type lookups (any authenticated user)
 const { requireAuth } = require('./middleware/auth');

@@ -256,6 +256,7 @@ export const api = {
     return request(`/invoices${q ? `?${q}` : ''}`)
   },
   getInvoice: (id) => request(`/invoices/${id}`),
+  getReadyToSendInvoices: () => request('/invoices/ready-to-send'),
   createInvoice: (data) => request('/invoices', { method: 'POST', body: JSON.stringify(data) }),
   updateInvoice: (id, data) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   setInvoiceStatus: (id, status) => request(`/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),

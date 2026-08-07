@@ -292,6 +292,7 @@ export default function DashboardPage() {
   const [data,              setData]              = useState(null)
   const [delegates,         setDelegates]         = useState([])
   const [completedPackages, setCompletedPackages] = useState([])
+  const [readyInvoices,     setReadyInvoices]     = useState([])
   const [error,             setError]             = useState('')
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -307,8 +308,8 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    Promise.all([api.dashboard(), api.getDelegates(), api.getRecentlyCompletedPackages()])
-      .then(([d, dels, pkgs]) => { setData(d); setDelegates(dels); setCompletedPackages(pkgs) })
+    Promise.all([api.dashboard(), api.getDelegates(), api.getRecentlyCompletedPackages(), api.getReadyToSendInvoices()])
+      .then(([d, dels, pkgs, invs]) => { setData(d); setDelegates(dels); setCompletedPackages(pkgs); setReadyInvoices(invs) })
       .catch(e => setError(e.message))
   }, [])
 
@@ -375,6 +376,30 @@ export default function DashboardPage() {
                 </div>
                 <button onClick={e => navClick(e, `/clients/${pkg.client_id}`, navigate)}
                   className="text-xs text-blue-600 hover:underline flex-shrink-0">View client →</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {readyInvoices.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-blue-700 mb-3">
+            📄 Invoices Ready to Review
+            <span className="ml-2 text-xs font-semibold bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+              {readyInvoices.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {readyInvoices.map(inv => (
+              <div key={inv.id} className="flex items-center justify-between gap-3 bg-white border border-blue-100 rounded-xl px-4 py-2.5">
+                <div>
+                  <span className="text-sm font-semibold text-gray-800">{inv.client_name}</span>
+                  <span className="text-xs text-gray-500 ml-2">{inv.title}</span>
+                  <span className="text-xs text-gray-400 ml-2">— ${Number(inv.total).toFixed(0)}</span>
+                </div>
+                <button onClick={e => navClick(e, `/invoices/${inv.id}`, navigate)}
+                  className="text-xs text-blue-600 hover:underline flex-shrink-0">Review & send →</button>
               </div>
             ))}
           </div>

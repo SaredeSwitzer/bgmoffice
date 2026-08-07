@@ -9,5 +9,8 @@
     "api/index.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron/weekly-sync", "schedule": "0 6 * * 0" }
+  ]
 }

@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { nextInvoiceNumber, calcTotals } = require('../lib/invoiceHelpers');
 
 const router = express.Router();
 
@@ -14,23 +15,6 @@ async function getStripe() {
 function enrichInvoice(row) {
   if (!row) return null;
   return { ...row, line_items: JSON.parse(row.line_items || '[]') };
-}
-
-async function nextInvoiceNumber() {
-  const year = new Date().getFullYear();
-  const { rows: [last] } = await pool.query(
-    "SELECT invoice_number FROM invoices WHERE invoice_number LIKE $1 ORDER BY id DESC LIMIT 1",
-    [`INV-${year}-%`]
-  );
-  if (!last) return `INV-${year}-001`;
-  const seq = parseInt(last.invoice_number.split('-')[2], 10) + 1;
-  return `INV-${year}-${String(seq).padStart(3, '0')}`;
-}
-
-function calcTotals(lineItems, taxRate) {
-  const subtotal    = lineItems.reduce((s, li) => s + Number(li.unit_price || 0), 0);
-  const tax_amount  = subtotal * (Number(taxRate) / 100);
-  return { subtotal, tax_amount, total: subtotal + tax_amount };
 }
 
 const INVOICE_JOIN = `
@@ -133,6 +117,19 @@ router.get('/', async (req, res) => {
   if (status)    { conditions.push(`i.status = $${params.push(status)}`); }
   if (client_id) { conditions.push(`i.client_id = $${params.push(client_id)}`); }
   const { rows } = await pool.query(`${INVOICE_JOIN} WHERE ${conditions.join(' AND ')} ORDER BY i.created_at DESC`, params);
+  res.json(rows.map(enrichInvoice));
+});
+
+// Auto-generated monthly drafts (built by the weekly sync) whose billing month has fully
+// passed — nothing gets sent on its own; this is just what the Dashboard alerts on so
+// invoices don't sit forgotten in Drafts once a month wraps up.
+router.get('/ready-to-send', async (req, res) => {
+  const currentPeriod = new Date().toISOString().slice(0, 7);
+  const { rows } = await pool.query(
+    `${INVOICE_JOIN} WHERE i.auto_generated = true AND i.status = 'draft' AND i.billing_period < $1
+      ORDER BY i.billing_period, cl.name`,
+    [currentPeriod]
+  );
   res.json(rows.map(enrichInvoice));
 });
 
