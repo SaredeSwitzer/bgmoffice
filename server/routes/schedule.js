@@ -230,32 +230,6 @@ router.delete('/sessions/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// POST /generate  { week_start: 'YYYY-MM-DD' }
-// Materializes one session per active schedule whose weekday falls in the 7 days
-// starting at week_start, skipping any that already exist. Re-runnable (idempotent).
-router.post('/generate', async (req, res) => {
-  const { week_start } = req.body;
-  if (!isDate(week_start)) return res.status(400).json({ error: 'week_start (YYYY-MM-DD) required' });
-
-  // target date for a schedule = week_start shifted forward to its weekday.
-  const targetDate = `($1::date + ((cs.weekday - EXTRACT(DOW FROM $1::date)::int + 7) % 7))`;
-  const { rows } = await pool.query(
-    `INSERT INTO class_sessions
-       (schedule_id, client_id, instructor_id, session_date, start_time,
-        charge_amount, instructor_pay, payment_method, style, status)
-     SELECT cs.id, cs.client_id, cs.instructor_id, ${targetDate}, cs.start_time,
-            cs.charge_amount, cs.instructor_pay, cs.payment_method, cs.style, 'scheduled'
-       FROM class_schedules cs
-      WHERE cs.status = 'active' AND cs.weekday IS NOT NULL
-        AND (cs.start_date IS NULL OR cs.start_date <= ${targetDate})
-        AND (cs.end_date   IS NULL OR cs.end_date   >= ${targetDate})
-     ON CONFLICT (schedule_id, session_date) WHERE schedule_id IS NOT NULL DO NOTHING
-     RETURNING id`,
-    [week_start]
-  );
-  res.status(201).json({ created: rows.length, week_start });
-});
-
 // ── Instructor confirmation email ──────────────────────────────────────────────
 // Staff set up a class with an instructor, then send the instructor a confirmation email
 // (client, day/time, rate, …) from an editable template. The app fills the template from the

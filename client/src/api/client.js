@@ -295,7 +295,6 @@ export const api = {
   createClassSession: (data) => request('/schedule/sessions', { method: 'POST', body: JSON.stringify(data) }),
   updateClassSession: (id, data) => request(`/schedule/sessions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteClassSession: (id) => request(`/schedule/sessions/${id}`, { method: 'DELETE' }),
-  generateClassWeek: (week_start) => request('/schedule/generate', { method: 'POST', body: JSON.stringify({ week_start }) }),
 
   // Instructor accounts only — the caller's own classes. The server scopes this to the
   // instructor_id in the session, so there is no id to pass and none can be forged here.

@@ -50,8 +50,6 @@ export default function SchedulePage() {
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [loading, setLoading] = useState(true)
-  const [generating, setGenerating] = useState(false)
-  const [msg, setMsg] = useState(null)
 
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(BLANK_SCHEDULE)
@@ -89,19 +87,6 @@ export default function SchedulePage() {
   }, [])
 
   useEffect(() => { if (tab === 'week') loadWeek(); else loadSchedules() }, [tab, loadWeek, loadSchedules])
-
-  async function generate() {
-    setGenerating(true); setMsg(null)
-    try {
-      const r = await api.generateClassWeek(ymd(weekStart))
-      setMsg(r.created > 0 ? `Added ${r.created} class${r.created === 1 ? '' : 'es'} from recurring schedules.` : 'Already up to date — nothing new to add.')
-      loadWeek()
-    } catch (e) {
-      setMsg(e.message || 'Could not generate the week.')
-    } finally {
-      setGenerating(false)
-    }
-  }
 
   async function removeSession(id) {
     if (!confirm('Remove this class from the week?')) return
@@ -174,19 +159,13 @@ export default function SchedulePage() {
               <button onClick={() => setAnchor(addDays(weekStart, 7))} className="px-2 py-1 rounded text-gray-500 hover:bg-gray-100">›</button>
               <button onClick={() => setAnchor(startOfWeek(new Date()))} className="ml-1 text-xs text-gray-400 hover:text-gray-700">This week</button>
             </div>
-            <button onClick={generate} disabled={generating}
-              className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50">
-              {generating ? 'Generating…' : 'Generate week'}
-            </button>
           </div>
-
-          {msg && <p className="text-xs text-gray-500 px-1">{msg}</p>}
 
           {loading ? (
             <p className="text-gray-400 text-sm text-center py-8">Loading…</p>
           ) : sessions.length === 0 ? (
             <p className="text-gray-400 text-sm italic text-center py-10">
-              No classes this week. Use “Generate week” to fill it from recurring schedules, or add recurring classes first.
+              No classes this week.
             </p>
           ) : (
             <div className="space-y-3">
