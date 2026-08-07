@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 
-// Preview + send the instructor confirmation email for a recurring class. The app fills the
-// template from the class; staff review (and can tweak) before sending. Nothing sends on its own.
-export default function ConfirmClassModal({ schedule, onClose, onSent }) {
+// Preview + send the instructor confirmation email for a class — either a recurring
+// schedule or a single dated session. The app fills the template from the class; staff
+// review (and can tweak) before sending. Nothing sends on its own.
+export default function ConfirmClassModal({ schedule, kind = 'schedule', onClose, onSent }) {
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(null)
   const [subject, setSubject] = useState('')
@@ -11,17 +12,20 @@ export default function ConfirmClassModal({ schedule, onClose, onSent }) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
 
+  const getPreview = kind === 'session' ? api.getSessionConfirmationPreview : api.getConfirmationPreview
+  const doSend      = kind === 'session' ? api.sendSessionConfirmation      : api.sendConfirmation
+
   useEffect(() => {
-    api.getConfirmationPreview(schedule.id)
+    getPreview(schedule.id)
       .then(p => { setPreview(p); setSubject(p.subject); setBody(p.body) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [schedule.id])
+  }, [schedule.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function send() {
     setSending(true); setError(null)
     try {
-      const r = await api.sendConfirmation(schedule.id, { subject, body })
+      const r = await doSend(schedule.id, { subject, body })
       onSent?.(r)
       onClose()
     } catch (e) {

@@ -254,45 +254,66 @@ async function getTemplate() {
   return { subject: m.instructor_confirm_subject || '', body: m.instructor_confirm_body || '' };
 }
 
-// Fill {placeholders} from a schedule row (which carries client_name / instructor_name).
-function renderTemplate(str, sched) {
-  const vals = {
-    instructor_name: sched.instructor_name || 'there',
-    client_name: sched.client_name || '',
-    day: sched.weekday != null ? WEEKDAY_NAMES[sched.weekday] : 'Flexible',
-    time: fmtTime(sched.start_time),
-    location: sched.location || '',
-    style: sched.style || '',
-    rate: fmtMoney(sched.instructor_pay),
-  };
-  return String(str || '').replace(/\{(\w+)\}/g, (_, k) => (k in vals ? vals[k] : `{${k}}`));
+// Fill {placeholders} in a template string from a context object (see confirmationContext).
+function renderTemplate(str, ctx) {
+  return String(str || '').replace(/\{(\w+)\}/g, (_, k) => (k in ctx ? ctx[k] : `{${k}}`));
 }
 
-async function buildConfirmation(id) {
-  const sched = await getScheduleRow(id);
-  if (!sched) return { error: 'Schedule not found', status: 404 };
-  const { rows: [inst] } = sched.instructor_id
-    ? await pool.query('SELECT name, email FROM instructors WHERE id=$1', [sched.instructor_id])
+// Day name for a plain 'YYYY-MM-DD' string, parsed as a local date (never Date.parse —
+// that reads it as UTC midnight and can print the wrong weekday depending on server TZ).
+function dayNameFromDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return WEEKDAY_NAMES[new Date(y, m - 1, d).getDay()];
+}
+
+// Builds the {placeholder} values from either a recurring schedule row or a dated session
+// row — same template, same email, whichever the class actually is.
+function confirmationContext(row) {
+  return {
+    instructor_name: row.instructor_name || 'there',
+    client_name: row.client_name || '',
+    day: row.session_date ? dayNameFromDate(row.session_date)
+       : (row.weekday != null ? WEEKDAY_NAMES[row.weekday] : 'Flexible'),
+    time: fmtTime(row.start_time),
+    location: row.location || '',
+    style: row.style || '',
+    rate: fmtMoney(row.instructor_pay),
+  };
+}
+
+async function getSessionRow(id) {
+  const { rows: [row] } = await pool.query(
+    `SELECT s.*, c.name AS client_name, i.name AS instructor_name, sch.location AS location
+       FROM class_sessions s
+       JOIN clients c                ON c.id  = s.client_id
+       LEFT JOIN instructors i       ON i.id  = s.instructor_id
+       LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
+      WHERE s.id = $1`,
+    [id]
+  );
+  return row || null;
+}
+
+async function buildConfirmation(kind, id) {
+  const row = kind === 'session' ? await getSessionRow(id) : await getScheduleRow(id);
+  if (!row) return { error: `${kind === 'session' ? 'Session' : 'Schedule'} not found`, status: 404 };
+  const { rows: [inst] } = row.instructor_id
+    ? await pool.query('SELECT name, email FROM instructors WHERE id=$1', [row.instructor_id])
     : { rows: [] };
   const tpl = await getTemplate();
+  const ctx = confirmationContext(row);
   return {
     to: inst?.email || null,
     instructor_name: inst?.name || null,
-    subject: renderTemplate(tpl.subject, sched),
-    body: renderTemplate(tpl.body, sched),
-    already_sent_at: sched.confirmation_sent_at || null,
-    already_sent_to: sched.confirmation_sent_to || null,
+    subject: renderTemplate(tpl.subject, ctx),
+    body: renderTemplate(tpl.body, ctx),
+    already_sent_at: row.confirmation_sent_at || null,
+    already_sent_to: row.confirmation_sent_to || null,
   };
 }
 
-router.get('/schedules/:id/confirmation-preview', async (req, res) => {
-  const r = await buildConfirmation(req.params.id);
-  if (r.error) return res.status(r.status).json({ error: r.error });
-  res.json(r);
-});
-
-router.post('/schedules/:id/send-confirmation', async (req, res) => {
-  const r = await buildConfirmation(req.params.id);
+async function sendConfirmationRoute(kind, table, req, res) {
+  const r = await buildConfirmation(kind, req.params.id);
   if (r.error) return res.status(r.status).json({ error: r.error });
   if (!r.to) return res.status(400).json({ error: 'This instructor has no email on file. Add one on their profile first.' });
   // Allow the reviewed/edited preview to be sent verbatim.
@@ -304,11 +325,27 @@ router.post('/schedules/:id/send-confirmation', async (req, res) => {
     return res.status(502).json({ error: `Could not send: ${e.message}` });
   }
   await pool.query(
-    'UPDATE class_schedules SET confirmation_sent_at=now(), confirmation_sent_to=$1 WHERE id=$2',
+    `UPDATE ${table} SET confirmation_sent_at=now(), confirmation_sent_to=$1 WHERE id=$2`,
     [r.to, req.params.id]
   );
   res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
+}
+
+router.get('/schedules/:id/confirmation-preview', async (req, res) => {
+  const r = await buildConfirmation('schedule', req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
 });
+
+router.post('/schedules/:id/send-confirmation', (req, res) => sendConfirmationRoute('schedule', 'class_schedules', req, res));
+
+router.get('/sessions/:id/confirmation-preview', async (req, res) => {
+  const r = await buildConfirmation('session', req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
+});
+
+router.post('/sessions/:id/send-confirmation', (req, res) => sendConfirmationRoute('session', 'class_sessions', req, res));
 
 // ── Notes & tasks on a class ───────────────────────────────────────────────────
 // Attached to either a recurring class (schedule) or a dated session. Each row is a

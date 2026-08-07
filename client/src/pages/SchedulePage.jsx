@@ -55,8 +55,9 @@ export default function SchedulePage() {
   const [form, setForm] = useState(BLANK_SCHEDULE)
   const [saving, setSaving] = useState(false)
 
-  // Recurring class whose instructor-confirmation email modal is open.
+  // Recurring class / dated session whose instructor-confirmation email modal is open.
   const [confirmSchedule, setConfirmSchedule] = useState(null)
+  const [confirmSession, setConfirmSession] = useState(null)
 
   // Which class's notes panel is open, keyed like 'session-12' / 'schedule-5'.
   const [openNotes, setOpenNotes] = useState(null)
@@ -207,6 +208,16 @@ export default function SchedulePage() {
                                   <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
                                     onClick={() => toggleNotes(`session-${s.id}`)} />
                                 </div>
+                                {s.instructor_id && (
+                                  <button onClick={() => setConfirmSession(s)} title="Email the instructor a class confirmation"
+                                    className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
+                                      s.confirmation_sent_at
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                                    }`}>
+                                    {s.confirmation_sent_at ? '✓ Emailed' : 'Email'}
+                                  </button>
+                                )}
                               </div>
                               {openNotes === `session-${s.id}` && (
                                 <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
@@ -341,6 +352,16 @@ export default function SchedulePage() {
           onClose={() => setConfirmSchedule(null)}
           onSent={(r) => setSchedules(prev => prev.map(x =>
             x.id === confirmSchedule.id ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))}
+        />
+      )}
+
+      {confirmSession && (
+        <ConfirmClassModal
+          schedule={confirmSession}
+          kind="session"
+          onClose={() => setConfirmSession(null)}
+          onSent={(r) => setSessions(prev => prev.map(x =>
+            x.id === confirmSession.id ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))}
         />
       )}
     </div>
