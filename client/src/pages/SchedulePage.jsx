@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
 import ClassNotes from '../components/ClassNotes'
 import ConfirmClassModal from '../components/ConfirmClassModal'
+import ClassSessionModal from '../components/ClassSessionModal'
 
 // Small pill showing a class's note / open-task counts; also the button that expands notes.
 function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
@@ -58,6 +59,9 @@ export default function SchedulePage() {
   // Recurring class / dated session whose instructor-confirmation email modal is open.
   const [confirmSchedule, setConfirmSchedule] = useState(null)
   const [confirmSession, setConfirmSession] = useState(null)
+
+  // Add/edit-class modal. { session: null, defaultDate } to add; { session } to edit.
+  const [sessionModal, setSessionModal] = useState(null)
 
   // Which class's notes panel is open, keyed like 'session-12' / 'schedule-5'.
   const [openNotes, setOpenNotes] = useState(null)
@@ -194,10 +198,11 @@ export default function SchedulePage() {
                             <p className="text-[11px] text-gray-300 italic text-center pt-3">No classes</p>
                           ) : rows.map(s => (
                             <Fragment key={s.id}>
-                              <div className="border border-gray-200 rounded-lg p-2 text-xs">
+                              <div onClick={() => setSessionModal({ session: s })}
+                                className="border border-gray-200 rounded-lg p-2 text-xs cursor-pointer hover:border-gray-400 transition-colors">
                                 <div className="flex items-start justify-between gap-1">
                                   <span className="font-semibold text-gray-700">{s.start_time ? s.start_time.slice(0, 5) : '—'}</span>
-                                  <button onClick={() => removeSession(s.id)} className="text-gray-300 hover:text-red-500 leading-none text-sm">×</button>
+                                  <button onClick={e => { e.stopPropagation(); removeSession(s.id) }} className="text-gray-300 hover:text-red-500 leading-none text-sm">×</button>
                                 </div>
                                 <p className="font-semibold text-gray-900 truncate mt-0.5">{s.client_name}</p>
                                 <p className="text-gray-500 truncate">
@@ -206,10 +211,10 @@ export default function SchedulePage() {
                                 <div className="flex items-center justify-between mt-1">
                                   <span className="font-semibold text-gray-800">{money(s.charge_amount)}</span>
                                   <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
-                                    onClick={() => toggleNotes(`session-${s.id}`)} />
+                                    onClick={e => { e.stopPropagation(); toggleNotes(`session-${s.id}`) }} />
                                 </div>
                                 {s.instructor_id && (
-                                  <button onClick={() => setConfirmSession(s)} title="Email the instructor a class confirmation"
+                                  <button onClick={e => { e.stopPropagation(); setConfirmSession(s) }} title="Email the instructor a class confirmation"
                                     className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
                                       s.confirmation_sent_at
                                         ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -220,10 +225,16 @@ export default function SchedulePage() {
                                 )}
                               </div>
                               {openNotes === `session-${s.id}` && (
-                                <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
+                                <div onClick={e => e.stopPropagation()}>
+                                  <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
+                                </div>
                               )}
                             </Fragment>
                           ))}
+                          <button onClick={() => setSessionModal({ session: null, defaultDate: date })}
+                            className="w-full text-[11px] text-gray-400 hover:text-gray-700 border border-dashed border-gray-200 hover:border-gray-300 rounded-lg py-1">
+                            + Add
+                          </button>
                         </div>
                       </div>
                     )
@@ -362,6 +373,19 @@ export default function SchedulePage() {
           onClose={() => setConfirmSession(null)}
           onSent={(r) => setSessions(prev => prev.map(x =>
             x.id === confirmSession.id ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))}
+        />
+      )}
+
+      {sessionModal && (
+        <ClassSessionModal
+          session={sessionModal.session}
+          defaultDate={sessionModal.defaultDate}
+          onClose={() => setSessionModal(null)}
+          onSaved={() => { setSessionModal(null); loadWeek() }}
+          onDeleted={(id) => {
+            setSessions(prev => prev.filter(x => x.id !== id))
+            setSessionModal(null)
+          }}
         />
       )}
     </div>
