@@ -8,6 +8,7 @@ const {
 const pool = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { signToken, publicUser } = require('../lib/token');
+const { recordLogin } = require('./auth');
 
 const router = express.Router();
 
@@ -202,6 +203,7 @@ router.post('/login', async (req, res) => {
     'UPDATE passkeys SET counter = $1, last_used_at = now() WHERE id = $2',
     [verification.authenticationInfo.newCounter, pk.id]
   );
+  await recordLogin(user);
 
   res.json({ token: signToken(user), user: publicUser(user) });
 });

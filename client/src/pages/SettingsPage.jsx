@@ -435,6 +435,12 @@ function UsersSection() {
   return (
     <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
       <SectionHeader title="Users" count={users.length} />
+      {users.some(u => u.role === 'instructor') && (
+        <p className="text-xs text-gray-400 -mt-2 mb-3">
+          {users.filter(u => u.role === 'instructor' && u.last_login_at).length} of{' '}
+          {users.filter(u => u.role === 'instructor').length} instructors have logged in
+        </p>
+      )}
 
       <div className="divide-y divide-gray-100 mb-4">
         {users.map(user => (
@@ -495,6 +501,19 @@ function UsersSection() {
                     )}
                   </div>
                   <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                  {user.role === 'instructor' && (
+                    <p className="text-xs mt-0.5">
+                      <span className={user.last_login_at ? 'text-gray-500' : 'text-amber-600 font-medium'}>
+                        {user.last_login_at
+                          ? `Logged in ${new Date(user.last_login_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                          : 'Never logged in'}
+                      </span>
+                      <span className="text-gray-300"> · </span>
+                      <span className={(user.instructor_has_photo || user.instructor_doc_count > 0) ? 'text-gray-500' : 'text-amber-600 font-medium'}>
+                        {(user.instructor_has_photo || user.instructor_doc_count > 0) ? 'Profile set up' : 'Profile not set up'}
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button

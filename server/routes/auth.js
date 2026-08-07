@@ -7,8 +7,19 @@ const pool     = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { sendLoginCode } = require('../lib/mailer');
 const { signToken, publicUser } = require('../lib/token');
+const { notifyCrew } = require('../lib/notifyCrew');
 
 const router = express.Router();
+
+// Stamps last_login_at, and pings the crew group the very first time an instructor
+// signs in — so staff notice new portal adoption without having to go check.
+async function recordLogin(user) {
+  const { rows: [prev] } = await pool.query('SELECT last_login_at FROM users WHERE id = $1', [user.id]);
+  await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
+  if (!prev?.last_login_at && user.role === 'instructor') {
+    notifyCrew(`🎉 ${user.name} just logged into the instructor portal for the first time.`).catch(() => {});
+  }
+}
 
 // Two ways to sign in, both ending in the same JWT the whole app already trusts:
 //   1. Email a 6-digit code  (the everyday path — nothing to remember)
@@ -160,6 +171,7 @@ router.post('/verify-code', loginLimiter, async (req, res) => {
   }
 
   await pool.query('UPDATE login_codes SET consumed_at = now() WHERE id = $1', [record.id]);
+  await recordLogin(user);
 
   res.json({ token: signToken(user), user: publicUser(user) });
 });
@@ -177,6 +189,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+  await recordLogin(user);
 
   res.json({ token: signToken(user), user: publicUser(user) });
 });
@@ -192,3 +205,4 @@ router.get('/me', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.recordLogin = recordLogin;

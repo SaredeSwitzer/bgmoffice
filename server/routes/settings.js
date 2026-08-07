@@ -77,8 +77,10 @@ router.delete('/delegates/:id', async (req, res) => {
 
 router.get('/users', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.id, u.name, u.initials, u.email, u.role, u.active, u.created_at,
-            u.instructor_id::int, i.name AS instructor_name
+    `SELECT u.id, u.name, u.initials, u.email, u.role, u.active, u.created_at, u.last_login_at,
+            u.instructor_id::int, i.name AS instructor_name,
+            (i.photo_url IS NOT NULL) AS instructor_has_photo,
+            (SELECT COUNT(*) FROM instructor_documents d WHERE d.instructor_id = i.id)::int AS instructor_doc_count
        FROM users u
        LEFT JOIN instructors i ON i.id = u.instructor_id
       ORDER BY u.name`
