@@ -32,9 +32,35 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url)
 }
 
+const CLIENT_STATUSES = ['charged', 'declined', 'unpaid', 'pending']
+const INSTRUCTOR_STATUSES = ['paid', 'unpaid']
+const STATUS_COLORS = {
+  charged: 'bg-green-50 text-green-700 border-green-200',
+  paid:    'bg-green-50 text-green-700 border-green-200',
+  declined: 'bg-red-50 text-red-700 border-red-200',
+  unpaid:  'bg-amber-50 text-amber-700 border-amber-200',
+  pending: 'bg-gray-50 text-gray-500 border-gray-200',
+}
+
+function SortableTh({ col, label: text, sortCol, sortDir, onSort, className = '' }) {
+  const active = sortCol === col
+  return (
+    <th onClick={() => onSort(col)}
+      className={`px-2 py-1.5 font-semibold cursor-pointer select-none hover:text-gray-700 whitespace-nowrap ${className}`}>
+      {text}
+      <span className="ml-0.5 inline-block w-2.5 text-gray-300">{active ? (sortDir === 'asc' ? '↑' : '↓') : ''}</span>
+    </th>
+  )
+}
+
 function ReportTab({ weekStart, weekEnd, label }) {
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [filterClient, setFilterClient] = useState('')
+  const [filterInstructor, setFilterInstructor] = useState('')
+  const [filterMethod, setFilterMethod] = useState('')
+  const [sortCol, setSortCol] = useState('session_date')
+  const [sortDir, setSortDir] = useState('asc')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -42,11 +68,45 @@ function ReportTab({ weekStart, weekEnd, label }) {
   }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { setFilterClient(''); setFilterInstructor(''); setFilterMethod('') }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function updateClientStatus(r, status) {
+    await api.setClientPaymentStatus({ client_id: r.client_id, week_start: ymd(weekStart), status, amount: r.amount })
+    load()
+  }
+  async function updateInstructorStatus(r, status) {
+    await api.setInstructorPaymentStatus({ instructor_id: r.instructor_id, week_start: ymd(weekStart), status, amount: r.total_pay })
+    load()
+  }
+
+  function handleSort(col) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
 
   if (loading) return <p className="text-gray-400 text-sm text-center py-8">Loading…</p>
   if (!report) return <p className="text-gray-400 text-sm text-center py-8">Could not load the report.</p>
 
   const weekTag = `${ymd(weekStart)}_to_${ymd(weekEnd)}`
+
+  const clientOptions = [...new Map(report.sessions.map(s => [s.client_id, s.client_name])).entries()]
+  const instructorOptions = [...new Map(report.sessions.filter(s => s.instructor_id).map(s => [s.instructor_id, s.instructor_name])).entries()]
+  const methodOptions = [...new Set(report.sessions.map(s => s.payment_method).filter(Boolean))]
+
+  const filteredSessions = report.sessions
+    .filter(s => !filterClient || String(s.client_id) === filterClient)
+    .filter(s => !filterInstructor || String(s.instructor_id) === filterInstructor)
+    .filter(s => !filterMethod || s.payment_method === filterMethod)
+    .slice()
+    .sort((a, b) => {
+      let av = a[sortCol], bv = b[sortCol]
+      if (sortCol === 'charge_amount' || sortCol === 'instructor_pay') { av = Number(av) || 0; bv = Number(bv) || 0 }
+      else { av = (av || '').toString().toLowerCase(); bv = (bv || '').toString().toLowerCase() }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  const hasFilters = filterClient || filterInstructor || filterMethod
 
   return (
     <div className="space-y-5">
@@ -91,10 +151,15 @@ function ReportTab({ weekStart, weekEnd, label }) {
         {report.by_client.length === 0 ? (
           <p className="text-gray-400 text-xs italic text-center py-6">No classes this week.</p>
         ) : report.by_client.map((r, i) => (
-          <div key={r.client_id} className={`flex items-center justify-between px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
-            <Link to={`/clients/${r.client_id}`} className="text-gray-700 hover:underline">{r.client_name}</Link>
-            <span className="text-gray-500">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
-            <span className="font-semibold text-gray-900">{money(r.amount)}</span>
+          <div key={r.client_id} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
+            <Link to={`/clients/${r.client_id}`} className="text-gray-700 hover:underline min-w-0 truncate">{r.client_name}</Link>
+            <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
+            <span className="font-semibold text-gray-900 shrink-0">{money(r.amount)}</span>
+            <select value={r.charged_status || ''} onChange={e => updateClientStatus(r, e.target.value)}
+              className={`shrink-0 text-xs rounded-lg px-1.5 py-1 border ${STATUS_COLORS[r.charged_status] || 'bg-white text-gray-400 border-gray-200'}`}>
+              <option value="">— mark —</option>
+              {CLIENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
         ))}
       </div>
@@ -110,41 +175,70 @@ function ReportTab({ weekStart, weekEnd, label }) {
         {report.by_instructor.length === 0 ? (
           <p className="text-gray-400 text-xs italic text-center py-6">No instructor-taught classes this week.</p>
         ) : report.by_instructor.map((r, i) => (
-          <div key={r.instructor_id} className={`flex items-center justify-between px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
-            <Link to={`/instructors/${r.instructor_id}`} className="text-gray-700 hover:underline">{r.instructor_name}</Link>
-            <span className="text-gray-500">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
-            <span className="font-semibold text-gray-900">{money(r.total_pay)}</span>
+          <div key={r.instructor_id} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
+            <Link to={`/instructors/${r.instructor_id}`} className="text-gray-700 hover:underline min-w-0 truncate">{r.instructor_name}</Link>
+            <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
+            <span className="font-semibold text-gray-900 shrink-0">{money(r.total_pay)}</span>
+            <select value={r.paid_status || ''} onChange={e => updateInstructorStatus(r, e.target.value)}
+              className={`shrink-0 text-xs rounded-lg px-1.5 py-1 border ${STATUS_COLORS[r.paid_status] || 'bg-white text-gray-400 border-gray-200'}`}>
+              <option value="">— mark —</option>
+              {INSTRUCTOR_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
         ))}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
-          <span className="text-xs font-semibold text-gray-600">All Classes — {label}</span>
-          <button
-            onClick={() => downloadCsv(`classes_${weekTag}.csv`,
-              ['Date', 'Time', 'Client', 'Instructor', 'Style', 'Charge', 'Instructor Pay', 'Payment Method', 'Status'],
-              report.sessions.map(s => [s.session_date, s.start_time ? s.start_time.slice(0, 5) : '', s.client_name,
-                s.instructor_name || '', s.style || '', s.charge_amount, s.instructor_pay, s.payment_method || '', s.status]))}
-            className="text-xs text-blue-600 hover:underline">Export CSV</button>
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100 gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-gray-600">
+            All Classes — {label}
+            {hasFilters && <span className="text-gray-400 font-normal"> ({filteredSessions.length} of {report.sessions.length})</span>}
+          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 bg-white text-gray-600">
+              <option value="">All clients</option>
+              {clientOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            <select value={filterInstructor} onChange={e => setFilterInstructor(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 bg-white text-gray-600">
+              <option value="">All instructors</option>
+              {instructorOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            <select value={filterMethod} onChange={e => setFilterMethod(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 bg-white text-gray-600">
+              <option value="">All methods</option>
+              {methodOptions.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            {hasFilters && (
+              <button onClick={() => { setFilterClient(''); setFilterInstructor(''); setFilterMethod('') }}
+                className="text-xs text-gray-400 hover:text-gray-700">✕ clear</button>
+            )}
+            <button
+              onClick={() => downloadCsv(`classes_${weekTag}${hasFilters ? '_filtered' : ''}.csv`,
+                ['Date', 'Time', 'Client', 'Instructor', 'Style', 'Charge', 'Instructor Pay', 'Payment Method', 'Status'],
+                filteredSessions.map(s => [s.session_date, s.start_time ? s.start_time.slice(0, 5) : '', s.client_name,
+                  s.instructor_name || '', s.style || '', s.charge_amount, s.instructor_pay, s.payment_method || '', s.status]))}
+              className="text-xs text-blue-600 hover:underline">Export CSV</button>
+          </div>
         </div>
-        {report.sessions.length === 0 ? (
-          <p className="text-gray-400 text-xs italic text-center py-6">No classes this week.</p>
+        {filteredSessions.length === 0 ? (
+          <p className="text-gray-400 text-xs italic text-center py-6">No classes match.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] text-gray-400 uppercase tracking-wide">
-                  <th className="px-4 py-1.5 font-semibold">Date</th>
-                  <th className="px-2 py-1.5 font-semibold">Client</th>
-                  <th className="px-2 py-1.5 font-semibold">Instructor</th>
-                  <th className="px-2 py-1.5 font-semibold text-right">Charge</th>
-                  <th className="px-2 py-1.5 font-semibold text-right">Pay</th>
-                  <th className="px-4 py-1.5 font-semibold">Method</th>
+                  <SortableTh col="session_date" label="Date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="pl-4" />
+                  <SortableTh col="client_name" label="Client" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortableTh col="instructor_name" label="Instructor" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortableTh col="charge_amount" label="Charge" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <SortableTh col="instructor_pay" label="Pay" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <SortableTh col="payment_method" label="Method" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="pr-4" />
                 </tr>
               </thead>
               <tbody>
-                {report.sessions.map((s, i) => (
+                {filteredSessions.map((s, i) => (
                   <tr key={s.id} className={i > 0 ? 'border-t border-gray-100' : ''}>
                     <td className="px-4 py-1.5 text-gray-500 whitespace-nowrap">
                       {new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

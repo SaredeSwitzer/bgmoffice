@@ -133,6 +133,21 @@ router.get('/ready-to-send', async (req, res) => {
   res.json(rows.map(r => ({ ...enrichInvoice(r), is_current_month: r.billing_period === currentPeriod })));
 });
 
+// A lightweight "I looked this over and it's correct" checkpoint, separate from actually
+// sending — staff can approve as invoices build through the month without committing to
+// send yet. Toggles: approving an already-approved invoice un-approves it.
+router.patch('/:id/approve', async (req, res) => {
+  const { rows: [existing] } = await pool.query('SELECT approved_at FROM invoices WHERE id=$1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Invoice not found' });
+  const approving = !existing.approved_at;
+  await pool.query(
+    'UPDATE invoices SET approved_at=$1, approved_by=$2 WHERE id=$3',
+    [approving ? new Date().toISOString() : null, approving ? req.user.initials : null, req.params.id]
+  );
+  const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
+  res.json(enrichInvoice(row));
+});
+
 router.get('/:id', async (req, res) => {
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Invoice not found' });

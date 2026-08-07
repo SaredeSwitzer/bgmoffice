@@ -198,20 +198,24 @@ router.get('/report', async (req, res) => {
   const { rows: byClient } = await pool.query(
     `SELECT c.id AS client_id, c.name AS client_name,
             COALESCE(SUM(s.charge_amount), 0)::numeric(10,2) AS amount,
-            COUNT(*)::int AS session_count
+            COUNT(*)::int AS session_count,
+            rc.status AS charged_status, rc.note AS charged_note
        FROM class_sessions s JOIN clients c ON c.id = s.client_id
+       LEFT JOIN recurring_charges rc ON rc.client_id = c.id AND rc.week_start = $1::date
       WHERE s.session_date BETWEEN $1::date AND (${end}) AND s.status <> 'cancelled'
-      GROUP BY c.id, c.name ORDER BY amount DESC`,
+      GROUP BY c.id, c.name, rc.status, rc.note ORDER BY amount DESC`,
     [start]
   );
 
   const { rows: byInstructor } = await pool.query(
     `SELECT i.id AS instructor_id, i.name AS instructor_name,
             COALESCE(SUM(s.instructor_pay), 0)::numeric(10,2) AS total_pay,
-            COUNT(*)::int AS session_count
+            COUNT(*)::int AS session_count,
+            ip.status AS paid_status, ip.note AS paid_note
        FROM class_sessions s JOIN instructors i ON i.id = s.instructor_id
+       LEFT JOIN instructor_payments ip ON ip.instructor_id = i.id AND ip.week_start = $1::date
       WHERE s.session_date BETWEEN $1::date AND (${end}) AND s.status <> 'cancelled'
-      GROUP BY i.id, i.name ORDER BY i.name`,
+      GROUP BY i.id, i.name, ip.status, ip.note ORDER BY i.name`,
     [start]
   );
 
@@ -219,7 +223,8 @@ router.get('/report', async (req, res) => {
   // whatever ad-hoc question the summaries don't answer.
   const { rows: sessions } = await pool.query(
     `SELECT s.id, s.session_date::text AS session_date, s.start_time::text AS start_time,
-            c.name AS client_name, i.name AS instructor_name, s.style,
+            c.id AS client_id, c.name AS client_name,
+            i.id AS instructor_id, i.name AS instructor_name, s.style,
             s.charge_amount, s.instructor_pay, s.payment_method, s.status
        FROM class_sessions s
        JOIN clients c            ON c.id = s.client_id
@@ -240,6 +245,45 @@ router.get('/report', async (req, res) => {
     by_instructor: byInstructor,
     sessions,
   });
+});
+
+// ── Manual payment-status marking ───────────────────────────────────────────────
+// For clients: a status independent of the Stripe off-session flow above — covers a
+// declined card, a client who pays by other means, or "haven't gotten to it yet".
+// Upserts on (client_id, week_start) so re-marking the same week just updates it.
+router.patch('/client-status', async (req, res) => {
+  const { client_id, week_start, status, amount, note } = req.body;
+  if (!client_id || !/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {
+    return res.status(400).json({ error: 'client_id and week_start (YYYY-MM-DD) required' });
+  }
+  if (!['charged', 'declined', 'unpaid', 'pending'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  await pool.query(
+    `INSERT INTO recurring_charges (client_id, week_start, amount, status, note, charged_by)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (client_id, week_start) DO UPDATE SET status=$4, note=$5, charged_by=$6`,
+    [client_id, week_start, amount || 0, status, note || null, req.user.initials]
+  );
+  res.json({ ok: true });
+});
+
+// Same idea for instructor pay — has this instructor been paid for this week's classes.
+router.patch('/instructor-status', async (req, res) => {
+  const { instructor_id, week_start, status, amount, note } = req.body;
+  if (!instructor_id || !/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {
+    return res.status(400).json({ error: 'instructor_id and week_start (YYYY-MM-DD) required' });
+  }
+  if (!['paid', 'unpaid'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  await pool.query(
+    `INSERT INTO instructor_payments (instructor_id, week_start, amount, status, note, updated_by, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,now())
+     ON CONFLICT (instructor_id, week_start) DO UPDATE SET status=$4, note=$5, updated_by=$6, updated_at=now()`,
+    [instructor_id, week_start, amount || 0, status, note || null, req.user.initials]
+  );
+  res.json({ ok: true });
 });
 
 // ── Charge the approved list off-session ──────────────────────────────────────

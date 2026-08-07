@@ -343,6 +343,11 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleApproveInvoice(id) {
+    const updated = await api.approveInvoice(id)
+    setReadyInvoices(prev => prev.map(inv => inv.id === id ? updated : inv))
+  }
+
   const myDelegateName = useMemo(() => {
     if (!user || !delegates.length) return null
     const firstName = user.name.split(' ')[0].toLowerCase()
@@ -430,11 +435,22 @@ export default function DashboardPage() {
                   {inv.is_current_month && (
                     <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full ml-2">still building</span>
                   )}
+                  {inv.approved_at && (
+                    <span className="text-[10px] text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full ml-2">✓ approved by {inv.approved_by}</span>
+                  )}
                 </div>
-                <button onClick={e => navClick(e, `/invoices/${inv.id}`, navigate)}
-                  className="text-xs text-blue-600 hover:underline flex-shrink-0">
-                  {inv.is_current_month ? 'View →' : 'Review & send →'}
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => handleApproveInvoice(inv.id)}
+                    className={`text-xs rounded-lg px-2 py-1 border ${
+                      inv.approved_at ? 'border-gray-200 text-gray-400 hover:bg-gray-50' : 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100'
+                    }`}>
+                    {inv.approved_at ? 'Unapprove' : '✓ Approve'}
+                  </button>
+                  <button onClick={e => navClick(e, `/invoices/${inv.id}`, navigate)}
+                    className="text-xs text-blue-600 hover:underline">
+                    {inv.is_current_month ? 'View →' : 'Review & send →'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

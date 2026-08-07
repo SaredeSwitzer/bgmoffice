@@ -257,6 +257,7 @@ export const api = {
   },
   getInvoice: (id) => request(`/invoices/${id}`),
   getReadyToSendInvoices: () => request('/invoices/ready-to-send'),
+  approveInvoice: (id) => request(`/invoices/${id}/approve`, { method: 'PATCH' }),
   createInvoice: (data) => request('/invoices', { method: 'POST', body: JSON.stringify(data) }),
   updateInvoice: (id, data) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   setInvoiceStatus: (id, status) => request(`/invoices/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -336,6 +337,8 @@ export const api = {
   getBillingWeek: (start) => request(`/billing/week?start=${start}`),
   getBillingReport: (start) => request(`/billing/report?start=${start}`),
   chargeBilling: (week_start, items) => request('/billing/charge', { method: 'POST', body: JSON.stringify({ week_start, items }) }),
+  setClientPaymentStatus: (data) => request('/billing/client-status', { method: 'PATCH', body: JSON.stringify(data) }),
+  setInstructorPaymentStatus: (data) => request('/billing/instructor-status', { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Stripe settings (admin)
   getStripeSettings: () => request('/settings/stripe'),
