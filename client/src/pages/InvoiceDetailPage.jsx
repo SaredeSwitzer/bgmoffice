@@ -192,6 +192,11 @@ export default function InvoiceDetailPage() {
     navigate(`/invoices/${dup.id}`)
   }
 
+  async function handleApprove() {
+    const updated = await api.approveInvoice(id)
+    setInvoice(updated)
+  }
+
   // The pay link is keyed on the invoice's random public_token, not its id — the token
   // is the only thing keeping the invoice private, so the link is the secret.
   function getPaymentLink() {
@@ -532,6 +537,11 @@ export default function InvoiceDetailPage() {
                       Archived
                     </span>
                   )}
+                  {invoice.approved_at && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                      ✓ Approved by {invoice.approved_by}
+                    </span>
+                  )}
                 </div>
                 {invoice.title && (
                   <p className="text-base font-semibold text-gray-800 mb-1">{invoice.title}</p>
@@ -547,6 +557,14 @@ export default function InvoiceDetailPage() {
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+                <button onClick={handleApprove}
+                  className={`px-3 py-1.5 border text-xs rounded-lg ${
+                    invoice.approved_at
+                      ? 'border-gray-200 text-gray-400 hover:bg-gray-50'
+                      : 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100'
+                  }`}>
+                  {invoice.approved_at ? 'Unapprove' : '✓ Approve'}
+                </button>
                 <button onClick={startEdit}
                   className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg hover:bg-gray-50">
                   Edit
