@@ -4,6 +4,7 @@ import SearchSelect from '../components/SearchSelect'
 import ClassNotes from '../components/ClassNotes'
 import ConfirmClassModal from '../components/ConfirmClassModal'
 import ClassSessionModal from '../components/ClassSessionModal'
+import PendingClassModal from '../components/PendingClassModal'
 
 // Small pill showing a class's note / open-task counts; also the button that expands notes.
 function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
@@ -62,6 +63,8 @@ export default function SchedulePage() {
 
   // Add/edit-class modal. { session: null, defaultDate } to add; { session } to edit.
   const [sessionModal, setSessionModal] = useState(null)
+  // The dated session currently being marked pending, if any.
+  const [pendingModal, setPendingModal] = useState(null)
 
   // Which class's notes panel is open, keyed like 'session-12' / 'schedule-5'.
   const [openNotes, setOpenNotes] = useState(null)
@@ -96,6 +99,12 @@ export default function SchedulePage() {
   async function removeSession(id) {
     if (!confirm('Remove this class from the week?')) return
     await api.deleteClassSession(id); setSessions(prev => prev.filter(s => s.id !== id))
+  }
+
+  async function resolvePending(s) {
+    if (!confirm('Mark this class as resolved (no longer pending)?')) return
+    const updated = await api.updateClassSession(s.id, { status: 'scheduled' })
+    setSessions(prev => prev.map(x => x.id === s.id ? { ...x, ...updated } : x))
   }
 
   async function createSchedule(e) {
@@ -199,15 +208,29 @@ export default function SchedulePage() {
                           ) : rows.map(s => (
                             <Fragment key={s.id}>
                               <div onClick={() => setSessionModal({ session: s })}
-                                className="border border-gray-200 rounded-lg p-2 text-xs cursor-pointer hover:border-gray-400 transition-colors">
+                                className={`border rounded-lg p-2 text-xs cursor-pointer transition-colors ${
+                                  s.status === 'pending'
+                                    ? 'border-amber-300 bg-amber-50 hover:border-amber-400'
+                                    : 'border-gray-200 hover:border-gray-400'
+                                }`}>
                                 <div className="flex items-start justify-between gap-1">
                                   <span className="font-semibold text-gray-700">{s.start_time ? s.start_time.slice(0, 5) : '—'}</span>
                                   <div className="flex items-center gap-1.5">
+                                    {s.status === 'pending' ? (
+                                      <button onClick={e => { e.stopPropagation(); resolvePending(s) }}
+                                        title="Mark resolved" className="text-amber-600 hover:text-amber-800 leading-none text-xs">✓ Resolve</button>
+                                    ) : (
+                                      <button onClick={e => { e.stopPropagation(); setPendingModal(s) }}
+                                        title="Mark pending" className="text-gray-300 hover:text-amber-600 leading-none text-xs">⚠</button>
+                                    )}
                                     <button onClick={e => { e.stopPropagation(); setSessionModal({ session: s, duplicate: true, defaultDate: s.session_date }) }}
                                       title="Duplicate this class" className="text-gray-300 hover:text-gray-600 leading-none text-xs">⧉</button>
                                     <button onClick={e => { e.stopPropagation(); removeSession(s.id) }} className="text-gray-300 hover:text-red-500 leading-none text-sm">×</button>
                                   </div>
                                 </div>
+                                {s.status === 'pending' && (
+                                  <p className="text-amber-700 font-semibold mt-0.5">⚠ Pending{s.notes ? `: ${s.notes}` : ''}</p>
+                                )}
                                 <p className="font-semibold text-gray-900 truncate mt-0.5">{s.client_name}</p>
                                 <p className="text-gray-500 truncate">
                                   {s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
@@ -390,6 +413,17 @@ export default function SchedulePage() {
           onDeleted={(id) => {
             setSessions(prev => prev.filter(x => x.id !== id))
             setSessionModal(null)
+          }}
+        />
+      )}
+
+      {pendingModal && (
+        <PendingClassModal
+          session={pendingModal}
+          onClose={() => setPendingModal(null)}
+          onSaved={(updated) => {
+            setSessions(prev => prev.map(x => x.id === pendingModal.id ? { ...x, ...updated } : x))
+            setPendingModal(null)
           }}
         />
       )}
