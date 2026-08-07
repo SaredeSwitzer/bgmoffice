@@ -148,7 +148,7 @@ router.get('/week', async (req, res) => {
               COUNT(*) AS session_count
          FROM class_sessions s
         WHERE s.session_date BETWEEN $1::date AND ($1::date + 6)
-          AND (s.payment_method ILIKE 'CC' OR s.payment_method ILIKE '%credit%')
+          AND (s.payment_method ILIKE '%CC%' OR s.payment_method ILIKE '%credit%')
           AND s.status <> 'cancelled'
         GROUP BY s.client_id
      )
