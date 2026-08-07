@@ -334,6 +334,7 @@ export const api = {
   confirmClientCard: (clientId, setup_intent_id) => request(`/billing/clients/${clientId}/confirm-card`, { method: 'POST', body: JSON.stringify({ setup_intent_id }) }),
   removeClientCard: (clientId) => request(`/billing/clients/${clientId}/card`, { method: 'DELETE' }),
   getBillingWeek: (start) => request(`/billing/week?start=${start}`),
+  getBillingReport: (start) => request(`/billing/report?start=${start}`),
   chargeBilling: (week_start, items) => request('/billing/charge', { method: 'POST', body: JSON.stringify({ week_start, items }) }),
 
   // Stripe settings (admin)

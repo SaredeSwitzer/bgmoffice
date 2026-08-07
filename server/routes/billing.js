@@ -165,6 +165,68 @@ router.get('/week', async (req, res) => {
   res.json({ week_start: start, items: rows });
 });
 
+// ── Weekly revenue / payroll report ────────────────────────────────────────────
+// Everything on the calendar for the week — every payment method, not just CC — so
+// this is the accounting/payroll view, distinct from /week above (which is only the
+// classes about to be charged off-session).
+router.get('/report', async (req, res) => {
+  const { start } = req.query;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '')) {
+    return res.status(400).json({ error: 'start (YYYY-MM-DD, the week Sunday) is required' });
+  }
+  const end = `$1::date + 6`;
+
+  const { rows: [totals] } = await pool.query(
+    `SELECT COALESCE(SUM(charge_amount), 0)::numeric(10,2)   AS total_revenue,
+            COALESCE(SUM(instructor_pay), 0)::numeric(10,2)  AS total_instructor_pay,
+            COUNT(*)::int                                    AS session_count
+       FROM class_sessions
+      WHERE session_date BETWEEN $1::date AND (${end}) AND status <> 'cancelled'`,
+    [start]
+  );
+
+  const { rows: byPaymentMethod } = await pool.query(
+    `SELECT COALESCE(payment_method, 'Unspecified') AS payment_method,
+            COALESCE(SUM(charge_amount), 0)::numeric(10,2) AS amount,
+            COUNT(*)::int AS session_count
+       FROM class_sessions
+      WHERE session_date BETWEEN $1::date AND (${end}) AND status <> 'cancelled'
+      GROUP BY payment_method ORDER BY amount DESC`,
+    [start]
+  );
+
+  const { rows: byClient } = await pool.query(
+    `SELECT c.id AS client_id, c.name AS client_name,
+            COALESCE(SUM(s.charge_amount), 0)::numeric(10,2) AS amount,
+            COUNT(*)::int AS session_count
+       FROM class_sessions s JOIN clients c ON c.id = s.client_id
+      WHERE s.session_date BETWEEN $1::date AND (${end}) AND s.status <> 'cancelled'
+      GROUP BY c.id, c.name ORDER BY amount DESC`,
+    [start]
+  );
+
+  const { rows: byInstructor } = await pool.query(
+    `SELECT i.id AS instructor_id, i.name AS instructor_name,
+            COALESCE(SUM(s.instructor_pay), 0)::numeric(10,2) AS total_pay,
+            COUNT(*)::int AS session_count
+       FROM class_sessions s JOIN instructors i ON i.id = s.instructor_id
+      WHERE s.session_date BETWEEN $1::date AND (${end}) AND s.status <> 'cancelled'
+      GROUP BY i.id, i.name ORDER BY i.name`,
+    [start]
+  );
+
+  res.json({
+    week_start: start,
+    total_revenue: totals.total_revenue,
+    total_instructor_pay: totals.total_instructor_pay,
+    net: (Number(totals.total_revenue) - Number(totals.total_instructor_pay)).toFixed(2),
+    session_count: totals.session_count,
+    by_payment_method: byPaymentMethod,
+    by_client: byClient,
+    by_instructor: byInstructor,
+  });
+});
+
 // ── Charge the approved list off-session ──────────────────────────────────────
 router.post('/charge', async (req, res) => {
   const { week_start, items } = req.body;
