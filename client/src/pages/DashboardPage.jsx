@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar, { FILTER_ALL, FILTER_ANYONE, FILTER_STARRED, CATEGORY_FILTERS } from '../components/DashboardFilterBar'
 import { navClick } from '../utils/nav'
+import { TaskForm } from './TasksPage'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -181,7 +182,7 @@ function getItemCategories(item) {
 
 // ── Open Tasks table ──────────────────────────────────────────────────────────
 
-function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar, delegateFilter, categoryFilter, onDelegateChange, onCategoryChange }) {
+function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar, delegateFilter, categoryFilter, onDelegateChange, onCategoryChange, onAddTask }) {
   const [sortCol, setSortCol] = useState(null)
   const [sortDir, setSortDir] = useState('asc')
 
@@ -234,6 +235,10 @@ function OpenTasksTable({ items, onRowClick, myDelegateName, delegates, onStar, 
             ✕ clear filters
           </button>
         )}
+        <button onClick={onAddTask}
+          className="ml-auto text-xs font-medium text-gray-600 border border-gray-300 rounded-lg px-2.5 py-1 hover:bg-gray-50">
+          + Add Task
+        </button>
       </div>
 
       <div className="mb-3">
@@ -293,6 +298,10 @@ export default function DashboardPage() {
   const [delegates,         setDelegates]         = useState([])
   const [completedPackages, setCompletedPackages] = useState([])
   const [readyInvoices,     setReadyInvoices]     = useState([])
+  const [clients,           setClients]           = useState([])
+  const [instructors,       setInstructors]       = useState([])
+  const [showAddTask,       setShowAddTask]       = useState(false)
+  const [addingTask,        setAddingTask]        = useState(false)
   const [error,             setError]             = useState('')
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -307,11 +316,32 @@ export default function DashboardPage() {
     setSearchParams(p => { const n = new URLSearchParams(p); n.set('category', key); return n }, { replace: true })
   }
 
+  function loadDashboard() {
+    return api.dashboard().then(setData).catch(e => setError(e.message))
+  }
+
   useEffect(() => {
-    Promise.all([api.dashboard(), api.getDelegates(), api.getRecentlyCompletedPackages(), api.getReadyToSendInvoices()])
-      .then(([d, dels, pkgs, invs]) => { setData(d); setDelegates(dels); setCompletedPackages(pkgs); setReadyInvoices(invs) })
+    Promise.all([
+      api.dashboard(), api.getDelegates(), api.getRecentlyCompletedPackages(),
+      api.getReadyToSendInvoices(), api.getClients(), api.getInstructors(),
+    ])
+      .then(([d, dels, pkgs, invs, cl, ins]) => {
+        setData(d); setDelegates(dels); setCompletedPackages(pkgs)
+        setReadyInvoices(invs); setClients(cl); setInstructors(ins)
+      })
       .catch(e => setError(e.message))
   }, [])
+
+  async function handleAddTask(form) {
+    setAddingTask(true)
+    try {
+      await api.createTask(form)
+      setShowAddTask(false)
+      await loadDashboard()
+    } finally {
+      setAddingTask(false)
+    }
+  }
 
   const myDelegateName = useMemo(() => {
     if (!user || !delegates.length) return null
@@ -416,7 +446,29 @@ export default function DashboardPage() {
         categoryFilter={categoryFilter}
         onDelegateChange={setDelegateFilter}
         onCategoryChange={setCategoryFilter}
+        onAddTask={() => setShowAddTask(true)}
       />
+
+      {showAddTask && (
+        <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 px-4 py-10 overflow-y-auto" onClick={() => setShowAddTask(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 text-base">Add Task</h3>
+              <button onClick={() => setShowAddTask(false)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+            </div>
+            <div className="p-5">
+              <TaskForm
+                initial={{ title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: 'task', client: null, instructor: null }}
+                onSave={handleAddTask}
+                onCancel={() => setShowAddTask(false)}
+                saving={addingTask}
+                clients={clients}
+                instructors={instructors}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

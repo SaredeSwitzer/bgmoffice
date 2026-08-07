@@ -5,39 +5,53 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
+const TASK_JOIN = `
+  SELECT st.*, cl.name AS client_name, i.name AS instructor_name
+  FROM standalone_tasks st
+  LEFT JOIN clients     cl ON cl.id = st.client_id
+  LEFT JOIN instructors i  ON i.id  = st.instructor_id
+`;
+
 router.get('/', async (req, res) => {
   const { status } = req.query;
   const params = [];
-  let sql = 'SELECT * FROM standalone_tasks';
-  if (status) { sql += ` WHERE status = $${params.push(status)}`; }
-  sql += ' ORDER BY starred DESC, priority DESC, created_at DESC';
+  let sql = TASK_JOIN;
+  if (status) { sql += ` WHERE st.status = $${params.push(status)}`; }
+  sql += ' ORDER BY st.starred DESC, st.priority DESC, st.created_at DESC';
   const { rows } = await pool.query(sql, params);
   res.json(rows);
 });
 
 router.post('/', async (req, res) => {
-  const { title, description, assigned_to, due_date, priority, notes, task_type } = req.body;
+  const { title, description, assigned_to, due_date, priority, notes, task_type, client_id, instructor_id } = req.body;
   if (!title) return res.status(400).json({ error: 'Title required' });
-  const { rows: [task] } = await pool.query(
-    `INSERT INTO standalone_tasks (title, description, assigned_to, due_date, priority, notes, created_by, task_type)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [title.trim(), description || null, assigned_to || null, due_date || null, priority || 'normal', notes || null, req.user.initials, task_type || 'task']
+  const { rows: [{ id }] } = await pool.query(
+    `INSERT INTO standalone_tasks (title, description, assigned_to, due_date, priority, notes, created_by, task_type, client_id, instructor_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+    [title.trim(), description || null, assigned_to || null, due_date || null, priority || 'normal', notes || null,
+     req.user.initials, task_type || 'task', client_id || null, instructor_id || null]
   );
+  const { rows: [task] } = await pool.query(`${TASK_JOIN} WHERE st.id = $1`, [id]);
   res.status(201).json(task);
 });
 
 router.put('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT * FROM standalone_tasks WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Task not found' });
-  const { title, description, assigned_to, due_date, priority, notes, status, starred, task_type } = req.body;
+  const { title, description, assigned_to, due_date, priority, notes, status, starred, task_type, client_id, instructor_id } = req.body;
   const completed_at = status === 'done' ? (existing.completed_at || new Date().toISOString()) : null;
-  const { rows: [task] } = await pool.query(
+  await pool.query(
     `UPDATE standalone_tasks SET
        title=$1, description=$2, assigned_to=$3, due_date=$4, priority=$5, notes=$6,
-       status=$7, starred=$8, completed_at=$9, task_type=$10
-     WHERE id=$11 RETURNING *`,
-    [title, description || null, assigned_to || null, due_date || null, priority || 'normal', notes || null, status || 'open', starred ? 1 : 0, completed_at, task_type || 'task', req.params.id]
+       status=$7, starred=$8, completed_at=$9, task_type=$10, client_id=$11, instructor_id=$12
+     WHERE id=$13`,
+    [title, description || null, assigned_to || null, due_date || null, priority || 'normal', notes || null,
+     status || 'open', starred ? 1 : 0, completed_at, task_type || 'task',
+     client_id !== undefined ? (client_id || null) : existing.client_id,
+     instructor_id !== undefined ? (instructor_id || null) : existing.instructor_id,
+     req.params.id]
   );
+  const { rows: [task] } = await pool.query(`${TASK_JOIN} WHERE st.id = $1`, [req.params.id]);
   res.json(task);
 });
 

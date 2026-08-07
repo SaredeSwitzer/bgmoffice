@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useSeenTasks } from '../hooks/useSeenTasks'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar from '../components/DashboardFilterBar'
+import SearchSelect from '../components/SearchSelect'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -20,17 +21,22 @@ function fmtTs(iso) {
 }
 
 // ── Task form (inline create or edit) ────────────────────────────────────────
-function TaskForm({ initial, onSave, onCancel, saving }) {
+export function TaskForm({ initial, onSave, onCancel, saving, clients = [], instructors = [] }) {
   const today = new Date().toISOString().slice(0, 10)
   const [form, setForm] = useState(initial || {
     title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: 'task',
+    client: null, instructor: null,
   })
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   function handleSubmit(e) {
     e.preventDefault()
     if (!form.title.trim()) return
-    onSave(form)
+    onSave({
+      ...form,
+      client_id: form.client?.id || null,
+      instructor_id: form.instructor?.id || null,
+    })
   }
 
   return (
@@ -48,6 +54,10 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
             rows={2} placeholder="Optional additional details"
             className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
         </div>
+        <SearchSelect label="Related Client (optional)" options={clients} value={form.client}
+          onChange={v => set('client', v)} placeholder="Search clients…" />
+        <SearchSelect label="Related Instructor (optional)" options={instructors} value={form.instructor}
+          onChange={v => set('instructor', v)} placeholder="Search instructors…" />
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Assigned To</label>
           <select value={form.assigned_to} onChange={e => set('assigned_to', e.target.value)}
@@ -100,7 +110,7 @@ function TaskForm({ initial, onSave, onCancel, saving }) {
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
-function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes }) {
+function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], instructors = [] }) {
   const { user } = useAuth()
   const [editing,         setEditing]         = useState(false)
   const [saving,          setSaving]          = useState(false)
@@ -167,8 +177,10 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes }) {
 
   if (editing) return (
     <TaskForm initial={{ title: task.title, description: task.description || '', assigned_to: task.assigned_to || '',
-      due_date: task.due_date || '', priority: task.priority, notes: task.notes || '', task_type: task.task_type || 'task' }}
-      onSave={handleEdit} onCancel={() => setEditing(false)} saving={saving} />
+      due_date: task.due_date || '', priority: task.priority, notes: task.notes || '', task_type: task.task_type || 'task',
+      client: task.client_id ? { id: task.client_id, name: task.client_name } : null,
+      instructor: task.instructor_id ? { id: task.instructor_id, name: task.instructor_name } : null }}
+      onSave={handleEdit} onCancel={() => setEditing(false)} saving={saving} clients={clients} instructors={instructors} />
   )
 
   return (
@@ -202,6 +214,18 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes }) {
           <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">Reference</span>
         )}
         {task.assigned_to && <span className="font-medium text-gray-600">→ {task.assigned_to}</span>}
+        {task.client_name && (
+          <Link to={`/clients/${task.client_id}`} onClick={e => e.stopPropagation()}
+            className="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full font-medium hover:bg-gray-200">
+            👤 {task.client_name}
+          </Link>
+        )}
+        {task.instructor_name && (
+          <Link to={`/instructors/${task.instructor_id}`} onClick={e => e.stopPropagation()}
+            className="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full font-medium hover:bg-gray-200">
+            🏃 {task.instructor_name}
+          </Link>
+        )}
         {task.due_date && (
           <span className={isOverdue ? 'text-amber-600 font-semibold' : ''}>
             {isOverdue ? '⚠️ ' : ''}Due {fmtDate(task.due_date)}
@@ -304,7 +328,7 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes }) {
 }
 
 // ── Task section (by type) ────────────────────────────────────────────────────
-function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType, isNewFn, actionTypes }) {
+function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType, isNewFn, actionTypes, clients, instructors }) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -330,10 +354,12 @@ function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultTyp
       </div>
       {showForm && (
         <TaskForm
-          initial={{ title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: defaultType }}
+          initial={{ title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: defaultType, client: null, instructor: null }}
           onSave={handleCreate}
           onCancel={() => setShowForm(false)}
           saving={saving}
+          clients={clients}
+          instructors={instructors}
         />
       )}
       {tasks.length === 0 && !showForm ? (
@@ -343,7 +369,7 @@ function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultTyp
           {tasks
             .sort((a, b) => (b.starred - a.starred) || (b.priority === 'urgent' ? 1 : -1))
             .map(t => (
-              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} isNew={isNewFn?.(t)} actionTypes={actionTypes} />
+              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} isNew={isNewFn?.(t)} actionTypes={actionTypes} clients={clients} instructors={instructors} />
             ))}
         </div>
       )}
@@ -367,6 +393,8 @@ export default function TasksPage() {
 
   const [tasks, setTasks] = useState([])
   const [actionTypes, setActionTypes] = useState([])
+  const [clients, setClients] = useState([])
+  const [instructors, setInstructors] = useState([])
   const [loading, setLoading] = useState(true)
   const [showDone, setShowDone] = useState(false)
   const [filterAssignee, setFilterAssignee] = useState('')
@@ -381,8 +409,8 @@ export default function TasksPage() {
   }
 
   useEffect(() => {
-    Promise.all([api.getTasks(), api.getActionTypes()])
-      .then(([t, at]) => { setTasks(t); setActionTypes(at) })
+    Promise.all([api.getTasks(), api.getActionTypes(), api.getClients(), api.getInstructors()])
+      .then(([t, at, c, i]) => { setTasks(t); setActionTypes(at); setClients(c); setInstructors(i) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -454,6 +482,8 @@ export default function TasksPage() {
             onUpdate={t => handleSectionUpdate(t, 'update')}
             onDelete={handleDelete}
             actionTypes={actionTypes}
+            clients={clients}
+            instructors={instructors}
           />
         ) : (
           <p className="text-sm text-gray-400 italic">Task not found.</p>
@@ -479,13 +509,13 @@ export default function TasksPage() {
       </div>
 
       <TaskSection label="Tasks" borderColor="border-gray-300" tasks={openTasks}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} actionTypes={actionTypes} />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} />
 
       <TaskSection label="Reference" borderColor="border-purple-300" tasks={openReference}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="reference" isNewFn={isNew} actionTypes={actionTypes} />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="reference" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} />
 
       <TaskSection label="Other" borderColor="border-blue-300" tasks={openOther}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" isNewFn={isNew} actionTypes={actionTypes} />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} />
 
       {/* Completed tasks (collapsible) */}
       {done.length > 0 && (
@@ -500,7 +530,7 @@ export default function TasksPage() {
           {showDone && (
             <div className="space-y-2">
               {filtered(done).map(t => (
-                <TaskCard key={t.id} task={t} onUpdate={t => handleSectionUpdate(t, 'update')} onDelete={handleDelete} actionTypes={actionTypes} />
+                <TaskCard key={t.id} task={t} onUpdate={t => handleSectionUpdate(t, 'update')} onDelete={handleDelete} actionTypes={actionTypes} clients={clients} instructors={instructors} />
               ))}
             </div>
           )}
