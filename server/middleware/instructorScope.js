@@ -19,6 +19,14 @@ const INSTRUCTOR_ALLOWLIST = [
   { method: 'GET',  path: /^\/auth\/me$/ },
   { method: 'POST', path: /^\/auth\/logout$/ },
   { method: 'GET',  path: /^\/schedule\/my-sessions$/ },
+  // Own profile only — routes below still check req.user.instructor_id === :id themselves;
+  // this just opens the path, it doesn't grant access to every instructor's record.
+  { method: 'GET',    path: /^\/instructors\/\d+$/ },
+  { method: 'PUT',    path: /^\/instructors\/\d+$/ },
+  { method: 'POST',   path: /^\/instructors\/\d+\/photo$/ },
+  { method: 'GET',    path: /^\/instructors\/\d+\/documents$/ },
+  { method: 'POST',   path: /^\/instructors\/\d+\/documents$/ },
+  { method: 'DELETE', path: /^\/instructors\/\d+\/documents\/\d+$/ },
 ];
 
 function denyInstructor(req, res, next) {

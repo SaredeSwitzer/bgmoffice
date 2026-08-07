@@ -30,6 +30,16 @@ export default function InstructorShell() {
             >
               My classes
             </NavLink>
+            <NavLink
+              to="/my-profile"
+              className={({ isActive }) =>
+                `px-3 py-1.5 rounded text-sm font-medium ${
+                  isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-800'
+                }`
+              }
+            >
+              My Profile
+            </NavLink>
           </nav>
           <div className="flex items-center gap-3 shrink-0">
             <span className="text-xs text-gray-500 flex items-center gap-1.5">

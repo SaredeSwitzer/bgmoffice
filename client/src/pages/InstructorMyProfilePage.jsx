@@ -1,0 +1,232 @@
+import { useEffect, useRef, useState } from 'react'
+import { api, uploadsUrl } from '../api/client'
+import { useAuth } from '../context/AuthContext'
+
+function fmt(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Own-profile photo upload — same idea as the staff-facing PhotoAvatar in
+// InstructorProfilePage.jsx, kept separate since this page has its own scoped API access.
+function PhotoAvatar({ instructor, onPhotoChange }) {
+  const fileRef = useRef()
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFile(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const result = await api.uploadInstructorPhoto(instructor.id, file)
+      onPhotoChange(result.photo_url)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const src = uploadsUrl(instructor.photo_url)
+  const initials = instructor.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+  return (
+    <div className="relative group flex-shrink-0">
+      <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center border-2 border-white shadow">
+        {src ? (
+          <img src={src} alt={instructor.name} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-xl font-bold text-gray-500">{initials}</span>
+        )}
+      </div>
+      <button
+        onClick={() => fileRef.current.click()}
+        disabled={uploading}
+        className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+        title="Upload photo"
+      >
+        {uploading ? <span className="text-white text-xs">…</span> : <span className="text-white text-lg">📷</span>}
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+    </div>
+  )
+}
+
+function DocumentsSection({ instructorId, documents, onDocAdded, onDocDeleted }) {
+  const fileRef = useRef()
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFile(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const doc = await api.uploadInstructorDocument(instructorId, file)
+      onDocAdded(doc)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  async function handleDelete(docId) {
+    if (!confirm('Delete this document?')) return
+    await api.deleteInstructorDocument(instructorId, docId)
+    onDocDeleted(docId)
+  }
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-gray-300">
+          Documents (resume, etc.)
+        </h2>
+        <button
+          onClick={() => fileRef.current.click()}
+          disabled={uploading}
+          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+        >
+          {uploading ? 'Uploading…' : '+ Upload'}
+        </button>
+        <input ref={fileRef} type="file" className="hidden" onChange={handleFile} />
+      </div>
+
+      {documents.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">No documents uploaded yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {documents.map(doc => (
+            <div key={doc.id} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-xl">📄</span>
+                <div className="min-w-0">
+                  <a href={uploadsUrl(doc.filename)} target="_blank" rel="noopener noreferrer"
+                    className="text-sm font-medium text-blue-600 hover:underline truncate block">
+                    {doc.original_name}
+                  </a>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{fmt(doc.uploaded_at)}</p>
+                </div>
+              </div>
+              <button onClick={() => handleDelete(doc.id)} className="text-xs text-gray-400 hover:text-red-600 flex-shrink-0">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+export default function InstructorMyProfilePage() {
+  const { user } = useAuth()
+  const [instructor, setInstructor] = useState(null)
+  const [form, setForm] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!user?.instructor_id) return
+    api.getInstructor(user.instructor_id)
+      .then(inst => {
+        setInstructor(inst)
+        setForm({
+          phone: inst.phone || '', email: inst.email || '',
+          mailing_address: inst.mailing_address || '', neighborhood: inst.neighborhood || '',
+          styles_taught: inst.styles_taught || '', specialties: inst.specialties || '',
+        })
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [user?.instructor_id])
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaving(true); setError(''); setSaved(false)
+    try {
+      const updated = await api.updateInstructor(instructor.id, { ...instructor, ...form })
+      setInstructor(updated)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="text-center py-12 text-gray-400 text-sm">Loading…</div>
+  if (!instructor) return <div className="text-center py-12 text-gray-400 text-sm">Could not load your profile.</div>
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <PhotoAvatar instructor={instructor} onPhotoChange={url => setInstructor(prev => ({ ...prev, photo_url: url }))} />
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">{instructor.name}</h1>
+          <p className="text-sm text-gray-500">{instructor.styles_taught || instructor.specialties || 'My Profile'}</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-gray-300 mb-1">
+          Contact Info
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+            <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
+            <input value={form.mailing_address} onChange={e => setForm(f => ({ ...f, mailing_address: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
+            <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Styles Taught</label>
+            <input value={form.styles_taught} onChange={e => setForm(f => ({ ...f, styles_taught: e.target.value }))}
+              placeholder="e.g. Yoga, Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Specialties / Notes</label>
+            <input value={form.specialties} onChange={e => setForm(f => ({ ...f, specialties: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div className="flex items-center gap-3 pt-1">
+          <button type="submit" disabled={saving}
+            className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+          {saved && <span className="text-xs text-green-600">Saved ✓</span>}
+        </div>
+        <p className="text-[11px] text-gray-400 pt-1">
+          Your name, pay rate, and contract info are managed by BGM Office staff — reach out if anything there needs updating.
+        </p>
+      </form>
+
+      <DocumentsSection
+        instructorId={instructor.id}
+        documents={instructor.documents || []}
+        onDocAdded={doc => setInstructor(prev => ({ ...prev, documents: [...(prev.documents || []), doc] }))}
+        onDocDeleted={docId => setInstructor(prev => ({ ...prev, documents: (prev.documents || []).filter(d => d.id !== docId) }))}
+      />
+    </div>
+  )
+}

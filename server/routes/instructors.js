@@ -71,9 +71,23 @@ router.get('/', async (req, res) => {
   res.json(rows);
 });
 
+// Instructor accounts may only ever touch their own record — never another instructor's.
+function ownRecordOrForbidden(req, res) {
+  if (req.user.role !== 'instructor') return true;
+  if (Number(req.params.id) === Number(req.user.instructor_id)) return true;
+  res.status(403).json({ error: "Not your profile" });
+  return false;
+}
+
 router.get('/:id', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
   const row = await getInstructorRow(req.params.id);
   if (!row) return res.status(404).json({ error: 'Instructor not found' });
+  // Self-view: hide SSN and staff's internal feedback notes about them.
+  if (req.user.role === 'instructor') {
+    const { ssn, feedback_notes, ...safe } = row;
+    return res.json(safe);
+  }
   res.json(row);
 });
 
@@ -89,8 +103,23 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { rows: [existing] } = await pool.query('SELECT id FROM instructors WHERE id = $1', [req.params.id]);
+  if (!ownRecordOrForbidden(req, res)) return;
+  const { rows: [existing] } = await pool.query('SELECT * FROM instructors WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Instructor not found' });
+
+  if (req.user.role === 'instructor') {
+    // Self-service: only contact info and what they teach — never pay, contract, name, or SSN.
+    const { phone, email, mailing_address, neighborhood, styles_taught, specialties } = req.body;
+    await pool.query(
+      `UPDATE instructors SET phone=$1, email=$2, mailing_address=$3, neighborhood=$4, styles_taught=$5, specialties=$6
+       WHERE id=$7`,
+      [phone || null, email || null, mailing_address || null, neighborhood || null, styles_taught || null, specialties || null, req.params.id]
+    );
+    const row = await getInstructorRow(req.params.id);
+    const { ssn, feedback_notes, ...safe } = row;
+    return res.json(safe);
+  }
+
   const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught } = req.body;
   await pool.query(
     `UPDATE instructors SET name=$1, phone=$2, email=$3, specialties=$4, style=$5, notes=$6, pay_rate=$7,
@@ -109,6 +138,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 router.post('/:id/photo', upload.single('photo'), async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const { rows: [inst] } = await pool.query('SELECT photo_url FROM instructors WHERE id = $1', [req.params.id]);
   if (!inst) return res.status(404).json({ error: 'Instructor not found' });
@@ -121,6 +151,7 @@ router.post('/:id/photo', upload.single('photo'), async (req, res) => {
 });
 
 router.get('/:id/documents', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
   const { rows } = await pool.query(
     'SELECT * FROM instructor_documents WHERE instructor_id = $1 ORDER BY uploaded_at ASC',
     [req.params.id]
@@ -129,6 +160,7 @@ router.get('/:id/documents', async (req, res) => {
 });
 
 router.post('/:id/documents', upload.single('document'), async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const url = await uploadToStorage(req.file.buffer, req.file.originalname, 'documents');
   const { rows: [doc] } = await pool.query(
@@ -139,6 +171,7 @@ router.post('/:id/documents', upload.single('document'), async (req, res) => {
 });
 
 router.delete('/:id/documents/:docId', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
   const { rows: [doc] } = await pool.query(
     'SELECT * FROM instructor_documents WHERE id = $1 AND instructor_id = $2',
     [req.params.docId, req.params.id]

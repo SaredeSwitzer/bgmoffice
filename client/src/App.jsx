@@ -5,6 +5,7 @@ import NavShell from './components/NavShell'
 import InstructorShell from './components/InstructorShell'
 import RoleHome from './components/RoleHome'
 import InstructorMyClassesPage from './pages/InstructorMyClassesPage'
+import InstructorMyProfilePage from './pages/InstructorMyProfilePage'
 import LoginPage from './pages/LoginPage'
 import MyTasksPage from './pages/MyTasksPage'
 import DashboardPage from './pages/DashboardPage'
@@ -43,6 +44,7 @@ export default function App() {
             }
           >
             <Route path="my-classes" element={<InstructorMyClassesPage />} />
+            <Route path="my-profile" element={<InstructorMyProfilePage />} />
           </Route>
 
           <Route
