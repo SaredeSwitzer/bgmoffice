@@ -5,16 +5,18 @@ import DateInput from './DateInput'
 
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
-// Add or edit a single dated class on the calendar. `session` is null to create a new one
-// (pre-filled with `defaultDate`), or an existing session row to edit it in place.
-export default function ClassSessionModal({ session, defaultDate, onClose, onSaved, onDeleted }) {
-  const isEdit = !!session?.id
+// Add, edit, or duplicate a single dated class on the calendar.
+//   session: null                    → create new, pre-filled with `defaultDate`
+//   session: {...}                   → edit that session in place
+//   session: {...}, duplicate: true  → pre-filled from that session, but saves as a new one
+export default function ClassSessionModal({ session, defaultDate, duplicate = false, onClose, onSaved, onDeleted }) {
+  const isEdit = !!session?.id && !duplicate
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [form, setForm] = useState({
-    client: isEdit ? { id: session.client_id, name: session.client_name } : null,
-    instructor: isEdit && session.instructor_id ? { id: session.instructor_id, name: session.instructor_name } : null,
-    session_date: session?.session_date || defaultDate || '',
+    client: session ? { id: session.client_id, name: session.client_name } : null,
+    instructor: session?.instructor_id ? { id: session.instructor_id, name: session.instructor_name } : null,
+    session_date: duplicate ? (defaultDate || '') : (session?.session_date || defaultDate || ''),
     start_time: session?.start_time ? session.start_time.slice(0, 5) : '',
     charge_amount: session?.charge_amount ?? '',
     instructor_pay: session?.instructor_pay ?? '',
@@ -68,7 +70,7 @@ export default function ClassSessionModal({ session, defaultDate, onClose, onSav
     <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 px-4 py-6 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md my-auto" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-bold text-gray-900 text-base">{isEdit ? 'Edit Class' : 'Add Class'}</h3>
+          <h3 className="font-bold text-gray-900 text-base">{isEdit ? 'Edit Class' : duplicate ? 'Duplicate Class' : 'Add Class'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit}>

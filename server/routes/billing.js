@@ -215,6 +215,20 @@ router.get('/report', async (req, res) => {
     [start]
   );
 
+  // Every individual class for the week — the raw rows behind all the totals above, for
+  // whatever ad-hoc question the summaries don't answer.
+  const { rows: sessions } = await pool.query(
+    `SELECT s.id, s.session_date::text AS session_date, s.start_time::text AS start_time,
+            c.name AS client_name, i.name AS instructor_name, s.style,
+            s.charge_amount, s.instructor_pay, s.payment_method, s.status
+       FROM class_sessions s
+       JOIN clients c            ON c.id = s.client_id
+       LEFT JOIN instructors i   ON i.id = s.instructor_id
+      WHERE s.session_date BETWEEN $1::date AND (${end})
+      ORDER BY s.session_date, s.start_time NULLS LAST, c.name`,
+    [start]
+  );
+
   res.json({
     week_start: start,
     total_revenue: totals.total_revenue,
@@ -224,6 +238,7 @@ router.get('/report', async (req, res) => {
     by_payment_method: byPaymentMethod,
     by_client: byClient,
     by_instructor: byInstructor,
+    sessions,
   });
 });
 

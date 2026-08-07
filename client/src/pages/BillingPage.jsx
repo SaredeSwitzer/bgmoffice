@@ -117,6 +117,51 @@ function ReportTab({ weekStart, weekEnd, label }) {
           </div>
         ))}
       </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+          <span className="text-xs font-semibold text-gray-600">All Classes — {label}</span>
+          <button
+            onClick={() => downloadCsv(`classes_${weekTag}.csv`,
+              ['Date', 'Time', 'Client', 'Instructor', 'Style', 'Charge', 'Instructor Pay', 'Payment Method', 'Status'],
+              report.sessions.map(s => [s.session_date, s.start_time ? s.start_time.slice(0, 5) : '', s.client_name,
+                s.instructor_name || '', s.style || '', s.charge_amount, s.instructor_pay, s.payment_method || '', s.status]))}
+            className="text-xs text-blue-600 hover:underline">Export CSV</button>
+        </div>
+        {report.sessions.length === 0 ? (
+          <p className="text-gray-400 text-xs italic text-center py-6">No classes this week.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] text-gray-400 uppercase tracking-wide">
+                  <th className="px-4 py-1.5 font-semibold">Date</th>
+                  <th className="px-2 py-1.5 font-semibold">Client</th>
+                  <th className="px-2 py-1.5 font-semibold">Instructor</th>
+                  <th className="px-2 py-1.5 font-semibold text-right">Charge</th>
+                  <th className="px-2 py-1.5 font-semibold text-right">Pay</th>
+                  <th className="px-4 py-1.5 font-semibold">Method</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.sessions.map((s, i) => (
+                  <tr key={s.id} className={i > 0 ? 'border-t border-gray-100' : ''}>
+                    <td className="px-4 py-1.5 text-gray-500 whitespace-nowrap">
+                      {new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {s.start_time ? ` ${s.start_time.slice(0, 5)}` : ''}
+                    </td>
+                    <td className="px-2 py-1.5 text-gray-800">{s.client_name}</td>
+                    <td className="px-2 py-1.5 text-gray-500">{s.instructor_name || '—'}</td>
+                    <td className="px-2 py-1.5 text-right text-gray-800">{money(s.charge_amount)}</td>
+                    <td className="px-2 py-1.5 text-right text-gray-500">{money(s.instructor_pay)}</td>
+                    <td className="px-4 py-1.5 text-gray-400">{s.payment_method || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

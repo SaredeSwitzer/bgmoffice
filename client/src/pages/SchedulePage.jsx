@@ -202,7 +202,11 @@ export default function SchedulePage() {
                                 className="border border-gray-200 rounded-lg p-2 text-xs cursor-pointer hover:border-gray-400 transition-colors">
                                 <div className="flex items-start justify-between gap-1">
                                   <span className="font-semibold text-gray-700">{s.start_time ? s.start_time.slice(0, 5) : '—'}</span>
-                                  <button onClick={e => { e.stopPropagation(); removeSession(s.id) }} className="text-gray-300 hover:text-red-500 leading-none text-sm">×</button>
+                                  <div className="flex items-center gap-1.5">
+                                    <button onClick={e => { e.stopPropagation(); setSessionModal({ session: s, duplicate: true, defaultDate: s.session_date }) }}
+                                      title="Duplicate this class" className="text-gray-300 hover:text-gray-600 leading-none text-xs">⧉</button>
+                                    <button onClick={e => { e.stopPropagation(); removeSession(s.id) }} className="text-gray-300 hover:text-red-500 leading-none text-sm">×</button>
+                                  </div>
                                 </div>
                                 <p className="font-semibold text-gray-900 truncate mt-0.5">{s.client_name}</p>
                                 <p className="text-gray-500 truncate">
@@ -380,6 +384,7 @@ export default function SchedulePage() {
         <ClassSessionModal
           session={sessionModal.session}
           defaultDate={sessionModal.defaultDate}
+          duplicate={!!sessionModal.duplicate}
           onClose={() => setSessionModal(null)}
           onSaved={() => { setSessionModal(null); loadWeek() }}
           onDeleted={(id) => {
