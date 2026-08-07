@@ -195,49 +195,61 @@ export default function SchedulePage() {
               No classes this week. Use “Generate week” to fill it from recurring schedules, or add recurring classes first.
             </p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex justify-between text-xs text-gray-500 px-1">
                 <span>{sessions.length} class{sessions.length === 1 ? '' : 'es'}</span>
                 <span>Week total: <span className="font-semibold text-gray-700">{money(weekTotal)}</span></span>
               </div>
-              {WEEKDAYS.map((dayName, i) => {
-                const date = ymd(addDays(weekStart, i))
-                const rows = byDay[date]
-                if (!rows) return null
-                return (
-                  <div key={date} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-600">
-                      {dayName} · {parseLocal(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </div>
-                    {rows.map((s, r) => (
-                      <Fragment key={s.id}>
-                        <div className={`flex items-center gap-3 px-4 py-3 ${r > 0 ? 'border-t border-gray-100' : ''}`}>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">
-                              {s.instructor_name || 'No instructor'}{s.start_time ? ` · ${s.start_time.slice(0, 5)}` : ''}{s.style ? ` · ${s.style}` : ''}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold text-gray-800">{money(s.charge_amount)}</p>
-                            <p className="text-[11px] text-gray-400">{s.payment_method || '—'}</p>
-                          </div>
-                          <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
-                            onClick={() => toggleNotes(`session-${s.id}`)} />
-                          <select value={s.status} onChange={e => setSessionStatus(s.id, e.target.value)}
-                            className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 text-gray-600 bg-white">
-                            {SESSION_STATUS.map(st => <option key={st} value={st}>{st.replace('_', ' ')}</option>)}
-                          </select>
-                          <button onClick={() => removeSession(s.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
+              <div className="overflow-x-auto pb-2">
+                <div className="flex gap-2 min-w-[980px]">
+                  {WEEKDAYS.map((dayName, i) => {
+                    const date = ymd(addDays(weekStart, i))
+                    const rows = (byDay[date] || []).slice().sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+                    const isToday = date === ymd(new Date())
+                    return (
+                      <div key={date}
+                        className={`flex-1 min-w-[130px] rounded-xl border ${isToday ? 'border-gray-900' : 'border-gray-200'} bg-white shadow-sm overflow-hidden flex flex-col`}>
+                        <div className={`px-2 py-2 text-center border-b ${isToday ? 'bg-gray-900 border-gray-900' : 'bg-gray-50 border-gray-100'}`}>
+                          <p className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-gray-300' : 'text-gray-400'}`}>{dayName.slice(0, 3)}</p>
+                          <p className={`text-sm font-bold ${isToday ? 'text-white' : 'text-gray-700'}`}>
+                            {parseLocal(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </p>
                         </div>
-                        {openNotes === `session-${s.id}` && (
-                          <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
-                        )}
-                      </Fragment>
-                    ))}
-                  </div>
-                )
-              })}
+                        <div className="flex-1 p-2 space-y-2">
+                          {rows.length === 0 ? (
+                            <p className="text-[11px] text-gray-300 italic text-center pt-3">No classes</p>
+                          ) : rows.map(s => (
+                            <Fragment key={s.id}>
+                              <div className={`border rounded-lg p-2 text-xs ${s.status === 'cancelled' ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-gray-200'}`}>
+                                <div className="flex items-start justify-between gap-1">
+                                  <span className="font-semibold text-gray-700">{s.start_time ? s.start_time.slice(0, 5) : '—'}</span>
+                                  <button onClick={() => removeSession(s.id)} className="text-gray-300 hover:text-red-500 leading-none text-sm">×</button>
+                                </div>
+                                <p className="font-semibold text-gray-900 truncate mt-0.5">{s.client_name}</p>
+                                <p className="text-gray-500 truncate">
+                                  {s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
+                                </p>
+                                <div className="flex items-center justify-between mt-1">
+                                  <span className="font-semibold text-gray-800">{money(s.charge_amount)}</span>
+                                  <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
+                                    onClick={() => toggleNotes(`session-${s.id}`)} />
+                                </div>
+                                <select value={s.status} onChange={e => setSessionStatus(s.id, e.target.value)}
+                                  className="w-full mt-1 text-[10px] border border-gray-200 rounded px-1 py-0.5 text-gray-600 bg-white">
+                                  {SESSION_STATUS.map(st => <option key={st} value={st}>{st.replace('_', ' ')}</option>)}
+                                </select>
+                              </div>
+                              {openNotes === `session-${s.id}` && (
+                                <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
+                              )}
+                            </Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           )}
         </>
