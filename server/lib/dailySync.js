@@ -1,12 +1,6 @@
 const pool = require('../db/pg');
 const { nextInvoiceNumber, calcTotals } = require('./invoiceHelpers');
 
-// Sunday..Saturday, matching the app's week model (SchedulePage's startOfWeek).
-function startOfWeek(d) {
-  const x = new Date(d);
-  x.setDate(x.getDate() - x.getDay());
-  return x;
-}
 function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -40,7 +34,7 @@ async function syncPackages(sessions) {
     await pool.query(
       `INSERT INTO package_sessions (package_id, session_date, notes, created_by, class_session_id)
        VALUES ($1,$2,$3,$4,$5)`,
-      [pkg.id, s.session_date, 'Auto-added from calendar', 'weekly-sync', s.id]
+      [pkg.id, s.session_date, 'Auto-added from calendar', 'daily-sync', s.id]
     );
     await pool.query(
       `UPDATE client_packages SET
@@ -88,7 +82,7 @@ async function syncInvoices(sessions) {
         `INSERT INTO invoices
            (invoice_number, title, client_id, line_items, subtotal, tax_rate, tax_amount, total,
             invoice_date, created_by, auto_generated, billing_period)
-         VALUES ($1,$2,$3,'[]',0,0,0,0,$4,'weekly-sync',true,$5) RETURNING id`,
+         VALUES ($1,$2,$3,'[]',0,0,0,0,$4,'daily-sync',true,$5) RETURNING id`,
         [invoice_number, `${monthName} ${year}`, client_id, ymd(new Date()), period]
       );
       invoiceId = inv.id;
@@ -120,29 +114,33 @@ async function syncInvoices(sessions) {
   return invoicesTouched;
 }
 
-// Runs the full weekly sync for the Sun–Sat week that most recently completed relative
-// to `now`. Safe to rerun — every step is idempotent.
-async function runWeeklySync(now = new Date()) {
-  const thisWeekStart = startOfWeek(now);
-  const lastWeekStart = addDays(thisWeekStart, -7);
-  const lastWeekEnd   = addDays(lastWeekStart, 6);
-
+// Core sync over an explicit [startDate, endDate] range (both 'YYYY-MM-DD', inclusive).
+// Every step is idempotent, so this is safe to rerun over any range — including one that
+// overlaps days already synced — to catch up after a missed run or backfill a gap.
+async function syncDateRange(startDate, endDate) {
   const { rows: sessions } = await pool.query(
     `SELECT id, client_id, session_date::text AS session_date, payment_method, style, charge_amount
        FROM class_sessions WHERE session_date BETWEEN $1 AND $2`,
-    [ymd(lastWeekStart), ymd(lastWeekEnd)]
+    [startDate, endDate]
   );
 
   const packagesDeducted = await syncPackages(sessions);
   const invoicesTouched  = await syncInvoices(sessions);
 
   return {
-    week_start: ymd(lastWeekStart),
-    week_end: ymd(lastWeekEnd),
+    start: startDate,
+    end: endDate,
     sessions_seen: sessions.length,
     packages_deducted: packagesDeducted,
     invoices_touched: invoicesTouched,
   };
 }
 
-module.exports = { runWeeklySync };
+// Runs nightly: syncs the day that just fully completed ("yesterday" relative to `now`).
+// Classes get picked up the next morning rather than waiting for the end of the week.
+async function runDailySync(now = new Date()) {
+  const yesterday = ymd(addDays(now, -1));
+  return syncDateRange(yesterday, yesterday);
+}
+
+module.exports = { syncDateRange, runDailySync };
