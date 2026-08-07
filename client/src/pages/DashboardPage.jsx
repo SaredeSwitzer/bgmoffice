@@ -298,6 +298,8 @@ export default function DashboardPage() {
   const [delegates,         setDelegates]         = useState([])
   const [completedPackages, setCompletedPackages] = useState([])
   const [readyInvoices,     setReadyInvoices]     = useState([])
+  const [checkedInvoices,   setCheckedInvoices]   = useState(new Set())
+  const [approvingBulk,     setApprovingBulk]     = useState(false)
   const [clients,           setClients]           = useState([])
   const [instructors,       setInstructors]       = useState([])
   const [showAddTask,       setShowAddTask]       = useState(false)
@@ -346,6 +348,29 @@ export default function DashboardPage() {
   async function handleApproveInvoice(id) {
     const updated = await api.approveInvoice(id)
     setReadyInvoices(prev => prev.map(inv => inv.id === id ? updated : inv))
+  }
+
+  function toggleInvoiceChecked(id) {
+    setCheckedInvoices(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+  function toggleAllInvoicesChecked() {
+    setCheckedInvoices(prev =>
+      prev.size === readyInvoices.length ? new Set() : new Set(readyInvoices.map(inv => inv.id)))
+  }
+  async function handleApproveSelected() {
+    setApprovingBulk(true)
+    try {
+      const targets = readyInvoices.filter(inv => checkedInvoices.has(inv.id) && !inv.approved_at)
+      const updates = await Promise.all(targets.map(inv => api.approveInvoice(inv.id)))
+      setReadyInvoices(prev => prev.map(inv => updates.find(u => u.id === inv.id) || inv))
+      setCheckedInvoices(new Set())
+    } finally {
+      setApprovingBulk(false)
+    }
   }
 
   const myDelegateName = useMemo(() => {
@@ -419,25 +444,43 @@ export default function DashboardPage() {
 
       {readyInvoices.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-blue-700 mb-3">
-            📄 Invoices to Review
-            <span className="ml-2 text-xs font-semibold bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
-              {readyInvoices.length}
-            </span>
-          </h2>
+          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-blue-700">
+              📄 Invoices to Review
+              <span className="ml-2 text-xs font-semibold bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                {readyInvoices.length}
+              </span>
+            </h2>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-xs text-blue-700 normal-case font-normal select-none cursor-pointer">
+                <input type="checkbox" checked={checkedInvoices.size === readyInvoices.length && readyInvoices.length > 0}
+                  onChange={toggleAllInvoicesChecked} />
+                {checkedInvoices.size === readyInvoices.length ? 'Uncheck all' : 'Check all'}
+              </label>
+              {checkedInvoices.size > 0 && (
+                <button onClick={handleApproveSelected} disabled={approvingBulk}
+                  className="text-xs font-semibold bg-green-600 text-white rounded-lg px-3 py-1.5 hover:bg-green-700 disabled:opacity-50">
+                  {approvingBulk ? 'Approving…' : `✓ Approve ${checkedInvoices.size} Selected`}
+                </button>
+              )}
+            </div>
+          </div>
           <div className="space-y-2">
             {readyInvoices.map(inv => (
               <div key={inv.id} className="flex items-center justify-between gap-3 bg-white border border-blue-100 rounded-xl px-4 py-2.5">
-                <div>
-                  <span className="text-sm font-semibold text-gray-800">{inv.client_name}</span>
-                  <span className="text-xs text-gray-500 ml-2">{inv.title}</span>
-                  <span className="text-xs text-gray-400 ml-2">— ${Number(inv.total).toFixed(0)}</span>
-                  {inv.is_current_month && (
-                    <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full ml-2">still building</span>
-                  )}
-                  {inv.approved_at && (
-                    <span className="text-[10px] text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full ml-2">✓ approved by {inv.approved_by}</span>
-                  )}
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={checkedInvoices.has(inv.id)} onChange={() => toggleInvoiceChecked(inv.id)} />
+                  <div>
+                    <span className="text-sm font-semibold text-gray-800">{inv.client_name}</span>
+                    <span className="text-xs text-gray-500 ml-2">{inv.title}</span>
+                    <span className="text-xs text-gray-400 ml-2">— ${Number(inv.total).toFixed(0)}</span>
+                    {inv.is_current_month && (
+                      <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full ml-2">still building</span>
+                    )}
+                    {inv.approved_at && (
+                      <span className="text-[10px] text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full ml-2">✓ approved by {inv.approved_by}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button onClick={() => handleApproveInvoice(inv.id)}

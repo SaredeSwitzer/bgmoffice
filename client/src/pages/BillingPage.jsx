@@ -61,6 +61,11 @@ function ReportTab({ weekStart, weekEnd, label }) {
   const [filterMethod, setFilterMethod] = useState('')
   const [sortCol, setSortCol] = useState('session_date')
   const [sortDir, setSortDir] = useState('asc')
+  const [checkedClients, setCheckedClients] = useState(new Set())
+  const [checkedInstructors, setCheckedInstructors] = useState(new Set())
+  const [bulkClientStatus, setBulkClientStatus] = useState('charged')
+  const [bulkInstructorStatus, setBulkInstructorStatus] = useState('paid')
+  const [bulkApplying, setBulkApplying] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -68,7 +73,10 @@ function ReportTab({ weekStart, weekEnd, label }) {
   }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setFilterClient(''); setFilterInstructor(''); setFilterMethod('') }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setFilterClient(''); setFilterInstructor(''); setFilterMethod('')
+    setCheckedClients(new Set()); setCheckedInstructors(new Set())
+  }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function updateClientStatus(r, status) {
     await api.setClientPaymentStatus({ client_id: r.client_id, week_start: ymd(weekStart), status, amount: r.amount })
@@ -77,6 +85,46 @@ function ReportTab({ weekStart, weekEnd, label }) {
   async function updateInstructorStatus(r, status) {
     await api.setInstructorPaymentStatus({ instructor_id: r.instructor_id, week_start: ymd(weekStart), status, amount: r.total_pay })
     load()
+  }
+
+  function toggleClientChecked(id) {
+    setCheckedClients(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function toggleAllClientsChecked() {
+    setCheckedClients(prev =>
+      prev.size === report.by_client.length ? new Set() : new Set(report.by_client.map(r => r.client_id)))
+  }
+  async function applyBulkClientStatus() {
+    setBulkApplying(true)
+    try {
+      const targets = report.by_client.filter(r => checkedClients.has(r.client_id))
+      await Promise.all(targets.map(r =>
+        api.setClientPaymentStatus({ client_id: r.client_id, week_start: ymd(weekStart), status: bulkClientStatus, amount: r.amount })))
+      setCheckedClients(new Set())
+      load()
+    } finally {
+      setBulkApplying(false)
+    }
+  }
+
+  function toggleInstructorChecked(id) {
+    setCheckedInstructors(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function toggleAllInstructorsChecked() {
+    setCheckedInstructors(prev =>
+      prev.size === report.by_instructor.length ? new Set() : new Set(report.by_instructor.map(r => r.instructor_id)))
+  }
+  async function applyBulkInstructorStatus() {
+    setBulkApplying(true)
+    try {
+      const targets = report.by_instructor.filter(r => checkedInstructors.has(r.instructor_id))
+      await Promise.all(targets.map(r =>
+        api.setInstructorPaymentStatus({ instructor_id: r.instructor_id, week_start: ymd(weekStart), status: bulkInstructorStatus, amount: r.total_pay })))
+      setCheckedInstructors(new Set())
+      load()
+    } finally {
+      setBulkApplying(false)
+    }
   }
 
   function handleSort(col) {
@@ -141,51 +189,101 @@ function ReportTab({ weekStart, weekEnd, label }) {
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100 gap-2 flex-wrap">
           <span className="text-xs font-semibold text-gray-600">Revenue by Client — {label}</span>
-          <button
-            onClick={() => downloadCsv(`revenue_${weekTag}.csv`, ['Client', 'Classes', 'Amount'],
-              report.by_client.map(r => [r.client_name, r.session_count, r.amount]))}
-            className="text-xs text-blue-600 hover:underline">Export CSV</button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {checkedClients.size > 0 && (
+              <>
+                <select value={bulkClientStatus} onChange={e => setBulkClientStatus(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 bg-white text-gray-600">
+                  {CLIENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <button onClick={applyBulkClientStatus} disabled={bulkApplying}
+                  className="text-xs font-semibold bg-gray-900 text-white rounded-lg px-2.5 py-1 hover:bg-gray-700 disabled:opacity-50">
+                  {bulkApplying ? 'Applying…' : `Mark ${checkedClients.size} Selected`}
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => downloadCsv(`revenue_${weekTag}.csv`, ['Client', 'Classes', 'Amount'],
+                report.by_client.map(r => [r.client_name, r.session_count, r.amount]))}
+              className="text-xs text-blue-600 hover:underline">Export CSV</button>
+          </div>
         </div>
         {report.by_client.length === 0 ? (
           <p className="text-gray-400 text-xs italic text-center py-6">No classes this week.</p>
-        ) : report.by_client.map((r, i) => (
-          <div key={r.client_id} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
-            <Link to={`/clients/${r.client_id}`} className="text-gray-700 hover:underline min-w-0 truncate">{r.client_name}</Link>
-            <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
-            <span className="font-semibold text-gray-900 shrink-0">{money(r.amount)}</span>
-            <select value={r.charged_status || ''} onChange={e => updateClientStatus(r, e.target.value)}
-              className={`shrink-0 text-xs rounded-lg px-1.5 py-1 border ${STATUS_COLORS[r.charged_status] || 'bg-white text-gray-400 border-gray-200'}`}>
-              <option value="">— mark —</option>
-              {CLIENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        ))}
+        ) : (
+          <>
+            <label className="flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 select-none cursor-pointer border-b border-gray-100">
+              <input type="checkbox" checked={checkedClients.size === report.by_client.length} onChange={toggleAllClientsChecked} />
+              {checkedClients.size === report.by_client.length ? 'Uncheck all' : 'Check all'}
+            </label>
+            {report.by_client.map((r, i) => (
+              <div key={r.client_id} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <input type="checkbox" checked={checkedClients.has(r.client_id)} onChange={() => toggleClientChecked(r.client_id)} />
+                  <Link to={`/clients/${r.client_id}`} className="text-gray-700 hover:underline min-w-0 truncate">{r.client_name}</Link>
+                </div>
+                <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
+                <span className="font-semibold text-gray-900 shrink-0">{money(r.amount)}</span>
+                <select value={r.charged_status || ''} onChange={e => updateClientStatus(r, e.target.value)}
+                  className={`shrink-0 text-xs rounded-lg px-1.5 py-1 border ${STATUS_COLORS[r.charged_status] || 'bg-white text-gray-400 border-gray-200'}`}>
+                  <option value="">— mark —</option>
+                  {CLIENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100 gap-2 flex-wrap">
           <span className="text-xs font-semibold text-gray-600">Payroll by Instructor — {label}</span>
-          <button
-            onClick={() => downloadCsv(`payroll_${weekTag}.csv`, ['Instructor', 'Classes', 'Total Pay'],
-              report.by_instructor.map(r => [r.instructor_name, r.session_count, r.total_pay]))}
-            className="text-xs text-blue-600 hover:underline">Export CSV</button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {checkedInstructors.size > 0 && (
+              <>
+                <select value={bulkInstructorStatus} onChange={e => setBulkInstructorStatus(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 bg-white text-gray-600">
+                  {INSTRUCTOR_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <button onClick={applyBulkInstructorStatus} disabled={bulkApplying}
+                  className="text-xs font-semibold bg-gray-900 text-white rounded-lg px-2.5 py-1 hover:bg-gray-700 disabled:opacity-50">
+                  {bulkApplying ? 'Applying…' : `Mark ${checkedInstructors.size} Selected`}
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => downloadCsv(`payroll_${weekTag}.csv`, ['Instructor', 'Classes', 'Total Pay'],
+                report.by_instructor.map(r => [r.instructor_name, r.session_count, r.total_pay]))}
+              className="text-xs text-blue-600 hover:underline">Export CSV</button>
+          </div>
         </div>
         {report.by_instructor.length === 0 ? (
           <p className="text-gray-400 text-xs italic text-center py-6">No instructor-taught classes this week.</p>
-        ) : report.by_instructor.map((r, i) => (
-          <div key={r.instructor_id} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
-            <Link to={`/instructors/${r.instructor_id}`} className="text-gray-700 hover:underline min-w-0 truncate">{r.instructor_name}</Link>
-            <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
-            <span className="font-semibold text-gray-900 shrink-0">{money(r.total_pay)}</span>
-            <select value={r.paid_status || ''} onChange={e => updateInstructorStatus(r, e.target.value)}
-              className={`shrink-0 text-xs rounded-lg px-1.5 py-1 border ${STATUS_COLORS[r.paid_status] || 'bg-white text-gray-400 border-gray-200'}`}>
-              <option value="">— mark —</option>
-              {INSTRUCTOR_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        ))}
+        ) : (
+          <>
+            <label className="flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 select-none cursor-pointer border-b border-gray-100">
+              <input type="checkbox" checked={checkedInstructors.size === report.by_instructor.length} onChange={toggleAllInstructorsChecked} />
+              {checkedInstructors.size === report.by_instructor.length ? 'Uncheck all' : 'Check all'}
+            </label>
+            {report.by_instructor.map((r, i) => (
+              <div key={r.instructor_id} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <input type="checkbox" checked={checkedInstructors.has(r.instructor_id)} onChange={() => toggleInstructorChecked(r.instructor_id)} />
+                  <Link to={`/instructors/${r.instructor_id}`} className="text-gray-700 hover:underline min-w-0 truncate">{r.instructor_name}</Link>
+                </div>
+                <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
+                <span className="font-semibold text-gray-900 shrink-0">{money(r.total_pay)}</span>
+                <select value={r.paid_status || ''} onChange={e => updateInstructorStatus(r, e.target.value)}
+                  className={`shrink-0 text-xs rounded-lg px-1.5 py-1 border ${STATUS_COLORS[r.paid_status] || 'bg-white text-gray-400 border-gray-200'}`}>
+                  <option value="">— mark —</option>
+                  {INSTRUCTOR_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
