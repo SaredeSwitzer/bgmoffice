@@ -10,6 +10,51 @@ function addDays(d, n) {
   return x;
 }
 
+// Keep the calendar populated with dated occurrences of every active recurring class,
+// out to `horizonDate` ('YYYY-MM-DD'). Runs nightly via runDailySync so the horizon
+// keeps sliding forward on its own — nobody has to remember to "extend the calendar."
+//
+// For each schedule, generation always resumes from the day AFTER its latest existing
+// class_sessions row (or its start_date / today if it has none yet) — never re-walks
+// dates already generated. That means a session someone deliberately deleted (a one-off
+// cancellation) stays deleted instead of being silently resurrected on the next run.
+async function generateUpcomingSessions(horizonDate) {
+  const { rows: schedules } = await pool.query(
+    `SELECT * FROM class_schedules WHERE status = 'active' AND weekday IS NOT NULL`
+  );
+
+  const today = ymd(new Date());
+  let created = 0;
+
+  for (const sch of schedules) {
+    const { rows: [{ max_date }] } = await pool.query(
+      `SELECT MAX(session_date)::text AS max_date FROM class_sessions WHERE schedule_id = $1`,
+      [sch.id]
+    );
+    let from = max_date ? ymd(addDays(new Date(`${max_date}T00:00:00`), 1)) : (sch.start_date || today);
+    if (from < today) from = today;
+
+    for (let d = new Date(`${from}T00:00:00`); ymd(d) <= horizonDate; d = addDays(d, 1)) {
+      const dateStr = ymd(d);
+      if (sch.end_date && dateStr > sch.end_date) break;
+      if (d.getDay() !== sch.weekday) continue;
+
+      const { rowCount } = await pool.query(
+        `INSERT INTO class_sessions
+           (schedule_id, client_id, instructor_id, session_date, start_time,
+            charge_amount, instructor_pay, payment_method, style, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'scheduled')
+         ON CONFLICT (schedule_id, session_date) WHERE schedule_id IS NOT NULL DO NOTHING`,
+        [sch.id, sch.client_id, sch.instructor_id, dateStr, sch.start_time,
+         sch.charge_amount, sch.instructor_pay, sch.payment_method, sch.style]
+      );
+      created += rowCount;
+    }
+  }
+
+  return { horizon: horizonDate, sessions_created: created };
+}
+
 // Deduct one class from a client's active package for each calendar class billed as
 // "Package" — mirrors what logging a package session by hand does (packages.js
 // POST /:id/sessions), just triggered from the calendar instead of a manual click.
@@ -154,7 +199,12 @@ async function syncDateRange(startDate, endDate) {
 // Classes get picked up the next morning rather than waiting for the end of the week.
 async function runDailySync(now = new Date()) {
   const yesterday = ymd(addDays(now, -1));
-  return syncDateRange(yesterday, yesterday);
+  const sync = await syncDateRange(yesterday, yesterday);
+  // Always keep 2 years of calendar generated ahead — since this runs nightly, the
+  // horizon just keeps sliding forward and effectively never runs out again.
+  const horizon = ymd(addDays(now, 730));
+  const generation = await generateUpcomingSessions(horizon);
+  return { ...sync, calendar_generation: generation };
 }
 
-module.exports = { syncDateRange, runDailySync };
+module.exports = { syncDateRange, runDailySync, generateUpcomingSessions };
