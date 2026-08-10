@@ -3,6 +3,7 @@ const crypto  = require('crypto');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { notifyCrew } = require('../lib/notifyCrew');
+const { sendChargeReceipt } = require('../lib/mailer');
 
 const router = express.Router();
 
@@ -303,7 +304,7 @@ router.post('/charge', async (req, res) => {
   const results = [];
   for (const it of items) {
     const { rows: [client] } = await pool.query(
-      'SELECT id, name, stripe_customer_id, stripe_payment_method_id, card_last4 FROM clients WHERE id=$1', [it.client_id]
+      'SELECT id, name, stripe_customer_id, stripe_payment_method_id, card_last4, COALESCE(invoice_email, email) AS receipt_email FROM clients WHERE id=$1', [it.client_id]
     );
     if (!client) { results.push({ client_id: it.client_id, status: 'failed', error: 'client not found' }); continue; }
 
@@ -343,6 +344,20 @@ router.post('/charge', async (req, res) => {
         [client.id, week_start, it.amount, it.session_count || null, pi.id, req.user.initials || null]
       );
       results.push({ client_id: client.id, client_name: client.name, status: 'charged', amount: it.amount, last4: client.card_last4 });
+      if (client.receipt_email) {
+        // Awaited on purpose — Vercel can kill the function right after the response goes
+        // out, which silently drops fire-and-forget sends more often than not.
+        try {
+          await sendChargeReceipt({
+            to: client.receipt_email,
+            clientName: client.name,
+            amount: it.amount,
+            description: `weekly classes — week of ${week_start}`,
+          });
+        } catch (err) {
+          console.error('[billing] receipt email failed:', err.message);
+        }
+      }
     } catch (err) {
       // Card declined / other Stripe error — log it as failed, keep going.
       await pool.query(

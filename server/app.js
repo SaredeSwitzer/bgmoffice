@@ -52,15 +52,32 @@ app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), asy
       console.log(`[stripe webhook] Invoice ${invoiceId} marked paid`);
       if (invoice) {
         const { notifyCrew } = require('./lib/notifyCrew');
+        const { sendChargeReceipt } = require('./lib/mailer');
         const amount = ((pi.amount_received ?? pi.amount) / 100).toFixed(2);
         let clientName = 'a client';
+        let clientEmail = null;
         if (invoice.client_id) {
-          const { rows: [c] } = await pool.query('SELECT name FROM clients WHERE id=$1', [invoice.client_id]);
+          const { rows: [c] } = await pool.query(
+            'SELECT name, COALESCE(invoice_email, email) AS receipt_email FROM clients WHERE id=$1', [invoice.client_id]
+          );
           clientName = c?.name || clientName;
+          clientEmail = c?.receipt_email || null;
         }
         // Awaited on purpose — Vercel can kill the function right after the response goes
         // out, which was silently dropping fire-and-forget notify calls elsewhere.
         await notifyCrew(`💳 ${clientName} just paid invoice ${invoice.invoice_number} ($${amount}) by card.`);
+        if (clientEmail) {
+          try {
+            await sendChargeReceipt({
+              to: clientEmail,
+              clientName,
+              amount,
+              description: `invoice ${invoice.invoice_number}`,
+            });
+          } catch (err) {
+            console.error('[stripe webhook] receipt email failed:', err.message);
+          }
+        }
       }
     }
   }

@@ -63,7 +63,7 @@ async function sendLoginCode(to, code) {
 // Generic transactional send (instructor confirmations, etc.). Same Resend path as the
 // login code. Throws in production if email isn't configured so a caller can surface it;
 // in dev it logs instead of silently dropping.
-async function sendMail({ to, subject, text, html, replyTo }) {
+async function sendMail({ to, subject, text, html, replyTo, from }) {
   if (!to) throw new Error('No recipient email');
   if (!isConfigured()) {
     if (process.env.NODE_ENV === 'production') {
@@ -76,7 +76,7 @@ async function sendMail({ to, subject, text, html, replyTo }) {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: process.env.MAIL_FROM,
+      from: from || process.env.MAIL_FROM,
       to: [to],
       subject,
       ...(text ? { text } : {}),
@@ -90,4 +90,31 @@ async function sendMail({ to, subject, text, html, replyTo }) {
   }
 }
 
-module.exports = { sendLoginCode, sendMail, isConfigured };
+const BILLING_FROM  = 'BGM Office Billing <billing@bgmoffice.com>';
+const BILLING_REPLY = 'sarede@bringthegymtome.com';
+
+// Receipt for a successful card charge — weekly recurring classes or a one-off invoice
+// payment. Best-effort: a receipt failing to send should never undo or block the charge
+// itself, so callers should catch/log rather than let this throw stop anything.
+async function sendChargeReceipt({ to, clientName, amount, description }) {
+  const money = `$${Number(amount).toFixed(2)}`;
+  await sendMail({
+    to,
+    from: BILLING_FROM,
+    replyTo: BILLING_REPLY,
+    subject: `Receipt: ${money} charged — BGM Office`,
+    text: `Hi ${clientName},\n\nThis confirms a charge of ${money} for ${description}.\n\n`
+        + `Questions about this charge? Just reply to this email.\n\n— BGM Office`,
+    html: `
+      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:420px;margin:0 auto;padding:32px 24px">
+        <h1 style="font-size:16px;color:#111827;margin:0 0 24px">BGM Office</h1>
+        <p style="font-size:14px;color:#374151;margin:0 0 16px">Hi ${clientName},</p>
+        <p style="font-size:14px;color:#374151;margin:0 0 16px">This confirms a charge of:</p>
+        <p style="font-size:28px;font-weight:700;color:#111827;margin:0 0 8px">${money}</p>
+        <p style="font-size:13px;color:#6b7280;margin:0 0 24px">${description}</p>
+        <p style="font-size:12px;color:#9ca3af;margin:0">Questions about this charge? Just reply to this email.</p>
+      </div>`,
+  });
+}
+
+module.exports = { sendLoginCode, sendMail, sendChargeReceipt, isConfigured };
