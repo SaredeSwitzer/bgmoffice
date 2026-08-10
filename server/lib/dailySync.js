@@ -27,9 +27,17 @@ async function generateUpcomingSessions(horizonDate) {
   let created = 0;
 
   for (const sch of schedules) {
+    // Also look at sessions NOT linked to this schedule (schedule_id IS NULL) for the same
+    // client+instructor — the July migration created a batch of sessions before schedule_id
+    // linkage existed. Without this, a schedule's "resume from" date ignores that legacy batch
+    // entirely and re-generates dates that already have a (duplicate, unlinked) session —
+    // found 87 such duplicate pairs on 2026-08-10, silently doubling payroll/revenue totals for
+    // every affected date. IS NOT DISTINCT FROM (vs =) so null-instructor schedules match too.
     const { rows: [{ max_date }] } = await pool.query(
-      `SELECT MAX(session_date)::text AS max_date FROM class_sessions WHERE schedule_id = $1`,
-      [sch.id]
+      `SELECT MAX(session_date)::text AS max_date FROM class_sessions
+        WHERE schedule_id = $1
+           OR (schedule_id IS NULL AND client_id = $2 AND instructor_id IS NOT DISTINCT FROM $3)`,
+      [sch.id, sch.client_id, sch.instructor_id]
     );
     let from = max_date ? ymd(addDays(new Date(`${max_date}T00:00:00`), 1)) : (sch.start_date || today);
     if (from < today) from = today;
