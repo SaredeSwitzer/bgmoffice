@@ -61,6 +61,9 @@ function ReportTab({ weekStart, weekEnd, label }) {
   const [filterMethod, setFilterMethod] = useState('')
   const [sortCol, setSortCol] = useState('session_date')
   const [sortDir, setSortDir] = useState('asc')
+  const [clientSortCol, setClientSortCol] = useState('amount')
+  const [clientSortDir, setClientSortDir] = useState('desc')
+  const [expandedClients, setExpandedClients] = useState(new Set())
   const [checkedClients, setCheckedClients] = useState(new Set())
   const [checkedInstructors, setCheckedInstructors] = useState(new Set())
   const [bulkClientStatus, setBulkClientStatus] = useState('charged')
@@ -85,6 +88,17 @@ function ReportTab({ weekStart, weekEnd, label }) {
   async function updateInstructorStatus(r, status) {
     await api.setInstructorPaymentStatus({ instructor_id: r.instructor_id, week_start: ymd(weekStart), status, amount: r.total_pay })
     load()
+  }
+
+  function toggleExpandedClient(id) {
+    setExpandedClients(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function handleClientSort(col) {
+    if (clientSortCol === col) setClientSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setClientSortCol(col); setClientSortDir(col === 'client_name' || col === 'payment_method' ? 'asc' : 'desc') }
+  }
+  function clientSortArrow(col) {
+    return clientSortCol === col ? (clientSortDir === 'asc' ? '↑' : '↓') : ''
   }
 
   function toggleClientChecked(id) {
@@ -156,6 +170,30 @@ function ReportTab({ weekStart, weekEnd, label }) {
     })
   const hasFilters = filterClient || filterInstructor || filterMethod
 
+  // Payment method(s) + the individual class dates behind each client's revenue row —
+  // derived from the same session list the "All Classes" table uses, so no extra fetch.
+  const sessionsByClient = report.sessions.reduce((acc, s) => {
+    (acc[s.client_id] ||= []).push(s)
+    return acc
+  }, {})
+  const byClientWithMethods = report.by_client.map(r => {
+    const clientSessions = (sessionsByClient[r.client_id] || [])
+      .slice()
+      .sort((a, b) => a.session_date.localeCompare(b.session_date))
+    const methods = [...new Set(clientSessions.map(s => s.payment_method).filter(Boolean))]
+    return { ...r, payment_methods: methods, payment_method_label: methods.join(', ') || '—', clientSessions }
+  })
+  const sortedByClient = byClientWithMethods.slice().sort((a, b) => {
+    let av, bv
+    if (clientSortCol === 'amount') { av = Number(a.amount) || 0; bv = Number(b.amount) || 0 }
+    else if (clientSortCol === 'session_count') { av = a.session_count; bv = b.session_count }
+    else if (clientSortCol === 'payment_method') { av = a.payment_method_label.toLowerCase(); bv = b.payment_method_label.toLowerCase() }
+    else { av = a.client_name.toLowerCase(); bv = b.client_name.toLowerCase() }
+    if (av < bv) return clientSortDir === 'asc' ? -1 : 1
+    if (av > bv) return clientSortDir === 'asc' ? 1 : -1
+    return 0
+  })
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-3 gap-3">
@@ -205,8 +243,8 @@ function ReportTab({ weekStart, weekEnd, label }) {
               </>
             )}
             <button
-              onClick={() => downloadCsv(`revenue_${weekTag}.csv`, ['Client', 'Classes', 'Amount'],
-                report.by_client.map(r => [r.client_name, r.session_count, r.amount]))}
+              onClick={() => downloadCsv(`revenue_${weekTag}.csv`, ['Client', 'Classes', 'Amount', 'Payment Method'],
+                byClientWithMethods.map(r => [r.client_name, r.session_count, r.amount, r.payment_method_label]))}
               className="text-xs text-blue-600 hover:underline">Export CSV</button>
           </div>
         </div>
@@ -214,25 +252,66 @@ function ReportTab({ weekStart, weekEnd, label }) {
           <p className="text-gray-400 text-xs italic text-center py-6">No classes this week.</p>
         ) : (
           <>
-            <label className="flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 select-none cursor-pointer border-b border-gray-100">
-              <input type="checkbox" checked={checkedClients.size === report.by_client.length} onChange={toggleAllClientsChecked} />
-              {checkedClients.size === report.by_client.length ? 'Uncheck all' : 'Check all'}
-            </label>
-            {report.by_client.map((r, i) => (
-              <div key={r.client_id} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
-                <div className="flex items-center gap-2 min-w-0">
-                  <input type="checkbox" checked={checkedClients.has(r.client_id)} onChange={() => toggleClientChecked(r.client_id)} />
-                  <Link to={`/clients/${r.client_id}`} className="text-gray-700 hover:underline min-w-0 truncate">{r.client_name}</Link>
+            <div className="flex items-center gap-2 px-4 py-1.5 border-b border-gray-100">
+              <label className="flex items-center gap-2 text-xs text-gray-400 select-none cursor-pointer">
+                <input type="checkbox" checked={checkedClients.size === report.by_client.length} onChange={toggleAllClientsChecked} />
+                {checkedClients.size === report.by_client.length ? 'Uncheck all' : 'Check all'}
+              </label>
+              <span className="flex-1" />
+              <span className="text-[11px] text-gray-400">Sort by:</span>
+              {[['client_name', 'Client'], ['payment_method', 'Method'], ['session_count', 'Classes'], ['amount', 'Amount']].map(([col, text]) => (
+                <button key={col} onClick={() => handleClientSort(col)}
+                  className={`text-[11px] font-semibold uppercase tracking-wide hover:text-gray-700 ${clientSortCol === col ? 'text-gray-700' : 'text-gray-400'}`}>
+                  {text} {clientSortArrow(col)}
+                </button>
+              ))}
+            </div>
+            {sortedByClient.map((r, i) => {
+              const expanded = expandedClients.has(r.client_id)
+              return (
+                <div key={r.client_id} className={i > 0 ? 'border-t border-gray-100' : ''}>
+                  <div
+                    onClick={() => toggleExpandedClient(r.client_id)}
+                    className="flex items-center justify-between gap-2 px-4 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <input type="checkbox" checked={checkedClients.has(r.client_id)}
+                        onClick={e => e.stopPropagation()}
+                        onChange={() => toggleClientChecked(r.client_id)} />
+                      <span className="text-gray-400 w-3 shrink-0 text-center">{expanded ? '▾' : '▸'}</span>
+                      <Link to={`/clients/${r.client_id}`} onClick={e => e.stopPropagation()}
+                        className="text-gray-700 hover:underline min-w-0 truncate">{r.client_name}</Link>
+                    </div>
+                    <span className="text-gray-400 text-xs shrink-0 w-28 truncate hidden sm:inline-block">{r.payment_method_label}</span>
+                    <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
+                    <span className="font-semibold text-gray-900 shrink-0">{money(r.amount)}</span>
+                    <select value={r.charged_status || ''} onChange={e => updateClientStatus(r, e.target.value)}
+                      onClick={e => e.stopPropagation()}
+                      className={`shrink-0 text-xs rounded-lg px-1.5 py-1 border ${STATUS_COLORS[r.charged_status] || 'bg-white text-gray-400 border-gray-200'}`}>
+                      <option value="">— mark —</option>
+                      {CLIENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  {expanded && (
+                    <div className="bg-gray-50 px-4 py-2 pl-11 space-y-1 border-t border-gray-100">
+                      {r.clientSessions.map(s => (
+                        <div key={s.id} className="flex items-center justify-between gap-2 text-xs text-gray-500">
+                          <span className="truncate">
+                            {new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {s.start_time ? ` · ${s.start_time.slice(0, 5)}` : ''}
+                            {s.style ? ` · ${s.style}` : ''}
+                            {s.instructor_name ? ` · ${s.instructor_name}` : ''}
+                          </span>
+                          <span className="flex items-center gap-3 shrink-0">
+                            <span>{s.payment_method || '—'}</span>
+                            <span className="text-gray-700 font-medium">{money(s.charge_amount)}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
-                <span className="font-semibold text-gray-900 shrink-0">{money(r.amount)}</span>
-                <select value={r.charged_status || ''} onChange={e => updateClientStatus(r, e.target.value)}
-                  className={`shrink-0 text-xs rounded-lg px-1.5 py-1 border ${STATUS_COLORS[r.charged_status] || 'bg-white text-gray-400 border-gray-200'}`}>
-                  <option value="">— mark —</option>
-                  {CLIENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            ))}
+              )
+            })}
           </>
         )}
       </div>
