@@ -17,7 +17,9 @@ async function recordLogin(user) {
   const { rows: [prev] } = await pool.query('SELECT last_login_at FROM users WHERE id = $1', [user.id]);
   await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
   if (!prev?.last_login_at && user.role === 'instructor') {
-    notifyCrew(`🎉 ${user.name} just logged into the instructor portal for the first time.`).catch(() => {});
+    // Awaited on purpose: Vercel can freeze/kill the function the instant the response
+    // is sent, which was silently dropping this fire-and-forget call more often than not.
+    await notifyCrew(`🎉 ${user.name} just logged into the instructor portal for the first time.`);
   }
 }
 

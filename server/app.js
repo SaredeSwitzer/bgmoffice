@@ -45,11 +45,23 @@ app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), asy
     const pi = event.data.object;
     const invoiceId = pi.metadata?.invoice_id;
     if (invoiceId) {
-      await pool.query(
-        "UPDATE invoices SET status='paid', paid_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS'), updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$1 AND status != 'paid'",
+      const { rows: [invoice] } = await pool.query(
+        "UPDATE invoices SET status='paid', paid_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS'), updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$1 AND status != 'paid' RETURNING invoice_number, client_id",
         [invoiceId]
       );
       console.log(`[stripe webhook] Invoice ${invoiceId} marked paid`);
+      if (invoice) {
+        const { notifyCrew } = require('./lib/notifyCrew');
+        const amount = ((pi.amount_received ?? pi.amount) / 100).toFixed(2);
+        let clientName = 'a client';
+        if (invoice.client_id) {
+          const { rows: [c] } = await pool.query('SELECT name FROM clients WHERE id=$1', [invoice.client_id]);
+          clientName = c?.name || clientName;
+        }
+        // Awaited on purpose — Vercel can kill the function right after the response goes
+        // out, which was silently dropping fire-and-forget notify calls elsewhere.
+        await notifyCrew(`💳 ${clientName} just paid invoice ${invoice.invoice_number} ($${amount}) by card.`);
+      }
     }
   }
 

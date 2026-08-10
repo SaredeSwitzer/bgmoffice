@@ -83,7 +83,9 @@ router.post('/save-card/:token/confirm', async (req, res) => {
   const stripe = await getStripe();
   try {
     const info = await storeCardFromSetupIntent(client.id, setup_intent_id, stripe);
-    notifyCrew(`${client.name} just saved a card via their save-card link — ${info.card_brand || 'card'} ending ${info.card_last4 || '????'}.`);
+    // Awaited on purpose — Vercel can kill the function right after the response goes out,
+    // which was silently dropping this fire-and-forget call more often than not.
+    await notifyCrew(`💳 ${client.name} just saved a card via their save-card link — ${info.card_brand || 'card'} ending ${info.card_last4 || '????'}.`);
     res.json({ ok: true, ...info });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -120,6 +122,8 @@ router.post('/clients/:id/confirm-card', async (req, res) => {
   const stripe = await getStripe();
   try {
     const info = await storeCardFromSetupIntent(req.params.id, req.body.setup_intent_id, stripe);
+    const { rows: [client] } = await pool.query('SELECT name FROM clients WHERE id=$1', [req.params.id]);
+    await notifyCrew(`💳 A card was saved in-app for ${client?.name || 'a client'} — ${info.card_brand || 'card'} ending ${info.card_last4 || '????'}.`);
     res.json({ ok: true, ...info });
   } catch (err) {
     res.status(400).json({ error: err.message });
