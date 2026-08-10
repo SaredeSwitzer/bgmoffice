@@ -138,6 +138,7 @@ export default function InstructorMyProfilePage() {
           phone: inst.phone || '', email: inst.email || '',
           mailing_address: inst.mailing_address || '', neighborhood: inst.neighborhood || '',
           styles_taught: inst.styles_taught || '', specialties: inst.specialties || '',
+          payout_method: inst.payout_method || '', payout_handle: inst.payout_handle || '',
         })
       })
       .catch(e => setError(e.message))
@@ -219,6 +220,35 @@ export default function InstructorMyProfilePage() {
         <p className="text-[11px] text-gray-400 pt-1">
           Your name, pay rate, and contract info are managed by BGM Office staff — reach out if anything there needs updating.
         </p>
+      </form>
+
+      <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-gray-300 mb-1">
+          How You're Paid
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Paid Via</label>
+            <select value={form.payout_method} onChange={e => setForm(f => ({ ...f, payout_method: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+              <option value="">— select —</option>
+              {['Zelle', 'Venmo', 'PayPal', 'Check', 'Cash', 'Other'].map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Payout Handle</label>
+            <input value={form.payout_handle} onChange={e => setForm(f => ({ ...f, payout_handle: e.target.value }))}
+              placeholder="@venmo-handle, phone/email…" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div className="flex items-center gap-3 pt-1">
+          <button type="submit" disabled={saving}
+            className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+          {saved && <span className="text-xs text-green-600">Saved ✓</span>}
+        </div>
       </form>
 
       <DocumentsSection

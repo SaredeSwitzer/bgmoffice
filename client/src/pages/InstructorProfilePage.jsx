@@ -429,6 +429,8 @@ export default function InstructorProfilePage() {
           email: inst.email || '',
           notes: inst.notes || '',
           pay_rate: inst.pay_rate || '',
+          payout_method: inst.payout_method || '',
+          payout_handle: inst.payout_handle || '',
           mailing_address: inst.mailing_address || '',
           neighborhood: inst.neighborhood || '',
           ssn: inst.ssn || '',
@@ -538,6 +540,20 @@ export default function InstructorProfilePage() {
                 <input value={editForm.pay_rate} onChange={e => setEditForm(f => ({ ...f, pay_rate: e.target.value }))}
                   placeholder="e.g. $60/class" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Paid Via</label>
+                <select value={editForm.payout_method} onChange={e => setEditForm(f => ({ ...f, payout_method: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+                  <option value="">— select —</option>
+                  {['Zelle', 'Venmo', 'PayPal', 'Check', 'Cash', 'Other'].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Payout Handle</label>
+                <input value={editForm.payout_handle} onChange={e => setEditForm(f => ({ ...f, payout_handle: e.target.value }))}
+                  placeholder="@venmo-handle, phone/email for Zelle, paypal.me link…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
                 <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
@@ -595,6 +611,11 @@ export default function InstructorProfilePage() {
                     <h1 className="text-xl font-bold text-gray-900">{instructor.name}</h1>
                     {instructor.pay_rate && (
                       <p className="text-sm font-semibold text-emerald-700 mt-1">💰 {instructor.pay_rate}</p>
+                    )}
+                    {instructor.payout_method && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Paid via {instructor.payout_method}{instructor.payout_handle ? ` — ${instructor.payout_handle}` : ''}
+                      </p>
                     )}
                   </div>
                   <div className="flex gap-2 flex-shrink-0">

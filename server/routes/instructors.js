@@ -92,12 +92,12 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught } = req.body;
+  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
   const { rows: [inst] } = await pool.query(
-    `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, ssn || null, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null]
+    `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, ssn || null, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null]
   );
   res.status(201).json(await getInstructorRow(inst.id));
 });
@@ -108,12 +108,15 @@ router.put('/:id', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Instructor not found' });
 
   if (req.user.role === 'instructor') {
-    // Self-service: only contact info and what they teach — never pay, contract, name, or SSN.
-    const { phone, email, mailing_address, neighborhood, styles_taught, specialties } = req.body;
+    // Self-service: contact info, what they teach, and how they want to be paid — never
+    // pay RATE, contract, name, or SSN. payout_method/handle is just "how to reach me for
+    // pay" (a Venmo @handle, a phone for Zelle, etc.) — same trust level as phone/email.
+    const { phone, email, mailing_address, neighborhood, styles_taught, specialties, payout_method, payout_handle } = req.body;
     await pool.query(
-      `UPDATE instructors SET phone=$1, email=$2, mailing_address=$3, neighborhood=$4, styles_taught=$5, specialties=$6
-       WHERE id=$7`,
-      [phone || null, email || null, mailing_address || null, neighborhood || null, styles_taught || null, specialties || null, req.params.id]
+      `UPDATE instructors SET phone=$1, email=$2, mailing_address=$3, neighborhood=$4, styles_taught=$5, specialties=$6,
+         payout_method=$7, payout_handle=$8
+       WHERE id=$9`,
+      [phone || null, email || null, mailing_address || null, neighborhood || null, styles_taught || null, specialties || null, payout_method || null, payout_handle || null, req.params.id]
     );
     // Keep the login email in sync — instructors only ever see one "email" field and
     // shouldn't have to know their contact info and login credential are separate rows.
@@ -125,12 +128,13 @@ router.put('/:id', async (req, res) => {
     return res.json(safe);
   }
 
-  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught } = req.body;
+  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   await pool.query(
     `UPDATE instructors SET name=$1, phone=$2, email=$3, specialties=$4, style=$5, notes=$6, pay_rate=$7,
-       mailing_address=$8, ssn=$9, contract_signed=$10, contract_signed_date=$11, neighborhood=$12, styles_taught=$13
-     WHERE id=$14`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, ssn || null, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, req.params.id]
+       mailing_address=$8, ssn=$9, contract_signed=$10, contract_signed_date=$11, neighborhood=$12, styles_taught=$13,
+       payout_method=$14, payout_handle=$15
+     WHERE id=$16`,
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, ssn || null, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id]
   );
   res.json(await getInstructorRow(req.params.id));
 });

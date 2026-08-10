@@ -69,6 +69,8 @@ function ReportTab({ weekStart, weekEnd, label }) {
   const [bulkClientStatus, setBulkClientStatus] = useState('charged')
   const [bulkInstructorStatus, setBulkInstructorStatus] = useState('paid')
   const [bulkApplying, setBulkApplying] = useState(false)
+  const [payoutCopied, setPayoutCopied] = useState(false)
+  const [payoutCopyError, setPayoutCopyError] = useState('')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -119,6 +121,45 @@ function ReportTab({ weekStart, weekEnd, label }) {
     } finally {
       setBulkApplying(false)
     }
+  }
+
+  // A quick, pasteable list of everyone still owed pay this week, with the exact amount
+  // and how to reach them — so checking off Zelle/Venmo/PayPal requests one by one is
+  // eyeballing against this instead of re-deriving each number from scratch.
+  async function copyPayoutList() {
+    const unpaid = report.by_instructor.filter(r => r.paid_status !== 'paid')
+    const lines = unpaid.map(r => {
+      const via = r.payout_method
+        ? `${r.payout_method}${r.payout_handle ? `: ${r.payout_handle}` : ''}`
+        : 'no payout info on file'
+      return `${r.instructor_name} — ${money(r.total_pay)} — ${via}`
+    })
+    const text = [`BGM Payroll — ${label}`, '', ...(lines.length ? lines : ['Everyone is marked paid.'])].join('\n')
+    setPayoutCopyError('')
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable')
+      // navigator.clipboard.writeText can hang forever (never resolve OR reject) in some
+      // embedded/automated browser contexts instead of failing cleanly — race it against a
+      // timeout so the button always ends up in a definite state instead of stuck silently.
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timed out')), 1500)),
+      ])
+    } catch {
+      // Fallback for browsers/contexts that block navigator.clipboard (e.g. no clipboard
+      // permission granted) — the old execCommand path still works inside a user click.
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.focus(); ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      if (!ok) { setPayoutCopyError('Could not copy — your browser blocked clipboard access.'); return }
+    }
+    setPayoutCopied(true)
+    setTimeout(() => setPayoutCopied(false), 2000)
   }
 
   function toggleInstructorChecked(id) {
@@ -332,9 +373,13 @@ function ReportTab({ weekStart, weekEnd, label }) {
                 </button>
               </>
             )}
+            <button onClick={copyPayoutList} className="text-xs text-blue-600 hover:underline">
+              {payoutCopied ? 'Copied ✓' : '📋 Copy Payout List'}
+            </button>
+            {payoutCopyError && <span className="text-xs text-red-600">{payoutCopyError}</span>}
             <button
-              onClick={() => downloadCsv(`payroll_${weekTag}.csv`, ['Instructor', 'Classes', 'Total Pay'],
-                report.by_instructor.map(r => [r.instructor_name, r.session_count, r.total_pay]))}
+              onClick={() => downloadCsv(`payroll_${weekTag}.csv`, ['Instructor', 'Classes', 'Total Pay', 'Paid Via', 'Payout Handle'],
+                report.by_instructor.map(r => [r.instructor_name, r.session_count, r.total_pay, r.payout_method || '', r.payout_handle || '']))}
               className="text-xs text-blue-600 hover:underline">Export CSV</button>
           </div>
         </div>
@@ -342,6 +387,11 @@ function ReportTab({ weekStart, weekEnd, label }) {
           <p className="text-gray-400 text-xs italic text-center py-6">No instructor-taught classes this week.</p>
         ) : (
           <>
+            {report.by_instructor.some(r => r.paid_status !== 'paid' && !r.payout_method) && (
+              <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-800">
+                Some unpaid instructors don't have a payout method on file — open their profile to add one.
+              </div>
+            )}
             <label className="flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 select-none cursor-pointer border-b border-gray-100">
               <input type="checkbox" checked={checkedInstructors.size === report.by_instructor.length} onChange={toggleAllInstructorsChecked} />
               {checkedInstructors.size === report.by_instructor.length ? 'Uncheck all' : 'Check all'}
@@ -350,7 +400,14 @@ function ReportTab({ weekStart, weekEnd, label }) {
               <div key={r.instructor_id} className={`flex items-center justify-between gap-2 px-4 py-2 text-sm ${i > 0 ? 'border-t border-gray-100' : ''}`}>
                 <div className="flex items-center gap-2 min-w-0">
                   <input type="checkbox" checked={checkedInstructors.has(r.instructor_id)} onChange={() => toggleInstructorChecked(r.instructor_id)} />
-                  <Link to={`/instructors/${r.instructor_id}`} className="text-gray-700 hover:underline min-w-0 truncate">{r.instructor_name}</Link>
+                  <div className="min-w-0">
+                    <Link to={`/instructors/${r.instructor_id}`} className="text-gray-700 hover:underline truncate block">{r.instructor_name}</Link>
+                    <span className="text-xs text-gray-400 truncate block">
+                      {r.payout_method ? `${r.payout_method}${r.payout_handle ? ` · ${r.payout_handle}` : ''}` : (
+                        <span className="text-amber-600">no payout method on file</span>
+                      )}
+                    </span>
+                  </div>
                 </div>
                 <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
                 <span className="font-semibold text-gray-900 shrink-0">{money(r.total_pay)}</span>

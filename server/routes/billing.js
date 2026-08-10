@@ -213,13 +213,14 @@ router.get('/report', async (req, res) => {
 
   const { rows: byInstructor } = await pool.query(
     `SELECT i.id AS instructor_id, i.name AS instructor_name,
+            i.payout_method, i.payout_handle,
             COALESCE(SUM(s.instructor_pay), 0)::numeric(10,2) AS total_pay,
             COUNT(*)::int AS session_count,
             ip.status AS paid_status, ip.note AS paid_note
        FROM class_sessions s JOIN instructors i ON i.id = s.instructor_id
        LEFT JOIN instructor_payments ip ON ip.instructor_id = i.id AND ip.week_start = $1::date
       WHERE s.session_date BETWEEN $1::date AND (${end}) AND s.status <> 'cancelled'
-      GROUP BY i.id, i.name, ip.status, ip.note ORDER BY i.name`,
+      GROUP BY i.id, i.name, i.payout_method, i.payout_handle, ip.status, ip.note ORDER BY i.name`,
     [start]
   );
 
