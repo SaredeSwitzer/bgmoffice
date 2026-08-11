@@ -1,6 +1,6 @@
 const express = require('express');
 const pool    = require('../db/pg');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireStaff } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
 
 // Return DATE columns as plain 'YYYY-MM-DD' strings, not JS Date objects: a Date
@@ -52,7 +52,7 @@ router.get('/my-venmo-target', async (req, res) => {
 
 // Everything below is staff/admin only — includes client charge amounts and
 // every instructor's pay, and lets schedules/sessions be created, edited, or deleted.
-router.use(requireAdmin);
+router.use(requireStaff);
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 

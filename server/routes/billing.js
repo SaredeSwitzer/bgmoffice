@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto  = require('crypto');
 const pool    = require('../db/pg');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireStaff } = require('../middleware/auth');
 const { notifyCrew } = require('../lib/notifyCrew');
 const { sendChargeReceipt } = require('../lib/mailer');
 
@@ -95,7 +95,7 @@ router.post('/save-card/:token/confirm', async (req, res) => {
 
 // ── Protected (staff/admin only — includes client charge amounts and everyone's pay) ──
 router.use(requireAuth);
-router.use(requireAdmin);
+router.use(requireStaff);
 
 // Lazily mint (or return) the client's save-card token so staff can copy the link.
 router.post('/clients/:id/save-link', async (req, res) => {

@@ -21,4 +21,13 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin };
+// Staff and admin accounts both get full day-to-day access (schedule, billing, etc).
+// Only Settings and other truly admin-literal routes should use requireAdmin instead.
+function requireStaff(req, res, next) {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'staff') {
+    return res.status(403).json({ error: 'Staff access required' });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin, requireStaff };
