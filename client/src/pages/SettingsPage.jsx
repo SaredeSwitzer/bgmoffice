@@ -682,6 +682,53 @@ function StripeSection() {
   )
 }
 
+function VenmoSection() {
+  const [handle, setHandle] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    api.getVenmoSettings().then(s => setHandle(s.handle || ''))
+  }, [])
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await api.saveVenmoSettings({ handle })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
+      <SectionHeader title="Venmo Handle" />
+      <p className="text-xs text-gray-400 mb-4">
+        Instructors see a one-tap "Send Payout Request" button on the weekend that opens Venmo
+        addressed to this handle, pre-filled with their week's pay.
+      </p>
+      <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Venmo @handle</label>
+          <InlineInput
+            value={handle}
+            onChange={setHandle}
+            placeholder="@your-venmo-handle"
+            className="w-full font-mono text-xs"
+          />
+        </div>
+        <button type="submit" disabled={saving}
+          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          {saving ? 'Saving…' : saved ? '✓ Saved!' : 'Save Venmo Handle'}
+        </button>
+      </form>
+    </section>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -689,6 +736,7 @@ export default function SettingsPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-xl font-bold text-gray-900">Settings</h1>
       <StripeSection />
+      <VenmoSection />
       <ActionTypesSection />
       <DelegatesSection />
       <UsersSection />

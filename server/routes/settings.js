@@ -197,4 +197,23 @@ router.post('/confirmation-template', async (req, res) => {
   res.json({ ok: true });
 });
 
+// The business's own Venmo handle — instructors deep-link a payout request here from
+// their weekly pay nudge (client/src/components/PayoutNudge.jsx). Read side lives at
+// GET /schedule/my-venmo-target (instructor-accessible); this admin-only pair is just
+// for setting it.
+router.get('/venmo', async (req, res) => {
+  const { rows: [row] } = await pool.query("SELECT value FROM app_settings WHERE key='business_venmo_handle'");
+  res.json({ handle: row?.value || '' });
+});
+
+router.post('/venmo', async (req, res) => {
+  const { handle } = req.body;
+  await pool.query(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ('business_venmo_handle', $1, to_char(NOW(),'YYYY-MM-DD HH24:MI:SS'))
+     ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at`,
+    [handle || '']
+  );
+  res.json({ ok: true });
+});
+
 module.exports = router;

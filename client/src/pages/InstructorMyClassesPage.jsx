@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import PayoutNudge from '../components/PayoutNudge'
 
 // Read-only "my classes" week view for instructors (Phase 4 of instructor logins).
 // Calls GET /api/schedule/my-sessions (Kip owns that endpoint, Phase 3).
@@ -92,6 +93,8 @@ export default function InstructorMyClassesPage() {
           </p>
         </div>
       </div>
+
+      <PayoutNudge instructorName={user?.name} />
 
       <div className="flex items-center justify-between gap-2 mb-4 bg-white border border-gray-200 rounded-xl px-3 py-2">
         <button

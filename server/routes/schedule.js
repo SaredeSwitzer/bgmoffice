@@ -1,6 +1,6 @@
 const express = require('express');
 const pool    = require('../db/pg');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
 
 // Return DATE columns as plain 'YYYY-MM-DD' strings, not JS Date objects: a Date
@@ -10,6 +10,49 @@ require('pg').types.setTypeParser(1082, (v) => v);
 
 const router = express.Router();
 router.use(requireAuth);
+
+// ── The signed-in instructor's own classes ─────────────────────────────────────
+// Registered before requireAdmin below so instructors (non-admin) can reach this one
+// route. Deliberately NOT `SELECT s.*` the way GET /sessions does: s.* includes
+// charge_amount — what the client pays — which an instructor must never see. Columns are
+// listed one by one so a column added to class_sessions later cannot leak here by default.
+// An instructor sees their own instructor_pay, and nothing about anybody else's.
+//
+// GET /my-sessions?start=YYYY-MM-DD&end=YYYY-MM-DD
+router.get('/my-sessions', async (req, res) => {
+  if (req.user?.role !== 'instructor' || !req.user.instructor_id) {
+    return res.status(403).json({ error: 'Instructor account required' });
+  }
+  const { start, end } = req.query;
+  if (!isDate(start) || !isDate(end)) {
+    return res.status(400).json({ error: 'start and end (YYYY-MM-DD) are required' });
+  }
+  const { rows } = await pool.query(
+    `SELECT s.id, s.session_date, s.start_time, s.style, s.status,
+            s.instructor_pay,
+            c.name AS client_name,
+            sch.location, sch.special_instructions
+       FROM class_sessions s
+       JOIN clients c                ON c.id  = s.client_id
+       LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
+      WHERE s.instructor_id = $3
+        AND s.session_date BETWEEN $1 AND $2
+      ORDER BY s.session_date, s.start_time NULLS LAST`,
+    [start, end, req.user.instructor_id]
+  );
+  res.json(rows);
+});
+
+// The business's own Venmo handle — safe for any authenticated user, instructor or not,
+// since it's the same handle already handed out to clients/instructors directly.
+router.get('/my-venmo-target', async (req, res) => {
+  const { rows: [row] } = await pool.query("SELECT value FROM app_settings WHERE key='business_venmo_handle'");
+  res.json({ handle: row?.value || '' });
+});
+
+// Everything below is staff/admin only — includes client charge amounts and
+// every instructor's pay, and lets schedules/sessions be created, edited, or deleted.
+router.use(requireAdmin);
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -120,38 +163,6 @@ router.delete('/schedules/:id', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Schedule not found' });
   await pool.query('DELETE FROM class_schedules WHERE id=$1', [req.params.id]);
   res.json({ success: true });
-});
-
-// ── The signed-in instructor's own classes ─────────────────────────────────────
-
-// GET /my-sessions?start=YYYY-MM-DD&end=YYYY-MM-DD
-//
-// Deliberately NOT `SELECT s.*` the way GET /sessions below does: s.* includes
-// charge_amount — what the client pays — which an instructor must never see. Columns are
-// listed one by one so a column added to class_sessions later cannot leak here by default.
-// An instructor sees their own instructor_pay, and nothing about anybody else's.
-router.get('/my-sessions', async (req, res) => {
-  if (req.user?.role !== 'instructor' || !req.user.instructor_id) {
-    return res.status(403).json({ error: 'Instructor account required' });
-  }
-  const { start, end } = req.query;
-  if (!isDate(start) || !isDate(end)) {
-    return res.status(400).json({ error: 'start and end (YYYY-MM-DD) are required' });
-  }
-  const { rows } = await pool.query(
-    `SELECT s.id, s.session_date, s.start_time, s.style, s.status,
-            s.instructor_pay,
-            c.name AS client_name,
-            sch.location, sch.special_instructions
-       FROM class_sessions s
-       JOIN clients c                ON c.id  = s.client_id
-       LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
-      WHERE s.instructor_id = $3
-        AND s.session_date BETWEEN $1 AND $2
-      ORDER BY s.session_date, s.start_time NULLS LAST`,
-    [start, end, req.user.instructor_id]
-  );
-  res.json(rows);
 });
 
 // ── Dated sessions (the weekly report Amber reads) ─────────────────────────────

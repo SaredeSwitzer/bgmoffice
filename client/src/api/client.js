@@ -304,6 +304,9 @@ export const api = {
     const qs = new URLSearchParams({ start, end }).toString()
     return request(`/schedule/my-sessions?${qs}`)
   },
+  getMyVenmoTarget: () => request('/schedule/my-venmo-target'),
+  getMyPayoutRequestStatus: (week_start) => request(`/payout-requests/status?${new URLSearchParams({ week_start }).toString()}`),
+  recordPayoutRequest: (data) => request('/payout-requests', { method: 'POST', body: JSON.stringify(data) }),
 
   // Notes & to-do tasks on a class — attach to a recurring class ('schedule') or a dated 'session'.
   getClassNotes: (kind, id) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`),
@@ -343,6 +346,10 @@ export const api = {
   // Stripe settings (admin)
   getStripeSettings: () => request('/settings/stripe'),
   saveStripeSettings: (data) => request('/settings/stripe', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Venmo settings (admin) — the business's own handle, shown to instructors for payout requests
+  getVenmoSettings: () => request('/settings/venmo'),
+  saveVenmoSettings: (data) => request('/settings/venmo', { method: 'POST', body: JSON.stringify(data) }),
 
   getSettingsUsers: () => request('/settings/users'),
   createUser: (data) =>

@@ -19,6 +19,9 @@ const INSTRUCTOR_ALLOWLIST = [
   { method: 'GET',  path: /^\/auth\/me$/ },
   { method: 'POST', path: /^\/auth\/logout$/ },
   { method: 'GET',  path: /^\/schedule\/my-sessions$/ },
+  { method: 'GET',  path: /^\/schedule\/my-venmo-target$/ },
+  { method: 'GET',  path: /^\/payout-requests\/status$/ },
+  { method: 'POST', path: /^\/payout-requests$/ },
   // Own profile only — routes below still check req.user.instructor_id === :id themselves;
   // this just opens the path, it doesn't grant access to every instructor's record.
   { method: 'GET',    path: /^\/instructors\/\d+$/ },

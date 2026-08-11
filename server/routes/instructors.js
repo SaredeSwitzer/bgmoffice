@@ -54,7 +54,10 @@ router.get('/', async (req, res) => {
   const { q } = req.query;
   // Include styles_taught + neighborhood so the directory can filter/display by
   // "what they teach" and "where they're based" (searchable instructor directory).
-  const cols = 'id, name, phone, email, specialties, styles_taught, neighborhood, pay_rate, photo_url';
+  // pay_rate is each instructor's own business — never send it to another instructor.
+  const cols = req.user.role === 'instructor'
+    ? 'id, name, phone, email, specialties, styles_taught, neighborhood, photo_url'
+    : 'id, name, phone, email, specialties, styles_taught, neighborhood, pay_rate, photo_url';
   let rows;
   if (q) {
     const like = `%${q}%`;
