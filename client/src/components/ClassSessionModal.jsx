@@ -78,7 +78,13 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
             <SearchSelect label="Client" required options={clients} value={form.client}
               onChange={v => setField('client', v)} placeholder="Search client…" />
             <SearchSelect label="Instructor" options={instructors} value={form.instructor}
-              onChange={v => setField('instructor', v)} placeholder="Search instructor…" />
+              onChange={v => setForm(f => ({
+                ...f,
+                instructor: v,
+                // Pay follows whoever is actually teaching, not the client or a prior
+                // instructor's rate — e.g. when someone subs a one-off class.
+                instructor_pay: v?.pay_rate ?? f.instructor_pay,
+              }))} placeholder="Search instructor…" />
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
