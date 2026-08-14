@@ -4,6 +4,7 @@ const pool    = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { notifyCrew } = require('../lib/notifyCrew');
 const { sendChargeReceipt } = require('../lib/mailer');
+const { syncDateRange } = require('../lib/dailySync');
 
 const router = express.Router();
 
@@ -372,6 +373,29 @@ router.post('/charge', async (req, res) => {
     }
   }
   res.json({ week_start, results });
+});
+
+// ── Manual "sync now" for invoices/packages ────────────────────────────────────
+// The nightly cron already does this for "yesterday" (server/routes/cron.js), but
+// staff sometimes need it to run right now — e.g. after fixing a rate or backfilling
+// a missed day — without waiting for the next cron tick. Safe to run repeatedly:
+// syncDateRange is idempotent (dedup'd by class_session_id / line_item.session_id).
+router.post('/sync-week', async (req, res) => {
+  const { week_start } = req.body;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {
+    return res.status(400).json({ error: 'week_start (YYYY-MM-DD, the week Sunday) is required' });
+  }
+  const end = new Date(`${week_start}T00:00:00`);
+  end.setDate(end.getDate() + 6);
+  const week_end = end.toISOString().slice(0, 10);
+
+  try {
+    const result = await syncDateRange(week_start, week_end);
+    res.json(result);
+  } catch (err) {
+    console.error('[billing] sync-week error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

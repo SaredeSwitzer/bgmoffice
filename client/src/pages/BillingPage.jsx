@@ -505,6 +505,22 @@ export default function BillingPage() {
   const [charging, setCharging] = useState(false)
   const [results, setResults] = useState(null)
 
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
+  const [syncError, setSyncError] = useState('')
+
+  async function syncInvoicesAndPackages() {
+    setSyncing(true); setSyncError(''); setSyncResult(null)
+    try {
+      const r = await api.syncBillingWeek(ymd(weekStart))
+      setSyncResult(r)
+    } catch (e) {
+      setSyncError(e.message || 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const load = useCallback(() => {
     setLoading(true); setResults(null)
     api.getBillingWeek(ymd(weekStart)).then(({ items }) => {
@@ -517,6 +533,7 @@ export default function BillingPage() {
   }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (tab === 'charge') load() }, [tab, load])
+  useEffect(() => { setSyncResult(null); setSyncError('') }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function patch(id, changes) {
     setRows(prev => prev.map(r => r.client_id === id ? { ...r, ...changes } : r))
@@ -550,7 +567,7 @@ export default function BillingPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">Billing</h1>
         <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-          {[['charge', 'Charge Cards'], ['report', 'Weekly Report']].map(([key, text]) => (
+          {[['charge', 'Charge Clients'], ['report', 'Weekly Report']].map(([key, text]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-3 py-1.5 font-medium ${tab === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
               {text}
@@ -644,6 +661,33 @@ export default function BillingPage() {
               </div>
             </>
           )}
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Invoices & Packages</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Builds this week's "Invoice"-billed classes onto each client's monthly invoice, and
+                deducts "Package"-billed classes from each client's package balance. This runs
+                automatically every night for the day before — use this to catch up right now
+                instead of waiting, e.g. after fixing a rate. Safe to run more than once.
+              </p>
+            </div>
+            <button onClick={syncInvoicesAndPackages} disabled={syncing}
+              className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-40">
+              {syncing ? 'Updating…' : `Update invoices & packages for ${label}`}
+            </button>
+            {syncError && <p className="text-xs text-red-600">{syncError}</p>}
+            {syncResult && (
+              <div className="text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 space-y-0.5">
+                <p>{syncResult.sessions_seen} class{syncResult.sessions_seen === 1 ? '' : 'es'} checked</p>
+                <p>{syncResult.invoices_touched} invoice{syncResult.invoices_touched === 1 ? '' : 's'} updated</p>
+                <p>{syncResult.packages_deducted} package class{syncResult.packages_deducted === 1 ? '' : 'es'} deducted</p>
+                {syncResult.skipped_already_manually_invoiced > 0 && (
+                  <p>{syncResult.skipped_already_manually_invoiced} client{syncResult.skipped_already_manually_invoiced === 1 ? '' : 's'} skipped — already has a manual invoice this month</p>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

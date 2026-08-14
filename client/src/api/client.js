@@ -342,6 +342,7 @@ export const api = {
   chargeBilling: (week_start, items) => request('/billing/charge', { method: 'POST', body: JSON.stringify({ week_start, items }) }),
   setClientPaymentStatus: (data) => request('/billing/client-status', { method: 'PATCH', body: JSON.stringify(data) }),
   setInstructorPaymentStatus: (data) => request('/billing/instructor-status', { method: 'PATCH', body: JSON.stringify(data) }),
+  syncBillingWeek: (week_start) => request('/billing/sync-week', { method: 'POST', body: JSON.stringify({ week_start }) }),
 
   // Stripe settings (admin)
   getStripeSettings: () => request('/settings/stripe'),
