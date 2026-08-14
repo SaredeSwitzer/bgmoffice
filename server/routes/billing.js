@@ -381,7 +381,7 @@ router.post('/charge', async (req, res) => {
 // a missed day — without waiting for the next cron tick. Safe to run repeatedly:
 // syncDateRange is idempotent (dedup'd by class_session_id / line_item.session_id).
 router.post('/sync-week', async (req, res) => {
-  const { week_start, dry_run } = req.body;
+  const { week_start, dry_run, client_id } = req.body;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {
     return res.status(400).json({ error: 'week_start (YYYY-MM-DD, the week Sunday) is required' });
   }
@@ -390,7 +390,7 @@ router.post('/sync-week', async (req, res) => {
   const week_end = end.toISOString().slice(0, 10);
 
   try {
-    const result = await syncDateRange(week_start, week_end, { dryRun: !!dry_run });
+    const result = await syncDateRange(week_start, week_end, { dryRun: !!dry_run, clientId: client_id || null });
     res.json(result);
   } catch (err) {
     console.error('[billing] sync-week error:', err.message);

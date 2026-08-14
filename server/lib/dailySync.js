@@ -208,7 +208,7 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
       );
       if (manual) {
         skippedManual++;
-        details.push({ client_id, client_name, period, status: 'skipped_manual', classes_added: 0, amount_added: 0 });
+        details.push({ client_id, client_name, period, status: 'skipped_manual', classes_added: 0, amount_added: 0, invoice_id: manual.id });
         continue;
       }
     }
@@ -259,7 +259,7 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
       // Every session this client had this week is already on the invoice — nothing new,
       // but still worth a row so a preview confirms this client WAS checked rather than
       // silently vanishing from the list.
-      details.push({ client_id, client_name, period, status: 'up_to_date', classes_added: 0, amount_added: 0 });
+      details.push({ client_id, client_name, period, status: 'up_to_date', classes_added: 0, amount_added: 0, invoice_id: existing.id });
       continue;
     }
 
@@ -278,6 +278,8 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
       classes_added: classesAdded,
       amount_added: Number(amountAdded.toFixed(2)),
       lines: newLines,
+      // null on a dry-run preview of a brand-new invoice — it doesn't exist to link to yet.
+      invoice_id: dryRun && !existing ? null : invoiceId,
     });
     invoicesTouched++;
   }
@@ -289,13 +291,16 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
 // overlaps days already synced — to catch up after a missed run or backfill a gap.
 // dryRun: runs every lookup but skips every write, so callers can preview the effect
 // (which clients' invoices/packages would change) before committing to it.
-async function syncDateRange(startDate, endDate, { dryRun = false } = {}) {
+// clientId: restricts the whole sync to one client, so a single row from a preview can
+// be applied on its own instead of committing the entire week at once.
+async function syncDateRange(startDate, endDate, { dryRun = false, clientId = null } = {}) {
   const { rows: sessions } = await pool.query(
     `SELECT s.id, s.client_id, c.name AS client_name, s.session_date::text AS session_date,
             s.payment_method, s.style, s.charge_amount
        FROM class_sessions s JOIN clients c ON c.id = s.client_id
-      WHERE s.session_date BETWEEN $1 AND $2`,
-    [startDate, endDate]
+      WHERE s.session_date BETWEEN $1 AND $2
+        AND ($3::bigint IS NULL OR s.client_id = $3::bigint)`,
+    [startDate, endDate, clientId]
   );
 
   const { deducted: packagesDeducted, details: packageDetails } = await syncPackages(sessions, { dryRun });

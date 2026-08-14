@@ -506,13 +506,13 @@ export default function BillingPage() {
   const [results, setResults] = useState(null)
 
   const [previewing, setPreviewing] = useState(false)
-  const [applying, setApplying] = useState(false)
-  const [syncPreview, setSyncPreview] = useState(null)  // dry-run result, awaiting Apply
-  const [syncApplied, setSyncApplied] = useState(null)  // committed result
+  const [syncPreview, setSyncPreview] = useState(null)  // dry-run result, reviewed/applied row by row
   const [syncError, setSyncError] = useState('')
+  const [applyingRow, setApplyingRow] = useState(null)  // `inv-${client_id}` | `pkg-${client_id}` currently in flight
+  const [appliedRows, setAppliedRows] = useState(() => new Set())  // rowKeys just committed this session, so a re-shown "updated" preview row reads as done, not still-pending
 
   async function previewSync() {
-    setPreviewing(true); setSyncError(''); setSyncApplied(null); setSyncPreview(null)
+    setPreviewing(true); setSyncError(''); setSyncPreview(null); setAppliedRows(new Set())
     try {
       const r = await api.syncBillingWeek(ymd(weekStart), true)
       setSyncPreview(r)
@@ -523,16 +523,27 @@ export default function BillingPage() {
     }
   }
 
-  async function applySync() {
-    setApplying(true); setSyncError('')
+  // Applies just one client's invoice or package updates for the week — never the whole
+  // batch at once, so each invoice can be reviewed and approved on its own.
+  async function applyClient(kind, clientId) {
+    const rowKey = `${kind}-${clientId}`
+    setApplyingRow(rowKey); setSyncError('')
     try {
-      const r = await api.syncBillingWeek(ymd(weekStart), false)
-      setSyncApplied(r)
-      setSyncPreview(null)
+      const r = await api.syncBillingWeek(ymd(weekStart), false, clientId)
+      setSyncPreview(prev => ({
+        ...prev,
+        invoice_details: prev.invoice_details.map(d =>
+          d.client_id === clientId ? (r.invoice_details.find(x => x.client_id === clientId) || d) : d),
+        package_details: [
+          ...prev.package_details.filter(d => d.client_id !== clientId),
+          ...r.package_details.filter(d => d.client_id === clientId),
+        ],
+      }))
+      setAppliedRows(prev => new Set(prev).add(rowKey))
     } catch (e) {
       setSyncError(e.message || 'Update failed')
     } finally {
-      setApplying(false)
+      setApplyingRow(null)
     }
   }
 
@@ -548,7 +559,7 @@ export default function BillingPage() {
   }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (tab === 'charge') load() }, [tab, load])
-  useEffect(() => { setSyncPreview(null); setSyncApplied(null); setSyncError('') }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setSyncPreview(null); setSyncError('') }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function patch(id, changes) {
     setRows(prev => prev.map(r => r.client_id === id ? { ...r, ...changes } : r))
@@ -690,72 +701,103 @@ export default function BillingPage() {
 
             {syncError && <p className="text-xs text-red-600">{syncError}</p>}
 
-            {syncApplied ? (
-              <div className="text-xs text-gray-600 bg-green-50 border border-green-100 rounded-lg px-3 py-2 space-y-0.5">
-                <p className="font-medium text-green-700">Applied.</p>
-                <p>{syncApplied.sessions_seen} class{syncApplied.sessions_seen === 1 ? '' : 'es'} checked</p>
-                <p>{syncApplied.invoices_touched} invoice{syncApplied.invoices_touched === 1 ? '' : 's'} updated</p>
-                <p>{syncApplied.packages_deducted} package class{syncApplied.packages_deducted === 1 ? '' : 'es'} deducted</p>
-                {syncApplied.skipped_already_manually_invoiced > 0 && (
-                  <p>{syncApplied.skipped_already_manually_invoiced} client{syncApplied.skipped_already_manually_invoiced === 1 ? '' : 's'} skipped — already has a manual invoice this month</p>
-                )}
-              </div>
-            ) : syncPreview ? (
+            {syncPreview ? (
               <>
                 {syncPreview.invoice_details.length === 0 && syncPreview.package_details.length === 0 ? (
                   <p className="text-xs text-gray-400 italic">No "Invoice" or "Package" billed classes this week.</p>
                 ) : (
                   <div className="text-xs bg-gray-50 border border-gray-100 rounded-lg divide-y divide-gray-100">
-                    {syncPreview.invoice_details.map((d, i) => (
-                      <div key={`inv-${i}`} className="px-3 py-1.5">
-                        <div className={`flex justify-between ${d.status === 'updated' ? 'text-gray-700' : 'text-gray-400'}`}>
-                          <span>
-                            {d.client_name}{' — '}
-                            {d.status === 'updated' ? `${d.new_invoice ? 'new invoice' : 'add to invoice'}, ${d.classes_added} class${d.classes_added === 1 ? '' : 'es'}`
-                              : d.status === 'up_to_date' ? 'already up to date'
-                              : 'skipped — has a manual invoice this month'}
-                          </span>
-                          {d.status === 'updated' && <span className="font-medium text-gray-700">{money(d.amount_added)}</span>}
+                    {syncPreview.invoice_details.map((d) => {
+                      const rowKey = `inv-${d.client_id}`
+                      const busy = applyingRow === rowKey
+                      const justApplied = appliedRows.has(rowKey)
+                      return (
+                        <div key={rowKey} className="px-3 py-2">
+                          <div className={`flex items-center justify-between gap-2 ${d.status === 'updated' && !justApplied ? 'text-gray-700' : 'text-gray-400'}`}>
+                            <span>
+                              {d.client_name}{' — '}
+                              {justApplied ? `applied, ${d.classes_added} class${d.classes_added === 1 ? '' : 'es'} added`
+                                : d.status === 'updated' ? `${d.new_invoice ? 'new invoice' : 'add to invoice'}, ${d.classes_added} class${d.classes_added === 1 ? '' : 'es'}`
+                                : d.status === 'up_to_date' ? 'already up to date'
+                                : 'skipped — has a manual invoice this month'}
+                            </span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {d.status === 'updated' && <span className={`font-medium ${justApplied ? 'text-gray-400' : 'text-gray-700'}`}>{money(d.amount_added)}</span>}
+                              {justApplied && <span className="text-green-600">✓</span>}
+                              {d.invoice_id && (
+                                <Link to={`/invoices/${d.invoice_id}`} className="text-blue-600 hover:underline whitespace-nowrap">
+                                  Review invoice →
+                                </Link>
+                              )}
+                              {d.status === 'updated' && !justApplied && (
+                                <button onClick={() => applyClient('inv', d.client_id)} disabled={busy}
+                                  className="px-2 py-1 bg-gray-900 text-white rounded-md font-medium hover:bg-gray-700 disabled:opacity-40 whitespace-nowrap">
+                                  {busy ? 'Applying…' : 'Apply'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {d.status === 'updated' && d.lines?.length > 0 && (
+                            <div className="mt-1 ml-2 space-y-0.5">
+                              {d.lines.map((l, j) => (
+                                <div key={j} className="flex justify-between text-gray-500">
+                                  <span>· {l.description} — {l.class_date}</span>
+                                  <span>{money(l.unit_price)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {d.status === 'updated' && d.lines?.length > 0 && (
+                      )
+                    })}
+                    {Object.values(
+                      syncPreview.package_details.reduce((byClient, d) => {
+                        (byClient[d.client_id] ||= { client_id: d.client_id, client_name: d.client_name, dates: [] }).dates.push(d)
+                        return byClient
+                      }, {})
+                    ).map((group) => {
+                      const rowKey = `pkg-${group.client_id}`
+                      const busy = applyingRow === rowKey
+                      const justApplied = appliedRows.has(rowKey)
+                      const hasPending = !justApplied && group.dates.some(d => d.status === 'deducted')
+                      return (
+                        <div key={rowKey} className="px-3 py-2">
+                          <div className="flex items-center justify-between gap-2 text-gray-700">
+                            <span>{group.client_name}</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {justApplied && <span className="text-green-600">✓ applied</span>}
+                              {hasPending && (
+                                <button onClick={() => applyClient('pkg', group.client_id)} disabled={busy}
+                                  className="px-2 py-1 bg-gray-900 text-white rounded-md font-medium hover:bg-gray-700 disabled:opacity-40 whitespace-nowrap">
+                                  {busy ? 'Applying…' : 'Apply'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
                           <div className="mt-1 ml-2 space-y-0.5">
-                            {d.lines.map((l, j) => (
-                              <div key={j} className="flex justify-between text-gray-500">
-                                <span>· {l.description} — {l.class_date}</span>
-                                <span>{money(l.unit_price)}</span>
+                            {group.dates.map((d, j) => (
+                              <div key={j} className={d.status === 'deducted' ? 'text-gray-500' : d.status === 'no_active_package' ? 'text-amber-700' : 'text-gray-400'}>
+                                · {d.session_date} —{' '}
+                                {d.status === 'deducted' ? (justApplied ? 'deducted' : 'deduct 1 class')
+                                  : d.status === 'already_deducted' ? 'already deducted'
+                                  : 'no active package to deduct from'}
                               </div>
                             ))}
                           </div>
-                        )}
-                      </div>
-                    ))}
-                    {syncPreview.package_details.map((d, i) => (
-                      <div key={`pkg-${i}`} className={`px-3 py-1.5 flex justify-between ${d.status === 'deducted' ? 'text-gray-700' : d.status === 'no_active_package' ? 'text-amber-700' : 'text-gray-400'}`}>
-                        <span>
-                          {d.client_name} ({d.session_date}){' — '}
-                          {d.status === 'deducted' ? 'deduct 1 class'
-                            : d.status === 'already_deducted' ? 'already deducted'
-                            : 'no active package to deduct from'}
-                        </span>
-                      </div>
-                    ))}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <button onClick={applySync} disabled={applying || (syncPreview.invoices_touched === 0 && syncPreview.packages_deducted === 0)}
-                    className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-40">
-                    {applying ? 'Applying…' : 'Apply these updates'}
-                  </button>
-                  <button onClick={() => setSyncPreview(null)} disabled={applying}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
-                    Cancel
-                  </button>
-                </div>
+                <button onClick={() => setSyncPreview(null)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
+                  Done reviewing
+                </button>
               </>
             ) : (
               <button onClick={previewSync} disabled={previewing}
                 className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-40">
-                {previewing ? 'Checking…' : `Preview updates for ${label}`}
+                {previewing ? 'Checking…' : `Review updates for ${label}`}
               </button>
             )}
           </div>
