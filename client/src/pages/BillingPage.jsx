@@ -505,19 +505,34 @@ export default function BillingPage() {
   const [charging, setCharging] = useState(false)
   const [results, setResults] = useState(null)
 
-  const [syncing, setSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const [syncPreview, setSyncPreview] = useState(null)  // dry-run result, awaiting Apply
+  const [syncApplied, setSyncApplied] = useState(null)  // committed result
   const [syncError, setSyncError] = useState('')
 
-  async function syncInvoicesAndPackages() {
-    setSyncing(true); setSyncError(''); setSyncResult(null)
+  async function previewSync() {
+    setPreviewing(true); setSyncError(''); setSyncApplied(null); setSyncPreview(null)
     try {
-      const r = await api.syncBillingWeek(ymd(weekStart))
-      setSyncResult(r)
+      const r = await api.syncBillingWeek(ymd(weekStart), true)
+      setSyncPreview(r)
     } catch (e) {
-      setSyncError(e.message || 'Sync failed')
+      setSyncError(e.message || 'Preview failed')
     } finally {
-      setSyncing(false)
+      setPreviewing(false)
+    }
+  }
+
+  async function applySync() {
+    setApplying(true); setSyncError('')
+    try {
+      const r = await api.syncBillingWeek(ymd(weekStart), false)
+      setSyncApplied(r)
+      setSyncPreview(null)
+    } catch (e) {
+      setSyncError(e.message || 'Update failed')
+    } finally {
+      setApplying(false)
     }
   }
 
@@ -533,7 +548,7 @@ export default function BillingPage() {
   }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (tab === 'charge') load() }, [tab, load])
-  useEffect(() => { setSyncResult(null); setSyncError('') }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setSyncPreview(null); setSyncApplied(null); setSyncError('') }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function patch(id, changes) {
     setRows(prev => prev.map(r => r.client_id === id ? { ...r, ...changes } : r))
@@ -672,20 +687,57 @@ export default function BillingPage() {
                 instead of waiting, e.g. after fixing a rate. Safe to run more than once.
               </p>
             </div>
-            <button onClick={syncInvoicesAndPackages} disabled={syncing}
-              className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-40">
-              {syncing ? 'Updating…' : `Update invoices & packages for ${label}`}
-            </button>
+
             {syncError && <p className="text-xs text-red-600">{syncError}</p>}
-            {syncResult && (
-              <div className="text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 space-y-0.5">
-                <p>{syncResult.sessions_seen} class{syncResult.sessions_seen === 1 ? '' : 'es'} checked</p>
-                <p>{syncResult.invoices_touched} invoice{syncResult.invoices_touched === 1 ? '' : 's'} updated</p>
-                <p>{syncResult.packages_deducted} package class{syncResult.packages_deducted === 1 ? '' : 'es'} deducted</p>
-                {syncResult.skipped_already_manually_invoiced > 0 && (
-                  <p>{syncResult.skipped_already_manually_invoiced} client{syncResult.skipped_already_manually_invoiced === 1 ? '' : 's'} skipped — already has a manual invoice this month</p>
+
+            {syncApplied ? (
+              <div className="text-xs text-gray-600 bg-green-50 border border-green-100 rounded-lg px-3 py-2 space-y-0.5">
+                <p className="font-medium text-green-700">Applied.</p>
+                <p>{syncApplied.sessions_seen} class{syncApplied.sessions_seen === 1 ? '' : 'es'} checked</p>
+                <p>{syncApplied.invoices_touched} invoice{syncApplied.invoices_touched === 1 ? '' : 's'} updated</p>
+                <p>{syncApplied.packages_deducted} package class{syncApplied.packages_deducted === 1 ? '' : 'es'} deducted</p>
+                {syncApplied.skipped_already_manually_invoiced > 0 && (
+                  <p>{syncApplied.skipped_already_manually_invoiced} client{syncApplied.skipped_already_manually_invoiced === 1 ? '' : 's'} skipped — already has a manual invoice this month</p>
                 )}
               </div>
+            ) : syncPreview ? (
+              <>
+                {syncPreview.invoices_touched === 0 && syncPreview.packages_deducted === 0 ? (
+                  <p className="text-xs text-gray-400 italic">Nothing to update — everything's already in sync for this week.</p>
+                ) : (
+                  <div className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg divide-y divide-gray-100">
+                    {syncPreview.invoice_details.map((d, i) => (
+                      <div key={`inv-${i}`} className="px-3 py-1.5 flex justify-between">
+                        <span>{d.client_name} — {d.new_invoice ? 'new invoice' : 'add to invoice'}, {d.classes_added} class{d.classes_added === 1 ? '' : 'es'}</span>
+                        <span className="font-medium">{money(d.amount_added)}</span>
+                      </div>
+                    ))}
+                    {syncPreview.package_details.map((d, i) => (
+                      <div key={`pkg-${i}`} className="px-3 py-1.5 flex justify-between">
+                        <span>{d.client_name} — deduct 1 class ({d.session_date})</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {syncPreview.skipped_already_manually_invoiced > 0 && (
+                  <p className="text-xs text-amber-700">{syncPreview.skipped_already_manually_invoiced} client{syncPreview.skipped_already_manually_invoiced === 1 ? '' : 's'} skipped — already has a manual invoice this month.</p>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={applySync} disabled={applying || (syncPreview.invoices_touched === 0 && syncPreview.packages_deducted === 0)}
+                    className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-40">
+                    {applying ? 'Applying…' : 'Apply these updates'}
+                  </button>
+                  <button onClick={() => setSyncPreview(null)} disabled={applying}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button onClick={previewSync} disabled={previewing}
+                className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-40">
+                {previewing ? 'Checking…' : `Preview updates for ${label}`}
+              </button>
             )}
           </div>
         </>

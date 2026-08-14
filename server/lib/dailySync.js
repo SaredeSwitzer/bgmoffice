@@ -68,8 +68,11 @@ async function generateUpcomingSessions(horizonDate) {
 // POST /:id/sessions), just triggered from the calendar instead of a manual click.
 // Idempotent: package_sessions.class_session_id is unique, so a rerun just skips
 // sessions already linked.
-async function syncPackages(sessions) {
+// dryRun: computes what WOULD happen (including the read-only lookups below) without
+// writing, so a preview can show it before anyone commits to it.
+async function syncPackages(sessions, { dryRun = false } = {}) {
   let deducted = 0;
+  const details = [];
   for (const s of sessions) {
     if (!s.payment_method || !/package/i.test(s.payment_method)) continue;
 
@@ -84,41 +87,47 @@ async function syncPackages(sessions) {
     );
     if (!pkg) continue; // no active package to charge this class against — leave for manual review
 
-    await pool.query(
-      `INSERT INTO package_sessions (package_id, session_date, notes, created_by, class_session_id)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [pkg.id, s.session_date, 'Auto-added from calendar', 'daily-sync', s.id]
-    );
-    await pool.query(
-      `UPDATE client_packages SET
-         classes_used = (SELECT COUNT(*) FROM package_sessions WHERE package_id = $1),
-         status = CASE WHEN (SELECT COUNT(*) FROM package_sessions WHERE package_id = $1) >= total_classes
-                       THEN 'completed' ELSE 'active' END
-       WHERE id = $1`,
-      [pkg.id]
-    );
+    if (!dryRun) {
+      await pool.query(
+        `INSERT INTO package_sessions (package_id, session_date, notes, created_by, class_session_id)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [pkg.id, s.session_date, 'Auto-added from calendar', 'daily-sync', s.id]
+      );
+      await pool.query(
+        `UPDATE client_packages SET
+           classes_used = (SELECT COUNT(*) FROM package_sessions WHERE package_id = $1),
+           status = CASE WHEN (SELECT COUNT(*) FROM package_sessions WHERE package_id = $1) >= total_classes
+                         THEN 'completed' ELSE 'active' END
+         WHERE id = $1`,
+        [pkg.id]
+      );
+    }
+    details.push({ client_id: s.client_id, client_name: s.client_name, session_date: s.session_date });
     deducted++;
   }
-  return deducted;
+  return { deducted, details };
 }
 
 // Build/extend each client's auto-generated monthly draft invoice with line items for
 // their "Invoice"-billed calendar classes. One draft per (client, billing_period=YYYY-MM),
 // found via the invoices_auto_period_uniq index. Idempotent: each line item carries the
 // session_id it came from, and a rerun skips sessions already on the invoice.
-async function syncInvoices(sessions) {
+// dryRun: computes what WOULD happen (including which invoice is new vs. extended)
+// without writing, so a preview can show it before anyone commits to it.
+async function syncInvoices(sessions, { dryRun = false } = {}) {
   const byClientPeriod = new Map();
   for (const s of sessions) {
     if (!s.payment_method || !/invoice/i.test(s.payment_method)) continue;
     const period = s.session_date.slice(0, 7);
     const key = `${s.client_id}::${period}`;
-    if (!byClientPeriod.has(key)) byClientPeriod.set(key, { client_id: s.client_id, period, sessions: [] });
+    if (!byClientPeriod.has(key)) byClientPeriod.set(key, { client_id: s.client_id, client_name: s.client_name, period, sessions: [] });
     byClientPeriod.get(key).sessions.push(s);
   }
 
   let invoicesTouched = 0;
   let skippedManual = 0;
-  for (const { client_id, period, sessions: group } of byClientPeriod.values()) {
+  const details = [];
+  for (const { client_id, client_name, period, sessions: group } of byClientPeriod.values()) {
     const { rows: [existing] } = await pool.query(
       `SELECT * FROM invoices WHERE client_id = $1 AND billing_period = $2 AND auto_generated = true`,
       [client_id, period]
@@ -140,6 +149,9 @@ async function syncInvoices(sessions) {
     if (existing) {
       invoiceId = existing.id;
       lineItems = JSON.parse(existing.line_items || '[]');
+    } else if (dryRun) {
+      invoiceId = null; // not created yet — this is a preview
+      lineItems = [];
     } else {
       const [year, month] = period.split('-');
       const monthName = new Date(Number(year), Number(month) - 1, 1).toLocaleDateString('en-US', { month: 'long' });
@@ -157,6 +169,8 @@ async function syncInvoices(sessions) {
 
     const already = new Set(lineItems.filter(li => li.session_id).map(li => li.session_id));
     let added = false;
+    let amountAdded = 0;
+    let classesAdded = 0;
     for (const s of group) {
       if (already.has(s.id)) continue;
       lineItems.push({
@@ -165,40 +179,57 @@ async function syncInvoices(sessions) {
         unit_price: Number(s.charge_amount) || 0,
         session_id: s.id,
       });
+      amountAdded += Number(s.charge_amount) || 0;
+      classesAdded++;
       added = true;
     }
     if (!added) continue;
 
-    const { subtotal, tax_amount, total } = calcTotals(lineItems, 0);
-    await pool.query(
-      `UPDATE invoices SET line_items=$1, subtotal=$2, tax_amount=$3, total=$4,
-         updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$5`,
-      [JSON.stringify(lineItems), subtotal, tax_amount, total, invoiceId]
-    );
+    if (!dryRun) {
+      const { subtotal, tax_amount, total } = calcTotals(lineItems, 0);
+      await pool.query(
+        `UPDATE invoices SET line_items=$1, subtotal=$2, tax_amount=$3, total=$4,
+           updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$5`,
+        [JSON.stringify(lineItems), subtotal, tax_amount, total, invoiceId]
+      );
+    }
+    details.push({
+      client_id, client_name, period,
+      new_invoice: !existing,
+      classes_added: classesAdded,
+      amount_added: Number(amountAdded.toFixed(2)),
+    });
     invoicesTouched++;
   }
-  return { invoicesTouched, skippedManual };
+  return { invoicesTouched, skippedManual, details };
 }
 
 // Core sync over an explicit [startDate, endDate] range (both 'YYYY-MM-DD', inclusive).
 // Every step is idempotent, so this is safe to rerun over any range — including one that
 // overlaps days already synced — to catch up after a missed run or backfill a gap.
-async function syncDateRange(startDate, endDate) {
+// dryRun: runs every lookup but skips every write, so callers can preview the effect
+// (which clients' invoices/packages would change) before committing to it.
+async function syncDateRange(startDate, endDate, { dryRun = false } = {}) {
   const { rows: sessions } = await pool.query(
-    `SELECT id, client_id, session_date::text AS session_date, payment_method, style, charge_amount
-       FROM class_sessions WHERE session_date BETWEEN $1 AND $2`,
+    `SELECT s.id, s.client_id, c.name AS client_name, s.session_date::text AS session_date,
+            s.payment_method, s.style, s.charge_amount
+       FROM class_sessions s JOIN clients c ON c.id = s.client_id
+      WHERE s.session_date BETWEEN $1 AND $2`,
     [startDate, endDate]
   );
 
-  const packagesDeducted = await syncPackages(sessions);
-  const { invoicesTouched, skippedManual } = await syncInvoices(sessions);
+  const { deducted: packagesDeducted, details: packageDetails } = await syncPackages(sessions, { dryRun });
+  const { invoicesTouched, skippedManual, details: invoiceDetails } = await syncInvoices(sessions, { dryRun });
 
   return {
     start: startDate,
     end: endDate,
+    dry_run: dryRun,
     sessions_seen: sessions.length,
     packages_deducted: packagesDeducted,
+    package_details: packageDetails,
     invoices_touched: invoicesTouched,
+    invoice_details: invoiceDetails,
     skipped_already_manually_invoiced: skippedManual,
   };
 }
