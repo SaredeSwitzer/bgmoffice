@@ -70,6 +70,9 @@ async function generateUpcomingSessions(horizonDate) {
 // sessions already linked.
 // dryRun: computes what WOULD happen (including the read-only lookups below) without
 // writing, so a preview can show it before anyone commits to it.
+// details always includes one entry per qualifying session — including ones already
+// handled or blocked — so a preview never silently drops a client the way an empty
+// "nothing to do" result would.
 async function syncPackages(sessions, { dryRun = false } = {}) {
   let deducted = 0;
   const details = [];
@@ -79,13 +82,20 @@ async function syncPackages(sessions, { dryRun = false } = {}) {
     const { rows: [already] } = await pool.query(
       'SELECT id FROM package_sessions WHERE class_session_id = $1', [s.id]
     );
-    if (already) continue;
+    if (already) {
+      details.push({ client_id: s.client_id, client_name: s.client_name, session_date: s.session_date, status: 'already_deducted' });
+      continue;
+    }
 
     const { rows: [pkg] } = await pool.query(
       `SELECT * FROM client_packages WHERE client_id = $1 AND status = 'active' ORDER BY created_at ASC LIMIT 1`,
       [s.client_id]
     );
-    if (!pkg) continue; // no active package to charge this class against — leave for manual review
+    if (!pkg) {
+      // no active package to charge this class against — leave for manual review
+      details.push({ client_id: s.client_id, client_name: s.client_name, session_date: s.session_date, status: 'no_active_package' });
+      continue;
+    }
 
     if (!dryRun) {
       await pool.query(
@@ -102,10 +112,64 @@ async function syncPackages(sessions, { dryRun = false } = {}) {
         [pkg.id]
       );
     }
-    details.push({ client_id: s.client_id, client_name: s.client_name, session_date: s.session_date });
+    details.push({ client_id: s.client_id, client_name: s.client_name, session_date: s.session_date, status: 'deducted' });
     deducted++;
   }
   return { deducted, details };
+}
+
+// Generic placeholder descriptions that don't tell staff anything about the class — never
+// worth reusing as a "previous line" match, so they're excluded when inferring a style.
+const GENERIC_DESCRIPTIONS = new Set(['class', 'fitness class', 'fitness classes']);
+
+// A session's own `style` is the first choice for its invoice line description, but it's
+// often blank (older calendar rows, one-offs entered without a style). Rather than write
+// the meaningless "Class" in that case, work out what this client's classes are actually
+// called: check line items already on the invoice (including ones just added earlier in
+// this same run), then the client's recurring schedule, then their most recent other class.
+async function inferDescription(client_id, style, existingLineItems) {
+  if (style) return style;
+
+  const fromExisting = existingLineItems
+    .map(li => li.description)
+    .filter(d => d && !GENERIC_DESCRIPTIONS.has(d.toLowerCase()));
+  if (fromExisting.length) {
+    const counts = {};
+    for (const d of fromExisting) counts[d] = (counts[d] || 0) + 1;
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+  }
+
+  const { rows: [sched] } = await pool.query(
+    `SELECT style FROM class_schedules WHERE client_id = $1 AND style IS NOT NULL AND style <> ''
+      ORDER BY updated_at DESC LIMIT 1`,
+    [client_id]
+  );
+  if (sched?.style) return sched.style;
+
+  const { rows: [sess] } = await pool.query(
+    `SELECT style FROM class_sessions WHERE client_id = $1 AND style IS NOT NULL AND style <> ''
+      ORDER BY session_date DESC LIMIT 1`,
+    [client_id]
+  );
+  if (sess?.style) return sess.style;
+
+  // Last resort: this client's own past invoices (manual ones included) — someone billed
+  // them for something before, and that description is a better guess than "Class".
+  const { rows: pastInvoices } = await pool.query(
+    `SELECT line_items FROM invoices WHERE client_id = $1 ORDER BY invoice_date DESC LIMIT 5`,
+    [client_id]
+  );
+  const pastDescriptions = pastInvoices
+    .flatMap(inv => { try { return JSON.parse(inv.line_items || '[]'); } catch { return []; } })
+    .map(li => li.description)
+    .filter(d => d && !GENERIC_DESCRIPTIONS.has(d.toLowerCase()));
+  if (pastDescriptions.length) {
+    const counts = {};
+    for (const d of pastDescriptions) counts[d] = (counts[d] || 0) + 1;
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+  }
+
+  return 'Class';
 }
 
 // Build/extend each client's auto-generated monthly draft invoice with line items for
@@ -142,7 +206,11 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
            AND to_char(invoice_date::date, 'YYYY-MM') = $2 LIMIT 1`,
         [client_id, period]
       );
-      if (manual) { skippedManual++; continue; }
+      if (manual) {
+        skippedManual++;
+        details.push({ client_id, client_name, period, status: 'skipped_manual', classes_added: 0, amount_added: 0 });
+        continue;
+      }
     }
 
     let invoiceId, lineItems;
@@ -171,19 +239,29 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
     let added = false;
     let amountAdded = 0;
     let classesAdded = 0;
+    const newLines = [];
     for (const s of group) {
       if (already.has(s.id)) continue;
-      lineItems.push({
-        description: s.style || 'Class',
+      const line = {
+        description: await inferDescription(client_id, s.style, lineItems),
         class_date: s.session_date,
         unit_price: Number(s.charge_amount) || 0,
         session_id: s.id,
-      });
+      };
+      lineItems.push(line);
+      newLines.push(line);
       amountAdded += Number(s.charge_amount) || 0;
       classesAdded++;
       added = true;
     }
-    if (!added) continue;
+
+    if (!added) {
+      // Every session this client had this week is already on the invoice — nothing new,
+      // but still worth a row so a preview confirms this client WAS checked rather than
+      // silently vanishing from the list.
+      details.push({ client_id, client_name, period, status: 'up_to_date', classes_added: 0, amount_added: 0 });
+      continue;
+    }
 
     if (!dryRun) {
       const { subtotal, tax_amount, total } = calcTotals(lineItems, 0);
@@ -195,9 +273,11 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
     }
     details.push({
       client_id, client_name, period,
+      status: 'updated',
       new_invoice: !existing,
       classes_added: classesAdded,
       amount_added: Number(amountAdded.toFixed(2)),
+      lines: newLines,
     });
     invoicesTouched++;
   }

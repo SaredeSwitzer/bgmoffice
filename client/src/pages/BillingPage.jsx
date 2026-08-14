@@ -702,25 +702,44 @@ export default function BillingPage() {
               </div>
             ) : syncPreview ? (
               <>
-                {syncPreview.invoices_touched === 0 && syncPreview.packages_deducted === 0 ? (
-                  <p className="text-xs text-gray-400 italic">Nothing to update — everything's already in sync for this week.</p>
+                {syncPreview.invoice_details.length === 0 && syncPreview.package_details.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No "Invoice" or "Package" billed classes this week.</p>
                 ) : (
-                  <div className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg divide-y divide-gray-100">
+                  <div className="text-xs bg-gray-50 border border-gray-100 rounded-lg divide-y divide-gray-100">
                     {syncPreview.invoice_details.map((d, i) => (
-                      <div key={`inv-${i}`} className="px-3 py-1.5 flex justify-between">
-                        <span>{d.client_name} — {d.new_invoice ? 'new invoice' : 'add to invoice'}, {d.classes_added} class{d.classes_added === 1 ? '' : 'es'}</span>
-                        <span className="font-medium">{money(d.amount_added)}</span>
+                      <div key={`inv-${i}`} className="px-3 py-1.5">
+                        <div className={`flex justify-between ${d.status === 'updated' ? 'text-gray-700' : 'text-gray-400'}`}>
+                          <span>
+                            {d.client_name}{' — '}
+                            {d.status === 'updated' ? `${d.new_invoice ? 'new invoice' : 'add to invoice'}, ${d.classes_added} class${d.classes_added === 1 ? '' : 'es'}`
+                              : d.status === 'up_to_date' ? 'already up to date'
+                              : 'skipped — has a manual invoice this month'}
+                          </span>
+                          {d.status === 'updated' && <span className="font-medium text-gray-700">{money(d.amount_added)}</span>}
+                        </div>
+                        {d.status === 'updated' && d.lines?.length > 0 && (
+                          <div className="mt-1 ml-2 space-y-0.5">
+                            {d.lines.map((l, j) => (
+                              <div key={j} className="flex justify-between text-gray-500">
+                                <span>· {l.description} — {l.class_date}</span>
+                                <span>{money(l.unit_price)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                     {syncPreview.package_details.map((d, i) => (
-                      <div key={`pkg-${i}`} className="px-3 py-1.5 flex justify-between">
-                        <span>{d.client_name} — deduct 1 class ({d.session_date})</span>
+                      <div key={`pkg-${i}`} className={`px-3 py-1.5 flex justify-between ${d.status === 'deducted' ? 'text-gray-700' : d.status === 'no_active_package' ? 'text-amber-700' : 'text-gray-400'}`}>
+                        <span>
+                          {d.client_name} ({d.session_date}){' — '}
+                          {d.status === 'deducted' ? 'deduct 1 class'
+                            : d.status === 'already_deducted' ? 'already deducted'
+                            : 'no active package to deduct from'}
+                        </span>
                       </div>
                     ))}
                   </div>
-                )}
-                {syncPreview.skipped_already_manually_invoiced > 0 && (
-                  <p className="text-xs text-amber-700">{syncPreview.skipped_already_manually_invoiced} client{syncPreview.skipped_already_manually_invoiced === 1 ? '' : 's'} skipped — already has a manual invoice this month.</p>
                 )}
                 <div className="flex gap-2">
                   <button onClick={applySync} disabled={applying || (syncPreview.invoices_touched === 0 && syncPreview.packages_deducted === 0)}
