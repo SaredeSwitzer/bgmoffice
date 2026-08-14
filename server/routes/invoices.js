@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto  = require('crypto');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { nextInvoiceNumber, calcTotals } = require('../lib/invoiceHelpers');
@@ -161,9 +162,9 @@ router.post('/', async (req, res) => {
 
   const { rows: [inv] } = await pool.query(
     `INSERT INTO invoices
-       (invoice_number, title, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-    [invoice_number, title || null, client_id || null, instructor_id || null, JSON.stringify(line_items), subtotal, tax_rate, tax_amount, total, notes || null, invoice_date || new Date().toISOString().slice(0, 10), due_date || null, req.user.initials]
+       (invoice_number, title, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by, public_token)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+    [invoice_number, title || null, client_id || null, instructor_id || null, JSON.stringify(line_items), subtotal, tax_rate, tax_amount, total, notes || null, invoice_date || new Date().toISOString().slice(0, 10), due_date || null, req.user.initials, crypto.randomBytes(16).toString('hex')]
   );
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [inv.id]);
   res.status(201).json(enrichInvoice(row));
@@ -278,9 +279,9 @@ router.post('/:id/duplicate', async (req, res) => {
   const invoice_number = await nextInvoiceNumber();
   const { rows: [inv] } = await pool.query(
     `INSERT INTO invoices
-       (invoice_number, title, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-    [invoice_number, src.title, src.client_id, src.instructor_id, src.line_items, src.subtotal, src.tax_rate, src.tax_amount, src.total, src.notes, new Date().toISOString().slice(0, 10), null, req.user.initials]
+       (invoice_number, title, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by, public_token)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+    [invoice_number, src.title, src.client_id, src.instructor_id, src.line_items, src.subtotal, src.tax_rate, src.tax_amount, src.total, src.notes, new Date().toISOString().slice(0, 10), null, req.user.initials, crypto.randomBytes(16).toString('hex')]
   );
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [inv.id]);
   res.status(201).json(enrichInvoice(row));

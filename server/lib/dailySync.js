@@ -1,4 +1,5 @@
-const pool = require('../db/pg');
+const pool   = require('../db/pg');
+const crypto = require('crypto');
 const { nextInvoiceNumber, calcTotals } = require('./invoiceHelpers');
 
 function ymd(d) {
@@ -239,9 +240,9 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
       const { rows: [inv] } = await pool.query(
         `INSERT INTO invoices
            (invoice_number, title, client_id, line_items, subtotal, tax_rate, tax_amount, total,
-            invoice_date, created_by, auto_generated, billing_period)
-         VALUES ($1,$2,$3,'[]',0,0,0,0,$4,'daily-sync',true,$5) RETURNING id`,
-        [invoice_number, `${monthName} ${year}`, client_id, ymd(new Date()), period]
+            invoice_date, created_by, auto_generated, billing_period, public_token)
+         VALUES ($1,$2,$3,'[]',0,0,0,0,$4,'daily-sync',true,$5,$6) RETURNING id`,
+        [invoice_number, `${monthName} ${year}`, client_id, ymd(new Date()), period, crypto.randomBytes(16).toString('hex')]
       );
       invoiceId = inv.id;
       lineItems = [];
