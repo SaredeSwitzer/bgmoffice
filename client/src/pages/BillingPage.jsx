@@ -494,6 +494,66 @@ function ReportTab({ weekStart, weekEnd, label }) {
   )
 }
 
+// Read-only look at what an invoice will contain BEFORE it's created or extended —
+// nothing is written until Apply is clicked from here. Mirrors the layout of the real
+// invoice detail page (client, line items, total) so it reads the same either way.
+function InvoicePreviewModal({ detail, onApply, onClose, applying }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 px-4 py-6 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 inline-block mb-1">
+              Preview — not yet {detail.new_invoice ? 'created' : 'saved'}
+            </p>
+            <h3 className="font-bold text-gray-900 text-base">{detail.client_name}</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+        </div>
+        <div className="px-5 py-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
+                <th className="pb-2 font-medium">Description</th>
+                <th className="pb-2 font-medium">Class Date</th>
+                <th className="pb-2 font-medium text-right">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detail.lines.map((l, i) => (
+                <tr key={i} className="border-b border-gray-50">
+                  <td className="py-2 text-gray-800">{l.description}</td>
+                  <td className="py-2 text-gray-600">{l.class_date}</td>
+                  <td className="py-2 text-right text-gray-800">{money(l.unit_price)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex justify-between pt-3 text-sm font-bold text-gray-900">
+            <span>{detail.new_invoice ? 'Total Due' : 'Being added to the existing invoice'}</span>
+            <span>{money(detail.amount_added)}</span>
+          </div>
+          {!detail.new_invoice && (
+            <p className="text-xs text-gray-400 mt-1">
+              This client already has an invoice this month — these lines will be appended to it, not shown here in full.
+              Use "Review invoice" after applying to see the combined total.
+            </p>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
+          <button onClick={onApply} disabled={applying}
+            className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700">
+            {applying ? 'Applying…' : detail.new_invoice ? 'Create invoice' : 'Add to invoice'}
+          </button>
+          <button onClick={onClose} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function BillingPage() {
   const [tab, setTab] = useState('charge') // 'charge' | 'report'
   const [anchor, setAnchor] = useState(() => startOfWeek(new Date()))
@@ -510,6 +570,7 @@ export default function BillingPage() {
   const [syncError, setSyncError] = useState('')
   const [applyingRow, setApplyingRow] = useState(null)  // `inv-${client_id}` | `pkg-${client_id}` currently in flight
   const [appliedRows, setAppliedRows] = useState(() => new Set())  // rowKeys just committed this session, so a re-shown "updated" preview row reads as done, not still-pending
+  const [previewModalClientId, setPreviewModalClientId] = useState(null)
 
   async function previewSync() {
     setPreviewing(true); setSyncError(''); setSyncPreview(null); setAppliedRows(new Set())
@@ -540,6 +601,7 @@ export default function BillingPage() {
         ],
       }))
       setAppliedRows(prev => new Set(prev).add(rowKey))
+      setPreviewModalClientId(null)
     } catch (e) {
       setSyncError(e.message || 'Update failed')
     } finally {
@@ -730,9 +792,9 @@ export default function BillingPage() {
                                 </Link>
                               )}
                               {d.status === 'updated' && !justApplied && (
-                                <button onClick={() => applyClient('inv', d.client_id)} disabled={busy}
+                                <button onClick={() => setPreviewModalClientId(d.client_id)} disabled={busy}
                                   className="px-2 py-1 bg-gray-900 text-white rounded-md font-medium hover:bg-gray-700 disabled:opacity-40 whitespace-nowrap">
-                                  {busy ? 'Applying…' : 'Apply'}
+                                  {busy ? 'Applying…' : 'Preview →'}
                                 </button>
                               )}
                             </div>
@@ -803,6 +865,19 @@ export default function BillingPage() {
           </div>
         </>
       )}
+
+      {previewModalClientId != null && (() => {
+        const detail = syncPreview?.invoice_details.find(d => d.client_id === previewModalClientId)
+        if (!detail) return null
+        return (
+          <InvoicePreviewModal
+            detail={detail}
+            applying={applyingRow === `inv-${previewModalClientId}`}
+            onApply={() => applyClient('inv', previewModalClientId)}
+            onClose={() => setPreviewModalClientId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }
