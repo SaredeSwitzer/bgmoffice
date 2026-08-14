@@ -127,7 +127,19 @@ const GENERIC_DESCRIPTIONS = new Set(['class', 'fitness class', 'fitness classes
 // the meaningless "Class" in that case, work out what this client's classes are actually
 // called: check line items already on the invoice (including ones just added earlier in
 // this same run), then the client's recurring schedule, then their most recent other class.
-async function inferDescription(client_id, style, existingLineItems) {
+//
+// Some clients' class name depends on the rate billed, not a fixed style — a longer session
+// at a higher price, always billed the same way. These take priority over whatever `style`
+// happens to be on the row, since a one-off session (no recurring schedule) can easily be
+// entered with the wrong or blank style, but the rate is what staff actually keyed in.
+const RATE_BASED_DESCRIPTIONS = {
+  20: { 150: 'Fitness Class - 90 min' }, // HaMaspik - Charny Schonfeld
+};
+
+async function inferDescription(client_id, style, existingLineItems, chargeAmount) {
+  const rateOverride = RATE_BASED_DESCRIPTIONS[client_id]?.[Number(chargeAmount)];
+  if (rateOverride) return rateOverride;
+
   if (style) return style;
 
   const fromExisting = existingLineItems
@@ -243,7 +255,7 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
     for (const s of group) {
       if (already.has(s.id)) continue;
       const line = {
-        description: await inferDescription(client_id, s.style, lineItems),
+        description: await inferDescription(client_id, s.style, lineItems, s.charge_amount),
         class_date: s.session_date,
         unit_price: Number(s.charge_amount) || 0,
         session_id: s.id,
