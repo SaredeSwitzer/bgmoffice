@@ -118,6 +118,7 @@ router.post('/schedules', async (req, res) => {
   } = req.body;
 
   if (!client_id) return res.status(400).json({ error: 'client_id required' });
+  if (!start_time) return res.status(400).json({ error: 'start_time required' });
   const wd = normalizeWeekday(weekday);
   if (wd === undefined) return res.status(400).json({ error: 'weekday must be 0–6 (0=Sun) or null' });
 
@@ -199,6 +200,7 @@ router.post('/sessions', async (req, res) => {
   } = req.body;
   if (!client_id)          return res.status(400).json({ error: 'client_id required' });
   if (!isDate(session_date)) return res.status(400).json({ error: 'session_date (YYYY-MM-DD) required' });
+  if (!start_time)         return res.status(400).json({ error: 'start_time required' });
 
   const { rows: [row] } = await pool.query(
     `INSERT INTO class_sessions

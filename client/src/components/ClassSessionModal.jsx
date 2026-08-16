@@ -92,7 +92,7 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
-                <input type="time" value={form.start_time} onChange={e => setField('start_time', e.target.value)}
+                <input type="time" required value={form.start_time} onChange={e => setField('start_time', e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>

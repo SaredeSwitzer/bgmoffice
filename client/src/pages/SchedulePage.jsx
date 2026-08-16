@@ -56,6 +56,8 @@ export default function SchedulePage() {
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(BLANK_SCHEDULE)
   const [saving, setSaving] = useState(false)
+  // Id of the recurring schedule being edited, or null when adding a new one.
+  const [editingId, setEditingId] = useState(null)
 
   // Recurring class / dated session whose instructor-confirmation email modal is open.
   const [confirmSchedule, setConfirmSchedule] = useState(null)
@@ -112,7 +114,7 @@ export default function SchedulePage() {
     if (!form.client) return
     setSaving(true)
     try {
-      await api.createClassSchedule({
+      const payload = {
         client_id: form.client.id,
         instructor_id: form.instructor?.id || null,
         weekday: form.weekday === '' ? null : Number(form.weekday),
@@ -123,11 +125,30 @@ export default function SchedulePage() {
         style: form.style || null,
         location: form.location || null,
         special_instructions: form.special_instructions || null,
-      })
-      setForm(BLANK_SCHEDULE); setShowNew(false); loadSchedules()
+      }
+      if (editingId) await api.updateClassSchedule(editingId, payload)
+      else await api.createClassSchedule(payload)
+      setForm(BLANK_SCHEDULE); setShowNew(false); setEditingId(null); loadSchedules()
     } finally {
       setSaving(false)
     }
+  }
+
+  function editSchedule(s) {
+    setForm({
+      client: s.client_id ? { id: s.client_id, name: s.client_name } : null,
+      instructor: s.instructor_id ? { id: s.instructor_id, name: s.instructor_name } : null,
+      weekday: s.weekday ?? '',
+      start_time: s.start_time ? s.start_time.slice(0, 5) : '',
+      charge_amount: s.charge_amount ?? '',
+      instructor_pay: s.instructor_pay ?? '',
+      payment_method: s.payment_method || '',
+      style: s.style || '',
+      location: s.location || '',
+      special_instructions: s.special_instructions || '',
+    })
+    setEditingId(s.id)
+    setShowNew(true)
   }
 
   async function removeSchedule(id) {
@@ -274,7 +295,7 @@ export default function SchedulePage() {
       ) : (
         <>
           <div className="flex justify-end">
-            <button onClick={() => setShowNew(v => !v)}
+            <button onClick={() => { setEditingId(null); setForm(BLANK_SCHEDULE); setShowNew(v => !v) }}
               className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700">
               + New Recurring Class
             </button>
@@ -282,7 +303,7 @@ export default function SchedulePage() {
 
           {showNew && (
             <form onSubmit={createSchedule} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">
-              <h3 className="font-semibold text-gray-800 text-sm">New Recurring Class</h3>
+              <h3 className="font-semibold text-gray-800 text-sm">{editingId ? 'Edit Recurring Class' : 'New Recurring Class'}</h3>
               <div className="grid grid-cols-2 gap-3">
                 <SearchSelect label="Client" required options={clients} value={form.client}
                   onChange={c => setForm(f => ({ ...f, client: c }))} placeholder="Search clients…" />
@@ -298,7 +319,7 @@ export default function SchedulePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
-                  <input type="time" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))}
+                  <input type="time" required value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                 </div>
                 <div>
@@ -328,9 +349,9 @@ export default function SchedulePage() {
               <div className="flex gap-2">
                 <button type="submit" disabled={saving || !form.client}
                   className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
-                  {saving ? 'Saving…' : 'Save Recurring Class'}
+                  {saving ? 'Saving…' : (editingId ? 'Save Changes' : 'Save Recurring Class')}
                 </button>
-                <button type="button" onClick={() => { setShowNew(false); setForm(BLANK_SCHEDULE) }}
+                <button type="button" onClick={() => { setShowNew(false); setForm(BLANK_SCHEDULE); setEditingId(null) }}
                   className="px-4 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">Cancel</button>
               </div>
             </form>
@@ -348,7 +369,10 @@ export default function SchedulePage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
                       <p className="text-xs text-gray-500 mt-0.5 truncate">
-                        {s.weekday != null ? WEEKDAYS[s.weekday] : 'Flexible'}{s.start_time ? ` · ${s.start_time.slice(0, 5)}` : ''}
+                        {s.weekday != null ? WEEKDAYS[s.weekday] : 'Flexible'}
+                        {s.start_time ? ` · ${s.start_time.slice(0, 5)}` : (
+                          <span className="text-amber-600 font-medium"> · No time set</span>
+                        )}
                         {' · '}{s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
                       </p>
                     </div>
@@ -368,6 +392,10 @@ export default function SchedulePage() {
                     )}
                     <NotesToggle open={openNotes === `schedule-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
                       onClick={() => toggleNotes(`schedule-${s.id}`)} />
+                    <button onClick={() => editSchedule(s)}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-50">
+                      Edit
+                    </button>
                     <button onClick={() => toggleSchedulePause(s)}
                       className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-50">
                       {s.status === 'active' ? 'Pause' : 'Resume'}
