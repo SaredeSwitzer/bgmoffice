@@ -5,6 +5,8 @@ import ClassNotes from '../components/ClassNotes'
 import ConfirmClassModal from '../components/ConfirmClassModal'
 import ClassSessionModal from '../components/ClassSessionModal'
 import PendingClassModal from '../components/PendingClassModal'
+import TimeInput from '../components/TimeInput'
+import { fmtTime } from '../utils/time'
 
 // Small pill showing a class's note / open-task counts; also the button that expands notes.
 function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
@@ -235,7 +237,7 @@ export default function SchedulePage() {
                                     : 'border-gray-200 hover:border-gray-400'
                                 }`}>
                                 <div className="flex items-start justify-between gap-1">
-                                  <span className="font-semibold text-gray-700">{s.start_time ? s.start_time.slice(0, 5) : '—'}</span>
+                                  <span className="font-semibold text-gray-700">{s.start_time ? fmtTime(s.start_time) : '—'}</span>
                                   <div className="flex items-center gap-1.5">
                                     {s.status === 'pending' ? (
                                       <button onClick={e => { e.stopPropagation(); resolvePending(s) }}
@@ -319,8 +321,7 @@ export default function SchedulePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
-                  <input type="time" required value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  <TimeInput value={form.start_time} onChange={v => setForm(f => ({ ...f, start_time: v }))} required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Charge to client</label>
@@ -370,7 +371,7 @@ export default function SchedulePage() {
                       <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
                       <p className="text-xs text-gray-500 mt-0.5 truncate">
                         {s.weekday != null ? WEEKDAYS[s.weekday] : 'Flexible'}
-                        {s.start_time ? ` · ${s.start_time.slice(0, 5)}` : (
+                        {s.start_time ? ` · ${fmtTime(s.start_time)}` : (
                           <span className="text-amber-600 font-medium"> · No time set</span>
                         )}
                         {' · '}{s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}

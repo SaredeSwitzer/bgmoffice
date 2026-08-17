@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import PayoutNudge from '../components/PayoutNudge'
+import { fmtTime } from '../utils/time'
 
 // Read-only "my classes" week view for instructors (Phase 4 of instructor logins).
 // Calls GET /api/schedule/my-sessions (Kip owns that endpoint, Phase 3).
@@ -23,13 +24,6 @@ function addDays(d, n) {
 }
 function startOfWeek(d) {
   return addDays(d, -d.getDay()) // Sunday
-}
-function fmtTime(t) {
-  if (!t) return ''
-  const [h, m] = String(t).split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}:${String(m).padStart(2, '0')}${ampm}`
 }
 function money(v) {
   if (v == null || v === '') return ''

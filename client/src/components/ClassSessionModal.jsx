@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
+import TimeInput from './TimeInput'
 
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
@@ -92,8 +93,7 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
-                <input type="time" required value={form.start_time} onChange={e => setField('start_time', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <TimeInput value={form.start_time} onChange={v => setField('start_time', v)} required />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Charge to client</label>

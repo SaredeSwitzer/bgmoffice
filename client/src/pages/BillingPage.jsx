@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import { fmtTime } from '../utils/time'
 
 // Weekly recurring CC billing — review then charge. The amounts are computed live
 // from the schedule (class_sessions), so updating the schedule updates this. Nothing
@@ -338,7 +339,7 @@ function ReportTab({ weekStart, weekEnd, label }) {
                         <div key={s.id} className="flex items-center justify-between gap-2 text-xs text-gray-500">
                           <span className="truncate">
                             {new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            {s.start_time ? ` · ${s.start_time.slice(0, 5)}` : ''}
+                            {s.start_time ? ` · ${fmtTime(s.start_time)}` : ''}
                             {s.style ? ` · ${s.style}` : ''}
                             {s.instructor_name ? ` · ${s.instructor_name}` : ''}
                           </span>
@@ -476,7 +477,7 @@ function ReportTab({ weekStart, weekEnd, label }) {
                   <tr key={s.id} className={i > 0 ? 'border-t border-gray-100' : ''}>
                     <td className="px-4 py-1.5 text-gray-500 whitespace-nowrap">
                       {new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      {s.start_time ? ` ${s.start_time.slice(0, 5)}` : ''}
+                      {s.start_time ? ` ${fmtTime(s.start_time)}` : ''}
                     </td>
                     <td className="px-2 py-1.5 text-gray-800">{s.client_name}</td>
                     <td className="px-2 py-1.5 text-gray-500">{s.instructor_name || '—'}</td>
