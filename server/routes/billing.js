@@ -375,6 +375,76 @@ router.post('/charge', async (req, res) => {
   res.json({ week_start, results });
 });
 
+// ── Recent Stripe charges (for a "what got charged" report, like the old USAePay one) ──
+// Pulls straight from Stripe (not our local tables) so it reflects every charge —
+// weekly recurring, one-off invoice payments, in-app keyed cards, all of it.
+router.get('/stripe-charges', async (req, res) => {
+  const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 7));
+  const stripe = await getStripe();
+  if (!stripe) return res.status(503).json({ error: 'Payment processing is not configured.' });
+
+  try {
+    const gte = Math.floor(Date.now() / 1000) - days * 86400;
+    const charges = [];
+    let startingAfter;
+    for (let i = 0; i < 20; i++) { // cap ~2000 charges so a bad date range can't run away
+      const page = await stripe.charges.list({ created: { gte }, limit: 100, starting_after: startingAfter });
+      charges.push(...page.data);
+      if (!page.has_more) break;
+      startingAfter = page.data[page.data.length - 1].id;
+    }
+
+    // Resolve a client name for as many charges as possible. Two of our charge paths
+    // don't attach a Stripe customer (invoice pay-link charges are guest checkouts), so
+    // customer id alone misses them — fall back through the metadata each path does set.
+    const customerIds  = [...new Set(charges.map(c => c.customer).filter(Boolean))];
+    const clientIds    = [...new Set(charges.map(c => c.metadata?.client_id).filter(Boolean))];
+    const invoiceIds   = [...new Set(charges.map(c => c.metadata?.invoice_id).filter(Boolean))];
+
+    const [byCustomer, byClientId, byInvoiceId] = await Promise.all([
+      customerIds.length
+        ? pool.query('SELECT stripe_customer_id AS key, name FROM clients WHERE stripe_customer_id = ANY($1)', [customerIds])
+        : { rows: [] },
+      clientIds.length
+        ? pool.query('SELECT id::text AS key, name FROM clients WHERE id = ANY($1::int[])', [clientIds])
+        : { rows: [] },
+      invoiceIds.length
+        ? pool.query(
+            `SELECT i.id::text AS key, c.name FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = ANY($1::int[])`,
+            [invoiceIds]
+          )
+        : { rows: [] },
+    ]);
+    const nameByCustomer = Object.fromEntries(byCustomer.rows.map(r => [r.key, r.name]));
+    const nameByClientId = Object.fromEntries(byClientId.rows.map(r => [r.key, r.name]));
+    const nameByInvoiceId = Object.fromEntries(byInvoiceId.rows.map(r => [r.key, r.name]));
+
+    const items = charges.map(c => ({
+      id: c.id,
+      created: c.created,
+      amount: c.amount / 100,
+      currency: c.currency,
+      status: c.status, // succeeded | pending | failed
+      refunded: c.refunded,
+      amount_refunded: c.amount_refunded / 100,
+      card_brand: c.payment_method_details?.card?.brand || null,
+      card_last4: c.payment_method_details?.card?.last4 || null,
+      client_name: nameByClientId[c.metadata?.client_id]
+        || nameByInvoiceId[c.metadata?.invoice_id]
+        || nameByCustomer[c.customer]
+        || c.billing_details?.name
+        || null,
+      description: c.description || null,
+      failure_message: c.failure_message || null,
+    })).sort((a, b) => b.created - a.created);
+
+    res.json({ days, items });
+  } catch (err) {
+    console.error('[billing] stripe-charges error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Manual "sync now" for invoices/packages ────────────────────────────────────
 // The nightly cron already does this for "yesterday" (server/routes/cron.js), but
 // staff sometimes need it to run right now — e.g. after fixing a rate or backfilling
