@@ -272,10 +272,8 @@ function ReportTab({ weekStart, weekEnd, label }) {
   async function copyPayoutList() {
     const unpaid = report.by_instructor.filter(r => r.paid_status !== 'paid')
     const lines = unpaid.map(r => {
-      const via = r.payout_method
-        ? `${r.payout_method}${r.payout_handle ? `: ${r.payout_handle}` : ''}`
-        : 'no payout info on file'
-      return `${r.instructor_name} — ${money(r.total_pay)} — ${via}`
+      const via = r.payout_method ? `${r.payout_method}${r.payout_handle ? `: ${r.payout_handle}` : ''}` : ''
+      return `${r.instructor_name} — ${money(r.total_pay)}${via ? ` — ${via}` : ''}`
     })
     const text = [`BGM Payroll — ${label}`, '', ...(lines.length ? lines : ['Everyone is marked paid.'])].join('\n')
     setPayoutCopyError('')
