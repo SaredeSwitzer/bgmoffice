@@ -530,11 +530,6 @@ function ReportTab({ weekStart, weekEnd, label }) {
           <p className="text-gray-400 text-xs italic text-center py-6">No instructor-taught classes this week.</p>
         ) : (
           <>
-            {report.by_instructor.some(r => r.paid_status !== 'paid' && !r.payout_method) && (
-              <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-800">
-                Some unpaid instructors don't have a payout method on file — open their profile to add one.
-              </div>
-            )}
             <label className="flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 select-none cursor-pointer border-b border-gray-100">
               <input type="checkbox" checked={checkedInstructors.size === report.by_instructor.length} onChange={toggleAllInstructorsChecked} />
               {checkedInstructors.size === report.by_instructor.length ? 'Uncheck all' : 'Check all'}
@@ -545,11 +540,11 @@ function ReportTab({ weekStart, weekEnd, label }) {
                   <input type="checkbox" checked={checkedInstructors.has(r.instructor_id)} onChange={() => toggleInstructorChecked(r.instructor_id)} />
                   <div className="min-w-0">
                     <Link to={`/instructors/${r.instructor_id}`} className="text-gray-700 hover:underline truncate block">{r.instructor_name}</Link>
-                    <span className="text-xs text-gray-400 truncate block">
-                      {r.payout_method ? `${r.payout_method}${r.payout_handle ? ` · ${r.payout_handle}` : ''}` : (
-                        <span className="text-amber-600">no payout method on file</span>
-                      )}
-                    </span>
+                    {r.payout_method && (
+                      <span className="text-xs text-gray-400 truncate block">
+                        {r.payout_method}{r.payout_handle ? ` · ${r.payout_handle}` : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <span className="text-gray-500 shrink-0">{r.session_count} class{r.session_count === 1 ? '' : 'es'}</span>
