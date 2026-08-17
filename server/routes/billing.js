@@ -379,16 +379,26 @@ router.post('/charge', async (req, res) => {
 // Pulls straight from Stripe (not our local tables) so it reflects every charge —
 // weekly recurring, one-off invoice payments, in-app keyed cards, all of it.
 router.get('/stripe-charges', async (req, res) => {
-  const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 7));
+  const { start, end } = req.query;
   const stripe = await getStripe();
   if (!stripe) return res.status(503).json({ error: 'Payment processing is not configured.' });
 
+  let created;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(start || '') && /^\d{4}-\d{2}-\d{2}$/.test(end || '')) {
+    created = {
+      gte: Math.floor(new Date(`${start}T00:00:00`).getTime() / 1000),
+      lte: Math.floor(new Date(`${end}T23:59:59`).getTime() / 1000),
+    };
+  } else {
+    const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 7));
+    created = { gte: Math.floor(Date.now() / 1000) - days * 86400 };
+  }
+
   try {
-    const gte = Math.floor(Date.now() / 1000) - days * 86400;
     const charges = [];
     let startingAfter;
     for (let i = 0; i < 20; i++) { // cap ~2000 charges so a bad date range can't run away
-      const page = await stripe.charges.list({ created: { gte }, limit: 100, starting_after: startingAfter });
+      const page = await stripe.charges.list({ created, limit: 100, starting_after: startingAfter });
       charges.push(...page.data);
       if (!page.has_more) break;
       startingAfter = page.data[page.data.length - 1].id;
@@ -438,7 +448,7 @@ router.get('/stripe-charges', async (req, res) => {
       failure_message: c.failure_message || null,
     })).sort((a, b) => b.created - a.created);
 
-    res.json({ days, items });
+    res.json({ items });
   } catch (err) {
     console.error('[billing] stripe-charges error:', err.message);
     res.status(500).json({ error: err.message });

@@ -344,7 +344,12 @@ export const api = {
   setInstructorPaymentStatus: (data) => request('/billing/instructor-status', { method: 'PATCH', body: JSON.stringify(data) }),
   syncBillingWeek: (week_start, dry_run = false, client_id = null) =>
     request('/billing/sync-week', { method: 'POST', body: JSON.stringify({ week_start, dry_run, client_id }) }),
-  getStripeCharges: (days = 7) => request(`/billing/stripe-charges?days=${days}`),
+  getStripeCharges: (range) => {
+    const q = (range && typeof range === 'object')
+      ? `start=${range.start}&end=${range.end}`
+      : `days=${range || 7}`
+    return request(`/billing/stripe-charges?${q}`)
+  },
 
   // Stripe settings (admin)
   getStripeSettings: () => request('/settings/stripe'),
