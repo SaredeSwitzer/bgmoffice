@@ -522,7 +522,11 @@ function ReportTab({ weekStart, weekEnd, label }) {
             {payoutCopyError && <span className="text-xs text-red-600">{payoutCopyError}</span>}
             <button
               onClick={() => downloadCsv(`payroll_${weekTag}.csv`, ['Instructor', 'Classes', 'Total Pay', 'Paid Via', 'Payout Handle'],
-                report.by_instructor.map(r => [r.instructor_name, r.session_count, r.total_pay, r.payout_method || '', r.payout_handle || '']))}
+                [
+                  ...report.by_instructor.map(r => [r.instructor_name, r.session_count, r.total_pay, r.payout_method || '', r.payout_handle || '']),
+                  ['Total', report.by_instructor.reduce((s, r) => s + Number(r.session_count || 0), 0),
+                    report.by_instructor.reduce((s, r) => s + Number(r.total_pay || 0), 0), '', ''],
+                ])}
               className="text-xs text-blue-600 hover:underline">Export CSV</button>
           </div>
         </div>
