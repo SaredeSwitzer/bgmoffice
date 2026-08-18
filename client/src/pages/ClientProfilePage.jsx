@@ -9,6 +9,8 @@ import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
 import { NewInvoiceModal } from './InvoicesPage'
 import DashboardFilterBar from '../components/DashboardFilterBar'
+import MentionTextarea from '../components/MentionTextarea'
+import { renderWithMentions } from '../utils/mentions'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -639,6 +641,7 @@ export default function ClientProfilePage() {
   const [instructors, setInstructors] = useState([])
   const [recruitingEntries, setRecruitingEntries] = useState([])
   const [reminders, setReminders] = useState([])
+  const [mentionableUsers, setMentionableUsers] = useState([])
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
@@ -652,8 +655,9 @@ export default function ClientProfilePage() {
       api.getInstructors(),
       api.getRecruitingByClient(id),
       api.getRemindersByClient(id),
+      api.getMentionableUsers(),
     ])
-      .then(([c, cs, instr, recr, rems]) => {
+      .then(([c, cs, instr, recr, rems, mentionable]) => {
         setClient(c)
         setEditForm({
           name: c.name, phone: c.phone || '', email: c.email || '',
@@ -675,6 +679,7 @@ export default function ClientProfilePage() {
         setInstructors(instr)
         setRecruitingEntries(recr)
         setReminders([...(rems.overdue || []), ...(rems.upcoming || [])])
+        setMentionableUsers(mentionable)
       })
       .catch(e => setError(e.message))
   }, [id])
@@ -776,8 +781,10 @@ export default function ClientProfilePage() {
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Notes / Contact Person</label>
-                <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
-                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+                <MentionTextarea value={editForm.notes} onChange={v => setEditForm(f => ({ ...f, notes: v }))}
+                  users={mentionableUsers} rows={2}
+                  placeholder="Type @ to tag someone"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
               </div>
               {/* Waiver */}
               <div className="col-span-2">
@@ -847,7 +854,7 @@ export default function ClientProfilePage() {
                     💰 {client.rate_per_class} / class
                   </p>
                 )}
-                {client.notes && <p className="text-sm text-gray-600 mt-1">{client.notes}</p>}
+                {client.notes && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{renderWithMentions(client.notes, mentionableUsers)}</p>}
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 <button onClick={() => setEditing(true)}

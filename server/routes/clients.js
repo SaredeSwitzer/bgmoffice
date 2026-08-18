@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -58,6 +59,10 @@ router.post('/', async (req, res) => {
       street || null, city || null, zip || null, neighborhood || null,
     ]
   );
+  await syncMentions({
+    sourceTable: 'client_notes', sourceId: client.id, text: notes || '',
+    authorInitials: req.user.initials, linkPath: `/clients/${client.id}`,
+  });
   res.status(201).json(client);
 });
 
@@ -87,6 +92,10 @@ router.put('/:id', async (req, res) => {
       req.params.id,
     ]
   );
+  await syncMentions({
+    sourceTable: 'client_notes', sourceId: client.id, text: notes || '',
+    authorInitials: req.user.initials, linkPath: `/clients/${client.id}`,
+  });
   res.json(client);
 });
 
@@ -101,6 +110,7 @@ router.patch('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT id FROM clients WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Client not found' });
+  await deleteMentions('client_notes', req.params.id);
   await pool.query('DELETE FROM clients WHERE id = $1', [req.params.id]);
   res.json({ success: true });
 });

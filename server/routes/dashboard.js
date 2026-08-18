@@ -81,13 +81,16 @@ function attachCategories(items) {
   });
 }
 
+// Resolves display context (client name) per source table. Add a LEFT JOIN here
+// when a new note type (source_table) gains @mention support.
 async function loadMentionTasks(userId) {
   const { rows } = await pool.query(
-    `SELECT m.id, m.snippet, m.author_initials, m.created_at,
-            rn.entry_id AS recruiting_entry_id, re.client_name
+    `SELECT m.id, m.snippet, m.author_initials, m.created_at, m.link_path,
+            COALESCE(re.client_name, cl.name) AS client_name
      FROM mentions m
      LEFT JOIN recruiting_notes    rn ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
      LEFT JOIN recruiting_entries  re ON re.id = rn.entry_id
+     LEFT JOIN clients             cl ON m.source_table = 'client_notes' AND cl.id = m.source_id
      WHERE m.mentioned_user_id = $1 AND m.resolved_at IS NULL
      ORDER BY m.created_at DESC`,
     [userId]
@@ -100,7 +103,7 @@ async function loadMentionTasks(userId) {
     created_at: m.created_at,
     client_name: m.client_name || null,
     instructor_name: null,
-    recruiting_entry_id: m.recruiting_entry_id || null,
+    link_path: m.link_path || null,
     last_note: { text: m.snippet, author_initials: m.author_initials },
   }));
 }

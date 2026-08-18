@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import NewCaseModal from '../components/NewCaseModal'
 import GmailComposeLink from '../components/GmailComposeLink'
+import MentionTextarea from '../components/MentionTextarea'
 
 const CONTACT_ICONS = { text: '💬', email: '✉️', whatsapp: '📱', call: '📞' }
 
@@ -15,6 +16,7 @@ export default function ClientsPage() {
   const [form, setForm] = useState({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', zip: '', neighborhood: '' })
   const [saving, setSaving] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [mentionableUsers, setMentionableUsers] = useState([])
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -22,6 +24,10 @@ export default function ClientsPage() {
     }, query ? 250 : 0)
     return () => clearTimeout(t)
   }, [query])
+
+  useEffect(() => {
+    api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
+  }, [])
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -111,8 +117,9 @@ export default function ClientsPage() {
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes / Contact Person</label>
-              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+              <MentionTextarea value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))}
+                users={mentionableUsers} rows={2} placeholder="Type @ to tag someone"
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
             </div>
           </div>
           {createError && <p className="text-xs text-red-600">{createError}</p>}

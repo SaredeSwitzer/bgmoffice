@@ -95,9 +95,7 @@ const CATEGORY_FILTERS = [
 ]
 
 function getItemUrl(item) {
-  if (item.source === 'mention') {
-    return item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting'
-  }
+  if (item.source === 'mention') return item.link_path || null
   if (item.source === 'recruiting') {
     return item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting'
   }
@@ -247,7 +245,9 @@ export default function MyTasksPage() {
 
   function handleClick(item) {
     markSeen(item.id)
-    if (item.source === 'mention' || item.source === 'recruiting') {
+    if (item.source === 'mention') {
+      if (item.link_path) navigate(item.link_path)
+    } else if (item.source === 'recruiting') {
       navigate(item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting')
     } else if (item.source === 'standalone') {
       navigate(`/tasks?id=${item.id}`)
