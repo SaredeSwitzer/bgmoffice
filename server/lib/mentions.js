@@ -55,4 +55,27 @@ async function deleteMentions(sourceTable, sourceId) {
   await pool.query('DELETE FROM mentions WHERE source_table = $1 AND source_id = $2', [sourceTable, sourceId]);
 }
 
-module.exports = { getMentionableUsers, findMentionedUserIds, syncMentions, deleteMentions };
+// Removes "@Full Name" tags from text before it reaches a client-facing surface (the
+// pay-by-link page, an invoice PDF/email) — the mention itself already did its job
+// (notifying someone internally); the client has no reason to see "@Sarede" in their
+// own invoice. Same longest-name-first matching as findMentionedUserIds, then collapses
+// the leftover double space and trims.
+function stripMentions(text, users) {
+  if (!text) return text;
+  const sorted = [...users].sort((a, b) => b.name.length - a.name.length);
+  let result = text;
+  for (const u of sorted) {
+    result = result.split(`@${u.name}`).join('');
+  }
+  return result.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim();
+}
+
+// Convenience wrapper for the common case: look up mentionable users, then strip.
+async function stripMentionsForPublic(text) {
+  return stripMentions(text, await getMentionableUsers());
+}
+
+module.exports = {
+  getMentionableUsers, findMentionedUserIds, syncMentions, deleteMentions,
+  stripMentions, stripMentionsForPublic,
+};

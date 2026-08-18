@@ -3,7 +3,7 @@ const crypto  = require('crypto');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { nextInvoiceNumber, calcTotals } = require('../lib/invoiceHelpers');
-const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { syncMentions, deleteMentions, stripMentionsForPublic } = require('../lib/mentions');
 
 const router = express.Router();
 
@@ -44,6 +44,9 @@ router.get('/public/:token', async (req, res) => {
   if (!row) return res.status(404).json({ error: 'Invoice not found' });
   const invoice = enrichInvoice(row);
   delete invoice.stripe_client_secret;
+  // @mentions are an internal aside to a teammate — strip them before this invoice's
+  // notes reach the client-facing pay-by-link page.
+  invoice.notes = await stripMentionsForPublic(invoice.notes);
   res.json(invoice);
 });
 

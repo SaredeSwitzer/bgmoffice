@@ -5,7 +5,7 @@ import { navClick } from '../utils/nav'
 import SearchSelect from '../components/SearchSelect'
 import GmailComposeLink from '../components/GmailComposeLink'
 import MentionTextarea from '../components/MentionTextarea'
-import { renderWithMentions } from '../utils/mentions'
+import { renderWithMentions, stripMentions } from '../utils/mentions'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -333,17 +333,18 @@ export default function InvoiceDetailPage() {
     doc.text(fmtMoney(invoice.total), pageW - 14, finalY + 16, { align: 'right' })
     doc.setFont('helvetica', 'normal')
 
-    // Notes
-    if (invoice.notes) {
+    // Notes — @mentions stripped: this PDF goes to the client, not a teammate.
+    const publicNotes = stripMentions(invoice.notes, mentionableUsers)
+    if (publicNotes) {
       doc.setFontSize(9)
       doc.setTextColor(120)
       doc.text('Notes:', 14, finalY + 6)
       doc.setTextColor(60)
-      doc.text(invoice.notes, 14, finalY + 13, { maxWidth: pageW / 2 - 20 })
+      doc.text(publicNotes, 14, finalY + 13, { maxWidth: pageW / 2 - 20 })
     }
 
     // Payment instructions
-    const payY = finalY + (invoice.notes ? 28 : 26)
+    const payY = finalY + (publicNotes ? 28 : 26)
     doc.setDrawColor(220)
     doc.line(14, payY, pageW - 14, payY)
     doc.setFontSize(9)

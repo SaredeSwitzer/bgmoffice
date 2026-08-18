@@ -27,3 +27,20 @@ export function renderWithMentions(text, users) {
   parts.push(text.slice(lastIndex))
   return parts
 }
+
+// Removes "@Full Name" tags entirely — for text that's about to leave the app in a
+// form the client sees (an invoice PDF), where the mention already did its job
+// notifying a teammate and has no business showing up as literal text. Server has its
+// own copy in server/lib/mentions.js for the same reason on the public API side.
+export function stripMentions(text, users) {
+  if (!text) return text
+  const names = [...(users || [])]
+    .map(u => u.name)
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+  if (!names.length) return text
+
+  const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const pattern = new RegExp(`@(${escaped.join('|')})`, 'g')
+  return text.replace(pattern, '').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim()
+}
