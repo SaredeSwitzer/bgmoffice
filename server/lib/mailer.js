@@ -117,4 +117,25 @@ async function sendChargeReceipt({ to, clientName, amount, description }) {
   });
 }
 
-module.exports = { sendLoginCode, sendMail, sendChargeReceipt, isConfigured };
+const OWNER_NOTIFY_EMAIL = 'sarede@bringthegymtome.com';
+
+// Owner-facing heads-up when a client pays an invoice — same event the "BGM IT Crew" Telegram
+// group gets, just also by email. Best-effort like sendChargeReceipt: never let this block or
+// undo the payment itself.
+async function sendInvoicePaidAlert({ clientName, invoiceNumber, amount }) {
+  const money = `$${Number(amount).toFixed(2)}`;
+  await sendMail({
+    to: OWNER_NOTIFY_EMAIL,
+    from: BILLING_FROM,
+    subject: `Invoice ${invoiceNumber} paid — ${money} from ${clientName}`,
+    text: `${clientName} just paid invoice ${invoiceNumber} (${money}) by card.\n\n— BGM Office`,
+    html: `
+      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:420px;margin:0 auto;padding:32px 24px">
+        <h1 style="font-size:16px;color:#111827;margin:0 0 24px">BGM Office</h1>
+        <p style="font-size:14px;color:#374151;margin:0 0 8px"><strong>${clientName}</strong> just paid invoice <strong>${invoiceNumber}</strong>.</p>
+        <p style="font-size:28px;font-weight:700;color:#111827;margin:0">${money}</p>
+      </div>`,
+  });
+}
+
+module.exports = { sendLoginCode, sendMail, sendChargeReceipt, sendInvoicePaidAlert, isConfigured };

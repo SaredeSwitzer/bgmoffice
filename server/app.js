@@ -52,7 +52,7 @@ app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), asy
       console.log(`[stripe webhook] Invoice ${invoiceId} marked paid`);
       if (invoice) {
         const { notifyCrew } = require('./lib/notifyCrew');
-        const { sendChargeReceipt } = require('./lib/mailer');
+        const { sendChargeReceipt, sendInvoicePaidAlert } = require('./lib/mailer');
         const amount = ((pi.amount_received ?? pi.amount) / 100).toFixed(2);
         let clientName = 'a client';
         let clientEmail = null;
@@ -66,6 +66,11 @@ app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), asy
         // Awaited on purpose — Vercel can kill the function right after the response goes
         // out, which was silently dropping fire-and-forget notify calls elsewhere.
         await notifyCrew(`💳 ${clientName} just paid invoice ${invoice.invoice_number} ($${amount}) by card.`);
+        try {
+          await sendInvoicePaidAlert({ clientName, invoiceNumber: invoice.invoice_number, amount });
+        } catch (err) {
+          console.error('[stripe webhook] owner payment-alert email failed:', err.message);
+        }
         if (clientEmail) {
           try {
             await sendChargeReceipt({
