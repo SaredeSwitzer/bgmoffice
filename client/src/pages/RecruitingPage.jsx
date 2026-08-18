@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import SearchSelect from '../components/SearchSelect'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import PhoneLink from '../components/PhoneLink'
+import MentionTextarea from '../components/MentionTextarea'
+import { renderWithMentions } from '../utils/mentions'
 
 const ALL_DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 const WEEK_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
@@ -32,14 +34,12 @@ function isUnfilled(entry) {
   return !entry.instructor_id && !entry.instructor_info?.trim()
 }
 
-// ── Task note card (with inline edit) ────────────────────────────────────────
+// ── Note card (with inline edit + @mention support) ──────────────────────────
 
-function TaskNoteCard({ note: n, currentUserInitials, delegates, actionTypes, onToggleDone, onDelete, onEdit, onReply }) {
-  const [editing,           setEditing]           = useState(false)
-  const [editText,          setEditText]          = useState(n.text)
-  const [editAssign,        setEditAssign]        = useState(n.assigned_to || '')
-  const [editActionTypeIds, setEditActionTypeIds] = useState((n.action_types || []).map(at => at.id))
-  const [saving,            setSaving]            = useState(false)
+function NoteCard({ note: n, currentUserInitials, users, onDelete, onEdit, onReply }) {
+  const [editing,  setEditing]  = useState(false)
+  const [editText, setEditText] = useState(n.text)
+  const [saving,   setSaving]   = useState(false)
   const isAuthor = n.author_initials === currentUserInitials
 
   async function handleSave(e) {
@@ -47,51 +47,24 @@ function TaskNoteCard({ note: n, currentUserInitials, delegates, actionTypes, on
     if (!editText.trim()) return
     setSaving(true)
     try {
-      await onEdit(editText.trim(), editAssign, editActionTypeIds)
+      await onEdit(editText.trim())
       setEditing(false)
     } finally { setSaving(false) }
   }
 
   function handleCancel() {
     setEditText(n.text)
-    setEditAssign(n.assigned_to || '')
-    setEditActionTypeIds((n.action_types || []).map(at => at.id))
     setEditing(false)
-  }
-
-  function toggleAt(id) {
-    setEditActionTypeIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
   }
 
   if (editing) {
     return (
-      <form onSubmit={handleSave} className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 space-y-2">
-        <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus
-          className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
-        {actionTypes?.length > 0 && (
-          <div>
-            <p className="text-[10px] font-semibold text-gray-500 mb-1">Action Types</p>
-            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-36 overflow-y-auto bg-white">
-              {actionTypes.map(at => (
-                <label key={at.id} className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 cursor-pointer">
-                  <input type="checkbox" checked={editActionTypeIds.includes(at.id)}
-                    onChange={() => toggleAt(at.id)} className="w-3.5 h-3.5 accent-gray-700" />
-                  <ActionTypeBadge name={at.name} color={at.color} size="xs" />
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="flex items-center gap-2 flex-wrap">
-          <select value={editAssign} onChange={e => setEditAssign(e.target.value)}
-            className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
-            <option value="">Assign to…</option>
-            {delegates.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-          </select>
+      <form onSubmit={handleSave} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 space-y-2">
+        <MentionTextarea value={editText} onChange={setEditText} users={users} rows={2} autoFocus
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white" />
+        <div className="flex items-center gap-2">
           <button type="submit" disabled={saving || !editText.trim()}
-            className="px-3 py-1 bg-amber-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-amber-600">
+            className="px-3 py-1 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40">
             {saving ? 'Saving…' : 'Save'}
           </button>
           <button type="button" onClick={handleCancel}
@@ -104,129 +77,58 @@ function TaskNoteCard({ note: n, currentUserInitials, delegates, actionTypes, on
   }
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${
-      n.is_done ? 'border-gray-100 bg-gray-50 opacity-70' : 'border-amber-200 bg-amber-50'
-    }`}>
-      <div className="px-3 pt-2.5 pb-1">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
-            {n.assigned_to && (
-              <span className="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-semibold">→ {n.assigned_to}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {isAuthor && !n.is_done && (
-              <button onClick={() => setEditing(true)}
-                className="text-[10px] text-gray-400 hover:text-gray-700">✎</button>
-            )}
-            <button onClick={onDelete}
-              className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
-          </div>
-        </div>
-        {(n.action_types || []).length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-1">
-            {n.action_types.map(at => (
-              <ActionTypeBadge key={at.id} name={at.name} color={at.color} size="xs" />
-            ))}
-          </div>
-        )}
-        <p className={`text-sm text-gray-800 whitespace-pre-wrap ${n.is_done ? 'line-through text-gray-400' : ''}`}>{n.text}</p>
-      </div>
-      <div className="flex gap-1.5 px-3 pb-2.5 pt-1">
-        <button onClick={onToggleDone}
-          className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
-            n.is_done
-              ? 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-white'
-              : 'bg-white border-teal-300 text-teal-700 hover:bg-teal-50'
-          }`}>
-          {n.is_done ? '✓ Done — Reopen' : '✓ Mark Done'}
-        </button>
-        {!n.is_done && (
+    <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
+      <div className="flex items-start justify-between gap-2 mb-0.5">
+        <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
+        <div className="flex items-center gap-1.5">
+          {isAuthor && (
+            <button onClick={() => setEditing(true)}
+              className="text-[10px] text-gray-400 hover:text-gray-700">✎</button>
+          )}
           <button onClick={onReply}
-            className="px-2.5 py-1 text-xs font-medium border border-gray-200 text-gray-500 rounded-lg hover:bg-white">
-            ↩ Reply
-          </button>
-        )}
+            className="text-[10px] text-gray-400 hover:text-gray-700">↩ Reply</button>
+          <button onClick={onDelete}
+            className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
+        </div>
       </div>
+      <p className="text-gray-800 whitespace-pre-wrap">{renderWithMentions(n.text, users)}</p>
     </div>
   )
 }
 
 // ── Notes Thread ──────────────────────────────────────────────────────────────
 
-// entryClientId / entryInstructorId: auto-populated from the entry when adding a task
-function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, actionTypes,
-                       entryClientId, entryClientName, entryInstructorId, entryInstructorName,
-                       defaultAddTask = false }) {
+function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = false }) {
   const { user } = useAuth()
   const textRef = useRef(null)
 
-  const [mode,              setMode]              = useState(defaultAddTask ? 'task' : null) // null | 'task' | 'note'
-  const [text,              setText]              = useState('')
-  const [assignedTo,        setAssignedTo]        = useState('')
-  const [taskClientId,      setTaskClientId]      = useState(String(entryClientId || ''))
-  const [taskInstructor,    setTaskInstructor]    = useState(String(entryInstructorId || ''))
-  const [taskActionTypeIds, setTaskActionTypeIds] = useState([])
-  const [delegates,         setDelegates]         = useState([])
-  const [saving,            setSaving]            = useState(false)
+  const [adding, setAdding] = useState(defaultAdding)
+  const [text,   setText]   = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api.getDelegates().then(setDelegates).catch(() => {})
-  }, [])
+    if (adding && textRef.current) textRef.current.focus()
+  }, [adding])
 
-  useEffect(() => {
-    if (mode && textRef.current) textRef.current.focus()
-  }, [mode])
-
-  function openTask() {
-    setMode('task')
-    setTaskClientId(String(entryClientId || ''))
-    setTaskInstructor(String(entryInstructorId || ''))
-    setTaskActionTypeIds([])
-  }
-
-  function openReplyNote(taskText) {
-    setMode('note')
-    setText(`Re: "${taskText}"\n`)
+  function openReply(noteText) {
+    setAdding(true)
+    setText(`Re: "${noteText}"\n`)
     setTimeout(() => textRef.current?.focus(), 50)
   }
 
   function cancel() {
-    setMode(null); setText(''); setAssignedTo('')
-    setTaskClientId(String(entryClientId || ''))
-    setTaskInstructor(String(entryInstructorId || ''))
-    setTaskActionTypeIds([])
-  }
-
-  function toggleTaskActionType(id) {
-    setTaskActionTypeIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
+    setAdding(false); setText('')
   }
 
   async function handleAdd(e) {
     e.preventDefault()
     if (!text.trim()) return
     setSaving(true)
-    const isTask = mode === 'task'
     try {
-      const note = await api.addRecruitingNote(entryId, {
-        text,
-        is_task:         isTask ? 1 : 0,
-        assigned_to:     isTask ? (assignedTo || null) : null,
-        client_id:       isTask ? (taskClientId || null) : null,
-        instructor_id:   isTask ? (taskInstructor || null) : null,
-        action_type_ids: isTask ? taskActionTypeIds : [],
-      })
+      const note = await api.addRecruitingNote(entryId, { text })
       onNotesChanged([...notes, note])
       cancel()
     } finally { setSaving(false) }
-  }
-
-  async function handleToggleDone(note) {
-    const updated = await api.toggleRecruitingNoteDone(entryId, note.id)
-    onNotesChanged(notes.map(n => n.id === note.id ? { ...n, is_done: updated.is_done } : n))
   }
 
   async function handleDelete(noteId) {
@@ -234,165 +136,60 @@ function NotesThread({ entryId, notes, onNotesChanged, clients, instructors, act
     onNotesChanged(notes.filter(n => n.id !== noteId))
   }
 
-  async function handleEditTask(noteId, text, assignedTo, actionTypeIds) {
-    const updated = await api.updateRecruitingNote(entryId, noteId, {
-      text,
-      assigned_to:     assignedTo || null,
-      action_type_ids: actionTypeIds || [],
-    })
+  async function handleEdit(noteId, newText) {
+    const updated = await api.updateRecruitingNote(entryId, noteId, { text: newText })
     onNotesChanged(notes.map(n => n.id === noteId ? updated : n))
   }
 
-  const tasks      = notes.filter(n => n.is_task)
-  const plainNotes = notes.filter(n => !n.is_task)
-
   return (
-    <div className="space-y-4">
-      {/* ── Tasks ── */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Tasks</p>
-          {mode !== 'task' && (
-            <button onClick={openTask}
-              className="text-xs px-2.5 py-1 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600">
-              + Add Task
-            </button>
-          )}
-        </div>
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Notes</p>
+        {!adding && (
+          <button onClick={() => setAdding(true)}
+            className="text-xs px-2.5 py-1 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50">
+            + Add Note
+          </button>
+        )}
+      </div>
 
-        <div className="space-y-2 mb-2">
-          {tasks.length === 0 && mode !== 'task' && (
-            <p className="text-xs text-gray-400 italic">No tasks yet.</p>
-          )}
-          {tasks.map(n => (
-            <TaskNoteCard
-              key={n.id}
-              note={n}
-              currentUserInitials={user?.initials}
-              delegates={delegates}
-              actionTypes={actionTypes}
-              onToggleDone={() => handleToggleDone(n)}
-              onDelete={() => handleDelete(n.id)}
-              onEdit={(text, assignedTo, atIds) => handleEditTask(n.id, text, assignedTo, atIds)}
-              onReply={() => openReplyNote(n.text)}
-            />
-          ))}
-        </div>
+      <div className="space-y-2 mb-2">
+        {notes.length === 0 && !adding && (
+          <p className="text-xs text-gray-400 italic">No notes yet.</p>
+        )}
+        {notes.map(n => (
+          <NoteCard
+            key={n.id}
+            note={n}
+            currentUserInitials={user?.initials}
+            users={users}
+            onDelete={() => handleDelete(n.id)}
+            onEdit={newText => handleEdit(n.id, newText)}
+            onReply={() => openReply(n.text)}
+          />
+        ))}
+      </div>
 
-        {mode === 'task' && (
-          <form onSubmit={handleAdd} className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-            <p className="text-xs font-semibold text-amber-800">New Task</p>
-            <textarea ref={textRef} value={text} onChange={e => setText(e.target.value)} rows={2}
-              placeholder={`Describe the task… (as ${user?.initials})`}
-              className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+      {adding && (
+        <form onSubmit={handleAdd} className="space-y-2">
+          <div className="flex gap-2">
+            <MentionTextarea ref={textRef} value={text} onChange={setText} users={users} rows={2}
+              placeholder={`Add a note… (as ${user?.initials}) — type @ to tag someone`}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }} />
-
-            {/* Action types — checkboxes */}
-            {actionTypes?.length > 0 && (
-              <div>
-                <p className="text-[10px] font-semibold text-gray-500 mb-1">
-                  Action Types
-                  {taskActionTypeIds.length === 0 && <span className="ml-1.5 text-gray-400 font-normal">— pick at least one</span>}
-                </p>
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-44 overflow-y-auto bg-white">
-                  {actionTypes.map(at => (
-                    <label key={at.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                      <input type="checkbox" checked={taskActionTypeIds.includes(at.id)}
-                        onChange={() => toggleTaskActionType(at.id)} className="w-3.5 h-3.5 accent-gray-700" />
-                      <ActionTypeBadge name={at.name} color={at.color} size="xs" />
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2 border-t border-amber-200 pt-2">
-              <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
-                <option value="">Assign to…</option>
-                {delegates.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-              </select>
-              <select value={taskClientId} onChange={e => setTaskClientId(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
-                <option value="">Client…</option>
-                {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <select value={taskInstructor} onChange={e => setTaskInstructor(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
-                <option value="">Instructor…</option>
-                {instructors?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-              </select>
-            </div>
-            {(taskClientId || taskInstructor) && (
-              <p className="text-[10px] text-amber-700">
-                Will link to:
-                {taskClientId && clients && <span className="font-semibold"> {clients.find(c => String(c.id) === String(taskClientId))?.name}</span>}
-                {taskInstructor && instructors && <span className="font-semibold"> · {instructors.find(i => String(i.id) === String(taskInstructor))?.name}</span>}
-              </p>
-            )}
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-col gap-1 self-end">
               <button type="submit" disabled={saving || !text.trim()}
-                className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-amber-600">
-                {saving ? 'Saving…' : 'Add Task'}
+                className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40">
+                {saving ? '…' : 'Add'}
               </button>
               <button type="button" onClick={cancel}
                 className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
                 Cancel
               </button>
             </div>
-          </form>
-        )}
-      </div>
-
-      {/* ── Notes ── */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Notes</p>
-          {mode !== 'note' && (
-            <button onClick={() => setMode('note')}
-              className="text-xs px-2.5 py-1 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50">
-              + Add Note
-            </button>
-          )}
-        </div>
-
-        <div className="space-y-2 mb-2">
-          {plainNotes.length === 0 && mode !== 'note' && (
-            <p className="text-xs text-gray-400 italic">No notes yet.</p>
-          )}
-          {plainNotes.map(n => (
-            <div key={n.id} className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
-              <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
-                <button onClick={() => handleDelete(n.id)}
-                  className="text-[10px] text-gray-300 hover:text-red-500">✕</button>
-              </div>
-              <p className="text-gray-800 whitespace-pre-wrap">{n.text}</p>
-            </div>
-          ))}
-        </div>
-
-        {mode === 'note' && (
-          <form onSubmit={handleAdd} className="space-y-2">
-            <div className="flex gap-2">
-              <textarea ref={textRef} value={text} onChange={e => setText(e.target.value)} rows={2}
-                placeholder={`Add a note… (as ${user?.initials})`}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
-                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }} />
-              <div className="flex flex-col gap-1 self-end">
-                <button type="submit" disabled={saving || !text.trim()}
-                  className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40">
-                  {saving ? '…' : 'Add'}
-                </button>
-                <button type="button" onClick={cancel}
-                  className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </form>
-        )}
-      </div>
+          </div>
+        </form>
+      )}
     </div>
   )
 }
@@ -796,10 +593,10 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
 
 function EntryCard({ entry, clients, instructors, actionTypes, users, styles, onUpdated, onDeleted, onArchived, targetEntryId }) {
   const isTarget = targetEntryId != null && entry.id === targetEntryId
-  const [expanded,     setExpanded]     = useState(isTarget)
-  const [editing,      setEditing]      = useState(false)
-  const [notes,        setNotes]        = useState(entry.notes || [])
-  const [quickAddTask, setQuickAddTask] = useState(false)
+  const [expanded, setExpanded] = useState(isTarget)
+  const [editing,  setEditing]  = useState(false)
+  const [notes,    setNotes]    = useState(entry.notes || [])
+  const [quickNote, setQuickNote] = useState(false)
   const cardRef = useRef(null)
 
   const latestNote = notes.length > 0
@@ -829,13 +626,11 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, styles, on
     onArchived(updated)
   }
 
-  function handleQuickTask(e) {
+  function handleQuickNote(e) {
     e.stopPropagation()
     setExpanded(true)
-    setQuickAddTask(true)
+    setQuickNote(true)
   }
-
-  const openTaskCount = notes.filter(n => n.is_task && !n.is_done).length
 
   return (
     <div ref={cardRef}
@@ -901,9 +696,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, styles, on
           {latestNote && (
             <div className="mt-1.5 flex items-baseline gap-1.5 min-w-0">
               <span className="text-[11px] font-semibold text-gray-500 flex-shrink-0">{latestNote.author_initials}</span>
-              <span className="text-[11px] text-gray-400 truncate">
-                {latestNote.is_task ? '↳ ' : ''}{latestNote.text}
-              </span>
+              <span className="text-[11px] text-gray-400 truncate">{latestNote.text}</span>
               <span className="text-[11px] text-gray-300 flex-shrink-0">{fmtShort(latestNote.created_at)}</span>
             </div>
           )}
@@ -927,18 +720,13 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, styles, on
             {!!entry.waiver_signed && (
               <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓ Waiver</span>
             )}
-            {openTaskCount > 0 && (
-              <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                {openTaskCount} task{openTaskCount > 1 ? 's' : ''}
-              </span>
-            )}
             {!entry.archived ? (
               <button
-                onClick={handleQuickTask}
-                title="Add a task for this entry"
-                className="text-[10px] px-1.5 py-0.5 bg-amber-500 text-white rounded-full font-medium hover:bg-amber-600 whitespace-nowrap"
+                onClick={handleQuickNote}
+                title="Add a note for this entry"
+                className="text-[10px] px-1.5 py-0.5 bg-gray-800 text-white rounded-full font-medium hover:bg-gray-700 whitespace-nowrap"
               >
-                + Task
+                + Note
               </button>
             ) : null}
           </div>
@@ -1103,19 +891,13 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, styles, on
                 </div>
               </div>
 
-              {/* Tasks + Notes — below entry details */}
+              {/* Notes — below entry details */}
               <NotesThread
                 entryId={entry.id}
                 notes={notes}
-                onNotesChanged={n => { setNotes(n); setQuickAddTask(false) }}
-                clients={clients}
-                instructors={instructors}
-                actionTypes={actionTypes}
-                entryClientId={entry.client_id}
-                entryClientName={entry.client_name}
-                entryInstructorId={entry.instructor_id}
-                entryInstructorName={entry.instructor_name}
-                defaultAddTask={quickAddTask}
+                onNotesChanged={n => { setNotes(n); setQuickNote(false) }}
+                users={users}
+                defaultAdding={quickNote}
               />
             </>
           )}

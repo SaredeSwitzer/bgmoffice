@@ -198,8 +198,7 @@ export const api = {
     request(`/recruiting/entries/${entryId}/notes/${noteId}`, { method: 'DELETE' }),
   updateRecruitingNote: (entryId, noteId, data) =>
     request(`/recruiting/entries/${entryId}/notes/${noteId}`, { method: 'PUT', body: JSON.stringify(data) }),
-  toggleRecruitingNoteDone: (entryId, noteId) =>
-    request(`/recruiting/entries/${entryId}/notes/${noteId}/done`, { method: 'PATCH' }),
+  resolveMention: (id) => request(`/dashboard/mentions/${id}/resolve`, { method: 'PATCH' }),
   getRecruitingColumns: () => request('/recruiting/columns'),
   addRecruitingColumn: (data) =>
     request('/recruiting/columns', { method: 'POST', body: JSON.stringify(data) }),

@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -192,103 +193,52 @@ router.patch('/entries/:id/archive', async (req, res) => {
 });
 
 router.post('/entries/:id/notes', async (req, res) => {
-  const { text, is_task, assigned_to, client_id, instructor_id, action_type_ids } = req.body;
-  if (!text) return res.status(400).json({ error: 'Text required' });
-  const { rows: [entry] } = await pool.query('SELECT * FROM recruiting_entries WHERE id = $1', [req.params.id]);
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
+  const { rows: [entry] } = await pool.query('SELECT id FROM recruiting_entries WHERE id = $1', [req.params.id]);
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
 
   const { rows: [note] } = await pool.query(
-    'INSERT INTO recruiting_notes (entry_id, text, author_initials, is_task, assigned_to) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-    [req.params.id, text.trim(), req.user.initials, is_task ? 1 : 0, assigned_to || null]
+    'INSERT INTO recruiting_notes (entry_id, text, author_initials) VALUES ($1,$2,$3) RETURNING *',
+    [req.params.id, text.trim(), req.user.initials]
   );
 
-  const atIds = Array.isArray(action_type_ids) ? action_type_ids.map(Number).filter(Boolean) : [];
-  if (atIds.length) {
-    await Promise.all(atIds.map(atId =>
-      pool.query('INSERT INTO recruiting_note_action_types (note_id, action_type_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [note.id, atId])
-    ));
-  }
+  await syncMentions({
+    sourceTable: 'recruiting_notes',
+    sourceId: note.id,
+    text: text.trim(),
+    authorInitials: req.user.initials,
+    linkPath: `/recruiting?entry=${req.params.id}`,
+  });
 
-  if (is_task) {
-    const context = [
-      entry.client_name ? `Client: ${entry.client_name}` : null,
-      entry.day_of_week,
-      entry.time_slot || null,
-    ].filter(Boolean).join(' · ');
-
-    const { rows: [task] } = await pool.query(
-      `INSERT INTO standalone_tasks (title, assigned_to, notes, created_by, recruiting_note_id, client_id, instructor_id, action_type_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [text.trim(), assigned_to || null, context || null, req.user.initials, note.id, client_id || null, instructor_id || null, atIds[0] || null]
-    );
-    await pool.query('UPDATE recruiting_notes SET standalone_task_id = $1 WHERE id = $2', [task.id, note.id]);
-  }
-
-  const { rows: [updated] } = await pool.query('SELECT * FROM recruiting_notes WHERE id = $1', [note.id]);
-  const { rows: actionTypes } = await pool.query(
-    `SELECT at.id, at.name, at.color FROM recruiting_note_action_types rnat
-     JOIN action_types at ON at.id = rnat.action_type_id WHERE rnat.note_id = $1`,
-    [note.id]
-  );
-  updated.action_types = actionTypes;
-  res.status(201).json(updated);
+  res.status(201).json(note);
 });
 
 router.put('/entries/:id/notes/:noteId', async (req, res) => {
   const { rows: [note] } = await pool.query('SELECT * FROM recruiting_notes WHERE id = $1 AND entry_id = $2', [req.params.noteId, req.params.id]);
   if (!note) return res.status(404).json({ error: 'Note not found' });
 
-  const { text, assigned_to, action_type_ids } = req.body;
+  const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
 
-  await pool.query('UPDATE recruiting_notes SET text = $1, assigned_to = $2 WHERE id = $3', [text.trim(), assigned_to || null, note.id]);
+  await pool.query('UPDATE recruiting_notes SET text = $1 WHERE id = $2', [text.trim(), note.id]);
 
-  if (Array.isArray(action_type_ids)) {
-    const atIds = action_type_ids.map(Number).filter(Boolean);
-    await pool.query('DELETE FROM recruiting_note_action_types WHERE note_id = $1', [note.id]);
-    await Promise.all(atIds.map(atId =>
-      pool.query('INSERT INTO recruiting_note_action_types (note_id, action_type_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [note.id, atId])
-    ));
-    if (note.standalone_task_id) {
-      await pool.query('UPDATE standalone_tasks SET action_type_id = $1 WHERE id = $2', [atIds[0] || null, note.standalone_task_id]);
-    }
-  }
-
-  if (note.standalone_task_id) {
-    await pool.query('UPDATE standalone_tasks SET title = $1, assigned_to = $2 WHERE id = $3', [text.trim(), assigned_to || null, note.standalone_task_id]);
-  }
+  await syncMentions({
+    sourceTable: 'recruiting_notes',
+    sourceId: note.id,
+    text: text.trim(),
+    authorInitials: note.author_initials,
+    linkPath: `/recruiting?entry=${req.params.id}`,
+  });
 
   const { rows: [updated] } = await pool.query('SELECT * FROM recruiting_notes WHERE id = $1', [note.id]);
-  const { rows: actionTypes } = await pool.query(
-    `SELECT at.id, at.name, at.color FROM recruiting_note_action_types rnat
-     JOIN action_types at ON at.id = rnat.action_type_id WHERE rnat.note_id = $1`,
-    [note.id]
-  );
-  updated.action_types = actionTypes;
   res.json(updated);
-});
-
-router.patch('/entries/:id/notes/:noteId/done', async (req, res) => {
-  const { rows: [note] } = await pool.query('SELECT * FROM recruiting_notes WHERE id = $1 AND entry_id = $2', [req.params.noteId, req.params.id]);
-  if (!note) return res.status(404).json({ error: 'Note not found' });
-  const newDone = note.is_done ? 0 : 1;
-  await pool.query('UPDATE recruiting_notes SET is_done = $1 WHERE id = $2', [newDone, req.params.noteId]);
-
-  if (note.standalone_task_id) {
-    await pool.query(
-      'UPDATE standalone_tasks SET status = $1, completed_at = $2 WHERE id = $3',
-      [newDone ? 'done' : 'open', newDone ? new Date().toISOString() : null, note.standalone_task_id]
-    );
-  }
-  res.json({ ...note, is_done: newDone });
 });
 
 router.delete('/entries/:id/notes/:noteId', async (req, res) => {
   const { rows: [note] } = await pool.query('SELECT * FROM recruiting_notes WHERE id = $1 AND entry_id = $2', [req.params.noteId, req.params.id]);
   if (!note) return res.status(404).json({ error: 'Note not found' });
-  if (note.standalone_task_id) {
-    await pool.query('DELETE FROM standalone_tasks WHERE id = $1', [note.standalone_task_id]);
-  }
+  await deleteMentions('recruiting_notes', note.id);
   await pool.query('DELETE FROM recruiting_notes WHERE id = $1', [req.params.noteId]);
   res.json({ success: true });
 });

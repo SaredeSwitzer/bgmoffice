@@ -86,6 +86,7 @@ function getItemCategories(item) {
 
 const CATEGORY_FILTERS = [
   { key: 'all',                 label: 'All' },
+  { key: 'mention',             label: '@Mentions' },
   { key: 'client_followup',     label: 'Client F/U' },
   { key: 'instructor_followup', label: 'Instructor F/U' },
   { key: 'recruiting',          label: 'Recruiting' },
@@ -94,6 +95,9 @@ const CATEGORY_FILTERS = [
 ]
 
 function getItemUrl(item) {
+  if (item.source === 'mention') {
+    return item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting'
+  }
   if (item.source === 'recruiting') {
     return item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting'
   }
@@ -102,8 +106,9 @@ function getItemUrl(item) {
   return null
 }
 
-function MyTaskRow({ item, onClick, isNew }) {
+function MyTaskRow({ item, onClick, onResolveMention, isNew }) {
   const days = daysOpen(item.created_at)
+  const isMention    = item.source === 'mention'
   const isRecruiting = item.source === 'recruiting'
   const isReference  = item.task_type === 'reference'
   const actionTypes  = item.action_types || []
@@ -145,7 +150,11 @@ function MyTaskRow({ item, onClick, isNew }) {
         {item.instructor_name || <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        {isRecruiting ? (
+        {isMention ? (
+          <span className="inline-block text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
+            @Mentioned ↗
+          </span>
+        ) : isRecruiting ? (
           <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
             Recruiting ↗
           </span>
@@ -174,7 +183,16 @@ function MyTaskRow({ item, onClick, isNew }) {
           <span className="text-xs text-gray-400 italic">No notes yet</span>
         )}
       </td>
-      <td className="px-2 py-2.5 w-7 text-center">
+      <td className="px-2 py-2.5 w-14 text-center whitespace-nowrap">
+        {isMention && (
+          <button
+            onClick={e => { e.stopPropagation(); onResolveMention(item) }}
+            title="Dismiss"
+            className="text-gray-300 hover:text-green-600 transition-all text-sm leading-none mr-1.5"
+          >
+            ✓
+          </button>
+        )}
         {url && (
           <button
             onClick={e => { e.stopPropagation(); window.open(url, '_blank', 'noopener,noreferrer') }}
@@ -229,14 +247,21 @@ export default function MyTasksPage() {
 
   function handleClick(item) {
     markSeen(item.id)
-    if (item.source === 'recruiting' && item.recruiting_entry_id) {
-      navigate(`/recruiting?entry=${item.recruiting_entry_id}`)
-    } else if (item.source === 'recruiting') {
-      navigate('/recruiting')
+    if (item.source === 'mention' || item.source === 'recruiting') {
+      navigate(item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting')
     } else if (item.source === 'standalone') {
       navigate(`/tasks?id=${item.id}`)
     } else if (item.case_id) {
       navigate(`/cases/${item.case_id}`)
+    }
+  }
+
+  async function handleResolveMention(item) {
+    setTasks(prev => prev.filter(t => t.id !== item.id))
+    try {
+      await api.resolveMention(item.mention_id)
+    } catch {
+      setTasks(prev => [...prev, item])
     }
   }
 
@@ -247,8 +272,8 @@ export default function MyTasksPage() {
           <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {delegateName
-              ? `Open action items assigned to ${delegateName}`
-              : `No delegate match found for ${user?.name?.split(' ')[0]} — showing all`}
+              ? `Open action items assigned to ${delegateName}, plus anything you're @mentioned in`
+              : `No delegate match found for ${user?.name?.split(' ')[0]} — showing anything you're @mentioned in`}
           </p>
         </div>
         <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
@@ -263,7 +288,8 @@ export default function MyTasksPage() {
           <button key={key} onClick={() => setCategoryFilter(key)}
             className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
               categoryFilter === key
-                ? key === 'recruiting'          ? 'bg-amber-500 text-white'
+                ? key === 'mention'             ? 'bg-indigo-600 text-white'
+                : key === 'recruiting'          ? 'bg-amber-500 text-white'
                 : key === 'client_followup'     ? 'bg-green-600 text-white'
                 : key === 'instructor_followup' ? 'bg-blue-600 text-white'
                 : key === 'reference'           ? 'bg-purple-600 text-white'
@@ -302,7 +328,7 @@ export default function MyTasksPage() {
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type / Action</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Age</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Last note</th>
-                  <th className="px-2 py-2 w-7" />
+                  <th className="px-2 py-2 w-14" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -311,6 +337,7 @@ export default function MyTasksPage() {
                     key={`${item.source}-${item.id}`}
                     item={item}
                     onClick={() => handleClick(item)}
+                    onResolveMention={handleResolveMention}
                     isNew={isNew(item)}
                   />
                 ))}

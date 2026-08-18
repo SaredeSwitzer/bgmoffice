@@ -81,10 +81,36 @@ function attachCategories(items) {
   });
 }
 
+async function loadMentionTasks(userId) {
+  const { rows } = await pool.query(
+    `SELECT m.id, m.snippet, m.author_initials, m.created_at,
+            rn.entry_id AS recruiting_entry_id, re.client_name
+     FROM mentions m
+     LEFT JOIN recruiting_notes    rn ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
+     LEFT JOIN recruiting_entries  re ON re.id = rn.entry_id
+     WHERE m.mentioned_user_id = $1 AND m.resolved_at IS NULL
+     ORDER BY m.created_at DESC`,
+    [userId]
+  );
+  return rows.map(m => ({
+    id: `mention-${m.id}`,
+    mention_id: m.id,
+    source: 'mention',
+    categories: ['mention'],
+    created_at: m.created_at,
+    client_name: m.client_name || null,
+    instructor_name: null,
+    recruiting_entry_id: m.recruiting_entry_id || null,
+    last_note: { text: m.snippet, author_initials: m.author_initials },
+  }));
+}
+
 router.get('/my-tasks', async (req, res) => {
+  const mentionTasks = await loadMentionTasks(req.user.id);
+
   const firstName = req.user.name.split(' ')[0];
   const { rows: [delegate] } = await pool.query('SELECT * FROM delegates WHERE LOWER(name) = LOWER($1) LIMIT 1', [firstName]);
-  if (!delegate) return res.json({ tasks: [], delegate_name: null });
+  if (!delegate) return res.json({ tasks: sortItems(mentionTasks), delegate_name: null });
 
   const { rows: aiRows } = await pool.query(`${BASE_SQL} AND d.id = $1 ORDER BY ai.created_at ASC`, [delegate.id]);
   const processedAI = sortItems(await attachLastNote(await attachActionTypes(aiRows)))
@@ -118,7 +144,16 @@ router.get('/my-tasks', async (req, res) => {
     recruiting_entry_id: t.recruiting_entry_id || null,
   }));
 
-  res.json({ tasks: sortItems([...processedAI, ...standaloneTasks]), delegate_name: delegate.name });
+  res.json({ tasks: sortItems([...processedAI, ...standaloneTasks, ...mentionTasks]), delegate_name: delegate.name });
+});
+
+router.patch('/mentions/:id/resolve', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    'UPDATE mentions SET resolved_at = now() WHERE id = $1 AND mentioned_user_id = $2 RETURNING id',
+    [req.params.id, req.user.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true });
 });
 
 router.get('/', async (req, res) => {
