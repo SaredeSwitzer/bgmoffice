@@ -247,6 +247,11 @@ app.get('/api/users', requireAuth, async (req, res) => {
   res.json(rows);
 });
 
+app.get('/api/mentionable-users', requireAuth, async (req, res) => {
+  const { getMentionableUsers } = require('./lib/mentions');
+  res.json(await getMentionableUsers());
+});
+
 app.use((req, res) => res.status(404).json({ error: `Cannot ${req.method} ${req.path}` }));
 
 app.use((err, req, res, next) => {

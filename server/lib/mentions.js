@@ -1,5 +1,14 @@
 const pool = require('../db/pg');
 
+// Mentionable = office staff only (Sarede/Maria/Claire today), not the 70+ instructor
+// logins or the generic Admin account — @mentioning an instructor wouldn't reach anyone
+// who's actually watching My Tasks. Shown/matched by first name only ("Sarede", not
+// "Sarede S") since that's how the office actually refers to each other.
+async function getMentionableUsers() {
+  const { rows } = await pool.query("SELECT id, name FROM users WHERE active = 1 AND role = 'staff' ORDER BY name");
+  return rows.map(u => ({ id: u.id, name: u.name.split(' ')[0] }));
+}
+
 // Finds "@Full Name" occurrences in free text against a list of {id, name}. Longest
 // names are matched first so "Sarede Switzer" isn't shadowed by a shorter "Sarede".
 // Overlapping matches (one name's match range inside another's) are skipped.
@@ -28,7 +37,7 @@ function findMentionedUserIds(text, users) {
 // the mention list in sync. Re-tagging an already-resolved mention surfaces it again
 // as unresolved — acceptable, since an edit is a reasonable reason to re-notify.
 async function syncMentions({ sourceTable, sourceId, text, authorInitials, linkPath }) {
-  const { rows: users } = await pool.query('SELECT id, name FROM users WHERE active = 1');
+  const users = await getMentionableUsers();
   const userIds = findMentionedUserIds(text, users);
   await pool.query('DELETE FROM mentions WHERE source_table = $1 AND source_id = $2', [sourceTable, sourceId]);
   if (!userIds.length) return;
@@ -46,4 +55,4 @@ async function deleteMentions(sourceTable, sourceId) {
   await pool.query('DELETE FROM mentions WHERE source_table = $1 AND source_id = $2', [sourceTable, sourceId]);
 }
 
-module.exports = { findMentionedUserIds, syncMentions, deleteMentions };
+module.exports = { getMentionableUsers, findMentionedUserIds, syncMentions, deleteMentions };

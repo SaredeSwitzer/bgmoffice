@@ -167,6 +167,7 @@ export const api = {
   getActionTypes: () => request('/action-types'),
   getDelegates: () => request('/delegates'),
   getUsers: () => request('/users'),
+  getMentionableUsers: () => request('/mentionable-users'),
   createActionTypeUser: (data) =>
     request('/action-types', { method: 'POST', body: JSON.stringify(data) }),
   updateActionTypeUser: (id, data) =>

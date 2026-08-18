@@ -591,7 +591,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
 
 // ── Entry Card ────────────────────────────────────────────────────────────────
 
-function EntryCard({ entry, clients, instructors, actionTypes, users, styles, onUpdated, onDeleted, onArchived, targetEntryId }) {
+function EntryCard({ entry, clients, instructors, actionTypes, users, mentionableUsers, styles, onUpdated, onDeleted, onArchived, targetEntryId }) {
   const isTarget = targetEntryId != null && entry.id === targetEntryId
   const [expanded, setExpanded] = useState(isTarget)
   const [editing,  setEditing]  = useState(false)
@@ -744,6 +744,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, styles, on
               instructors={instructors}
               actionTypes={actionTypes}
               users={users}
+              mentionableUsers={mentionableUsers}
               styles={styles}
               onSave={handleUpdated}
               onCancel={() => setEditing(false)}
@@ -896,7 +897,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, styles, on
                 entryId={entry.id}
                 notes={notes}
                 onNotesChanged={n => { setNotes(n); setQuickNote(false) }}
-                users={users}
+                users={mentionableUsers}
                 defaultAdding={quickNote}
               />
             </>
@@ -909,7 +910,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, styles, on
 
 // ── Day Section ───────────────────────────────────────────────────────────────
 
-function DaySection({ day, entries, clients, instructors, actionTypes, users, styles, onUpdated, onDeleted, onArchived, onCreated, defaultOpen, targetEntryId, forceOpen }) {
+function DaySection({ day, entries, clients, instructors, actionTypes, users, mentionableUsers, styles, onUpdated, onDeleted, onArchived, onCreated, defaultOpen, targetEntryId, forceOpen }) {
   const hasTarget = targetEntryId != null && entries.some(e => e.id === targetEntryId)
   const [open,      setOpen]      = useState(defaultOpen || hasTarget)
 
@@ -954,6 +955,7 @@ function DaySection({ day, entries, clients, instructors, actionTypes, users, st
               instructors={instructors}
               actionTypes={actionTypes}
               users={users}
+              mentionableUsers={mentionableUsers}
               styles={styles}
               onUpdated={onUpdated}
               onDeleted={onDeleted}
@@ -1317,6 +1319,7 @@ export default function RecruitingPage() {
   const [instructors,   setInstructors]   = useState([])
   const [actionTypes,   setActionTypes]   = useState([])
   const [users,         setUsers]         = useState([])
+  const [mentionableUsers, setMentionableUsers] = useState([])
   const [availability,  setAvailability]  = useState([])
   const [styles,        setStyles]        = useState([])
   const [query,         setQuery]         = useState('')
@@ -1334,15 +1337,17 @@ export default function RecruitingPage() {
       api.getInstructorAvailability(),
       api.getActionTypes(),
       api.getUsers(),
+      api.getMentionableUsers(),
       api.getClassStyles(),
     ])
-      .then(([data, cls, insts, avail, ats, usrs, stls]) => {
+      .then(([data, cls, insts, avail, ats, usrs, mentionable, stls]) => {
         setGrouped(data.grouped)
         setClients(cls)
         setInstructors(insts)
         setAvailability(avail)
         setActionTypes(ats)
         setUsers(usrs)
+        setMentionableUsers(mentionable)
         setStyles(stls || [])
       })
       .catch(e => setError(e.message))
@@ -1489,6 +1494,7 @@ export default function RecruitingPage() {
               instructors={instructors}
               actionTypes={actionTypes}
               users={users}
+              mentionableUsers={mentionableUsers}
               styles={styles}
               onUpdated={handleEntryUpdated}
               onDeleted={handleEntryDeleted}
@@ -1508,6 +1514,7 @@ export default function RecruitingPage() {
               instructors={instructors}
               actionTypes={actionTypes}
               users={users}
+              mentionableUsers={mentionableUsers}
               styles={styles}
               onUpdated={handleEntryUpdated}
               onDeleted={handleEntryDeleted}
