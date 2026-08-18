@@ -61,6 +61,7 @@ export default function ConfirmClassModal({ schedule, kind = 'schedule', onClose
                 <div className="text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
                   {preview.instructor_name} &lt;{preview.to}&gt;
                 </div>
+                <p className="text-[11px] text-gray-400 mt-1">Cc: maria@bringthegymtome.com · replies go there too</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>

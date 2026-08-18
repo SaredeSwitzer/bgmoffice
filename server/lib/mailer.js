@@ -63,7 +63,7 @@ async function sendLoginCode(to, code) {
 // Generic transactional send (instructor confirmations, etc.). Same Resend path as the
 // login code. Throws in production if email isn't configured so a caller can surface it;
 // in dev it logs instead of silently dropping.
-async function sendMail({ to, subject, text, html, replyTo, from }) {
+async function sendMail({ to, subject, text, html, replyTo, from, cc }) {
   if (!to) throw new Error('No recipient email');
   if (!isConfigured()) {
     if (process.env.NODE_ENV === 'production') {
@@ -82,6 +82,7 @@ async function sendMail({ to, subject, text, html, replyTo, from }) {
       ...(text ? { text } : {}),
       ...(html ? { html } : {}),
       ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(cc ? { cc: Array.isArray(cc) ? cc : [cc] } : {}),
     }),
   });
   if (!res.ok) {

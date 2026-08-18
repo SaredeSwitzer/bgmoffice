@@ -250,6 +250,12 @@ router.delete('/sessions/:id', async (req, res) => {
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+// Confirmation emails send from login@bgmoffice.com (MAIL_FROM) — an automated address
+// nobody reads. Route replies and a standing copy to Maria instead, so an instructor's
+// reply doesn't disappear into an inbox nobody checks.
+const CONFIRMATION_CC       = 'maria@bringthegymtome.com';
+const CONFIRMATION_REPLY_TO = 'maria@bringthegymtome.com';
+
 function fmtTime(t) {
   if (!t) return '';
   const [h, m] = String(t).split(':').map(Number);
@@ -333,7 +339,7 @@ async function sendConfirmationRoute(kind, table, req, res) {
   const subject = (req.body.subject ?? r.subject).trim();
   const body    = (req.body.body ?? r.body);
   try {
-    await sendMail({ to: r.to, subject, text: body });
+    await sendMail({ to: r.to, subject, text: body, cc: CONFIRMATION_CC, replyTo: CONFIRMATION_REPLY_TO });
   } catch (e) {
     return res.status(502).json({ error: `Could not send: ${e.message}` });
   }
