@@ -3,6 +3,7 @@ const crypto  = require('crypto');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { nextInvoiceNumber, calcTotals } = require('../lib/invoiceHelpers');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
 
@@ -166,6 +167,10 @@ router.post('/', async (req, res) => {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
     [invoice_number, title || null, client_id || null, instructor_id || null, JSON.stringify(line_items), subtotal, tax_rate, tax_amount, total, notes || null, invoice_date || new Date().toISOString().slice(0, 10), due_date || null, req.user.initials, crypto.randomBytes(16).toString('hex')]
   );
+  await syncMentions({
+    sourceTable: 'invoice_notes', sourceId: inv.id, text: notes || '',
+    authorInitials: req.user.initials, linkPath: `/invoices/${inv.id}`,
+  });
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [inv.id]);
   res.status(201).json(enrichInvoice(row));
 });
@@ -182,6 +187,10 @@ router.put('/:id', async (req, res) => {
      WHERE id=$13`,
     [title || null, client_id || null, instructor_id || null, JSON.stringify(line_items), subtotal, tax_rate, tax_amount, total, notes || null, invoice_date || null, due_date || null, status || existing.status, req.params.id]
   );
+  await syncMentions({
+    sourceTable: 'invoice_notes', sourceId: req.params.id, text: notes || '',
+    authorInitials: req.user.initials, linkPath: `/invoices/${req.params.id}`,
+  });
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
   res.json(enrichInvoice(row));
 });
@@ -283,6 +292,10 @@ router.post('/:id/duplicate', async (req, res) => {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
     [invoice_number, src.title, src.client_id, src.instructor_id, src.line_items, src.subtotal, src.tax_rate, src.tax_amount, src.total, src.notes, new Date().toISOString().slice(0, 10), null, req.user.initials, crypto.randomBytes(16).toString('hex')]
   );
+  await syncMentions({
+    sourceTable: 'invoice_notes', sourceId: inv.id, text: src.notes || '',
+    authorInitials: req.user.initials, linkPath: `/invoices/${inv.id}`,
+  });
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [inv.id]);
   res.status(201).json(enrichInvoice(row));
 });
@@ -290,6 +303,7 @@ router.post('/:id/duplicate', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const result = await pool.query('DELETE FROM invoices WHERE id=$1', [req.params.id]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  await deleteMentions('invoice_notes', req.params.id);
   res.json({ success: true });
 });
 

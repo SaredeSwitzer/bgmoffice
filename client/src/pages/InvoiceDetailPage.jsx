@@ -4,6 +4,8 @@ import { api } from '../api/client'
 import { navClick } from '../utils/nav'
 import SearchSelect from '../components/SearchSelect'
 import GmailComposeLink from '../components/GmailComposeLink'
+import MentionTextarea from '../components/MentionTextarea'
+import { renderWithMentions } from '../utils/mentions'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -41,6 +43,7 @@ export default function InvoiceDetailPage() {
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [paymentForm, setPaymentForm] = useState(null)
   const [savingPayment, setSavingPayment] = useState(false)
+  const [mentionableUsers, setMentionableUsers] = useState([])
 
   function loadPayments() {
     return api.getInvoicePayments(id).then(setPayments)
@@ -52,11 +55,13 @@ export default function InvoiceDetailPage() {
       api.getClients(),
       api.getInstructors(),
       api.getInvoicePayments(id),
-    ]).then(([inv, c, i, p]) => {
+      api.getMentionableUsers(),
+    ]).then(([inv, c, i, p, m]) => {
       setInvoice(inv)
       setClients(c)
       setInstructors(i)
       setPayments(p)
+      setMentionableUsers(m)
     }).catch(e => setError(e.message))
   }, [id])
 
@@ -506,8 +511,10 @@ export default function InvoiceDetailPage() {
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-              <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
-                rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none" />
+              <MentionTextarea value={editForm.notes} onChange={v => setEditForm(f => ({ ...f, notes: v }))}
+                users={mentionableUsers} rows={2}
+                placeholder="Appears on the invoice — type @ to tag a teammate"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none" />
             </div>
 
             {error && <p className="text-xs text-red-600">{error}</p>}
@@ -658,7 +665,7 @@ export default function InvoiceDetailPage() {
             {invoice.notes && (
               <div className="mt-4 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-600 border border-gray-100">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Notes</p>
-                {invoice.notes}
+                {renderWithMentions(invoice.notes, mentionableUsers)}
               </div>
             )}
           </>

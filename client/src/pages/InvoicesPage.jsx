@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
+import MentionTextarea from '../components/MentionTextarea'
 import { navClick, auxNavClick } from '../utils/nav'
 
 const STATUS_COLORS = {
@@ -42,10 +43,11 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
   const [error, setError] = useState('')
   const [clientPackages, setClientPackages] = useState([])
   const [showImport, setShowImport] = useState(false)
+  const [mentionableUsers, setMentionableUsers] = useState([])
 
   useEffect(() => {
-    Promise.all([api.getClients(), api.getInstructors()])
-      .then(([c, i]) => { setClients(c); setInstructors(i) })
+    Promise.all([api.getClients(), api.getInstructors(), api.getMentionableUsers()])
+      .then(([c, i, m]) => { setClients(c); setInstructors(i); setMentionableUsers(m) })
   }, [])
 
   // Load packages when client changes
@@ -318,11 +320,12 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
             {/* Notes */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes / Memo</label>
-              <textarea
+              <MentionTextarea
                 value={form.notes}
-                onChange={e => setField('notes', e.target.value)}
+                onChange={v => setField('notes', v)}
+                users={mentionableUsers}
                 rows={3}
-                placeholder="Payment terms, thank-you note, etc."
+                placeholder="Payment terms, thank-you note, etc. — appears on the invoice, type @ to tag a teammate"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
               />
             </div>

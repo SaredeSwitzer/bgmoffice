@@ -81,16 +81,19 @@ function attachCategories(items) {
   });
 }
 
-// Resolves display context (client name) per source table. Add a LEFT JOIN here
-// when a new note type (source_table) gains @mention support.
+// Resolves display context (client name) per source table (recruiting_notes,
+// client_notes, invoice_notes). Add a LEFT JOIN here when a new note type
+// (source_table) gains @mention support.
 async function loadMentionTasks(userId) {
   const { rows } = await pool.query(
     `SELECT m.id, m.snippet, m.author_initials, m.created_at, m.link_path,
-            COALESCE(re.client_name, cl.name) AS client_name
+            COALESCE(re.client_name, cl.name, icl.name) AS client_name
      FROM mentions m
-     LEFT JOIN recruiting_notes    rn ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
-     LEFT JOIN recruiting_entries  re ON re.id = rn.entry_id
-     LEFT JOIN clients             cl ON m.source_table = 'client_notes' AND cl.id = m.source_id
+     LEFT JOIN recruiting_notes    rn  ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
+     LEFT JOIN recruiting_entries  re  ON re.id = rn.entry_id
+     LEFT JOIN clients             cl  ON m.source_table = 'client_notes' AND cl.id = m.source_id
+     LEFT JOIN invoices            inv ON m.source_table = 'invoice_notes' AND inv.id = m.source_id
+     LEFT JOIN clients             icl ON icl.id = inv.client_id
      WHERE m.mentioned_user_id = $1 AND m.resolved_at IS NULL
      ORDER BY m.created_at DESC`,
     [userId]
