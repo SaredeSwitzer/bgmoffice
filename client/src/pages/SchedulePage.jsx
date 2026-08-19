@@ -269,12 +269,12 @@ export default function SchedulePage() {
                                 </div>
                                 {s.instructor_id && (
                                   <button onClick={e => { e.stopPropagation(); setConfirmSession(s) }} title="Email the instructor a class confirmation"
-                                    className={`w-full mt-1 text-[10px] leading-tight rounded px-1 py-0.5 border transition-colors ${
+                                    className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
                                       s.confirmation_sent_at
-                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 whitespace-nowrap'
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                         : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                                     }`}>
-                                    {s.confirmation_sent_at ? '✓ Emailed' : 'Send Confirmation Email'}
+                                    {s.confirmation_sent_at ? '✓ Emailed' : 'Confirmation Email'}
                                   </button>
                                 )}
                               </div>
