@@ -91,7 +91,7 @@ async function sendMail({ to, subject, text, html, replyTo, from, cc }) {
   }
 }
 
-const BILLING_FROM  = 'BGM Office Billing <billing@bgmoffice.com>';
+const BILLING_FROM  = 'Bring the Gym To Me <billing@bgmoffice.com>';
 const BILLING_REPLY = 'sarede@bringthegymtome.com';
 
 // Receipt for a successful card charge — weekly recurring classes or a one-off invoice
