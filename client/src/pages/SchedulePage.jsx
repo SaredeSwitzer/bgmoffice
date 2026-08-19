@@ -270,7 +270,7 @@ export default function SchedulePage() {
                                         ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                         : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                                     }`}>
-                                    {s.confirmation_sent_at ? '✓ Emailed' : 'Email'}
+                                    {s.confirmation_sent_at ? '✓ Emailed' : 'Send Confirmation'}
                                   </button>
                                 )}
                               </div>
@@ -388,7 +388,7 @@ export default function SchedulePage() {
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                             : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                         }`}>
-                        {s.confirmation_sent_at ? '✓ Emailed' : 'Email'}
+                        {s.confirmation_sent_at ? '✓ Emailed' : 'Send Confirmation Email'}
                       </button>
                     )}
                     <NotesToggle open={openNotes === `schedule-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
