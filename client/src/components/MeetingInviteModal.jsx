@@ -4,6 +4,7 @@ import { api } from '../api/client'
 export default function MeetingInviteModal({ onClose }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [time, setTime] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
@@ -14,7 +15,7 @@ export default function MeetingInviteModal({ onClose }) {
     setSending(true)
     setError('')
     try {
-      await api.sendMeetingInvite({ name: name.trim(), email: email.trim() })
+      await api.sendMeetingInvite({ name: name.trim(), email: email.trim(), time: time.trim() })
       setSent(true)
     } catch (err) {
       setError(err.message || 'Failed to send invite.')
@@ -50,6 +51,12 @@ export default function MeetingInviteModal({ onClose }) {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>
                 <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="jane@example.com"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
+                <input value={time} onChange={e => setTime(e.target.value)}
+                  placeholder="3:00pm"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               {error && <p className="text-xs text-red-600">{error}</p>}

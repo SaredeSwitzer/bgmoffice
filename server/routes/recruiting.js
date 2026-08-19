@@ -12,7 +12,7 @@ const DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Fri
 // Email a candidate the meeting link before they're an instructor record at all —
 // no client_id/instructor_id needed, just a name and email typed in on the spot.
 router.post('/meeting-invite', requireStaff, async (req, res) => {
-  const { name, email } = req.body;
+  const { name, email, time } = req.body;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'A valid email is required' });
   }
@@ -24,7 +24,11 @@ router.post('/meeting-invite', requireStaff, async (req, res) => {
     return res.status(400).json({ error: 'No meeting link set up yet.' });
   }
   const fillName = (name || '').trim() || 'there';
-  const fill = (str) => (str || '').replace(/\{name\}/g, fillName).replace(/\{link\}/g, m.meeting_link);
+  const fillTime = (time || '').trim() || 'the scheduled time';
+  const fill = (str) => (str || '')
+    .replace(/\{name\}/g, fillName)
+    .replace(/\{time\}/g, fillTime)
+    .replace(/\{link\}/g, m.meeting_link);
   const subject = fill(m.meeting_invite_subject || 'Let\'s hop on a quick video call');
   const body = fill(m.meeting_invite_body || `Hi {name},\n\nHere's the Zoom link: {link}`);
   try {
