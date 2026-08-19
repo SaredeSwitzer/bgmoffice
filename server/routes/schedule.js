@@ -72,6 +72,7 @@ function isDate(v) {
 async function getScheduleRow(id) {
   const { rows: [row] } = await pool.query(
     `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
+            c.neighborhood, c.street, c.city, c.zip,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id)::int AS note_count,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_schedules cs
@@ -93,6 +94,7 @@ router.get('/schedules', async (req, res) => {
   if (status)    { args.push(status);    where.push(`cs.status = $${args.length}`); }
   const { rows } = await pool.query(
     `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
+            c.neighborhood, c.street, c.city, c.zip,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id)::int AS note_count,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_schedules cs
@@ -181,6 +183,7 @@ router.get('/sessions', async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
+            c.neighborhood, c.street, c.city, c.zip,
             (SELECT COUNT(*) FROM class_notes n WHERE n.session_id = s.id)::int AS note_count,
             (SELECT COUNT(*) FROM class_notes n WHERE n.session_id = s.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_sessions s
@@ -265,6 +268,14 @@ function fmtTime(t) {
 }
 function fmtMoney(v) { return v == null || v === '' ? '' : `$${Number(v).toFixed(0)}`; }
 
+// Street + city + zip, comma/space-joined and skipping whichever parts are blank —
+// there's no single "address" column, it's assembled from the client's street/city/zip.
+function fmtAddress(row) {
+  let addr = [row.street, row.city].filter(Boolean).join(', ');
+  if (row.zip) addr = addr ? `${addr} ${row.zip}` : row.zip;
+  return addr;
+}
+
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -310,7 +321,8 @@ function confirmationContext(row) {
     day: row.session_date ? dayNameFromDate(row.session_date)
        : (row.weekday != null ? WEEKDAY_NAMES[row.weekday] : 'Flexible'),
     time: fmtTime(row.start_time),
-    location: row.location || '',
+    neighborhood: row.neighborhood || '',
+    address: fmtAddress(row),
     style: row.style || '',
     rate: fmtMoney(row.instructor_pay),
   };
@@ -318,11 +330,11 @@ function confirmationContext(row) {
 
 async function getSessionRow(id) {
   const { rows: [row] } = await pool.query(
-    `SELECT s.*, c.name AS client_name, i.name AS instructor_name, sch.location AS location
+    `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
+            c.neighborhood, c.street, c.city, c.zip
        FROM class_sessions s
-       JOIN clients c                ON c.id  = s.client_id
-       LEFT JOIN instructors i       ON i.id  = s.instructor_id
-       LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
+       JOIN clients c          ON c.id = s.client_id
+       LEFT JOIN instructors i ON i.id = s.instructor_id
       WHERE s.id = $1`,
     [id]
   );

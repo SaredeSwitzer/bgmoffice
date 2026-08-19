@@ -262,6 +262,9 @@ export default function SchedulePage() {
                                 <p className="text-gray-500 truncate">
                                   {s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
                                 </p>
+                                {s.neighborhood && (
+                                  <p className="text-gray-400 truncate">📍 {s.neighborhood}</p>
+                                )}
                                 <div className="flex items-center justify-between mt-1">
                                   <span className="font-semibold text-gray-800">{money(s.charge_amount)}</span>
                                   <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
@@ -379,6 +382,7 @@ export default function SchedulePage() {
                           <span className="text-amber-600 font-medium"> · No time set</span>
                         )}
                         {' · '}{s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
+                        {s.neighborhood ? ` · 📍 ${s.neighborhood}` : ''}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
