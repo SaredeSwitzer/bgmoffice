@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
 import TimeInput from './TimeInput'
+import ClientAddressEditor from './ClientAddressEditor'
 
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
@@ -90,18 +91,10 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
                 instructor_pay: v?.pay_rate ?? f.instructor_pay,
               }))} placeholder="Search instructor…" />
             {form.client && (
-              form.client.neighborhood || form.client.street ? (
-                <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                  {form.client.neighborhood && <p className="font-medium">📍 {form.client.neighborhood}</p>}
-                  {(form.client.street || form.client.city || form.client.zip) && (
-                    <p className="text-gray-500">{[form.client.street, form.client.city, form.client.zip].filter(Boolean).join(', ')}</p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  No address on file for {form.client.name} — add one on their client profile.
-                </p>
-              )
+              <ClientAddressEditor
+                client={form.client}
+                onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
+              />
             )}
             <div className="grid grid-cols-2 gap-3">
               <div>

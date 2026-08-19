@@ -99,12 +99,24 @@ router.put('/:id', async (req, res) => {
   res.json(client);
 });
 
+// Partial update — only touches whichever of these fields are actually present in the
+// body, so an address-only save (e.g. from the Schedule page) can't accidentally blank
+// out invoice_email or vice versa. Full-record edits still go through PUT above.
+const PATCHABLE_FIELDS = ['invoice_email', 'street', 'city', 'zip', 'neighborhood'];
+
 router.patch('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT id FROM clients WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Client not found' });
-  const { invoice_email } = req.body;
-  await pool.query('UPDATE clients SET invoice_email=$1 WHERE id=$2', [invoice_email || null, req.params.id]);
-  res.json({ ok: true });
+
+  const fields = PATCHABLE_FIELDS.filter(f => f in req.body);
+  if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
+
+  const setClause = fields.map((f, i) => `${f}=$${i + 1}`).join(', ');
+  const values = fields.map(f => req.body[f] || null);
+  await pool.query(`UPDATE clients SET ${setClause} WHERE id=$${fields.length + 1}`, [...values, req.params.id]);
+
+  const { rows: [client] } = await pool.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
+  res.json(client);
 });
 
 router.delete('/:id', async (req, res) => {

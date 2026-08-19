@@ -83,6 +83,7 @@ export const api = {
   createClient: (data) => request('/clients', { method: 'POST', body: JSON.stringify(data) }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   setClientInvoiceEmail: (id, invoice_email) => request(`/clients/${id}`, { method: 'PATCH', body: JSON.stringify({ invoice_email }) }),
+  updateClientAddress: (id, data) => request(`/clients/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteClient: (id) => request(`/clients/${id}`, { method: 'DELETE' }),
   addPref: (clientId, data) =>
     request(`/clients/${clientId}/prefs`, { method: 'POST', body: JSON.stringify(data) }),

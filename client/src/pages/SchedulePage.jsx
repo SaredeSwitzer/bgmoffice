@@ -4,6 +4,7 @@ import SearchSelect from '../components/SearchSelect'
 import ClassNotes from '../components/ClassNotes'
 import ConfirmClassModal from '../components/ConfirmClassModal'
 import ClassSessionModal from '../components/ClassSessionModal'
+import ClientAddressEditor from '../components/ClientAddressEditor'
 import PendingClassModal from '../components/PendingClassModal'
 import TimeInput from '../components/TimeInput'
 import { fmtTime } from '../utils/time'
@@ -333,18 +334,11 @@ export default function SchedulePage() {
                 <SearchSelect label="Instructor" options={instructors} value={form.instructor}
                   onChange={i => setForm(f => ({ ...f, instructor: i }))} placeholder="Search instructors…" />
                 {form.client && (
-                  form.client.neighborhood || form.client.street ? (
-                    <div className="col-span-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                      {form.client.neighborhood && <p className="font-medium">📍 {form.client.neighborhood}</p>}
-                      {(form.client.street || form.client.city || form.client.zip) && (
-                        <p className="text-gray-500">{[form.client.street, form.client.city, form.client.zip].filter(Boolean).join(', ')}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="col-span-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                      No address on file for {form.client.name} — add one on their client profile.
-                    </p>
-                  )
+                  <ClientAddressEditor
+                    className="col-span-2"
+                    client={form.client}
+                    onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
+                  />
                 )}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Day of week</label>
