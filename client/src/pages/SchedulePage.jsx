@@ -142,7 +142,10 @@ export default function SchedulePage() {
 
   function editSchedule(s) {
     setForm({
-      client: s.client_id ? { id: s.client_id, name: s.client_name } : null,
+      client: s.client_id ? {
+        id: s.client_id, name: s.client_name,
+        neighborhood: s.neighborhood, street: s.street, city: s.city, zip: s.zip,
+      } : null,
       instructor: s.instructor_id ? { id: s.instructor_id, name: s.instructor_name } : null,
       weekday: s.weekday ?? '',
       start_time: s.start_time ? s.start_time.slice(0, 5) : '',
@@ -318,6 +321,20 @@ export default function SchedulePage() {
                   onChange={c => setForm(f => ({ ...f, client: c }))} placeholder="Search clients…" />
                 <SearchSelect label="Instructor" options={instructors} value={form.instructor}
                   onChange={i => setForm(f => ({ ...f, instructor: i }))} placeholder="Search instructors…" />
+                {form.client && (
+                  form.client.neighborhood || form.client.street ? (
+                    <div className="col-span-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                      {form.client.neighborhood && <p className="font-medium">📍 {form.client.neighborhood}</p>}
+                      {(form.client.street || form.client.city || form.client.zip) && (
+                        <p className="text-gray-500">{[form.client.street, form.client.city, form.client.zip].filter(Boolean).join(', ')}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="col-span-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      No address on file for {form.client.name} — add one on their client profile.
+                    </p>
+                  )
+                )}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Day of week</label>
                   <select value={form.weekday} onChange={e => setForm(f => ({ ...f, weekday: e.target.value }))}
