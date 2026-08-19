@@ -47,6 +47,15 @@ function fmtAddr(s) {
   return addr
 }
 
+function fmtParticipants(s) {
+  const parts = []
+  if (s.participant_count != null && s.participant_count !== '') {
+    parts.push(`${s.participant_count} participant${Number(s.participant_count) === 1 ? '' : 's'}`)
+  }
+  if (s.participant_ages) parts.push(`ages ${s.participant_ages}`)
+  return parts.join(' · ')
+}
+
 const BLANK_SCHEDULE = {
   client: null, instructor: null, weekday: '', start_time: '',
   charge_amount: '', instructor_pay: '', payment_method: '', style: '', location: '', special_instructions: '',
@@ -285,6 +294,9 @@ export default function SchedulePage() {
                                 {fmtAddr(s) && (
                                   <p className="text-gray-400 truncate" title={fmtAddr(s)}>{fmtAddr(s)}</p>
                                 )}
+                                {fmtParticipants(s) && (
+                                  <p className="text-gray-400 truncate">{fmtParticipants(s)}</p>
+                                )}
                                 <div className="flex items-center justify-between mt-1">
                                   <span className="font-semibold text-gray-800">{money(s.charge_amount)}</span>
                                   <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
@@ -423,6 +435,9 @@ export default function SchedulePage() {
                       </p>
                       {fmtAddr(s) && (
                         <p className="text-[11px] text-gray-400 truncate" title={fmtAddr(s)}>{fmtAddr(s)}</p>
+                      )}
+                      {fmtParticipants(s) && (
+                        <p className="text-[11px] text-gray-400 truncate">{fmtParticipants(s)}</p>
                       )}
                     </div>
                     <div className="text-right shrink-0">
