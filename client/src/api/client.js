@@ -177,6 +177,7 @@ export const api = {
     request(`/action-types/${id}`, { method: 'DELETE' }),
 
   // Recruiting
+  getMeetingInvitePreview: (data) => request('/recruiting/meeting-invite/preview', { method: 'POST', body: JSON.stringify(data) }),
   sendMeetingInvite: (data) => request('/recruiting/meeting-invite', { method: 'POST', body: JSON.stringify(data) }),
   getRecruiting: (q, { archived } = {}) => {
     const params = new URLSearchParams()

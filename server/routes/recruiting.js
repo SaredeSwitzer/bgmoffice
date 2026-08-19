@@ -11,11 +11,10 @@ const DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Fri
 
 // Email a candidate the meeting link before they're an instructor record at all —
 // no client_id/instructor_id needed, just a name and email typed in on the spot.
-router.post('/meeting-invite', requireStaff, async (req, res) => {
-  const { name, email, time } = req.body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'A valid email is required' });
-  }
+// Two-step like the instructor confirmation email: preview (filled from the
+// editable template) then send, so staff can tweak wording before it goes out.
+router.post('/meeting-invite/preview', requireStaff, async (req, res) => {
+  const { name, time } = req.body;
   const { rows } = await pool.query(
     "SELECT key, value FROM app_settings WHERE key IN ('meeting_link','meeting_invite_subject','meeting_invite_body')"
   );
@@ -29,10 +28,22 @@ router.post('/meeting-invite', requireStaff, async (req, res) => {
     .replace(/\{name\}/g, fillName)
     .replace(/\{time\}/g, fillTime)
     .replace(/\{link\}/g, m.meeting_link);
-  const subject = fill(m.meeting_invite_subject || 'Let\'s hop on a quick video call');
-  const body = fill(m.meeting_invite_body || `Hi {name},\n\nHere's the Zoom link: {link}`);
+  res.json({
+    subject: fill(m.meeting_invite_subject || 'Let\'s hop on a quick video call'),
+    body: fill(m.meeting_invite_body || `Hi {name},\n\nHere's the Zoom link: {link}`),
+  });
+});
+
+router.post('/meeting-invite', requireStaff, async (req, res) => {
+  const { email, subject, body } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'A valid email is required' });
+  }
+  if (!subject?.trim() || !body?.trim()) {
+    return res.status(400).json({ error: 'Subject and message are required' });
+  }
   try {
-    await sendMail({ to: email, subject, text: body });
+    await sendMail({ to: email, subject: subject.trim(), text: body });
   } catch (e) {
     return res.status(502).json({ error: `Could not send: ${e.message}` });
   }
