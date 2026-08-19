@@ -5,6 +5,7 @@ const path     = require('path');
 const pool     = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { decryptSSN } = require('../lib/ssnCrypto');
+const { sendMail } = require('../lib/mailer');
 const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
@@ -142,6 +143,22 @@ router.post('/', async (req, res) => {
   );
   if (signatureToLink) {
     await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [inst.id, signatureToLink]);
+  }
+  if (email) {
+    try {
+      const { rows: settingsRows } = await pool.query(
+        "SELECT key, value FROM app_settings WHERE key IN ('instructor_intro_subject','instructor_intro_body')"
+      );
+      const m = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+      const fillName = name.trim() || 'there';
+      const fill = (str) => (str || '').replace(/\{name\}/g, fillName);
+      const subject = fill(m.instructor_intro_subject || 'Welcome to Bring the Gym to Me!');
+      const body = fill(m.instructor_intro_body || `Hi {name},\n\nWelcome to the team!`);
+      await sendMail({ to: email, subject, text: body });
+    } catch (e) {
+      // Never let a mail failure block adding the instructor — just log it.
+      console.error('[instructors] intro email failed:', e.message);
+    }
   }
   res.status(201).json(await getInstructorRow(inst.id));
 });
