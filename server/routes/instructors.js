@@ -97,11 +97,30 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
+
+  // If this person already signed the contract in-app before being added as an instructor
+  // (see instructorContract.js), carry that signature over instead of starting blank.
+  let signedFlag = contract_signed ? 1 : 0;
+  let signedDate = contract_signed_date || null;
+  let signatureToLink = null;
+  if (email) {
+    const { rows: [sig] } = await pool.query(
+      `SELECT id, signed_at FROM instructor_contract_signatures
+        WHERE email = $1 AND signed_at IS NOT NULL AND instructor_id IS NULL
+        ORDER BY signed_at DESC LIMIT 1`,
+      [email]
+    );
+    if (sig) { signedFlag = 1; signedDate = sig.signed_at; signatureToLink = sig.id; }
+  }
+
   const { rows: [inst] } = await pool.query(
     `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, ssn || null, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null]
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, ssn || null, signedFlag, signedDate, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null]
   );
+  if (signatureToLink) {
+    await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [inst.id, signatureToLink]);
+  }
   res.status(201).json(await getInstructorRow(inst.id));
 });
 

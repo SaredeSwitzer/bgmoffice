@@ -169,6 +169,7 @@ app.use('/api/auth/passkeys', require('./routes/passkeys'));
 
 app.use('/api/clients',      require('./routes/clients'));
 app.use('/api/instructors',  require('./routes/instructors'));
+app.use('/api/instructor-contract', require('./routes/instructorContract'));
 app.use('/api/cases',        require('./routes/cases'));
 app.use('/api/action-items', require('./routes/actionItems'));
 app.use('/api/settings',     require('./routes/settings'));

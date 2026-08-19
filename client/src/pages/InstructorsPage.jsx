@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import MeetingInviteModal from '../components/MeetingInviteModal'
+import ContractInviteModal from '../components/ContractInviteModal'
+import ContractSignaturesPanel from '../components/ContractSignaturesPanel'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
@@ -16,6 +18,8 @@ export default function InstructorsPage() {
   const [form, setForm] = useState(BLANK_FORM)
   const [saving, setSaving] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [contractInviteOpen, setContractInviteOpen] = useState(false)
+  const [signaturesRefresh, setSignaturesRefresh] = useState(0)
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
@@ -55,6 +59,7 @@ export default function InstructorsPage() {
       setInstructors(prev => [...prev, i].sort((a, b) => a.name.localeCompare(b.name)))
       setNewInstructor(false)
       setForm(BLANK_FORM)
+      setSignaturesRefresh(r => r + 1)
     } finally {
       setSaving(false)
     }
@@ -78,6 +83,12 @@ export default function InstructorsPage() {
             Invite to Meeting
           </button>
           <button
+            onClick={() => setContractInviteOpen(true)}
+            className="px-3 py-1.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Send Contract to Sign
+          </button>
+          <button
             onClick={() => setNewInstructor(v => !v)}
             className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
           >
@@ -87,6 +98,14 @@ export default function InstructorsPage() {
       </div>
 
       {inviteOpen && <MeetingInviteModal onClose={() => setInviteOpen(false)} />}
+      {contractInviteOpen && (
+        <ContractInviteModal
+          onClose={() => setContractInviteOpen(false)}
+          onSent={() => setSignaturesRefresh(r => r + 1)}
+        />
+      )}
+
+      <ContractSignaturesPanel instructors={instructors} refreshKey={signaturesRefresh} />
 
       {newInstructor && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">

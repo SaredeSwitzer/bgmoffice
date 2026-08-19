@@ -179,6 +179,14 @@ export const api = {
   // Recruiting
   getMeetingInvitePreview: (data) => request('/recruiting/meeting-invite/preview', { method: 'POST', body: JSON.stringify(data) }),
   sendMeetingInvite: (data) => request('/recruiting/meeting-invite', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Instructor contract e-signature
+  getContractInvitePreview: (data) => request('/instructor-contract/invite/preview', { method: 'POST', body: JSON.stringify(data) }),
+  sendContractInvite: (id, data) => request(`/instructor-contract/invite/${id}/send`, { method: 'POST', body: JSON.stringify(data) }),
+  getContractSignatures: () => request('/instructor-contract/signatures'),
+  linkContractSignature: (id, instructor_id) => request(`/instructor-contract/signatures/${id}/link`, { method: 'POST', body: JSON.stringify({ instructor_id }) }),
+  getContractSigningInfo: (token) => request(`/instructor-contract/public/${token}`),
+  signContract: (token, data) => request(`/instructor-contract/public/${token}/sign`, { method: 'POST', body: JSON.stringify(data) }),
   getRecruiting: (q, { archived } = {}) => {
     const params = new URLSearchParams()
     if (q) params.set('q', q)

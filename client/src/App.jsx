@@ -23,6 +23,7 @@ import InvoicesPage from './pages/InvoicesPage'
 import InvoiceDetailPage from './pages/InvoiceDetailPage'
 import PaymentPage from './pages/PaymentPage'
 import SaveCardPage from './pages/SaveCardPage'
+import SignContractPage from './pages/SignContractPage'
 import PrivacyPage from './pages/PrivacyPage'
 import SchedulePage from './pages/SchedulePage'
 import BillingPage from './pages/BillingPage'
@@ -36,6 +37,7 @@ export default function App() {
           {/* Public payment page — no auth */}
           <Route path="/pay/:token" element={<PaymentPage />} />
           <Route path="/save-card/:token" element={<SaveCardPage />} />
+          <Route path="/sign-contract/:token" element={<SignContractPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           {/* Instructor accounts: their own week only, in a shell with no staff nav. */}
           <Route
