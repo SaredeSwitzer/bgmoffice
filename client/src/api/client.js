@@ -97,6 +97,7 @@ export const api = {
   updateInstructor: (id, data) =>
     request(`/instructors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteInstructor: (id) => request(`/instructors/${id}`, { method: 'DELETE' }),
+  revealInstructorSSN: (id) => request(`/instructors/${id}/reveal-ssn`),
   uploadInstructorPhoto: (id, file) => {
     const token = getToken()
     const fd = new FormData()

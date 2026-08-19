@@ -42,7 +42,9 @@ export default function ContractSignaturesPanel({ instructors, refreshKey }) {
         <div key={sig.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
           <div className="flex-1 min-w-0">
             <p className="font-medium text-gray-900 truncate">{sig.name || sig.email}</p>
-            <p className="text-xs text-gray-400 truncate">{sig.email}</p>
+            <p className="text-xs text-gray-400 truncate">
+              {sig.email}{sig.ssn_last4 ? ` · SSN •••-••-${sig.ssn_last4}` : ''}
+            </p>
           </div>
           <div className="text-xs text-right shrink-0">
             {sig.instructor_id ? (

@@ -10,6 +10,7 @@ export default function SignContractPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [signedName, setSignedName] = useState('')
+  const [ssn, setSsn] = useState('')
   const [agreed, setAgreed] = useState(false)
   const [signing, setSigning] = useState(false)
   const [signError, setSignError] = useState('')
@@ -29,7 +30,7 @@ export default function SignContractPage() {
     setSigning(true)
     setSignError('')
     try {
-      const r = await api.signContract(token, { signed_name: signedName.trim() })
+      const r = await api.signContract(token, { signed_name: signedName.trim(), ssn: ssn.trim() })
       setJustSigned(r.signed_at)
     } catch (err) {
       setSignError(err.message || 'Failed to sign. Please try again.')
@@ -86,6 +87,14 @@ export default function SignContractPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Type your full name to sign</label>
               <input value={signedName} onChange={e => setSignedName(e.target.value)}
                 placeholder="Jane Doe"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Social Security # <span className="text-gray-400 font-normal">(optional — for tax purposes; encrypted, or call (347) 915-5496 instead)</span>
+              </label>
+              <input value={ssn} onChange={e => setSsn(e.target.value)} type="text" inputMode="numeric" autoComplete="off"
+                placeholder="•••-••-••••"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <label className="flex items-start gap-2 text-sm text-gray-700">

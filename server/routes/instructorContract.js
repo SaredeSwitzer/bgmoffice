@@ -3,6 +3,7 @@ const crypto  = require('crypto');
 const pool    = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
+const { encryptSSN, last4 } = require('../lib/ssnCrypto');
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ router.get('/public/:token', async (req, res) => {
 });
 
 router.post('/public/:token/sign', async (req, res) => {
-  const { signed_name } = req.body;
+  const { signed_name, ssn } = req.body;
   if (!signed_name?.trim()) return res.status(400).json({ error: 'Please type your full name to sign.' });
 
   const { rows: [row] } = await pool.query(
@@ -42,13 +43,18 @@ router.post('/public/:token/sign', async (req, res) => {
   if (!row) return res.status(404).json({ error: 'Not found' });
   if (row.signed_at) return res.status(400).json({ error: 'This contract has already been signed.' });
 
+  // Encrypted immediately — the plaintext SSN never gets written to the database, only
+  // to the app_settings-independent encrypted blob plus its last 4 digits for display.
+  const ssnEncrypted = ssn?.trim() ? encryptSSN(ssn.trim()) : null;
+  const ssnLast4 = ssn?.trim() ? last4(ssn) : null;
+
   const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   const { rows: [updated] } = await pool.query(
     `UPDATE instructor_contract_signatures
-       SET signed_name = $1, signed_at = now(), ip_address = $2
-     WHERE id = $3
+       SET signed_name = $1, signed_at = now(), ip_address = $2, ssn_encrypted = $3, ssn_last4 = $4
+     WHERE id = $5
      RETURNING signed_at`,
-    [signed_name.trim(), ip || null, row.id]
+    [signed_name.trim(), ip || null, ssnEncrypted, ssnLast4, row.id]
   );
   res.json({ ok: true, signed_at: updated.signed_at });
 });
@@ -111,7 +117,7 @@ router.post('/invite/:id/send', requireStaff, async (req, res) => {
 // instructor record. Signing a contract never creates an instructor row on its own.
 router.get('/signatures', requireStaff, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT s.id, s.name, s.email, s.signed_name, s.signed_at, s.sent_at, s.instructor_id, i.name AS instructor_name
+    `SELECT s.id, s.name, s.email, s.signed_name, s.signed_at, s.sent_at, s.instructor_id, s.ssn_last4, i.name AS instructor_name
        FROM instructor_contract_signatures s
        LEFT JOIN instructors i ON i.id = s.instructor_id
       ORDER BY s.created_at DESC LIMIT 100`
@@ -123,15 +129,17 @@ router.post('/signatures/:id/link', requireStaff, async (req, res) => {
   const { instructor_id } = req.body;
   if (!instructor_id) return res.status(400).json({ error: 'instructor_id required' });
   const { rows: [sig] } = await pool.query(
-    'SELECT id, signed_at FROM instructor_contract_signatures WHERE id = $1', [req.params.id]
+    'SELECT id, signed_at, ssn_encrypted, ssn_last4 FROM instructor_contract_signatures WHERE id = $1', [req.params.id]
   );
   if (!sig) return res.status(404).json({ error: 'Signature not found' });
   if (!sig.signed_at) return res.status(400).json({ error: 'This contract has not been signed yet.' });
 
   await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [instructor_id, req.params.id]);
   await pool.query(
-    'UPDATE instructors SET contract_signed = 1, contract_signed_date = $1 WHERE id = $2',
-    [sig.signed_at, instructor_id]
+    `UPDATE instructors SET contract_signed = 1, contract_signed_date = $1,
+       ssn_encrypted = COALESCE($2, ssn_encrypted), ssn_last4 = COALESCE($3, ssn_last4)
+     WHERE id = $4`,
+    [sig.signed_at, sig.ssn_encrypted, sig.ssn_last4, instructor_id]
   );
   res.json({ ok: true });
 });

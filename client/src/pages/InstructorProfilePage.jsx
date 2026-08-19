@@ -71,18 +71,47 @@ function PhotoAvatar({ instructor, onPhotoChange }) {
 }
 
 // ── SSN Field ─────────────────────────────────────────────────────────────────
-function SSNField({ value }) {
+// `value` is the legacy plaintext ssn column, already in the payload if it was ever
+// typed in manually. `last4`/`instructorId` back SSNs collected through the contract-
+// signing flow, which are encrypted at rest — the full number is only ever fetched
+// (decrypted server-side, admin-only) when someone clicks Reveal.
+function SSNField({ value, last4, instructorId }) {
   const [revealed, setRevealed] = useState(false)
-  if (!value) return <span className="text-gray-400 italic text-sm">Not on file</span>
+  const [fetchedValue, setFetchedValue] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  if (!value && !last4) return <span className="text-gray-400 italic text-sm">Not on file</span>
+
+  async function handleReveal() {
+    if (revealed) { setRevealed(false); return }
+    if (value || fetchedValue) { setRevealed(true); return }
+    setLoading(true); setError('')
+    try {
+      const r = await api.revealInstructorSSN(instructorId)
+      setFetchedValue(r.ssn)
+      setRevealed(true)
+    } catch (err) {
+      setError(err.message || 'Failed to load')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const shown = value || fetchedValue
+  const masked = '•••-••-' + (value ? value.slice(-4) : last4)
+
   return (
     <span className="font-mono text-sm flex items-center gap-2">
-      {revealed ? value : '•••-••-' + value.slice(-4)}
+      {revealed && shown ? shown : masked}
       <button
-        onClick={() => setRevealed(r => !r)}
-        className="text-xs text-blue-600 hover:underline"
+        onClick={handleReveal}
+        disabled={loading}
+        className="text-xs text-blue-600 hover:underline disabled:opacity-50"
       >
-        {revealed ? 'Hide' : 'Reveal'}
+        {loading ? 'Loading…' : revealed ? 'Hide' : 'Reveal'}
       </button>
+      {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
   )
 }
@@ -681,7 +710,7 @@ export default function InstructorProfilePage() {
               </div>
               <div className="flex gap-2 items-center">
                 <span className="text-gray-400 w-28 flex-shrink-0 text-xs">SSN</span>
-                <SSNField value={instructor.ssn} />
+                <SSNField value={instructor.ssn} last4={instructor.ssn_last4} instructorId={instructor.id} />
               </div>
             </div>
           </>

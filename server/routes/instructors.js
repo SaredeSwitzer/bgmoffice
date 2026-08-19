@@ -3,7 +3,8 @@ const multer   = require('multer');
 const crypto   = require('crypto');
 const path     = require('path');
 const pool     = require('../db/pg');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireStaff } = require('../middleware/auth');
+const { decryptSSN } = require('../lib/ssnCrypto');
 const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
@@ -47,7 +48,11 @@ async function getInstructorRow(id) {
     'SELECT * FROM instructor_notes WHERE instructor_id = $1 ORDER BY created_at DESC',
     [id]
   );
-  return { ...row, documents, feedback_notes };
+  // Never send the encrypted blob to the browser — it's useless there and shouldn't
+  // leave the server. ssn_last4 is enough for routine display; see /:id/reveal-ssn for
+  // the one place staff can decrypt the full number on demand.
+  const { ssn_encrypted, ...rowWithoutEncrypted } = row;
+  return { ...rowWithoutEncrypted, documents, feedback_notes };
 }
 
 router.get('/', async (req, res) => {
@@ -94,6 +99,18 @@ router.get('/:id', async (req, res) => {
   res.json(row);
 });
 
+// Decrypts the full SSN on demand (e.g. for filing a 1099) — staff-only (same access
+// level staff already had to the legacy plaintext ssn column), and separate from the
+// routine GET /:id so the plaintext number only ever exists in a response when someone
+// deliberately asks for it.
+router.get('/:id/reveal-ssn', requireStaff, async (req, res) => {
+  const { rows: [row] } = await pool.query('SELECT ssn, ssn_encrypted FROM instructors WHERE id = $1', [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Instructor not found' });
+  if (row.ssn_encrypted) return res.json({ ssn: decryptSSN(row.ssn_encrypted) });
+  if (row.ssn) return res.json({ ssn: row.ssn });
+  return res.status(404).json({ error: 'No SSN on file' });
+});
+
 router.post('/', async (req, res) => {
   const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
@@ -103,20 +120,25 @@ router.post('/', async (req, res) => {
   let signedFlag = contract_signed ? 1 : 0;
   let signedDate = contract_signed_date || null;
   let signatureToLink = null;
+  let sigSsnEncrypted = null;
+  let sigSsnLast4 = null;
   if (email) {
     const { rows: [sig] } = await pool.query(
-      `SELECT id, signed_at FROM instructor_contract_signatures
+      `SELECT id, signed_at, ssn_encrypted, ssn_last4 FROM instructor_contract_signatures
         WHERE email = $1 AND signed_at IS NOT NULL AND instructor_id IS NULL
         ORDER BY signed_at DESC LIMIT 1`,
       [email]
     );
-    if (sig) { signedFlag = 1; signedDate = sig.signed_at; signatureToLink = sig.id; }
+    if (sig) {
+      signedFlag = 1; signedDate = sig.signed_at; signatureToLink = sig.id;
+      sigSsnEncrypted = sig.ssn_encrypted; sigSsnLast4 = sig.ssn_last4;
+    }
   }
 
   const { rows: [inst] } = await pool.query(
-    `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, ssn || null, signedFlag, signedDate, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null]
+    `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle, ssn_encrypted, ssn_last4)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, ssn || null, signedFlag, signedDate, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, sigSsnEncrypted, sigSsnLast4]
   );
   if (signatureToLink) {
     await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [inst.id, signatureToLink]);
