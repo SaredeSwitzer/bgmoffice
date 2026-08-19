@@ -38,6 +38,14 @@ function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); retu
 function startOfWeek(d) { return addDays(d, -d.getDay()) } // back to Sunday
 function money(v) { return v == null || v === '' ? '—' : `$${Number(v).toFixed(0)}` }
 
+// Street + city + zip, skipping whichever parts are blank — matches
+// server/routes/schedule.js's fmtAddress() used for the confirmation email.
+function fmtAddr(s) {
+  let addr = [s.street, s.city].filter(Boolean).join(', ')
+  if (s.zip) addr = addr ? `${addr} ${s.zip}` : s.zip
+  return addr
+}
+
 const BLANK_SCHEDULE = {
   client: null, instructor: null, weekday: '', start_time: '',
   charge_amount: '', instructor_pay: '', payment_method: '', style: '', location: '', special_instructions: '',
@@ -268,6 +276,9 @@ export default function SchedulePage() {
                                 {s.neighborhood && (
                                   <p className="text-gray-400 truncate">📍 {s.neighborhood}</p>
                                 )}
+                                {fmtAddr(s) && (
+                                  <p className="text-gray-400 truncate" title={fmtAddr(s)}>{fmtAddr(s)}</p>
+                                )}
                                 <div className="flex items-center justify-between mt-1">
                                   <span className="font-semibold text-gray-800">{money(s.charge_amount)}</span>
                                   <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
@@ -401,6 +412,9 @@ export default function SchedulePage() {
                         {' · '}{s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
                         {s.neighborhood ? ` · 📍 ${s.neighborhood}` : ''}
                       </p>
+                      {fmtAddr(s) && (
+                        <p className="text-[11px] text-gray-400 truncate" title={fmtAddr(s)}>{fmtAddr(s)}</p>
+                      )}
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold text-gray-800">{money(s.charge_amount)}</p>
