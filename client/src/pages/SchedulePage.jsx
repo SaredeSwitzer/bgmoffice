@@ -90,7 +90,11 @@ export default function SchedulePage() {
   const loadWeek = useCallback(() => {
     setLoading(true)
     api.getClassSessions(ymd(weekStart), ymd(weekEnd))
-      .then(setSessions).catch(() => setSessions([])).finally(() => setLoading(false))
+      // Cancelling a session (vs. deleting it) is meant to invalidate it, not hide it from
+      // the calendar — but this page had no filter for it, so a cancelled session rendered
+      // identically to a live one. Filter it out here the same way a delete would.
+      .then(rows => setSessions(rows.filter(s => s.status !== 'cancelled')))
+      .catch(() => setSessions([])).finally(() => setLoading(false))
   }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadSchedules = useCallback(() => {
