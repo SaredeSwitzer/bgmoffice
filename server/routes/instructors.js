@@ -7,6 +7,15 @@ const { requireAuth, requireStaff } = require('../middleware/auth');
 const { decryptSSN } = require('../lib/ssnCrypto');
 const { sendMail } = require('../lib/mailer');
 const { createClient } = require('@supabase/supabase-js');
+const bcrypt = require('bcryptjs');
+
+// "Jane Doe" -> "JD", "Cher" -> "CH" — matches the free-typed initials staff already
+// enter for other accounts in Settings > Users; just derived instead of asked for here.
+function deriveInitials(name) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  return (words[0] || '').slice(0, 2).toUpperCase();
+}
 
 const router = express.Router();
 router.use(requireAuth);
@@ -144,6 +153,25 @@ router.post('/', async (req, res) => {
   if (signatureToLink) {
     await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [inst.id, signatureToLink]);
   }
+
+  // Create their login account too — same INSERT shape as Settings > Users' manual "add
+  // user" flow, just automatic. Password is random and never revealed; instructors sign
+  // in with an emailed code (see server/routes/auth.js), not a password. Skip quietly if
+  // that email is already tied to another account (e.g. a staff login) — email is unique.
+  let hasLogin = false;
+  if (email) {
+    const { rows: [existingUser] } = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (!existingUser) {
+      const randomPassword = crypto.randomBytes(24).toString('hex');
+      await pool.query(
+        `INSERT INTO users (name, initials, email, password_hash, role, instructor_id)
+         VALUES ($1,$2,$3,$4,'instructor',$5)`,
+        [name, deriveInitials(name), email, bcrypt.hashSync(randomPassword, 10), inst.id]
+      );
+      hasLogin = true;
+    }
+  }
+
   if (email) {
     try {
       const { rows: settingsRows } = await pool.query(
@@ -160,7 +188,7 @@ router.post('/', async (req, res) => {
       console.error('[instructors] intro email failed:', e.message);
     }
   }
-  res.status(201).json(await getInstructorRow(inst.id));
+  res.status(201).json({ ...(await getInstructorRow(inst.id)), has_login: hasLogin });
 });
 
 router.put('/:id', async (req, res) => {
