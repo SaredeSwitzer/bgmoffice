@@ -43,6 +43,23 @@ router.post('/', async (req, res) => {
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
 
+  // If this organization already signed the contract in-app before being added as a
+  // client (see clientContract.js), carry that signature + contact info over.
+  let signedFlag = waiver_signed ? 1 : 0;
+  let signedDate = waiver_signed_date || null;
+  let signatureToLink = null;
+  let sig = null;
+  const matchEmail = email || contact_person_email;
+  if (matchEmail) {
+    ({ rows: [sig] } = await pool.query(
+      `SELECT id, signed_at, contact_name, phone, street, city, zip FROM client_contract_signatures
+        WHERE email = $1 AND signed_at IS NOT NULL AND client_id IS NULL
+        ORDER BY signed_at DESC LIMIT 1`,
+      [matchEmail]
+    ));
+    if (sig) { signedFlag = 1; signedDate = sig.signed_at ? new Date(sig.signed_at).toISOString().slice(0, 10) : null; signatureToLink = sig.id; }
+  }
+
   const { rows: [client] } = await pool.query(
     `INSERT INTO clients
        (name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
@@ -53,12 +70,15 @@ router.post('/', async (req, res) => {
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
       notes || null, rate_per_class || null,
-      contact_person_name || null, contact_person_phone || null,
+      contact_person_name || (sig?.contact_name ?? null), contact_person_phone || (sig?.phone ?? null),
       contact_person_email || null, contact_person_role || null,
-      waiver_signed ? 1 : 0, waiver_signed_date || null,
-      street || null, city || null, zip || null, neighborhood || null,
+      signedFlag, signedDate,
+      street || (sig?.street ?? null), city || (sig?.city ?? null), zip || (sig?.zip ?? null), neighborhood || null,
     ]
   );
+  if (signatureToLink) {
+    await pool.query('UPDATE client_contract_signatures SET client_id = $1 WHERE id = $2', [client.id, signatureToLink]);
+  }
   await syncMentions({
     sourceTable: 'client_notes', sourceId: client.id, text: notes || '',
     authorInitials: req.user.initials, linkPath: `/clients/${client.id}`,

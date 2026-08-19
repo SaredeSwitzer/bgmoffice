@@ -4,6 +4,8 @@ import { api } from '../api/client'
 import NewCaseModal from '../components/NewCaseModal'
 import GmailComposeLink from '../components/GmailComposeLink'
 import MentionTextarea from '../components/MentionTextarea'
+import ClientContractInviteModal from '../components/ClientContractInviteModal'
+import ClientContractSignaturesPanel from '../components/ClientContractSignaturesPanel'
 
 const CONTACT_ICONS = { text: '💬', email: '✉️', whatsapp: '📱', call: '📞' }
 
@@ -17,6 +19,8 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false)
   const [createError, setCreateError] = useState('')
   const [mentionableUsers, setMentionableUsers] = useState([])
+  const [contractInviteOpen, setContractInviteOpen] = useState(false)
+  const [signaturesRefresh, setSignaturesRefresh] = useState(0)
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -38,6 +42,7 @@ export default function ClientsPage() {
       setClients(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))
       setNewClient(false)
       setForm({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', zip: '', neighborhood: '' })
+      setSignaturesRefresh(r => r + 1)
     } catch (err) {
       setCreateError(err.message)
     } finally {
@@ -52,13 +57,30 @@ export default function ClientsPage() {
           <h1 className="text-xl font-bold text-gray-900">Clients</h1>
           <Link to="/reminders" className="text-xs text-blue-600 hover:underline">Reminders →</Link>
         </div>
-        <button
-          onClick={() => setNewClient(v => !v)}
-          className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          + New Client
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setContractInviteOpen(true)}
+            className="px-3 py-1.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Send Contract to Sign
+          </button>
+          <button
+            onClick={() => setNewClient(v => !v)}
+            className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            + New Client
+          </button>
+        </div>
       </div>
+
+      {contractInviteOpen && (
+        <ClientContractInviteModal
+          onClose={() => setContractInviteOpen(false)}
+          onSent={() => setSignaturesRefresh(r => r + 1)}
+        />
+      )}
+
+      <ClientContractSignaturesPanel clients={clients} refreshKey={signaturesRefresh} />
 
       {newClient && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">

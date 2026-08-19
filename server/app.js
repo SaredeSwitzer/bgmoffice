@@ -43,6 +43,19 @@ app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), asy
 
   if (event.type === 'payment_intent.succeeded') {
     const pi = event.data.object;
+    const signatureId = pi.metadata?.client_contract_signature_id;
+    if (signatureId) {
+      const { rows: [sig] } = await pool.query(
+        "UPDATE client_contract_signatures SET deposit_paid_at = now() WHERE id = $1 AND deposit_paid_at IS NULL RETURNING org_name, contact_name, deposit_amount",
+        [signatureId]
+      );
+      if (sig) {
+        console.log(`[stripe webhook] Deposit paid for client contract signature ${signatureId}`);
+        const { notifyCrew } = require('./lib/notifyCrew');
+        const amount = ((pi.amount_received ?? pi.amount) / 100).toFixed(2);
+        await notifyCrew(`💳 ${sig.org_name || sig.contact_name || 'A client'} just paid a $${amount} deposit via their contract signing link.`);
+      }
+    }
     const invoiceId = pi.metadata?.invoice_id;
     if (invoiceId) {
       const { rows: [invoice] } = await pool.query(
@@ -168,6 +181,7 @@ app.use('/api/auth',         require('./routes/auth'));
 app.use('/api/auth/passkeys', require('./routes/passkeys'));
 
 app.use('/api/clients',      require('./routes/clients'));
+app.use('/api/client-contract', require('./routes/clientContract'));
 app.use('/api/instructors',  require('./routes/instructors'));
 app.use('/api/instructor-contract', require('./routes/instructorContract'));
 app.use('/api/cases',        require('./routes/cases'));

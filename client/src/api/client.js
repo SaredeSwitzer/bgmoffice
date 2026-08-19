@@ -188,6 +188,15 @@ export const api = {
   linkContractSignature: (id, instructor_id) => request(`/instructor-contract/signatures/${id}/link`, { method: 'POST', body: JSON.stringify({ instructor_id }) }),
   getContractSigningInfo: (token) => request(`/instructor-contract/public/${token}`),
   signContract: (token, data) => request(`/instructor-contract/public/${token}/sign`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Client/organization contract e-signature
+  getClientContractInvitePreview: (data) => request('/client-contract/invite/preview', { method: 'POST', body: JSON.stringify(data) }),
+  sendClientContractInvite: (id, data) => request(`/client-contract/invite/${id}/send`, { method: 'POST', body: JSON.stringify(data) }),
+  getClientContractSignatures: () => request('/client-contract/signatures'),
+  linkClientContractSignature: (id, client_id) => request(`/client-contract/signatures/${id}/link`, { method: 'POST', body: JSON.stringify({ client_id }) }),
+  getClientContractSigningInfo: (token) => fetch(`${BASE}/client-contract/public/${token}`).then(r => r.json()),
+  createClientContractPaymentIntent: (token) => fetch(`${BASE}/client-contract/public/${token}/create-payment-intent`, { method: 'POST' }).then(r => r.json()),
+  signClientContract: (token, data) => fetch(`${BASE}/client-contract/public/${token}/sign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()),
   getRecruiting: (q, { archived } = {}) => {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
