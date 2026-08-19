@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import MeetingInviteModal from '../components/MeetingInviteModal'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
@@ -14,6 +15,7 @@ export default function InstructorsPage() {
   const [newInstructor, setNewInstructor] = useState(false)
   const [form, setForm] = useState(BLANK_FORM)
   const [saving, setSaving] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
@@ -68,13 +70,23 @@ export default function InstructorsPage() {
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">Instructors</h1>
-        <button
-          onClick={() => setNewInstructor(v => !v)}
-          className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          + New Instructor
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setInviteOpen(true)}
+            className="px-3 py-1.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Invite to Meeting
+          </button>
+          <button
+            onClick={() => setNewInstructor(v => !v)}
+            className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            + New Instructor
+          </button>
+        </div>
       </div>
+
+      {inviteOpen && <MeetingInviteModal onClose={() => setInviteOpen(false)} />}
 
       {newInstructor && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">

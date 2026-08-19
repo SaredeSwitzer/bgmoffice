@@ -1,12 +1,39 @@
 const express = require('express');
 const pool    = require('../db/pg');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireStaff } = require('../middleware/auth');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { sendMail } = require('../lib/mailer');
 
 const router = express.Router();
 router.use(requireAuth);
 
 const DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+// Email a candidate the meeting link before they're an instructor record at all —
+// no client_id/instructor_id needed, just a name and email typed in on the spot.
+router.post('/meeting-invite', requireStaff, async (req, res) => {
+  const { name, email } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'A valid email is required' });
+  }
+  const { rows } = await pool.query(
+    "SELECT key, value FROM app_settings WHERE key IN ('meeting_link','meeting_invite_subject','meeting_invite_body')"
+  );
+  const m = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  if (!m.meeting_link) {
+    return res.status(400).json({ error: 'No meeting link set up yet.' });
+  }
+  const fillName = (name || '').trim() || 'there';
+  const fill = (str) => (str || '').replace(/\{name\}/g, fillName).replace(/\{link\}/g, m.meeting_link);
+  const subject = fill(m.meeting_invite_subject || 'Let\'s hop on a quick video call');
+  const body = fill(m.meeting_invite_body || `Hi {name},\n\nHere's the Zoom link: {link}`);
+  try {
+    await sendMail({ to: email, subject, text: body });
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+  res.json({ ok: true, sent_to: email });
+});
 
 const ENTRY_JOIN = `
   SELECT re.*,
