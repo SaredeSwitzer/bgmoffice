@@ -265,6 +265,22 @@ function fmtTime(t) {
 }
 function fmtMoney(v) { return v == null || v === '' ? '' : `$${Number(v).toFixed(0)}`; }
 
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Turns the plain-text confirmation body into an HTML version with its labels bolded
+// (Day/Time:, Style of Class:, Rate:, …) — anything at the start of a line that looks
+// like "Label:" (letters/digits/spaces then a colon, not the whole line). Staff still
+// edit the plain-text template/preview; this is generated fresh at send time so there's
+// no separate rich-text template to keep in sync.
+function bodyToHtml(text) {
+  const escaped = escapeHtml(text)
+    .replace(/^([A-Za-z][A-Za-z0-9 /'&-]{0,60}:)/gm, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+  return `<div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.6;color:#1f2937">${escaped}</div>`;
+}
+
 async function getTemplate() {
   const { rows } = await pool.query(
     "SELECT key, value FROM app_settings WHERE key IN ('instructor_confirm_subject','instructor_confirm_body')"
@@ -339,7 +355,7 @@ async function sendConfirmationRoute(kind, table, req, res) {
   const subject = (req.body.subject ?? r.subject).trim();
   const body    = (req.body.body ?? r.body);
   try {
-    await sendMail({ to: r.to, subject, text: body, cc: CONFIRMATION_CC, replyTo: CONFIRMATION_REPLY_TO });
+    await sendMail({ to: r.to, subject, text: body, html: bodyToHtml(body), cc: CONFIRMATION_CC, replyTo: CONFIRMATION_REPLY_TO });
   } catch (e) {
     return res.status(502).json({ error: `Could not send: ${e.message}` });
   }
