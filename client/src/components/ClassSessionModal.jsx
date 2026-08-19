@@ -27,6 +27,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
     instructor_pay: session?.instructor_pay ?? '',
     payment_method: session?.payment_method || '',
     style: session?.style || '',
+    participant_count: session?.participant_count ?? '',
+    participant_ages: session?.participant_ages || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -52,6 +54,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
       instructor_pay: form.instructor_pay === '' ? null : form.instructor_pay,
       payment_method: form.payment_method || null,
       style: form.style || null,
+      participant_count: form.participant_count === '' ? null : form.participant_count,
+      participant_ages: form.participant_ages || null,
     }
     try {
       const saved = isEdit
@@ -127,6 +131,16 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
                 <label className="block text-xs font-medium text-gray-600 mb-1">Style</label>
                 <input value={form.style} onChange={e => setField('style', e.target.value)}
                   placeholder="Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1"># of participants</label>
+                <input type="number" step="1" min="0" value={form.participant_count} onChange={e => setField('participant_count', e.target.value)}
+                  placeholder="1" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Ages</label>
+                <input value={form.participant_ages} onChange={e => setField('participant_ages', e.target.value)}
+                  placeholder="e.g. 6, 8" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}

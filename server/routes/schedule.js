@@ -117,6 +117,7 @@ router.post('/schedules', async (req, res) => {
   const {
     client_id, instructor_id, weekday, start_time, charge_amount, instructor_pay,
     payment_method, style, location, special_instructions, status, start_date, end_date,
+    participant_count, participant_ages,
   } = req.body;
 
   if (!client_id) return res.status(400).json({ error: 'client_id required' });
@@ -127,11 +128,13 @@ router.post('/schedules', async (req, res) => {
   const { rows: [{ id }] } = await pool.query(
     `INSERT INTO class_schedules
        (client_id, instructor_id, weekday, start_time, charge_amount, instructor_pay,
-        payment_method, style, location, special_instructions, status, start_date, end_date)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+        payment_method, style, location, special_instructions, status, start_date, end_date,
+        participant_count, participant_ages)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
     [client_id, instructor_id || null, wd, start_time || null, charge_amount ?? null,
      instructor_pay ?? null, payment_method || null, style || null, location || null,
-     special_instructions || null, status || 'active', start_date || null, end_date || null]
+     special_instructions || null, status || 'active', start_date || null, end_date || null,
+     participant_count === '' ? null : participant_count ?? null, participant_ages || null]
   );
   res.status(201).json(await getScheduleRow(id));
 });
@@ -143,20 +146,30 @@ router.put('/schedules/:id', async (req, res) => {
   const {
     client_id, instructor_id, weekday, start_time, charge_amount, instructor_pay,
     payment_method, style, location, special_instructions, status, start_date, end_date,
+    participant_count, participant_ages,
   } = req.body;
   const wd = normalizeWeekday(weekday);
   if (wd === undefined) return res.status(400).json({ error: 'weekday must be 0–6 (0=Sun) or null' });
+
+  // Switching who's teaching invalidates any confirmation already sent to the old
+  // instructor — clear it so the UI goes back to "needs confirmation" for the new one.
+  const newInstructorId = instructor_id || null;
+  const instructorChanged = existing.confirmation_sent_at && newInstructorId !== existing.instructor_id;
 
   await pool.query(
     `UPDATE class_schedules SET
        client_id=$1, instructor_id=$2, weekday=$3, start_time=$4, charge_amount=$5,
        instructor_pay=$6, payment_method=$7, style=$8, location=$9, special_instructions=$10,
-       status=$11, start_date=$12, end_date=$13, updated_at=now()
-     WHERE id=$14`,
-    [client_id ?? existing.client_id, instructor_id || null, wd, start_time || null,
+       status=$11, start_date=$12, end_date=$13, participant_count=$14, participant_ages=$15,
+       ${instructorChanged ? 'confirmation_sent_at=NULL, confirmation_sent_to=NULL,' : ''}
+       updated_at=now()
+     WHERE id=$16`,
+    [client_id ?? existing.client_id, newInstructorId, wd, start_time || null,
      charge_amount ?? null, instructor_pay ?? null, payment_method || null, style || null,
      location || null, special_instructions || null, status || 'active',
-     start_date || null, end_date || null, req.params.id]
+     start_date || null, end_date || null,
+     participant_count === '' ? null : participant_count ?? null, participant_ages || null,
+     req.params.id]
   );
   res.json(await getScheduleRow(req.params.id));
 });
@@ -200,6 +213,7 @@ router.post('/sessions', async (req, res) => {
   const {
     schedule_id, client_id, instructor_id, session_date, start_time,
     charge_amount, instructor_pay, payment_method, style, status, notes,
+    participant_count, participant_ages,
   } = req.body;
   if (!client_id)          return res.status(400).json({ error: 'client_id required' });
   if (!isDate(session_date)) return res.status(400).json({ error: 'session_date (YYYY-MM-DD) required' });
@@ -208,11 +222,13 @@ router.post('/sessions', async (req, res) => {
   const { rows: [row] } = await pool.query(
     `INSERT INTO class_sessions
        (schedule_id, client_id, instructor_id, session_date, start_time,
-        charge_amount, instructor_pay, payment_method, style, status, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        charge_amount, instructor_pay, payment_method, style, status, notes,
+        participant_count, participant_ages)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
     [schedule_id || null, client_id, instructor_id || null, session_date, start_time || null,
      charge_amount ?? null, instructor_pay ?? null, payment_method || null, style || null,
-     status || 'scheduled', notes || null]
+     status || 'scheduled', notes || null,
+     participant_count === '' ? null : participant_count ?? null, participant_ages || null]
   );
   res.status(201).json(row);
 });
@@ -226,14 +242,24 @@ router.put('/sessions/:id', async (req, res) => {
   if (req.body.session_date !== undefined && !isDate(m.session_date)) {
     return res.status(400).json({ error: 'session_date must be YYYY-MM-DD' });
   }
+
+  // Switching who's teaching invalidates any confirmation already sent to the old
+  // instructor — clear it so the UI goes back to "needs confirmation" for the new one.
+  const newInstructorId = m.instructor_id || null;
+  const instructorChanged = existing.confirmation_sent_at && newInstructorId !== existing.instructor_id;
+
   await pool.query(
     `UPDATE class_sessions SET
        instructor_id=$1, session_date=$2, start_time=$3, charge_amount=$4, instructor_pay=$5,
-       payment_method=$6, style=$7, status=$8, notes=$9, updated_at=now()
-     WHERE id=$10`,
-    [m.instructor_id || null, m.session_date, m.start_time || null, m.charge_amount ?? null,
+       payment_method=$6, style=$7, status=$8, notes=$9, participant_count=$10, participant_ages=$11,
+       ${instructorChanged ? 'confirmation_sent_at=NULL, confirmation_sent_to=NULL,' : ''}
+       updated_at=now()
+     WHERE id=$12`,
+    [newInstructorId, m.session_date, m.start_time || null, m.charge_amount ?? null,
      m.instructor_pay ?? null, m.payment_method || null, m.style || null,
-     m.status || 'scheduled', m.notes || null, req.params.id]
+     m.status || 'scheduled', m.notes || null,
+     m.participant_count === '' ? null : m.participant_count ?? null, m.participant_ages || null,
+     req.params.id]
   );
   const { rows: [row] } = await pool.query('SELECT * FROM class_sessions WHERE id=$1', [req.params.id]);
   res.json(row);
@@ -324,6 +350,8 @@ function confirmationContext(row) {
     neighborhood: row.neighborhood || '',
     address: fmtAddress(row),
     style: row.style || '',
+    participants: row.participant_count != null ? String(row.participant_count) : '',
+    ages: row.participant_ages || '',
     rate: fmtMoney(row.instructor_pay),
   };
 }

@@ -50,6 +50,7 @@ function fmtAddr(s) {
 const BLANK_SCHEDULE = {
   client: null, instructor: null, weekday: '', start_time: '',
   charge_amount: '', instructor_pay: '', payment_method: '', style: '', location: '', special_instructions: '',
+  participant_count: '', participant_ages: '',
 }
 
 export default function SchedulePage() {
@@ -140,6 +141,8 @@ export default function SchedulePage() {
         style: form.style || null,
         location: form.location || null,
         special_instructions: form.special_instructions || null,
+        participant_count: form.participant_count === '' ? null : form.participant_count,
+        participant_ages: form.participant_ages || null,
       }
       if (editingId) await api.updateClassSchedule(editingId, payload)
       else await api.createClassSchedule(payload)
@@ -164,6 +167,8 @@ export default function SchedulePage() {
       style: s.style || '',
       location: s.location || '',
       special_instructions: s.special_instructions || '',
+      participant_count: s.participant_count ?? '',
+      participant_ages: s.participant_ages || '',
     })
     setEditingId(s.id)
     setShowNew(true)
@@ -374,6 +379,16 @@ export default function SchedulePage() {
                   <label className="block text-xs font-medium text-gray-600 mb-1">Style</label>
                   <input value={form.style} onChange={e => setForm(f => ({ ...f, style: e.target.value }))}
                     placeholder="Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1"># of participants</label>
+                  <input type="number" step="1" min="0" value={form.participant_count} onChange={e => setForm(f => ({ ...f, participant_count: e.target.value }))}
+                    placeholder="1" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ages</label>
+                  <input value={form.participant_ages} onChange={e => setForm(f => ({ ...f, participant_ages: e.target.value }))}
+                    placeholder="e.g. 6, 8" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                 </div>
               </div>
               <div className="flex gap-2">
