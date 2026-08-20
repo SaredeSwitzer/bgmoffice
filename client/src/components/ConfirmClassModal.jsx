@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 
-// Preview + send the instructor confirmation email for a class — either a recurring
-// schedule or a single dated session. The app fills the template from the class; staff
-// review (and can tweak) before sending. Nothing sends on its own.
-export default function ConfirmClassModal({ schedule, kind = 'schedule', onClose, onSent }) {
+// Preview + send the instructor confirmation email for a class — a recurring schedule,
+// a single dated session, or (kind='combined') several recurring schedules for the same
+// client+instructor at once, e.g. someone teaching the same place twice a week gets one
+// email instead of two. The app fills the template from the class; staff review (and
+// can tweak) before sending. Nothing sends on its own.
+export default function ConfirmClassModal({ schedule, scheduleIds, kind = 'schedule', onClose, onSent }) {
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(null)
   const [subject, setSubject] = useState('')
@@ -12,8 +14,12 @@ export default function ConfirmClassModal({ schedule, kind = 'schedule', onClose
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
 
-  const getPreview = kind === 'session' ? api.getSessionConfirmationPreview : api.getConfirmationPreview
-  const doSend      = kind === 'session' ? api.sendSessionConfirmation      : api.sendConfirmation
+  const getPreview = kind === 'session' ? api.getSessionConfirmationPreview
+    : kind === 'combined' ? () => api.getCombinedConfirmationPreview(scheduleIds)
+    : api.getConfirmationPreview
+  const doSend = kind === 'session' ? api.sendSessionConfirmation
+    : kind === 'combined' ? (id, data) => api.sendCombinedConfirmation(scheduleIds, data)
+    : api.sendConfirmation
 
   useEffect(() => {
     getPreview(schedule.id)
@@ -37,7 +43,9 @@ export default function ConfirmClassModal({ schedule, kind = 'schedule', onClose
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-sm">Confirmation email · {schedule.client_name}</h3>
+          <h3 className="font-semibold text-gray-900 text-sm">
+            Confirmation email · {schedule.client_name}{kind === 'combined' ? ` (${scheduleIds.length} classes combined)` : ''}
+          </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
         </div>
 

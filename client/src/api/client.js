@@ -345,6 +345,8 @@ export const api = {
   // Works for a recurring schedule or a single dated session.
   getConfirmationPreview: (scheduleId) => request(`/schedule/schedules/${scheduleId}/confirmation-preview`),
   sendConfirmation: (scheduleId, data = {}) => request(`/schedule/schedules/${scheduleId}/send-confirmation`, { method: 'POST', body: JSON.stringify(data) }),
+  getCombinedConfirmationPreview: (scheduleIds) => request('/schedule/schedules/combined-confirmation-preview', { method: 'POST', body: JSON.stringify({ schedule_ids: scheduleIds }) }),
+  sendCombinedConfirmation: (scheduleIds, data = {}) => request('/schedule/schedules/combined-send-confirmation', { method: 'POST', body: JSON.stringify({ schedule_ids: scheduleIds, ...data }) }),
   getSessionConfirmationPreview: (sessionId) => request(`/schedule/sessions/${sessionId}/confirmation-preview`),
   sendSessionConfirmation: (sessionId, data = {}) => request(`/schedule/sessions/${sessionId}/send-confirmation`, { method: 'POST', body: JSON.stringify(data) }),
   // Editable confirmation template (admin)

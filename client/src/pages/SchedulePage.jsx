@@ -92,6 +92,9 @@ export default function SchedulePage() {
   // Recurring class / dated session whose instructor-confirmation email modal is open.
   const [confirmSchedule, setConfirmSchedule] = useState(null)
   const [confirmSession, setConfirmSession] = useState(null)
+  // Recurring schedules for the same client+instructor (e.g. teaching there twice a
+  // week) that got combined into one confirmation email, if any.
+  const [confirmCombinedGroup, setConfirmCombinedGroup] = useState(null)
 
   // Add/edit-class modal. { session: null, defaultDate } to add; { session } to edit.
   const [sessionModal, setSessionModal] = useState(null)
@@ -438,7 +441,14 @@ export default function SchedulePage() {
             <p className="text-gray-400 text-sm italic text-center py-10">No recurring classes yet.</p>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              {schedules.map((s, i) => (
+              {schedules.map((s, i) => {
+                // Same client + instructor teaching more than once a week — group so
+                // they can get a single combined confirmation email instead of one each.
+                const group = s.instructor_id
+                  ? schedules.filter(x => x.instructor_id === s.instructor_id && x.client_id === s.client_id)
+                  : [s]
+                const isGrouped = group.length > 1
+                return (
                 <Fragment key={s.id}>
                   <div className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''} ${s.status === 'paused' ? 'opacity-50' : ''}`}>
                     <div className="flex-1 min-w-0">
@@ -463,13 +473,19 @@ export default function SchedulePage() {
                       <p className="text-[11px] text-gray-400">{s.payment_method || '—'}</p>
                     </div>
                     {s.instructor_id && (
-                      <button onClick={() => setConfirmSchedule(s)} title="Email the instructor a class confirmation"
+                      <button
+                        onClick={() => isGrouped ? setConfirmCombinedGroup(group) : setConfirmSchedule(s)}
+                        title={isGrouped
+                          ? `Email one confirmation covering all ${group.length} classes with this instructor at ${s.client_name}`
+                          : 'Email the instructor a class confirmation'}
                         className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
-                          s.confirmation_sent_at
+                          (isGrouped ? group.every(g => g.confirmation_sent_at) : s.confirmation_sent_at)
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                             : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                         }`}>
-                        {s.confirmation_sent_at ? '✓ Emailed' : 'Send Confirmation Email'}
+                        {isGrouped
+                          ? (group.every(g => g.confirmation_sent_at) ? '✓ Emailed (combined)' : `Send Combined (${group.length})`)
+                          : (s.confirmation_sent_at ? '✓ Emailed' : 'Send Confirmation Email')}
                       </button>
                     )}
                     <NotesToggle open={openNotes === `schedule-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
@@ -488,7 +504,8 @@ export default function SchedulePage() {
                     <ClassNotes kind="schedule" id={s.id} onCountChange={rows => applyCounts('schedule', s.id, rows)} />
                   )}
                 </Fragment>
-              ))}
+                )
+              })}
             </div>
           )}
         </>
@@ -510,6 +527,20 @@ export default function SchedulePage() {
           onClose={() => setConfirmSession(null)}
           onSent={(r) => setSessions(prev => prev.map(x =>
             x.id === confirmSession.id ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))}
+        />
+      )}
+
+      {confirmCombinedGroup && (
+        <ConfirmClassModal
+          schedule={confirmCombinedGroup[0]}
+          scheduleIds={confirmCombinedGroup.map(g => g.id)}
+          kind="combined"
+          onClose={() => setConfirmCombinedGroup(null)}
+          onSent={(r) => {
+            const ids = new Set(confirmCombinedGroup.map(g => g.id))
+            setSchedules(prev => prev.map(x =>
+              ids.has(x.id) ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))
+          }}
         />
       )}
 

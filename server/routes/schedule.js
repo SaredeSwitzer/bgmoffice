@@ -384,13 +384,20 @@ function confirmationContext(row) {
     : row.weekday != null
       ? `starting ${fmtCalendarDate(row.start_date || nextWeekdayOnOrAfter(row.weekday, toDateStr(new Date())))}, then weekly`
       : '';
+  const day = row.session_date ? dayNameFromDate(row.session_date)
+     : (row.weekday != null ? WEEKDAY_NAMES[row.weekday] : 'Flexible');
+  const time = fmtTimeRange(row.start_time, row.duration_minutes);
   return {
     instructor_name: row.instructor_name || 'there',
     client_name: row.client_name || '',
-    day: row.session_date ? dayNameFromDate(row.session_date)
-       : (row.weekday != null ? WEEKDAY_NAMES[row.weekday] : 'Flexible'),
+    day,
     date,
-    time: fmtTimeRange(row.start_time, row.duration_minutes),
+    time,
+    // The single line the template actually prints ("Day/Time: {days_times}") — kept
+    // as its own field (rather than baked into the template text) so a combined
+    // confirmation (see confirmationContextCombined) can override just this one piece
+    // with a multi-day summary without needing a different template.
+    days_times: date ? `${day}, ${date} at ${time}` : `${day} at ${time}`,
     neighborhood: row.neighborhood || '',
     address: fmtAddress(row),
     style: row.style || '',
@@ -398,6 +405,26 @@ function confirmationContext(row) {
     ages: row.participant_ages || '',
     rate: fmtMoney(row.instructor_pay),
   };
+}
+
+// Same shape as confirmationContext, but for several recurring schedules at once — e.g.
+// an instructor teaching the same client twice a week. Everything (client, instructor,
+// address, style, rate) is taken from the first schedule since a combined email only
+// makes sense when those match; only the day/time part is actually combined.
+function confirmationContextCombined(rows) {
+  const ctx = confirmationContext(rows[0]);
+  const parts = rows.map(row => {
+    const weekday = row.weekday != null ? `${WEEKDAY_NAMES[row.weekday]}s` : 'Flexible';
+    return `${weekday} at ${fmtTimeRange(row.start_time, row.duration_minutes)}`;
+  });
+  const joined = parts.length <= 1 ? parts.join('')
+    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  const startDates = rows
+    .filter(r => r.weekday != null)
+    .map(r => r.start_date || nextWeekdayOnOrAfter(r.weekday, toDateStr(new Date())));
+  const earliestStart = startDates.length ? startDates.sort()[0] : null;
+  ctx.days_times = earliestStart ? `${joined}, starting ${fmtCalendarDate(earliestStart)}` : joined;
+  return ctx;
 }
 
 async function getSessionRow(id) {
@@ -457,6 +484,65 @@ router.get('/schedules/:id/confirmation-preview', async (req, res) => {
 });
 
 router.post('/schedules/:id/send-confirmation', (req, res) => sendConfirmationRoute('schedule', 'class_schedules', req, res));
+
+// One confirmation email covering several recurring schedules at once — e.g. an
+// instructor teaching the same client twice a week gets one email listing both days
+// instead of two separate ones. Only valid when every schedule shares the same client
+// and instructor, since a combined email only has room for one address/rate/style.
+async function buildCombinedConfirmation(scheduleIds) {
+  const rows = await Promise.all(scheduleIds.map(id => getScheduleRow(id)));
+  if (rows.some(r => !r)) return { error: 'One or more schedules not found', status: 404 };
+  const [first] = rows;
+  const mismatched = rows.some(r => r.client_id !== first.client_id || r.instructor_id !== first.instructor_id);
+  if (mismatched) {
+    return { error: 'Combined confirmations only work when every class is for the same client and instructor.', status: 400 };
+  }
+  const { rows: [inst] } = first.instructor_id
+    ? await pool.query('SELECT name, email FROM instructors WHERE id=$1', [first.instructor_id])
+    : { rows: [] };
+  const tpl = await getTemplate();
+  const ctx = confirmationContextCombined(rows);
+  return {
+    to: inst?.email || null,
+    instructor_name: inst?.name || null,
+    subject: renderTemplate(tpl.subject, ctx),
+    body: renderTemplate(tpl.body, ctx),
+    already_sent_at: rows.every(r => r.confirmation_sent_at) ? rows.map(r => r.confirmation_sent_at).sort().pop() : null,
+    already_sent_to: first.confirmation_sent_to || null,
+  };
+}
+
+router.post('/schedules/combined-confirmation-preview', async (req, res) => {
+  const { schedule_ids } = req.body;
+  if (!Array.isArray(schedule_ids) || schedule_ids.length < 2) {
+    return res.status(400).json({ error: 'At least two schedule_ids are required' });
+  }
+  const r = await buildCombinedConfirmation(schedule_ids);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
+});
+
+router.post('/schedules/combined-send-confirmation', async (req, res) => {
+  const { schedule_ids } = req.body;
+  if (!Array.isArray(schedule_ids) || schedule_ids.length < 2) {
+    return res.status(400).json({ error: 'At least two schedule_ids are required' });
+  }
+  const r = await buildCombinedConfirmation(schedule_ids);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  if (!r.to) return res.status(400).json({ error: 'This instructor has no email on file. Add one on their profile first.' });
+  const subject = (req.body.subject ?? r.subject).trim();
+  const body    = (req.body.body ?? r.body);
+  try {
+    await sendMail({ to: r.to, subject, text: body, html: bodyToHtml(body), cc: CONFIRMATION_CC, replyTo: CONFIRMATION_REPLY_TO });
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+  await pool.query(
+    `UPDATE class_schedules SET confirmation_sent_at=now(), confirmation_sent_to=$1 WHERE id = ANY($2)`,
+    [r.to, schedule_ids]
+  );
+  res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
+});
 
 router.get('/sessions/:id/confirmation-preview', async (req, res) => {
   const r = await buildConfirmation('session', req.params.id);
