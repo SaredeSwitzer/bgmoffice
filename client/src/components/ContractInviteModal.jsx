@@ -1,12 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 
 // Step 1: who. Step 2: preview the invite email (with their unique signing link) and edit
 // before sending — same pattern as MeetingInviteModal / the instructor confirmation email.
-export default function ContractInviteModal({ onClose, onSent }) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [loadingPreview, setLoadingPreview] = useState(false)
+//
+// Pass `instructor` ({ id, name, email }) when sending to a specific, already-on-file
+// instructor (e.g. from their profile page) — skips straight to the preview, and links
+// the signature to them up front so their profile flips to "signed" the moment they sign,
+// instead of needing a manual match-up in the signatures list afterward.
+export default function ContractInviteModal({ instructor, onClose, onSent }) {
+  const [name, setName] = useState(instructor?.name || '')
+  const [email, setEmail] = useState(instructor?.email || '')
+  const [loadingPreview, setLoadingPreview] = useState(!!instructor)
   const [signatureId, setSignatureId] = useState(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -14,13 +19,11 @@ export default function ContractInviteModal({ onClose, onSent }) {
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
 
-  async function handlePreview(e) {
-    e.preventDefault()
-    if (!email.trim()) { setError('Please enter an email address.'); return }
+  async function loadPreview(n, e) {
     setLoadingPreview(true)
     setError('')
     try {
-      const p = await api.getContractInvitePreview({ name: name.trim(), email: email.trim() })
+      const p = await api.getContractInvitePreview({ name: n.trim(), email: e.trim(), instructor_id: instructor?.id })
       setSignatureId(p.signature_id)
       setSubject(p.subject)
       setBody(p.body)
@@ -29,6 +32,17 @@ export default function ContractInviteModal({ onClose, onSent }) {
     } finally {
       setLoadingPreview(false)
     }
+  }
+
+  useEffect(() => {
+    if (instructor) loadPreview(instructor.name || '', instructor.email || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handlePreview(e) {
+    e.preventDefault()
+    if (!email.trim()) { setError('Please enter an email address.'); return }
+    await loadPreview(name, email)
   }
 
   async function handleSend() {
@@ -49,17 +63,29 @@ export default function ContractInviteModal({ onClose, onSent }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 pt-6">
-          <h3 className="font-bold text-gray-900">Send Contract to Sign</h3>
-          <p className="text-xs text-gray-500 mt-1 mb-4">Emails a unique signing link — no instructor record needed.</p>
+          <h3 className="font-bold text-gray-900">
+            {instructor ? `Send Contract to Sign · ${instructor.name}` : 'Send Contract to Sign'}
+          </h3>
+          <p className="text-xs text-gray-500 mt-1 mb-4">
+            {instructor ? "Emails a unique signing link — their profile updates to \"signed\" as soon as they do." : 'Emails a unique signing link — no instructor record needed.'}
+          </p>
         </div>
 
         {sent ? (
           <div className="px-6 pb-6">
-            <p className="text-sm text-gray-600 mb-4">The contract was emailed to {email}. Once they sign, it'll show up in the signatures list — and if you later add them as an instructor with this same email, it'll link automatically.</p>
+            <p className="text-sm text-gray-600 mb-4">
+              {instructor
+                ? `The contract was emailed to ${email}.`
+                : "The contract was emailed to " + email + ". Once they sign, it'll show up in the signatures list — and if you later add them as an instructor with this same email, it'll link automatically."}
+            </p>
             <button onClick={onClose}
               className="w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-700">
               Done
             </button>
+          </div>
+        ) : instructor && loadingPreview ? (
+          <div className="px-6 pb-6">
+            <p className="text-sm text-gray-400">Loading…</p>
           </div>
         ) : !signatureId ? (
           <form onSubmit={handlePreview} className="px-6 pb-6 space-y-4">

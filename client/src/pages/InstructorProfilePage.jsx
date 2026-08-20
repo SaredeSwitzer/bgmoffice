@@ -5,6 +5,7 @@ import ContactInfo from '../components/ContactInfo'
 import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
 import DashboardFilterBar from '../components/DashboardFilterBar'
+import ContractInviteModal from '../components/ContractInviteModal'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -164,6 +165,30 @@ function LoginReminderModal({ instructorId, instructorName, onClose, onSent }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Opens the contract-invite modal pre-filled for this instructor — only shown next to
+// "Not signed". Skips the standalone flow's manual name/email step since we already
+// know both, and links the signature to them up front (see ContractInviteModal).
+function SendContractButton({ instructor }) {
+  const [open, setOpen] = useState(false)
+  if (!instructor.email) return null
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-[11px] font-medium text-blue-600 hover:text-blue-800 underline decoration-dotted"
+      >
+        Send contract to sign
+      </button>
+      {open && (
+        <ContractInviteModal
+          instructor={{ id: instructor.id, name: instructor.name, email: instructor.email }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   )
 }
 
@@ -853,7 +878,10 @@ export default function InstructorProfilePage() {
                     )}
                   </span>
                 ) : (
-                  <span className="text-gray-400 italic text-xs">Not signed</span>
+                  <>
+                    <span className="text-gray-400 italic text-xs">Not signed</span>
+                    <SendContractButton instructor={instructor} />
+                  </>
                 )}
               </div>
               <div className="flex gap-2 items-center">
