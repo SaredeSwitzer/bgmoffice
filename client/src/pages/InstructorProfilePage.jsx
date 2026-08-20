@@ -46,38 +46,124 @@ function LoginStatusBadge({ instructor }) {
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700" title="Has login access but hasn't signed in yet">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Not logged in yet
       </span>
-      <RemindLoginButton instructorId={instructor.id} />
+      <RemindLoginButton instructorId={instructor.id} instructorName={instructor.name} />
     </span>
   )
 }
 
-// Sends the instructor a "how to log in" email (same info as their welcome email) —
-// only makes sense next to the amber "Not logged in yet" state.
-function RemindLoginButton({ instructorId }) {
-  const [state, setState] = useState('idle') // idle | sending | sent | error
+// Opens a preview of the "how to log in" reminder email (same info as the welcome
+// email) so staff can check/edit it before it goes out — only shown next to the
+// amber "Not logged in yet" state.
+function RemindLoginButton({ instructorId, instructorName }) {
+  const [open, setOpen] = useState(false)
+  const [sent, setSent] = useState(false)
 
-  async function send() {
-    setState('sending')
-    try {
-      await api.sendLoginReminder(instructorId)
-      setState('sent')
-    } catch (e) {
-      setState('error')
-      alert(e.message)
-    }
-  }
-
-  if (state === 'sent') {
+  if (sent) {
     return <span className="text-[11px] text-gray-400">Reminder sent ✓</span>
   }
   return (
-    <button
-      onClick={send}
-      disabled={state === 'sending'}
-      className="text-[11px] font-medium text-blue-600 hover:text-blue-800 underline decoration-dotted disabled:opacity-50"
-    >
-      {state === 'sending' ? 'Sending…' : 'Email login reminder'}
-    </button>
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-[11px] font-medium text-blue-600 hover:text-blue-800 underline decoration-dotted"
+      >
+        Email login reminder
+      </button>
+      {open && (
+        <LoginReminderModal
+          instructorId={instructorId}
+          instructorName={instructorName}
+          onClose={() => setOpen(false)}
+          onSent={() => setSent(true)}
+        />
+      )}
+    </>
+  )
+}
+
+// Preview + edit + send the login-reminder email. Same preview-then-send pattern as
+// class confirmation emails and the new-instructor welcome email.
+function LoginReminderModal({ instructorId, instructorName, onClose, onSent }) {
+  const [loading, setLoading] = useState(true)
+  const [preview, setPreview] = useState(null)
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const [justSent, setJustSent] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.getLoginReminderPreview(instructorId)
+      .then(p => { setPreview(p); setSubject(p.subject); setBody(p.body) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [instructorId])
+
+  async function send() {
+    setSending(true); setError('')
+    try {
+      await api.sendLoginReminder(instructorId, { subject, body })
+      setJustSent(true)
+      onSent?.()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900 text-sm">Login reminder · {instructorName}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {justSent ? (
+            <p className="text-sm text-green-700">✓ Sent to {preview.to}</p>
+          ) : loading ? (
+            <p className="text-sm text-gray-400">Loading…</p>
+          ) : !preview?.to ? (
+            <p className="text-sm text-gray-600">No email on file for {instructorName} — nothing to send.</p>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
+                <div className="text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                  {preview.to}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
+                <input value={subject} onChange={e => setSubject(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
+                <textarea value={body} onChange={e => setBody(e.target.value)} rows={10}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed" />
+              </div>
+              <p className="text-[11px] text-gray-400">Edit anything before sending, or close this without sending.</p>
+            </>
+          )}
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 border border-gray-300 text-gray-600 text-sm rounded-lg">
+            {justSent ? 'Done' : "Don't send"}
+          </button>
+          {preview?.to && !justSent && (
+            <button onClick={send} disabled={sending}
+              className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+              {sending ? 'Sending…' : 'Send email'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 

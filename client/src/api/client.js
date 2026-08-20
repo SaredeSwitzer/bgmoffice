@@ -97,7 +97,8 @@ export const api = {
   updateInstructor: (id, data) =>
     request(`/instructors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteInstructor: (id) => request(`/instructors/${id}`, { method: 'DELETE' }),
-  sendLoginReminder: (id) => request(`/instructors/${id}/send-login-reminder`, { method: 'POST' }),
+  getLoginReminderPreview: (id) => request(`/instructors/${id}/login-reminder-preview`),
+  sendLoginReminder: (id, data = {}) => request(`/instructors/${id}/send-login-reminder`, { method: 'POST', body: JSON.stringify(data) }),
   getInstructorIntroPreview: (id) => request(`/instructors/${id}/intro-preview`),
   sendInstructorIntro: (id, data = {}) => request(`/instructors/${id}/send-intro`, { method: 'POST', body: JSON.stringify(data) }),
   sendInstructorEmailBlast: (data) => request('/instructors/email-blast', { method: 'POST', body: JSON.stringify(data) }),

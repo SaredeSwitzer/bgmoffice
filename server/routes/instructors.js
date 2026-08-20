@@ -163,31 +163,48 @@ router.get('/:id', async (req, res) => {
 
 // Nudge an instructor who has a login account but has never signed in — same email
 // "how to log in" info as the welcome email, just re-sendable any time from their
-// profile. Staff-only.
-router.post('/:id/send-login-reminder', requireStaff, async (req, res) => {
-  const { rows: [inst] } = await pool.query('SELECT name, email FROM instructors WHERE id = $1', [req.params.id]);
-  if (!inst) return res.status(404).json({ error: 'Instructor not found' });
-  if (!inst.email) return res.status(400).json({ error: 'This instructor has no email on file.' });
+// profile. Staff review/edit the filled-in preview before it sends (same pattern as
+// the welcome email and class confirmations).
+async function buildLoginReminderPreview(id) {
+  const { rows: [inst] } = await pool.query('SELECT name, email FROM instructors WHERE id = $1', [id]);
+  if (!inst) return { error: 'Instructor not found', status: 404 };
   const { rows: [account] } = await pool.query(
-    "SELECT id FROM users WHERE instructor_id = $1 AND role = 'instructor'", [req.params.id]
+    "SELECT id FROM users WHERE instructor_id = $1 AND role = 'instructor'", [id]
   );
-  if (!account) return res.status(400).json({ error: 'This instructor has no login account yet.' });
+  if (!account) return { error: 'This instructor has no login account yet.', status: 400 };
 
   const { rows: settingsRows } = await pool.query(
     "SELECT key, value FROM app_settings WHERE key IN ('instructor_login_reminder_subject','instructor_login_reminder_body')"
   );
   const m = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
   const fillName = inst.name.trim() || 'there';
-  const fill = (str) => (str || '').replace(/\{name\}/g, fillName).replace(/\{email\}/g, inst.email);
-  const subject = fill(m.instructor_login_reminder_subject || 'Reminder: log into your BGM Office account');
-  const body = fill(m.instructor_login_reminder_body || `Hi {name},\n\nJust a reminder to log into bgmoffice.com with this email address — we'll send you a one-time code, no password needed.`);
+  const fill = (str) => (str || '').replace(/\{name\}/g, fillName).replace(/\{email\}/g, inst.email || '');
+  return {
+    to: inst.email || null,
+    instructor_name: inst.name,
+    subject: fill(m.instructor_login_reminder_subject || 'Reminder: log into your BGM Office account'),
+    body: fill(m.instructor_login_reminder_body || `Hi {name},\n\nJust a reminder to log into bgmoffice.com with this email address — we'll send you a one-time code, no password needed.`),
+  };
+}
 
+router.get('/:id/login-reminder-preview', requireStaff, async (req, res) => {
+  const r = await buildLoginReminderPreview(req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
+});
+
+router.post('/:id/send-login-reminder', requireStaff, async (req, res) => {
+  const r = await buildLoginReminderPreview(req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  if (!r.to) return res.status(400).json({ error: 'This instructor has no email on file.' });
+  const subject = (req.body.subject ?? r.subject).trim();
+  const body    = (req.body.body ?? r.body);
   try {
-    await sendMail({ to: inst.email, subject, text: body });
+    await sendMail({ to: r.to, subject, text: body });
   } catch (e) {
     return res.status(502).json({ error: `Could not send: ${e.message}` });
   }
-  res.json({ ok: true, sent_to: inst.email, sent_at: new Date().toISOString() });
+  res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
 });
 
 // Decrypts the full SSN on demand (e.g. for filing a 1099) — staff-only (same access
