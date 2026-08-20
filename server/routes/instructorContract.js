@@ -133,14 +133,26 @@ router.post('/invite/:id/send', requireStaff, async (req, res) => {
 
 // List signatures, most recent first — so staff can see who's signed and link them to an
 // instructor record. Signing a contract never creates an instructor row on its own.
+// Dismissed rows (staff has seen/handled them) are left out — see POST .../dismiss.
 router.get('/signatures', requireStaff, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT s.id, s.name, s.email, s.signed_name, s.signed_at, s.sent_at, s.instructor_id, s.ssn_last4, i.name AS instructor_name
        FROM instructor_contract_signatures s
        LEFT JOIN instructors i ON i.id = s.instructor_id
+      WHERE s.dismissed_at IS NULL
       ORDER BY s.created_at DESC LIMIT 100`
   );
   res.json(rows);
+});
+
+// Hide a signature from the list once staff have seen/handled it — doesn't delete
+// anything, just stops it showing up again.
+router.post('/signatures/:id/dismiss', requireStaff, async (req, res) => {
+  const result = await pool.query(
+    'UPDATE instructor_contract_signatures SET dismissed_at = now() WHERE id = $1', [req.params.id]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Signature not found' });
+  res.json({ ok: true });
 });
 
 router.post('/signatures/:id/link', requireStaff, async (req, res) => {

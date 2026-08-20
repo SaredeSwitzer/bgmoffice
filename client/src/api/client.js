@@ -191,6 +191,7 @@ export const api = {
   sendContractInvite: (id, data) => request(`/instructor-contract/invite/${id}/send`, { method: 'POST', body: JSON.stringify(data) }),
   getContractSignatures: () => request('/instructor-contract/signatures'),
   linkContractSignature: (id, instructor_id) => request(`/instructor-contract/signatures/${id}/link`, { method: 'POST', body: JSON.stringify({ instructor_id }) }),
+  dismissContractSignature: (id) => request(`/instructor-contract/signatures/${id}/dismiss`, { method: 'POST' }),
   getContractSigningInfo: (token) => request(`/instructor-contract/public/${token}`),
   signContract: (token, data) => request(`/instructor-contract/public/${token}/sign`, { method: 'POST', body: JSON.stringify(data) }),
 

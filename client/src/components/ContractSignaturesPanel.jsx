@@ -28,6 +28,15 @@ export default function ContractSignaturesPanel({ instructors, refreshKey }) {
     }
   }
 
+  async function handleDismiss(sig) {
+    setRows(prev => prev.filter(r => r.id !== sig.id))
+    try {
+      await api.dismissContractSignature(sig.id)
+    } catch {
+      load() // put it back if the dismiss didn't actually save
+    }
+  }
+
   const fmt = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 
   if (loading) return null
@@ -65,6 +74,8 @@ export default function ContractSignaturesPanel({ instructors, refreshKey }) {
               />
             </div>
           )}
+          <button onClick={() => handleDismiss(sig)} title="Dismiss — hide this from the list"
+            className="text-gray-300 hover:text-red-500 text-lg leading-none shrink-0">×</button>
         </div>
       ))}
     </div>
