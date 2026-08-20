@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import MeetingInviteModal from '../components/MeetingInviteModal'
 import ContractInviteModal from '../components/ContractInviteModal'
 import ContractSignaturesPanel from '../components/ContractSignaturesPanel'
+import StylePicker from '../components/StylePicker'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
@@ -96,12 +97,6 @@ export default function InstructorsPage() {
     }
   }
 
-  function toggleStyle(name) {
-    const cur = (form.styles_taught || '').split(',').map(s => s.trim()).filter(Boolean)
-    const next = cur.includes(name) ? cur.filter(s => s !== name) : [...cur, name]
-    setForm(f => ({ ...f, styles_taught: next.join(', ') }))
-  }
-
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
@@ -157,24 +152,15 @@ export default function InstructorsPage() {
               <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
             </div>
-            {classStyles.length > 0 && (
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-2">Styles They Teach</label>
-                <div className="flex flex-wrap gap-2">
-                  {classStyles.map(s => {
-                    const checked = (form.styles_taught || '').split(',').map(x => x.trim()).includes(s.name)
-                    return (
-                      <button key={s.id} type="button" onClick={() => toggleStyle(s.name)}
-                        className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
-                          checked ? 'bg-purple-100 border-purple-400 text-purple-800' : 'bg-gray-50 border-gray-300 text-gray-600 hover:border-gray-400'
-                        }`}>
-                        {s.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-2">Styles They Teach</label>
+              <StylePicker
+                styleNames={styleNames}
+                value={form.styles_taught}
+                onChange={v => setForm(f => ({ ...f, styles_taught: v }))}
+                onStyleAdded={s => setClassStyles(prev => [...prev, s])}
+              />
+            </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}

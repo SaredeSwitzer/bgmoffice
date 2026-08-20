@@ -753,6 +753,7 @@ export default function ClientProfilePage() {
           waiver_signed_date: c.waiver_signed_date || '',
           street: c.street || '',
           city: c.city || '',
+          state: c.state || '',
           zip: c.zip || '',
           neighborhood: c.neighborhood || '',
         })
@@ -898,15 +899,22 @@ export default function ClientProfilePage() {
                 <input value={editForm.street} onChange={e => setEditForm(f => ({ ...f, street: e.target.value }))}
                   placeholder="123 Main St" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
-                <input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
-                  placeholder="Brooklyn" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Zip</label>
-                <input value={editForm.zip} onChange={e => setEditForm(f => ({ ...f, zip: e.target.value }))}
-                  placeholder="11201" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              <div className="col-span-2 grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+                  <input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
+                    placeholder="Brooklyn" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+                  <input value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
+                    placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Zip</label>
+                  <input value={editForm.zip} onChange={e => setEditForm(f => ({ ...f, zip: e.target.value }))}
+                    placeholder="11201" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
@@ -977,13 +985,13 @@ export default function ClientProfilePage() {
             </div>
 
             {/* Address */}
-            {(client.street || client.city || client.zip || client.neighborhood) && (
+            {(client.street || client.city || client.state || client.zip || client.neighborhood) && (
               <div className="mt-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Address</p>
                 {client.street && <p className="text-sm text-gray-800">{client.street}</p>}
-                {(client.city || client.zip) && (
+                {(client.city || client.state || client.zip) && (
                   <p className="text-sm text-gray-800">
-                    {[client.city, client.zip].filter(Boolean).join(', ')}
+                    {[[client.city, client.state].filter(Boolean).join(', '), client.zip].filter(Boolean).join(' ')}
                   </p>
                 )}
                 {client.neighborhood && (

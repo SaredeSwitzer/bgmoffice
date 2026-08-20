@@ -15,7 +15,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
   const [newClient, setNewClient] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', zip: '', neighborhood: '' })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', state: '', zip: '', neighborhood: '' })
   const [saving, setSaving] = useState(false)
   const [createError, setCreateError] = useState('')
   const [mentionableUsers, setMentionableUsers] = useState([])
@@ -41,7 +41,7 @@ export default function ClientsPage() {
       const c = await api.createClient(form)
       setClients(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))
       setNewClient(false)
-      setForm({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', zip: '', neighborhood: '' })
+      setForm({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', state: '', zip: '', neighborhood: '' })
       setSignaturesRefresh(r => r + 1)
     } catch (err) {
       setCreateError(err.message)
@@ -122,15 +122,22 @@ export default function ClientsPage() {
               <input value={form.street} onChange={e => setForm(f => ({ ...f, street: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="123 Main St" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
-              <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Zip</label>
-              <input value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            <div className="col-span-2 grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+                <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+                <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
+                  placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Zip</label>
+                <input value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>

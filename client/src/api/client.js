@@ -242,6 +242,7 @@ export const api = {
   deleteInstructorAvailability: (id) =>
     request(`/recruiting/availability/${id}`, { method: 'DELETE' }),
   getClassStyles: () => request('/recruiting/styles'),
+  createClassStyle: (name) => request('/recruiting/styles', { method: 'POST', body: JSON.stringify({ name }) }),
   createClassStyle: (name) =>
     request('/recruiting/styles', { method: 'POST', body: JSON.stringify({ name }) }),
   updateClassStyle: (id, name) =>

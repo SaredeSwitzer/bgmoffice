@@ -6,6 +6,7 @@ import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import ContractInviteModal from '../components/ContractInviteModal'
+import StylePicker from '../components/StylePicker'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -631,6 +632,7 @@ export default function InstructorProfilePage() {
           payout_method: inst.payout_method || '',
           payout_handle: inst.payout_handle || '',
           mailing_address: inst.mailing_address || '',
+          state: inst.state || '',
           neighborhood: inst.neighborhood || '',
           ssn: inst.ssn || '',
           contract_signed: inst.contract_signed ? true : false,
@@ -709,25 +711,15 @@ export default function InstructorProfilePage() {
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-2">Styles They Teach</label>
-                <div className="flex flex-wrap gap-2">
-                  {classStyles.map(s => {
-                    const taught = (editForm.styles_taught || '').split(',').map(x => x.trim()).filter(Boolean)
-                    const checked = taught.includes(s.name)
-                    return (
-                      <label key={s.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border cursor-pointer text-xs font-medium transition-colors ${
-                        checked ? 'bg-purple-100 border-purple-400 text-purple-800' : 'bg-gray-50 border-gray-300 text-gray-600 hover:border-gray-400'
-                      }`}>
-                        <input type="checkbox" className="sr-only" checked={checked}
-                          onChange={e => {
-                            const cur = (editForm.styles_taught || '').split(',').map(x => x.trim()).filter(Boolean)
-                            const next = e.target.checked ? [...cur, s.name] : cur.filter(x => x !== s.name)
-                            setEditForm(f => ({ ...f, styles_taught: next.join(', ') }))
-                          }} />
-                        {s.name}
-                      </label>
-                    )
-                  })}
-                </div>
+                <StylePicker
+                  styleNames={[...new Set([
+                    ...classStyles.map(s => s.name),
+                    ...(editForm.styles_taught || '').split(',').map(s => s.trim()).filter(Boolean),
+                  ])].sort()}
+                  value={editForm.styles_taught}
+                  onChange={v => setEditForm(f => ({ ...f, styles_taught: v }))}
+                  onStyleAdded={s => setClassStyles(prev => [...prev, s])}
+                />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
@@ -762,6 +754,11 @@ export default function InstructorProfilePage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
                 <textarea value={editForm.mailing_address} onChange={e => setEditForm(f => ({ ...f, mailing_address: e.target.value }))}
                   rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+                <input value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
+                  placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">SSN</label>
@@ -865,7 +862,9 @@ export default function InstructorProfilePage() {
               {instructor.mailing_address && (
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Mailing Address</span>
-                  <span className="text-gray-700 whitespace-pre-wrap">{instructor.mailing_address}</span>
+                  <span className="text-gray-700 whitespace-pre-wrap">
+                    {instructor.mailing_address}{instructor.state ? `, ${instructor.state}` : ''}
+                  </span>
                 </div>
               )}
               <div className="flex gap-2 items-center">

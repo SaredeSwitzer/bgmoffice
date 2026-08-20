@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, uploadsUrl } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import StylePicker from '../components/StylePicker'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -141,7 +142,7 @@ export default function InstructorMyProfilePage() {
         setInstructor(inst)
         setForm({
           phone: inst.phone || '', email: inst.email || '',
-          mailing_address: inst.mailing_address || '', neighborhood: inst.neighborhood || '',
+          mailing_address: inst.mailing_address || '', state: inst.state || '', neighborhood: inst.neighborhood || '',
           styles_taught: inst.styles_taught || '', specialties: inst.specialties || '',
           payout_method: inst.payout_method || '', payout_handle: inst.payout_handle || '',
         })
@@ -149,12 +150,6 @@ export default function InstructorMyProfilePage() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [user?.instructor_id])
-
-  function toggleStyle(name) {
-    const cur = (form.styles_taught || '').split(',').map(s => s.trim()).filter(Boolean)
-    const next = cur.includes(name) ? cur.filter(s => s !== name) : [...cur, name]
-    setForm(f => ({ ...f, styles_taught: next.join(', ') }))
-  }
 
   // The canonical style list, plus whatever's already on this instructor's record
   // (e.g. something typed in before this picker existed) so it doesn't disappear.
@@ -206,10 +201,15 @@ export default function InstructorMyProfilePage() {
             <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
           </div>
-          <div className="sm:col-span-2">
+          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
             <input value={form.mailing_address} onChange={e => setForm(f => ({ ...f, mailing_address: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+            <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
+              placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
@@ -218,19 +218,12 @@ export default function InstructorMyProfilePage() {
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-2">Classes You Can Teach</label>
-            <div className="flex flex-wrap gap-2">
-              {styleNames.map(name => {
-                const checked = (form.styles_taught || '').split(',').map(s => s.trim()).includes(name)
-                return (
-                  <button key={name} type="button" onClick={() => toggleStyle(name)}
-                    className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
-                      checked ? 'bg-purple-100 border-purple-400 text-purple-800' : 'bg-gray-50 border-gray-300 text-gray-600 hover:border-gray-400'
-                    }`}>
-                    {name}
-                  </button>
-                )
-              })}
-            </div>
+            <StylePicker
+              styleNames={styleNames}
+              value={form.styles_taught}
+              onChange={v => setForm(f => ({ ...f, styles_taught: v }))}
+              onStyleAdded={s => setClassStyles(prev => [...prev, s])}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Specialties / Notes</label>

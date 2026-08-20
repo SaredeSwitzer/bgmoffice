@@ -358,7 +358,14 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
     if (!newClientName.trim()) return
     setSaving(true)
     try {
-      const created = await api.createClient({ name: newClientName.trim(), phone: newClientPhone.trim() || null })
+      // Carry over whatever address/neighborhood is already on this recruiting entry —
+      // no reason to make staff retype it just because the client record didn't exist yet.
+      const created = await api.createClient({
+        name: newClientName.trim(),
+        phone: newClientPhone.trim() || null,
+        street: form.address || null,
+        neighborhood: form.neighborhood || null,
+      })
       setClientObj(created)
       setField('client_name', created.name)
       setField('client_id', created.id)
