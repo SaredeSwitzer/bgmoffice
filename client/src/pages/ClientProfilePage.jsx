@@ -689,14 +689,19 @@ function CardOnFileSection({ clientId, client, onChange }) {
         <p className="text-sm text-gray-400 italic">No card saved. Needed to charge this client via weekly CC billing.</p>
       )}
       {!keying && (
-        <div className="flex flex-wrap gap-2 mt-3">
-          <button onClick={startKey} disabled={busy} className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
-            {busy ? '…' : client.card_last4 ? 'Replace card' : 'Key a card now'}
-          </button>
-          <button onClick={copyLink} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
-            {linkCopied ? '✓ Link copied' : 'Copy save-card link'}
-          </button>
-        </div>
+        <>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <button onClick={startKey} disabled={busy} className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+              {busy ? '…' : client.card_last4 ? 'Replace card — e.g. from a photo' : 'Key in a card — e.g. from a photo'}
+            </button>
+            <button onClick={copyLink} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
+              {linkCopied ? '✓ Link copied' : 'Copy save-card link'}
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1.5">
+            Have a photo or screenshot of their card? Click "Key in a card" and type in the numbers you see — it goes straight to Stripe and is never saved on our end.
+          </p>
+        </>
       )}
       {keying && clientSecret && stripePromise && (
         <div className="mt-3">
