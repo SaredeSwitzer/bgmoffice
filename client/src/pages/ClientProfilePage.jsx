@@ -11,6 +11,7 @@ import { NewInvoiceModal } from './InvoicesPage'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
+import { fmtTime } from '../utils/time'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -258,6 +259,96 @@ function PackageCard({
         </div>
       )}
     </div>
+  )
+}
+
+// ── Class History / Upcoming Classes ────────────────────────────────────────
+// A per-client report: every dated class for this client, split into what's
+// still ahead and what already happened, each with its instructor and date.
+function fmtClassDate(iso) {
+  const [y, m, d] = iso.split('-')
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+const CLASS_STATUS_STYLE = {
+  scheduled: 'bg-blue-50 text-blue-700',
+  completed: 'bg-green-50 text-green-700',
+  cancelled: 'bg-gray-100 text-gray-500',
+  'no-show': 'bg-red-50 text-red-700',
+}
+
+function ClassRow({ s }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-2.5 gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-gray-800">{fmtClassDate(s.session_date)}</span>
+          {s.start_time && <span className="text-xs text-gray-500">{fmtTime(s.start_time)}</span>}
+          {s.status && (
+            <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${CLASS_STATUS_STYLE[s.status] || 'bg-gray-100 text-gray-500'}`}>
+              {s.status}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 truncate">
+          {s.instructor_name || 'No instructor assigned'}{s.style ? ` · ${s.style}` : ''}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function ClassHistorySection({ clientId }) {
+  const [sessions, setSessions] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    // Wide window (2 years back, 1 year forward) so the report covers realistic
+    // history/lookahead without asking the server for an unbounded scan.
+    const now = new Date()
+    const start = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate())
+    const end = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
+    const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    api.getClassSessions(ymd(start), ymd(end), { client_id: clientId })
+      .then(setSessions)
+      .catch(e => setError(e.message))
+  }, [clientId])
+
+  if (error) return null
+  if (sessions === null) return null
+
+  const todayStr = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const upcoming = sessions.filter(s => s.session_date >= todayStr).sort((a, b) => a.session_date.localeCompare(b.session_date))
+  const past = sessions.filter(s => s.session_date < todayStr).sort((a, b) => b.session_date.localeCompare(a.session_date))
+
+  if (sessions.length === 0) return null
+
+  return (
+    <section>
+      <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-gray-300 mb-3">
+        Classes
+        <span className="ml-2 text-xs font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+          {sessions.length}
+        </span>
+      </h2>
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+        {upcoming.length > 0 && (
+          <>
+            <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Upcoming</p>
+            {upcoming.map(s => <div key={s.id} className="border-t border-gray-50 first:border-t-0"><ClassRow s={s} /></div>)}
+          </>
+        )}
+        {past.length > 0 && (
+          <>
+            <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Past</p>
+            {past.map(s => <div key={s.id} className="border-t border-gray-50 first:border-t-0"><ClassRow s={s} /></div>)}
+          </>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -1003,6 +1094,9 @@ export default function ClientProfilePage() {
           </div>
         </section>
       )}
+
+      {/* Classes — upcoming + past, with instructor and date */}
+      <ClassHistorySection clientId={id} />
 
       {/* Class Packages */}
       <CardOnFileSection clientId={id} client={client} onChange={() => api.getClient(id).then(setClient)} />
