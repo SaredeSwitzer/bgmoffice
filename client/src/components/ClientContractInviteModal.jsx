@@ -3,11 +3,17 @@ import { api } from '../api/client'
 
 // Step 1: org details + custom payment terms/deposit for this org. Step 2: preview the
 // invite email and edit before sending — same pattern as the instructor contract invite.
-export default function ClientContractInviteModal({ onClose, onSent }) {
-  const [orgName, setOrgName] = useState('')
+//
+// Pass `client` ({ id, name, email, phone }) when sending to a specific, already-on-file
+// client (e.g. from their profile page) — prefills who they are and links the signature
+// to them up front, so their waiver flips to "signed" the moment they sign instead of
+// needing a manual match-up in the signatures list afterward. Payment terms/deposit are
+// still entered fresh each time since those vary invite to invite.
+export default function ClientContractInviteModal({ client, onClose, onSent }) {
+  const [orgName, setOrgName] = useState(client?.name || '')
   const [contactName, setContactName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState(client?.email || '')
+  const [phone, setPhone] = useState(client?.phone || '')
   const [paymentTerms, setPaymentTerms] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
   const [loadingPreview, setLoadingPreview] = useState(false)
@@ -28,6 +34,7 @@ export default function ClientContractInviteModal({ onClose, onSent }) {
         org_name: orgName.trim(), contact_name: contactName.trim(), email: email.trim(),
         phone: phone.trim(), payment_terms_text: paymentTerms.trim(),
         deposit_amount: depositAmount === '' ? null : depositAmount,
+        client_id: client?.id,
       })
       setSignatureId(p.signature_id)
       setSubject(p.subject)
@@ -57,13 +64,23 @@ export default function ClientContractInviteModal({ onClose, onSent }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 pt-6">
-          <h3 className="font-bold text-gray-900">Send Contract to Sign</h3>
-          <p className="text-xs text-gray-500 mt-1 mb-4">Emails a unique signing link — no client record needed.</p>
+          <h3 className="font-bold text-gray-900">
+            {client ? `Send Waiver/Contract to Sign · ${client.name}` : 'Send Contract to Sign'}
+          </h3>
+          <p className="text-xs text-gray-500 mt-1 mb-4">
+            {client
+              ? "Emails a unique signing link — their profile updates to \"signed\" as soon as they do."
+              : 'Emails a unique signing link — no client record needed.'}
+          </p>
         </div>
 
         {sent ? (
           <div className="px-6 pb-6">
-            <p className="text-sm text-gray-600 mb-4">The contract was emailed to {email}. Once they sign (and pay any deposit), it'll show up in the signatures list — and if you add them as a client with this same email, it'll link automatically.</p>
+            <p className="text-sm text-gray-600 mb-4">
+              {client
+                ? `The contract was emailed to ${email}.`
+                : `The contract was emailed to ${email}. Once they sign (and pay any deposit), it'll show up in the signatures list — and if you add them as a client with this same email, it'll link automatically.`}
+            </p>
             <button onClick={onClose}
               className="w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-700">
               Done

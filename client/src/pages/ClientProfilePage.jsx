@@ -12,6 +12,31 @@ import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
 import { fmtTime } from '../utils/time'
+import ClientContractInviteModal from '../components/ClientContractInviteModal'
+
+// Opens the waiver/contract invite modal pre-filled for this client — only shown next
+// to "Waiver Not Signed". Links the signature to them up front so their waiver flips
+// to "signed" automatically the moment they sign (see ClientContractInviteModal).
+function SendWaiverButton({ client }) {
+  const [open, setOpen] = useState(false)
+  if (!client.email) return null
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-xs font-medium text-blue-600 hover:text-blue-800 underline decoration-dotted"
+      >
+        Send waiver to sign
+      </button>
+      {open && (
+        <ClientContractInviteModal
+          client={{ id: client.id, name: client.name, email: client.email, phone: client.phone }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
 
 function fmt(iso) {
   if (!iso) return ''
@@ -937,9 +962,12 @@ export default function ClientProfilePage() {
                   )}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
-                  ⚠️ Waiver Not Signed
-                </span>
+                <>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
+                    ⚠️ Waiver Not Signed
+                  </span>
+                  <SendWaiverButton client={client} />
+                </>
               )}
             </div>
 

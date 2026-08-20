@@ -95,7 +95,7 @@ router.post('/public/:token/sign', async (req, res) => {
   if (!email?.trim()) return res.status(400).json({ error: 'Email is required.' });
 
   const { rows: [row] } = await pool.query(
-    'SELECT id, signed_at, deposit_amount, deposit_paid_at FROM client_contract_signatures WHERE token = $1',
+    'SELECT id, signed_at, deposit_amount, deposit_paid_at, client_id FROM client_contract_signatures WHERE token = $1',
     [req.params.token]
   );
   if (!row) return res.status(404).json({ error: 'Not found' });
@@ -112,10 +112,29 @@ router.post('/public/:token/sign', async (req, res) => {
            org_name = COALESCE($6, org_name), street = COALESCE($7, street),
            city = COALESCE($8, city), zip = COALESCE($9, zip)
      WHERE id = $10
-     RETURNING signed_at`,
+     RETURNING signed_at, contact_name, phone, street, city, zip`,
     [signed_name.trim(), ip || null, contact_name?.trim() || null, email.trim(), phone?.trim() || null,
      org_name?.trim() || null, street?.trim() || null, city?.trim() || null, zip?.trim() || null, row.id]
   );
+
+  // If this invite was sent from an existing client's profile (client_id was known up
+  // front, not matched later), flip their waiver over immediately — same fields
+  // POST /signatures/:id/link sets, just without staff having to do that matching
+  // step by hand.
+  if (row.client_id) {
+    const signedDate = new Date(updated.signed_at).toISOString().slice(0, 10);
+    await pool.query(
+      `UPDATE clients SET
+         waiver_signed = 1, waiver_signed_date = $1,
+         contact_person_name = COALESCE(contact_person_name, $2),
+         contact_person_phone = COALESCE(contact_person_phone, $3),
+         contact_person_email = COALESCE(contact_person_email, $4),
+         street = COALESCE(street, $5), city = COALESCE(city, $6), zip = COALESCE(zip, $7)
+       WHERE id = $8`,
+      [signedDate, updated.contact_name, updated.phone, email.trim(), updated.street, updated.city, updated.zip, row.client_id]
+    );
+  }
+
   res.json({ ok: true, signed_at: updated.signed_at });
 });
 
@@ -124,7 +143,7 @@ router.post('/public/:token/sign', async (req, res) => {
 router.use(requireAuth);
 
 router.post('/invite/preview', requireStaff, async (req, res) => {
-  const { org_name, contact_name, email, phone, payment_terms_text, deposit_amount } = req.body;
+  const { org_name, contact_name, email, phone, payment_terms_text, deposit_amount, client_id } = req.body;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'A valid email is required' });
   }
@@ -135,12 +154,16 @@ router.post('/invite/preview', requireStaff, async (req, res) => {
   if (!contractText) return res.status(400).json({ error: 'No contract text set up yet.' });
 
   const token = crypto.randomBytes(16).toString('hex');
+  // client_id set here (sent from an existing client's profile) means the signature
+  // auto-links and flips their waiver to "signed" the moment they sign — see
+  // POST /public/:token/sign. Left null for the general "Send Contract to Sign" flow,
+  // which still requires the manual match-up in the signatures list.
   const { rows: [row] } = await pool.query(
     `INSERT INTO client_contract_signatures
-       (org_name, contact_name, email, phone, token, contract_text, payment_terms_text, deposit_amount)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+       (org_name, contact_name, email, phone, token, contract_text, payment_terms_text, deposit_amount, client_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
     [org_name?.trim() || null, contact_name?.trim() || null, email.trim(), phone?.trim() || null,
-     token, contractText, payment_terms_text?.trim() || null, deposit_amount || null]
+     token, contractText, payment_terms_text?.trim() || null, deposit_amount || null, client_id || null]
   );
   const link = `${APP_URL}/sign-org-contract/${token}`;
   const fillName = (contact_name || '').trim() || 'there';
