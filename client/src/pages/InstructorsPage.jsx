@@ -34,6 +34,7 @@ export default function InstructorsPage() {
   const [signaturesRefresh, setSignaturesRefresh] = useState(0)
   const [selected, setSelected] = useState(() => new Set())
   const [emailBlastOpen, setEmailBlastOpen] = useState(false)
+  const [welcomeEmailFor, setWelcomeEmailFor] = useState(null) // newly-created instructor, or null
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
@@ -89,6 +90,7 @@ export default function InstructorsPage() {
       setNewInstructor(false)
       setForm(BLANK_FORM)
       setSignaturesRefresh(r => r + 1)
+      if (i.email) setWelcomeEmailFor(i)
     } finally {
       setSaving(false)
     }
@@ -312,6 +314,101 @@ export default function InstructorsPage() {
           onClose={() => setEmailBlastOpen(false)}
         />
       )}
+
+      {welcomeEmailFor && (
+        <WelcomeEmailModal
+          instructor={welcomeEmailFor}
+          onClose={() => setWelcomeEmailFor(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Preview + edit + send the welcome/sign-in-instructions email for a freshly-added
+// instructor. The instructor account already exists (created with the instructor) —
+// this only controls whether/when they're told about it.
+function WelcomeEmailModal({ instructor, onClose }) {
+  const [loading, setLoading] = useState(true)
+  const [preview, setPreview] = useState(null)
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.getInstructorIntroPreview(instructor.id)
+      .then(p => { setPreview(p); setSubject(p.subject); setBody(p.body) })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [instructor.id])
+
+  async function send() {
+    setSending(true); setError('')
+    try {
+      await api.sendInstructorIntro(instructor.id, { subject, body })
+      setSent(true)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900 text-sm">Welcome email · {instructor.name}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {sent ? (
+            <p className="text-sm text-green-700">✓ Sent to {preview.to}</p>
+          ) : loading ? (
+            <p className="text-sm text-gray-400">Loading…</p>
+          ) : !preview?.to ? (
+            <p className="text-sm text-gray-600">No email on file for {instructor.name} — nothing to send.</p>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
+                <div className="text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                  {preview.to}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
+                <input value={subject} onChange={e => setSubject(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
+                <textarea value={body} onChange={e => setBody(e.target.value)} rows={12}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed" />
+              </div>
+              <p className="text-[11px] text-gray-400">
+                Filled in from the welcome email template — edit anything before sending, or close this without sending.
+              </p>
+            </>
+          )}
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-1.5 border border-gray-300 text-gray-600 text-sm rounded-lg">
+            {sent ? 'Done' : "Don't send"}
+          </button>
+          {preview?.to && !sent && (
+            <button onClick={send} disabled={sending}
+              className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+              {sending ? 'Sending…' : 'Send email'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -253,23 +253,53 @@ router.post('/', async (req, res) => {
     }
   }
 
-  if (email) {
-    try {
-      const { rows: settingsRows } = await pool.query(
-        "SELECT key, value FROM app_settings WHERE key IN ('instructor_intro_subject','instructor_intro_body')"
-      );
-      const m = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
-      const fillName = name.trim() || 'there';
-      const fill = (str) => (str || '').replace(/\{name\}/g, fillName);
-      const subject = fill(m.instructor_intro_subject || 'Welcome to Bring the Gym to Me!');
-      const body = fill(m.instructor_intro_body || `Hi {name},\n\nWelcome to the team!`);
-      await sendMail({ to: email, subject, text: body });
-    } catch (e) {
-      // Never let a mail failure block adding the instructor — just log it.
-      console.error('[instructors] intro email failed:', e.message);
-    }
-  }
+  // The welcome email is no longer auto-sent — staff review/edit the preview and send
+  // it themselves (see GET/POST .../intro-preview and .../send-intro below), so a typo
+  // or a not-actually-ready instructor doesn't get emailed before anyone's looked at it.
   res.status(201).json({ ...(await getInstructorRow(inst.id)), has_login: hasLogin });
+});
+
+async function buildIntroPreview(id) {
+  const { rows: [inst] } = await pool.query(
+    'SELECT name, email, intro_email_sent_at FROM instructors WHERE id = $1', [id]
+  );
+  if (!inst) return { error: 'Instructor not found', status: 404 };
+  const { rows: settingsRows } = await pool.query(
+    "SELECT key, value FROM app_settings WHERE key IN ('instructor_intro_subject','instructor_intro_body')"
+  );
+  const m = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+  const fillName = inst.name.trim() || 'there';
+  const fill = (str) => (str || '').replace(/\{name\}/g, fillName);
+  return {
+    to: inst.email || null,
+    instructor_name: inst.name,
+    subject: fill(m.instructor_intro_subject || 'Welcome to Bring the Gym to Me!'),
+    body: fill(m.instructor_intro_body || `Hi {name},\n\nWelcome to the team!`),
+    already_sent_at: inst.intro_email_sent_at || null,
+  };
+}
+
+// Staff review the welcome email (with a chance to edit it) before it goes out —
+// same preview-then-send pattern as class confirmation emails.
+router.get('/:id/intro-preview', requireStaff, async (req, res) => {
+  const r = await buildIntroPreview(req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
+});
+
+router.post('/:id/send-intro', requireStaff, async (req, res) => {
+  const r = await buildIntroPreview(req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  if (!r.to) return res.status(400).json({ error: 'This instructor has no email on file.' });
+  const subject = (req.body.subject ?? r.subject).trim();
+  const body    = (req.body.body ?? r.body);
+  try {
+    await sendMail({ to: r.to, subject, text: body });
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+  await pool.query('UPDATE instructors SET intro_email_sent_at = now() WHERE id = $1', [req.params.id]);
+  res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
 });
 
 router.put('/:id', async (req, res) => {
