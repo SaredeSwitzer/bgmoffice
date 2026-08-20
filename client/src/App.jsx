@@ -28,6 +28,7 @@ import OrgContractSignPage from './pages/OrgContractSignPage'
 import PrivacyPage from './pages/PrivacyPage'
 import SchedulePage from './pages/SchedulePage'
 import BillingPage from './pages/BillingPage'
+import ReportsPage from './pages/ReportsPage'
 
 export default function App() {
   return (
@@ -76,6 +77,7 @@ export default function App() {
             <Route path="instructors" element={<InstructorsPage />} />
             <Route path="instructors/:id" element={<InstructorProfilePage />} />
             <Route path="schedule" element={<SchedulePage />} />
+            <Route path="reports" element={<ReportsPage />} />
             <Route path="billing" element={<BillingPage />} />
             <Route
               path="settings"
