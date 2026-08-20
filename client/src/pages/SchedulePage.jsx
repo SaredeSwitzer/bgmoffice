@@ -53,7 +53,13 @@ function fmtAddr(s) {
 function fmtParticipants(s) {
   const parts = []
   if (s.participant_count != null && s.participant_count !== '') {
-    parts.push(`${s.participant_count} participant${Number(s.participant_count) === 1 ? '' : 's'}`)
+    // Free text now (e.g. "Around 15 kids", "5-10") as well as plain numbers — only
+    // append "participant(s)" when it's just a bare number, so free text isn't followed
+    // by a redundant word.
+    const isPlainNumber = /^\d+$/.test(String(s.participant_count).trim())
+    parts.push(isPlainNumber
+      ? `${s.participant_count} participant${Number(s.participant_count) === 1 ? '' : 's'}`
+      : String(s.participant_count))
   }
   if (s.participant_ages) parts.push(`ages ${s.participant_ages}`)
   return parts.join(' · ')
@@ -406,8 +412,8 @@ export default function SchedulePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1"># of participants</label>
-                  <input type="number" step="1" min="0" value={form.participant_count} onChange={e => setForm(f => ({ ...f, participant_count: e.target.value }))}
-                    placeholder="1" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  <input type="text" value={form.participant_count} onChange={e => setForm(f => ({ ...f, participant_count: e.target.value }))}
+                    placeholder="e.g. 12, or Around 15 kids, or 5-10" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Ages</label>

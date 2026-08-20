@@ -150,8 +150,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1"># of participants</label>
-                <input type="number" step="1" min="0" value={form.participant_count} onChange={e => setField('participant_count', e.target.value)}
-                  placeholder="1" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <input type="text" value={form.participant_count} onChange={e => setField('participant_count', e.target.value)}
+                  placeholder="e.g. 12, or Around 15 kids, or 5-10" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Ages</label>

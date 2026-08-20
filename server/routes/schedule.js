@@ -292,6 +292,19 @@ function fmtTime(t) {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, '0')}${ampm}`;
 }
+// "HH:MM" + minutes -> "HH:MM", wrapping past midnight.
+function addMinutes(startTime, minutes) {
+  const [h, m] = String(startTime).split(':').map(Number);
+  const total = (h * 60 + m + minutes + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+// "2:00pm–2:45pm" instead of just the start time, so the instructor knows how long the
+// class runs without having to know/guess a default.
+function fmtTimeRange(startTime, durationMinutes) {
+  if (!startTime) return '';
+  if (!durationMinutes) return fmtTime(startTime);
+  return `${fmtTime(startTime)}–${fmtTime(addMinutes(startTime, durationMinutes))}`;
+}
 function fmtMoney(v) { return v == null || v === '' ? '' : `$${Number(v).toFixed(0)}`; }
 
 // Street + city + zip, comma/space-joined and skipping whichever parts are blank —
@@ -377,7 +390,7 @@ function confirmationContext(row) {
     day: row.session_date ? dayNameFromDate(row.session_date)
        : (row.weekday != null ? WEEKDAY_NAMES[row.weekday] : 'Flexible'),
     date,
-    time: fmtTime(row.start_time),
+    time: fmtTimeRange(row.start_time, row.duration_minutes),
     neighborhood: row.neighborhood || '',
     address: fmtAddress(row),
     style: row.style || '',
