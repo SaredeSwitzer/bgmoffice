@@ -58,11 +58,24 @@ async function getInstructorRow(id) {
     'SELECT * FROM instructor_notes WHERE instructor_id = $1 ORDER BY created_at DESC',
     [id]
   );
+  // Login status for the "has this instructor logged in yet" indicator on their
+  // profile. An instructor can have no users row at all (account creation predates
+  // the auto-create-on-add feature, or it failed) — that's distinct from having an
+  // account but never having signed in, so we surface both states.
+  const { rows: [account] } = await pool.query(
+    'SELECT last_login_at FROM users WHERE instructor_id = $1 AND role = $2', [id, 'instructor']
+  );
   // Never send the encrypted blob to the browser — it's useless there and shouldn't
   // leave the server. ssn_last4 is enough for routine display; see /:id/reveal-ssn for
   // the one place staff can decrypt the full number on demand.
   const { ssn_encrypted, ...rowWithoutEncrypted } = row;
-  return { ...rowWithoutEncrypted, documents, feedback_notes };
+  return {
+    ...rowWithoutEncrypted,
+    documents,
+    feedback_notes,
+    has_login: !!account,
+    last_login_at: account?.last_login_at || null,
+  };
 }
 
 router.get('/', async (req, res) => {

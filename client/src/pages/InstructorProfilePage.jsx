@@ -22,6 +22,32 @@ function fmtDate(str) {
   return `${months[parseInt(m,10)-1]} ${parseInt(d,10)}, ${y}`
 }
 
+// Green = has signed in at least once (with a tooltip showing when they last did).
+// Amber = has login access but has never signed in. Gray = no login account at all
+// (predates auto-created instructor logins, or creation failed) — a different problem
+// from "hasn't logged in yet", so it gets its own label rather than being lumped in.
+function LoginStatusBadge({ instructor }) {
+  if (!instructor.has_login) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500" title="No login account exists for this instructor">
+        <span className="w-1.5 h-1.5 rounded-full bg-gray-400" /> No login access
+      </span>
+    )
+  }
+  if (instructor.last_login_at) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700" title={`Last signed in ${fmt(instructor.last_login_at)}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Active
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700" title="Has login access but hasn't signed in yet">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Not logged in yet
+    </span>
+  )
+}
+
 // ── Photo Avatar ──────────────────────────────────────────────────────────────
 function PhotoAvatar({ instructor, onPhotoChange }) {
   const fileRef = useRef()
@@ -637,7 +663,10 @@ export default function InstructorProfilePage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h1 className="text-xl font-bold text-gray-900">{instructor.name}</h1>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h1 className="text-xl font-bold text-gray-900">{instructor.name}</h1>
+                      <LoginStatusBadge instructor={instructor} />
+                    </div>
                     {instructor.pay_rate && (
                       <p className="text-sm font-semibold text-emerald-700 mt-1">💰 {instructor.pay_rate}</p>
                     )}
