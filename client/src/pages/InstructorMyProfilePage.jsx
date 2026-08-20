@@ -124,10 +124,15 @@ export default function InstructorMyProfilePage() {
   const { user } = useAuth()
   const [instructor, setInstructor] = useState(null)
   const [form, setForm] = useState(null)
+  const [classStyles, setClassStyles] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.getClassStyles().then(setClassStyles).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!user?.instructor_id) return
@@ -144,6 +149,19 @@ export default function InstructorMyProfilePage() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [user?.instructor_id])
+
+  function toggleStyle(name) {
+    const cur = (form.styles_taught || '').split(',').map(s => s.trim()).filter(Boolean)
+    const next = cur.includes(name) ? cur.filter(s => s !== name) : [...cur, name]
+    setForm(f => ({ ...f, styles_taught: next.join(', ') }))
+  }
+
+  // The canonical style list, plus whatever's already on this instructor's record
+  // (e.g. something typed in before this picker existed) so it doesn't disappear.
+  const styleNames = [...new Set([
+    ...classStyles.map(s => s.name),
+    ...(form?.styles_taught || '').split(',').map(s => s.trim()).filter(Boolean),
+  ])].sort()
 
   async function handleSave(e) {
     e.preventDefault()
@@ -198,10 +216,21 @@ export default function InstructorMyProfilePage() {
             <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Styles Taught</label>
-            <input value={form.styles_taught} onChange={e => setForm(f => ({ ...f, styles_taught: e.target.value }))}
-              placeholder="e.g. Yoga, Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-gray-600 mb-2">Classes You Can Teach</label>
+            <div className="flex flex-wrap gap-2">
+              {styleNames.map(name => {
+                const checked = (form.styles_taught || '').split(',').map(s => s.trim()).includes(name)
+                return (
+                  <button key={name} type="button" onClick={() => toggleStyle(name)}
+                    className={`px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
+                      checked ? 'bg-purple-100 border-purple-400 text-purple-800' : 'bg-gray-50 border-gray-300 text-gray-600 hover:border-gray-400'
+                    }`}>
+                    {name}
+                  </button>
+                )
+              })}
+            </div>
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Specialties / Notes</label>
