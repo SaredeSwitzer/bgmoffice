@@ -9,6 +9,10 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered manually in main.jsx so we can poll for updates — the default
+      // injected registerSW.js only registers once on load and never checks again,
+      // which let already-open tabs run a stale build indefinitely after a deploy.
+      injectRegister: false,
       includeAssets: ['icons/icon-192x192.png', 'icons/icon-512x512.png'],
       manifest: {
         name: 'BGM Office',
@@ -36,17 +40,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/bgmoffice-production\.up\.railway\.app\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
-              networkTimeoutSeconds: 10,
-            },
-          },
-        ],
+        // vite-plugin-pwa only turns these on by default for the injected-script
+        // registration it no longer generates (injectRegister: false above) — without
+        // them a new service worker installs but sits "waiting" forever, since nothing
+        // else here tells it to skip waiting and take over the open tab.
+        skipWaiting: true,
+        clientsClaim: true,
+        // No runtimeCaching entries: the app is same-origin on Vercel now (the old
+        // Railway API rule here was stale and matched nothing since the migration).
       },
     }),
   ],
