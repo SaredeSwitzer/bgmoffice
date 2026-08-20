@@ -42,9 +42,42 @@ function LoginStatusBadge({ instructor }) {
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700" title="Has login access but hasn't signed in yet">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Not logged in yet
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700" title="Has login access but hasn't signed in yet">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Not logged in yet
+      </span>
+      <RemindLoginButton instructorId={instructor.id} />
     </span>
+  )
+}
+
+// Sends the instructor a "how to log in" email (same info as their welcome email) —
+// only makes sense next to the amber "Not logged in yet" state.
+function RemindLoginButton({ instructorId }) {
+  const [state, setState] = useState('idle') // idle | sending | sent | error
+
+  async function send() {
+    setState('sending')
+    try {
+      await api.sendLoginReminder(instructorId)
+      setState('sent')
+    } catch (e) {
+      setState('error')
+      alert(e.message)
+    }
+  }
+
+  if (state === 'sent') {
+    return <span className="text-[11px] text-gray-400">Reminder sent ✓</span>
+  }
+  return (
+    <button
+      onClick={send}
+      disabled={state === 'sending'}
+      className="text-[11px] font-medium text-blue-600 hover:text-blue-800 underline decoration-dotted disabled:opacity-50"
+    >
+      {state === 'sending' ? 'Sending…' : 'Email login reminder'}
+    </button>
   )
 }
 

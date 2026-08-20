@@ -338,14 +338,45 @@ function dayNameFromDate(dateStr) {
   return WEEKDAY_NAMES[new Date(y, m - 1, d).getDay()];
 }
 
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// "Aug 25, 2026" for a plain 'YYYY-MM-DD' string — parsed locally, same reasoning as
+// dayNameFromDate above.
+function fmtCalendarDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// The first occurrence of `weekday` (0=Sun…6=Sat) on or after `fromDateStr`
+// ('YYYY-MM-DD'). Used to give a recurring schedule a concrete first date when it has
+// no explicit start_date on file.
+function nextWeekdayOnOrAfter(weekday, fromDateStr) {
+  const [y, m, d] = fromDateStr.split('-').map(Number);
+  const from = new Date(y, m - 1, d);
+  const delta = (weekday - from.getDay() + 7) % 7;
+  from.setDate(from.getDate() + delta);
+  return toDateStr(from);
+}
+
 // Builds the {placeholder} values from either a recurring schedule row or a dated session
 // row — same template, same email, whichever the class actually is.
 function confirmationContext(row) {
+  // A dated session has one concrete date. A recurring schedule doesn't — it's
+  // "every Tuesday" indefinitely — so {date} instead spells out when that pattern
+  // starts (its start_date if set, else the next upcoming occurrence of its weekday).
+  const date = row.session_date
+    ? fmtCalendarDate(row.session_date)
+    : row.weekday != null
+      ? `starting ${fmtCalendarDate(row.start_date || nextWeekdayOnOrAfter(row.weekday, toDateStr(new Date())))}, then weekly`
+      : '';
   return {
     instructor_name: row.instructor_name || 'there',
     client_name: row.client_name || '',
     day: row.session_date ? dayNameFromDate(row.session_date)
        : (row.weekday != null ? WEEKDAY_NAMES[row.weekday] : 'Flexible'),
+    date,
     time: fmtTime(row.start_time),
     neighborhood: row.neighborhood || '',
     address: fmtAddress(row),

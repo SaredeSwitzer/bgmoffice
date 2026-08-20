@@ -122,6 +122,35 @@ router.get('/:id', async (req, res) => {
   res.json(row);
 });
 
+// Nudge an instructor who has a login account but has never signed in — same email
+// "how to log in" info as the welcome email, just re-sendable any time from their
+// profile. Staff-only.
+router.post('/:id/send-login-reminder', requireStaff, async (req, res) => {
+  const { rows: [inst] } = await pool.query('SELECT name, email FROM instructors WHERE id = $1', [req.params.id]);
+  if (!inst) return res.status(404).json({ error: 'Instructor not found' });
+  if (!inst.email) return res.status(400).json({ error: 'This instructor has no email on file.' });
+  const { rows: [account] } = await pool.query(
+    "SELECT id FROM users WHERE instructor_id = $1 AND role = 'instructor'", [req.params.id]
+  );
+  if (!account) return res.status(400).json({ error: 'This instructor has no login account yet.' });
+
+  const { rows: settingsRows } = await pool.query(
+    "SELECT key, value FROM app_settings WHERE key IN ('instructor_login_reminder_subject','instructor_login_reminder_body')"
+  );
+  const m = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+  const fillName = inst.name.trim() || 'there';
+  const fill = (str) => (str || '').replace(/\{name\}/g, fillName).replace(/\{email\}/g, inst.email);
+  const subject = fill(m.instructor_login_reminder_subject || 'Reminder: log into your BGM Office account');
+  const body = fill(m.instructor_login_reminder_body || `Hi {name},\n\nJust a reminder to log into bgmoffice.com with this email address — we'll send you a one-time code, no password needed.`);
+
+  try {
+    await sendMail({ to: inst.email, subject, text: body });
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+  res.json({ ok: true, sent_to: inst.email, sent_at: new Date().toISOString() });
+});
+
 // Decrypts the full SSN on demand (e.g. for filing a 1099) — staff-only (same access
 // level staff already had to the legacy plaintext ssn column), and separate from the
 // routine GET /:id so the plaintext number only ever exists in a response when someone
