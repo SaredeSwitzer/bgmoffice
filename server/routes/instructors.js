@@ -83,23 +83,62 @@ router.get('/', async (req, res) => {
   // Include styles_taught + neighborhood so the directory can filter/display by
   // "what they teach" and "where they're based" (searchable instructor directory).
   // pay_rate is each instructor's own business — never send it to another instructor.
-  const cols = req.user.role === 'instructor'
-    ? 'id, name, phone, email, specialties, styles_taught, neighborhood, photo_url'
-    : 'id, name, phone, email, specialties, styles_taught, neighborhood, pay_rate, photo_url';
+  // Login status (has_login/last_login_at) is likewise staff-only — an instructor's
+  // sign-in history isn't something we show their fellow instructors in the directory.
+  const isStaff = req.user.role !== 'instructor';
+  const cols = isStaff
+    ? `i.id, i.name, i.phone, i.email, i.specialties, i.styles_taught, i.neighborhood, i.pay_rate, i.photo_url,
+       (u.id IS NOT NULL) AS has_login, u.last_login_at`
+    : 'i.id, i.name, i.phone, i.email, i.specialties, i.styles_taught, i.neighborhood, i.photo_url';
+  const join = isStaff ? `LEFT JOIN users u ON u.instructor_id = i.id AND u.role = 'instructor'` : '';
   let rows;
   if (q) {
     const like = `%${q}%`;
     ({ rows } = await pool.query(
-      `SELECT ${cols} FROM instructors
-        WHERE name ILIKE $1 OR phone ILIKE $1 OR email ILIKE $1
-           OR specialties ILIKE $1 OR styles_taught ILIKE $1 OR neighborhood ILIKE $1
-        ORDER BY name`,
+      `SELECT ${cols} FROM instructors i ${join}
+        WHERE i.name ILIKE $1 OR i.phone ILIKE $1 OR i.email ILIKE $1
+           OR i.specialties ILIKE $1 OR i.styles_taught ILIKE $1 OR i.neighborhood ILIKE $1
+        ORDER BY i.name`,
       [like]
     ));
   } else {
-    ({ rows } = await pool.query(`SELECT ${cols} FROM instructors ORDER BY name`));
+    ({ rows } = await pool.query(`SELECT ${cols} FROM instructors i ${join} ORDER BY i.name`));
   }
   res.json(rows);
+});
+
+// Bulk email to a filtered set of instructors — e.g. everyone who hasn't logged in
+// yet, or everyone teaching Zumba in a given neighborhood (filtering happens
+// client-side on the directory; this just sends to whichever ids it's handed).
+// Staff-only, one send per instructor so a bad email on one doesn't block the rest.
+router.post('/email-blast', requireStaff, async (req, res) => {
+  const { instructor_ids, subject, body } = req.body;
+  if (!Array.isArray(instructor_ids) || instructor_ids.length === 0) {
+    return res.status(400).json({ error: 'instructor_ids required' });
+  }
+  if (!subject?.trim() || !body?.trim()) {
+    return res.status(400).json({ error: 'Subject and body are required' });
+  }
+
+  const { rows: instructorsToEmail } = await pool.query(
+    'SELECT id, name, email FROM instructors WHERE id = ANY($1)', [instructor_ids]
+  );
+
+  const sent = [];
+  const skipped = [];
+  const failed = [];
+  for (const inst of instructorsToEmail) {
+    if (!inst.email) { skipped.push({ id: inst.id, name: inst.name, reason: 'No email on file' }); continue; }
+    try {
+      const filledBody = body.replace(/\{name\}/g, inst.name.trim() || 'there');
+      const filledSubject = subject.replace(/\{name\}/g, inst.name.trim() || 'there');
+      await sendMail({ to: inst.email, subject: filledSubject, text: filledBody });
+      sent.push({ id: inst.id, name: inst.name, email: inst.email });
+    } catch (e) {
+      failed.push({ id: inst.id, name: inst.name, reason: e.message });
+    }
+  }
+  res.json({ sent, skipped, failed });
 });
 
 // Instructor accounts may only ever touch their own record — never another instructor's.

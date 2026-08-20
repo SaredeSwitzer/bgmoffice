@@ -7,12 +7,24 @@ import ContractSignaturesPanel from '../components/ContractSignaturesPanel'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
+const LOGIN_STATUS_LABELS = {
+  not_logged_in: 'Not logged in yet',
+  active: 'Active',
+  no_login: 'No login access',
+}
+
+function loginStatusOf(inst) {
+  if (!inst.has_login) return 'no_login'
+  return inst.last_login_at ? 'active' : 'not_logged_in'
+}
+
 export default function InstructorsPage() {
   const [instructors, setInstructors] = useState([])
   const [classStyles, setClassStyles] = useState([])
   const [query, setQuery] = useState('')
   const [styleFilter, setStyleFilter] = useState('')
   const [locationFilter, setLocationFilter] = useState('')
+  const [loginFilter, setLoginFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [newInstructor, setNewInstructor] = useState(false)
   const [form, setForm] = useState(BLANK_FORM)
@@ -20,6 +32,8 @@ export default function InstructorsPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [contractInviteOpen, setContractInviteOpen] = useState(false)
   const [signaturesRefresh, setSignaturesRefresh] = useState(0)
+  const [selected, setSelected] = useState(() => new Set())
+  const [emailBlastOpen, setEmailBlastOpen] = useState(false)
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
@@ -48,8 +62,23 @@ export default function InstructorsPage() {
                    has(inst.specialties, query) || has(inst.styles_taught, query) || has(inst.neighborhood, query))) return false
     if (styleFilter && !has(inst.styles_taught || inst.specialties, styleFilter)) return false
     if (locationFilter && (inst.neighborhood || '').trim() !== locationFilter) return false
+    if (loginFilter && loginStatusOf(inst) !== loginFilter) return false
     return true
   })
+
+  function toggleSelected(id) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function selectAllFiltered() {
+    setSelected(new Set(filtered.map(i => i.id)))
+  }
+
+  const selectedInstructors = instructors.filter(i => selected.has(i.id))
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -195,6 +224,11 @@ export default function InstructorsPage() {
           <option value="">All locations</option>
           {locations.map(l => <option key={l} value={l}>{l}</option>)}
         </select>
+        <select value={loginFilter} onChange={e => setLoginFilter(e.target.value)}
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44">
+          <option value="">Any login status</option>
+          {Object.entries(LOGIN_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        </select>
       </div>
 
       {loading ? (
@@ -203,37 +237,170 @@ export default function InstructorsPage() {
         <p className="text-gray-400 text-sm italic text-center py-8">No instructors found.</p>
       ) : (
         <>
-          <p className="text-xs text-gray-400 px-1">
-            {filtered.length} instructor{filtered.length === 1 ? '' : 's'}
-            {(query || styleFilter || locationFilter) && ` of ${instructors.length}`}
-          </p>
+          <div className="flex items-center justify-between px-1 gap-2 flex-wrap">
+            <p className="text-xs text-gray-400">
+              {filtered.length} instructor{filtered.length === 1 ? '' : 's'}
+              {(query || styleFilter || locationFilter || loginFilter) && ` of ${instructors.length}`}
+            </p>
+            <div className="flex items-center gap-3">
+              {selected.size > 0 && (
+                <>
+                  <span className="text-xs text-gray-500">{selected.size} selected</span>
+                  <button onClick={() => setSelected(new Set())} className="text-xs text-gray-400 hover:text-gray-700">
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => setEmailBlastOpen(true)}
+                    className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Email Selected
+                  </button>
+                </>
+              )}
+              <button onClick={selectAllFiltered} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                Select all filtered
+              </button>
+            </div>
+          </div>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             {filtered.map((inst, i) => {
               const sub = [inst.styles_taught || inst.specialties, inst.neighborhood].filter(Boolean).join(' · ')
+              const status = loginStatusOf(inst)
               return (
-                <Link
+                <div
                   key={inst.id}
-                  to={`/instructors/${inst.id}`}
-                  className={`flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors ${i > 0 ? 'border-t border-gray-100' : ''}`}
+                  className={`flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors ${i > 0 ? 'border-t border-gray-100' : ''}`}
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{inst.name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">{sub || inst.phone || '—'}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {inst.pay_rate && (
-                      <span className="text-xs text-gray-400 font-medium">{inst.pay_rate}</span>
-                    )}
-                    <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </Link>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(inst.id)}
+                    onChange={() => toggleSelected(inst.id)}
+                    className="w-4 h-4 rounded border-gray-300 flex-shrink-0"
+                  />
+                  <Link to={`/instructors/${inst.id}`} className="flex items-center justify-between gap-3 flex-1 min-w-0">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{inst.name}</p>
+                        {status === 'not_logged_in' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" title="Not logged in yet" />
+                        )}
+                        {status === 'active' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" title="Active" />
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{sub || inst.phone || '—'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {inst.pay_rate && (
+                        <span className="text-xs text-gray-400 font-medium">{inst.pay_rate}</span>
+                      )}
+                      <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </Link>
+                </div>
               )
             })}
           </div>
         </>
       )}
+
+      {emailBlastOpen && (
+        <EmailBlastModal
+          instructors={selectedInstructors}
+          onClose={() => setEmailBlastOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Compose-and-send panel for a bulk email to the currently selected instructors.
+// {name} in the subject/body is filled per-recipient server-side.
+function EmailBlastModal({ instructors, onClose }) {
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState('')
+
+  const withEmail = instructors.filter(i => i.email)
+  const withoutEmail = instructors.filter(i => !i.email)
+
+  async function handleSend(e) {
+    e.preventDefault()
+    setSending(true)
+    setError('')
+    try {
+      const r = await api.sendInstructorEmailBlast({
+        instructor_ids: instructors.map(i => i.id),
+        subject,
+        body,
+      })
+      setResult(r)
+    } catch (e2) {
+      setError(e2.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        {result ? (
+          <>
+            <h3 className="font-semibold text-gray-900">Email sent</h3>
+            <div className="text-sm space-y-1">
+              <p className="text-green-700">✓ Sent to {result.sent.length}</p>
+              {result.skipped.length > 0 && (
+                <p className="text-gray-500">Skipped {result.skipped.length} (no email on file)</p>
+              )}
+              {result.failed.length > 0 && (
+                <p className="text-red-600">Failed for {result.failed.length}: {result.failed.map(f => f.name).join(', ')}</p>
+              )}
+            </div>
+            <button onClick={onClose} className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg">
+              Done
+            </button>
+          </>
+        ) : (
+          <form onSubmit={handleSend} className="space-y-3">
+            <h3 className="font-semibold text-gray-900">
+              Email {instructors.length} instructor{instructors.length === 1 ? '' : 's'}
+            </h3>
+            {withoutEmail.length > 0 && (
+              <p className="text-xs text-amber-600">
+                {withoutEmail.length} of these have no email on file and will be skipped: {withoutEmail.map(i => i.name).join(', ')}
+              </p>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
+              <input required value={subject} onChange={e => setSubject(e.target.value)}
+                placeholder="e.g. Reminder: log into BGM Office, {name}"
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
+              <textarea required value={body} onChange={e => setBody(e.target.value)}
+                rows={8} placeholder={'Hi {name},\n\n…'}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+              <p className="text-[11px] text-gray-400 mt-1">Use {'{name}'} anywhere to insert each instructor's name.</p>
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-2 justify-end pt-1">
+              <button type="button" onClick={onClose} className="px-4 py-1.5 border border-gray-300 text-gray-600 text-sm rounded-lg">
+                Cancel
+              </button>
+              <button type="submit" disabled={sending || withEmail.length === 0}
+                className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+                {sending ? 'Sending…' : `Send to ${withEmail.length}`}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
 }

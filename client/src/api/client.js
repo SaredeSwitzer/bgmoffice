@@ -98,6 +98,7 @@ export const api = {
     request(`/instructors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteInstructor: (id) => request(`/instructors/${id}`, { method: 'DELETE' }),
   sendLoginReminder: (id) => request(`/instructors/${id}/send-login-reminder`, { method: 'POST' }),
+  sendInstructorEmailBlast: (data) => request('/instructors/email-blast', { method: 'POST', body: JSON.stringify(data) }),
   revealInstructorSSN: (id) => request(`/instructors/${id}/reveal-ssn`),
   uploadInstructorPhoto: (id, file) => {
     const token = getToken()
