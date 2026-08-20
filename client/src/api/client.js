@@ -321,6 +321,7 @@ export const api = {
     return request(`/schedule/sessions?${qs}`)
   },
   createClassSession: (data) => request('/schedule/sessions', { method: 'POST', body: JSON.stringify(data) }),
+  createClassSessionsBulk: (data) => request('/schedule/sessions/bulk', { method: 'POST', body: JSON.stringify(data) }),
   updateClassSession: (id, data) => request(`/schedule/sessions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteClassSession: (id) => request(`/schedule/sessions/${id}`, { method: 'DELETE' }),
 

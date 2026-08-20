@@ -233,6 +233,39 @@ router.post('/sessions', async (req, res) => {
   res.status(201).json(row);
 });
 
+// Ad hoc dated classes — a set of specific dates that don't fit a weekly recurring
+// pattern (e.g. "these 6 dates over the next two months"), created in one shot instead
+// of one at a time. Same shape as POST /sessions, just `dates` (array) instead of a
+// single `session_date`; every date gets its own class_sessions row with schedule_id
+// null (not tied to a recurring schedule — deleting one doesn't affect the others).
+router.post('/sessions/bulk', async (req, res) => {
+  const {
+    client_id, instructor_id, dates, start_time, duration_minutes,
+    charge_amount, instructor_pay, payment_method, style, notes,
+    participant_count, participant_ages,
+  } = req.body;
+  if (!client_id) return res.status(400).json({ error: 'client_id required' });
+  if (!start_time) return res.status(400).json({ error: 'start_time required' });
+  if (!Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'At least one date is required' });
+  if (dates.some(d => !isDate(d))) return res.status(400).json({ error: 'Every date must be YYYY-MM-DD' });
+
+  const created = [];
+  for (const session_date of dates) {
+    const { rows: [row] } = await pool.query(
+      `INSERT INTO class_sessions
+         (client_id, instructor_id, session_date, start_time, duration_minutes,
+          charge_amount, instructor_pay, payment_method, style, status, notes,
+          participant_count, participant_ages)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'scheduled',$10,$11,$12) RETURNING *`,
+      [client_id, instructor_id || null, session_date, start_time || null, duration_minutes || 60,
+       charge_amount ?? null, instructor_pay ?? null, payment_method || null, style || null, notes || null,
+       participant_count === '' ? null : participant_count ?? null, participant_ages || null]
+    );
+    created.push(row);
+  }
+  res.status(201).json(created);
+});
+
 router.put('/sessions/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT * FROM class_sessions WHERE id=$1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Session not found' });

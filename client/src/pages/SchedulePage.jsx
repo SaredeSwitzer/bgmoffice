@@ -6,6 +6,7 @@ import ConfirmClassModal from '../components/ConfirmClassModal'
 import ClassSessionModal from '../components/ClassSessionModal'
 import ClientAddressEditor from '../components/ClientAddressEditor'
 import PendingClassModal from '../components/PendingClassModal'
+import AddClassDatesModal from '../components/AddClassDatesModal'
 import TimeInput from '../components/TimeInput'
 import { fmtTimeRange } from '../utils/time'
 
@@ -100,6 +101,8 @@ export default function SchedulePage() {
   const [sessionModal, setSessionModal] = useState(null)
   // The dated session currently being marked pending, if any.
   const [pendingModal, setPendingModal] = useState(null)
+  // "+ Add Class Dates" — a batch of specific, possibly-irregular dates for one class.
+  const [addDatesOpen, setAddDatesOpen] = useState(false)
 
   // Which class's notes panel is open, keyed like 'session-12' / 'schedule-5'.
   const [openNotes, setOpenNotes] = useState(null)
@@ -219,15 +222,21 @@ export default function SchedulePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">Schedule</h1>
-        <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-          {['week', 'recurring'].map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-1.5 font-medium ${tab === t ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-              {t === 'week' ? 'This Week' : 'Recurring'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAddDatesOpen(true)}
+            className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
+            + Add Class Dates
+          </button>
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+            {['week', 'recurring'].map(t => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`px-3 py-1.5 font-medium ${tab === t ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                {t === 'week' ? 'This Week' : 'Recurring'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -566,6 +575,13 @@ export default function SchedulePage() {
             setSessions(prev => prev.map(x => x.id === pendingModal.id ? { ...x, ...updated } : x))
             setPendingModal(null)
           }}
+        />
+      )}
+
+      {addDatesOpen && (
+        <AddClassDatesModal
+          onClose={() => setAddDatesOpen(false)}
+          onSaved={() => { setAddDatesOpen(false); if (tab === 'week') loadWeek() }}
         />
       )}
     </div>
