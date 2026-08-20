@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import PayoutNudge from '../components/PayoutNudge'
-import { fmtTime } from '../utils/time'
+import { fmtTimeRange } from '../utils/time'
 
 // Read-only "my classes" week view for instructors (Phase 4 of instructor logins).
 // Calls GET /api/schedule/my-sessions (Kip owns that endpoint, Phase 3).
@@ -152,7 +152,7 @@ export default function InstructorMyClassesPage() {
                     >
                       <div className="flex items-baseline justify-between gap-2">
                         <div className="text-sm font-semibold text-gray-900">
-                          {fmtTime(s.start_time)}
+                          {fmtTimeRange(s.start_time, s.duration_minutes)}
                           {s.style ? (
                             <span className="font-normal text-gray-500"> · {s.style}</span>
                           ) : null}

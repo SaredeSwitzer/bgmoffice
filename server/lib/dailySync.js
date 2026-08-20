@@ -50,11 +50,11 @@ async function generateUpcomingSessions(horizonDate) {
 
       const { rowCount } = await pool.query(
         `INSERT INTO class_sessions
-           (schedule_id, client_id, instructor_id, session_date, start_time,
+           (schedule_id, client_id, instructor_id, session_date, start_time, duration_minutes,
             charge_amount, instructor_pay, payment_method, style, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'scheduled')
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'scheduled')
          ON CONFLICT (schedule_id, session_date) WHERE schedule_id IS NOT NULL DO NOTHING`,
-        [sch.id, sch.client_id, sch.instructor_id, dateStr, sch.start_time,
+        [sch.id, sch.client_id, sch.instructor_id, dateStr, sch.start_time, sch.duration_minutes || 60,
          sch.charge_amount, sch.instructor_pay, sch.payment_method, sch.style]
       );
       created += rowCount;

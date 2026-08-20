@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
 import DateInput from '../components/DateInput'
-import { fmtTime } from '../utils/time'
+import { fmtTime, fmtTimeRange } from '../utils/time'
 
 function fmtDate(iso) {
   const [y, m, d] = iso.split('-')
@@ -224,7 +224,7 @@ export default function ReportsPage() {
                   {results.map(s => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2 whitespace-nowrap">{fmtDate(s.session_date)}</td>
-                      <td className="px-4 py-2 text-gray-500">{s.start_time ? fmtTime(s.start_time) : '—'}</td>
+                      <td className="px-4 py-2 text-gray-500">{s.start_time ? fmtTimeRange(s.start_time, s.duration_minutes) : '—'}</td>
                       <td className="px-4 py-2">{s.client_name}</td>
                       <td className="px-4 py-2 text-gray-600">{s.instructor_name || '—'}</td>
                       <td className="px-4 py-2 text-gray-500 hidden sm:table-cell">{s.style || '—'}</td>

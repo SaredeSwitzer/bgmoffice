@@ -7,7 +7,10 @@ import ClassSessionModal from '../components/ClassSessionModal'
 import ClientAddressEditor from '../components/ClientAddressEditor'
 import PendingClassModal from '../components/PendingClassModal'
 import TimeInput from '../components/TimeInput'
-import { fmtTime } from '../utils/time'
+import { fmtTimeRange } from '../utils/time'
+
+// Common class lengths — 60 is the default for anything new.
+const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 105, 120, 150, 180]
 
 // Small pill showing a class's note / open-task counts; also the button that expands notes.
 function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
@@ -57,7 +60,7 @@ function fmtParticipants(s) {
 }
 
 const BLANK_SCHEDULE = {
-  client: null, instructor: null, weekday: '', start_time: '',
+  client: null, instructor: null, weekday: '', start_time: '', duration_minutes: 60,
   charge_amount: '', instructor_pay: '', payment_method: '', style: '', location: '', special_instructions: '',
   participant_count: '', participant_ages: '',
 }
@@ -144,6 +147,7 @@ export default function SchedulePage() {
         instructor_id: form.instructor?.id || null,
         weekday: form.weekday === '' ? null : Number(form.weekday),
         start_time: form.start_time || null,
+        duration_minutes: form.duration_minutes || 60,
         charge_amount: form.charge_amount || null,
         instructor_pay: form.instructor_pay || null,
         payment_method: form.payment_method || null,
@@ -170,6 +174,7 @@ export default function SchedulePage() {
       instructor: s.instructor_id ? { id: s.instructor_id, name: s.instructor_name } : null,
       weekday: s.weekday ?? '',
       start_time: s.start_time ? s.start_time.slice(0, 5) : '',
+      duration_minutes: s.duration_minutes ?? 60,
       charge_amount: s.charge_amount ?? '',
       instructor_pay: s.instructor_pay ?? '',
       payment_method: s.payment_method || '',
@@ -267,7 +272,7 @@ export default function SchedulePage() {
                                     : 'border-gray-200 hover:border-gray-400'
                                 }`}>
                                 <div className="flex items-start justify-between gap-1">
-                                  <span className="font-semibold text-gray-700">{s.start_time ? fmtTime(s.start_time) : '—'}</span>
+                                  <span className="font-semibold text-gray-700">{s.start_time ? fmtTimeRange(s.start_time, s.duration_minutes) : '—'}</span>
                                   <div className="flex items-center gap-1.5">
                                     {s.status === 'pending' ? (
                                       <button onClick={e => { e.stopPropagation(); resolvePending(s) }}
@@ -370,6 +375,13 @@ export default function SchedulePage() {
                   <TimeInput value={form.start_time} onChange={v => setForm(f => ({ ...f, start_time: v }))} required />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
+                  <select value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: Number(e.target.value) }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+                    {DURATION_OPTIONS.map(m => <option key={m} value={m}>{m < 60 ? `${m} min` : m === 60 ? '1 hour' : `${Math.floor(m/60)}h ${m%60 || ''}${m%60?'m':''}`.trim()}</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Charge to client</label>
                   <input type="number" step="1" value={form.charge_amount} onChange={e => setForm(f => ({ ...f, charge_amount: e.target.value }))}
                     placeholder="95" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
@@ -427,7 +439,7 @@ export default function SchedulePage() {
                       <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
                       <p className="text-xs text-gray-500 mt-0.5 truncate">
                         {s.weekday != null ? WEEKDAYS[s.weekday] : 'Flexible'}
-                        {s.start_time ? ` · ${fmtTime(s.start_time)}` : (
+                        {s.start_time ? ` · ${fmtTimeRange(s.start_time, s.duration_minutes)}` : (
                           <span className="text-amber-600 font-medium"> · No time set</span>
                         )}
                         {' · '}{s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}

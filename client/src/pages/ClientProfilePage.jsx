@@ -11,7 +11,7 @@ import { NewInvoiceModal } from './InvoicesPage'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
-import { fmtTime } from '../utils/time'
+import { fmtTimeRange } from '../utils/time'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
@@ -319,7 +319,7 @@ function ClassesSummary({ clientId, clientName }) {
           </h2>
           {next ? (
             <p className="text-xs text-gray-500 pl-2 truncate">
-              Next: {fmtInvDate(next.session_date)}{next.start_time ? ` at ${fmtTime(next.start_time)}` : ''}
+              Next: {fmtInvDate(next.session_date)}{next.start_time ? ` at ${fmtTimeRange(next.start_time, next.duration_minutes)}` : ''}
               {next.instructor_name ? ` with ${next.instructor_name}` : ''}
             </p>
           ) : (

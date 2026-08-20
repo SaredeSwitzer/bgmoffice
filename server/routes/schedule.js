@@ -28,7 +28,7 @@ router.get('/my-sessions', async (req, res) => {
     return res.status(400).json({ error: 'start and end (YYYY-MM-DD) are required' });
   }
   const { rows } = await pool.query(
-    `SELECT s.id, s.session_date, s.start_time, s.style, s.status,
+    `SELECT s.id, s.session_date, s.start_time, s.duration_minutes, s.style, s.status,
             s.instructor_pay,
             c.name AS client_name,
             sch.location, sch.special_instructions
@@ -115,7 +115,7 @@ router.get('/schedules/:id', async (req, res) => {
 
 router.post('/schedules', async (req, res) => {
   const {
-    client_id, instructor_id, weekday, start_time, charge_amount, instructor_pay,
+    client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount, instructor_pay,
     payment_method, style, location, special_instructions, status, start_date, end_date,
     participant_count, participant_ages,
   } = req.body;
@@ -127,11 +127,11 @@ router.post('/schedules', async (req, res) => {
 
   const { rows: [{ id }] } = await pool.query(
     `INSERT INTO class_schedules
-       (client_id, instructor_id, weekday, start_time, charge_amount, instructor_pay,
+       (client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount, instructor_pay,
         payment_method, style, location, special_instructions, status, start_date, end_date,
         participant_count, participant_ages)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
-    [client_id, instructor_id || null, wd, start_time || null, charge_amount ?? null,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+    [client_id, instructor_id || null, wd, start_time || null, duration_minutes || 60, charge_amount ?? null,
      instructor_pay ?? null, payment_method || null, style || null, location || null,
      special_instructions || null, status || 'active', start_date || null, end_date || null,
      participant_count === '' ? null : participant_count ?? null, participant_ages || null]
@@ -144,7 +144,7 @@ router.put('/schedules/:id', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Schedule not found' });
 
   const {
-    client_id, instructor_id, weekday, start_time, charge_amount, instructor_pay,
+    client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount, instructor_pay,
     payment_method, style, location, special_instructions, status, start_date, end_date,
     participant_count, participant_ages,
   } = req.body;
@@ -158,13 +158,13 @@ router.put('/schedules/:id', async (req, res) => {
 
   await pool.query(
     `UPDATE class_schedules SET
-       client_id=$1, instructor_id=$2, weekday=$3, start_time=$4, charge_amount=$5,
-       instructor_pay=$6, payment_method=$7, style=$8, location=$9, special_instructions=$10,
-       status=$11, start_date=$12, end_date=$13, participant_count=$14, participant_ages=$15,
+       client_id=$1, instructor_id=$2, weekday=$3, start_time=$4, duration_minutes=$5, charge_amount=$6,
+       instructor_pay=$7, payment_method=$8, style=$9, location=$10, special_instructions=$11,
+       status=$12, start_date=$13, end_date=$14, participant_count=$15, participant_ages=$16,
        ${instructorChanged ? 'confirmation_sent_at=NULL, confirmation_sent_to=NULL,' : ''}
        updated_at=now()
-     WHERE id=$16`,
-    [client_id ?? existing.client_id, newInstructorId, wd, start_time || null,
+     WHERE id=$17`,
+    [client_id ?? existing.client_id, newInstructorId, wd, start_time || null, duration_minutes || 60,
      charge_amount ?? null, instructor_pay ?? null, payment_method || null, style || null,
      location || null, special_instructions || null, status || 'active',
      start_date || null, end_date || null,
@@ -211,7 +211,7 @@ router.get('/sessions', async (req, res) => {
 
 router.post('/sessions', async (req, res) => {
   const {
-    schedule_id, client_id, instructor_id, session_date, start_time,
+    schedule_id, client_id, instructor_id, session_date, start_time, duration_minutes,
     charge_amount, instructor_pay, payment_method, style, status, notes,
     participant_count, participant_ages,
   } = req.body;
@@ -221,11 +221,11 @@ router.post('/sessions', async (req, res) => {
 
   const { rows: [row] } = await pool.query(
     `INSERT INTO class_sessions
-       (schedule_id, client_id, instructor_id, session_date, start_time,
+       (schedule_id, client_id, instructor_id, session_date, start_time, duration_minutes,
         charge_amount, instructor_pay, payment_method, style, status, notes,
         participant_count, participant_ages)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [schedule_id || null, client_id, instructor_id || null, session_date, start_time || null,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+    [schedule_id || null, client_id, instructor_id || null, session_date, start_time || null, duration_minutes || 60,
      charge_amount ?? null, instructor_pay ?? null, payment_method || null, style || null,
      status || 'scheduled', notes || null,
      participant_count === '' ? null : participant_count ?? null, participant_ages || null]
@@ -250,12 +250,12 @@ router.put('/sessions/:id', async (req, res) => {
 
   await pool.query(
     `UPDATE class_sessions SET
-       instructor_id=$1, session_date=$2, start_time=$3, charge_amount=$4, instructor_pay=$5,
-       payment_method=$6, style=$7, status=$8, notes=$9, participant_count=$10, participant_ages=$11,
+       instructor_id=$1, session_date=$2, start_time=$3, duration_minutes=$4, charge_amount=$5, instructor_pay=$6,
+       payment_method=$7, style=$8, status=$9, notes=$10, participant_count=$11, participant_ages=$12,
        ${instructorChanged ? 'confirmation_sent_at=NULL, confirmation_sent_to=NULL,' : ''}
        updated_at=now()
-     WHERE id=$12`,
-    [newInstructorId, m.session_date, m.start_time || null, m.charge_amount ?? null,
+     WHERE id=$13`,
+    [newInstructorId, m.session_date, m.start_time || null, m.duration_minutes || 60, m.charge_amount ?? null,
      m.instructor_pay ?? null, m.payment_method || null, m.style || null,
      m.status || 'scheduled', m.notes || null,
      m.participant_count === '' ? null : m.participant_count ?? null, m.participant_ages || null,
