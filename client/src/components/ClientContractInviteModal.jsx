@@ -150,7 +150,7 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
             <div className="flex gap-3 pt-1">
               <button type="submit" disabled={loadingPreview}
                 className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors">
-                {loadingPreview ? 'Loading…' : 'Preview'}
+                {loadingPreview ? 'Loading…' : 'Get Signing Link'}
               </button>
               <button type="button" onClick={onClose}
                 className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
