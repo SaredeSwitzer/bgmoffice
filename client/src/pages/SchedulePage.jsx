@@ -9,6 +9,7 @@ import PendingClassModal from '../components/PendingClassModal'
 import AddClassDatesModal from '../components/AddClassDatesModal'
 import TimeInput from '../components/TimeInput'
 import DurationInput from '../components/DurationInput'
+import ChargeInput from '../components/ChargeInput'
 import { fmtTimeRange } from '../utils/time'
 
 // Small pill showing a class's note / open-task counts; also the button that expands notes.
@@ -405,13 +406,8 @@ export default function SchedulePage() {
                 />
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Charge to client</label>
-                  <input type="number" step="1" value={form.charge_amount} onChange={e => setForm(f => ({ ...f, charge_amount: e.target.value }))}
-                    placeholder="95" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Charge note (optional)</label>
-                  <input value={form.charge_note} onChange={e => setForm(f => ({ ...f, charge_note: e.target.value }))}
-                    placeholder="e.g. TBD, $80–100" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  <ChargeInput amount={form.charge_amount} note={form.charge_note} py="py-1.5"
+                    onChange={({ amount, note }) => setForm(f => ({ ...f, charge_amount: amount, charge_note: note }))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Instructor pay</label>

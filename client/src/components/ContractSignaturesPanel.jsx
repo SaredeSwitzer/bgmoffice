@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 
@@ -50,14 +51,22 @@ export default function ContractSignaturesPanel({ instructors, refreshKey }) {
       {rows.map(sig => (
         <div key={sig.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-gray-900 truncate">{sig.name || sig.email}</p>
+            {sig.instructor_id ? (
+              <Link to={`/instructors/${sig.instructor_id}`} className="font-medium text-gray-900 hover:text-blue-600 hover:underline truncate block">
+                {sig.name || sig.email}
+              </Link>
+            ) : (
+              <p className="font-medium text-gray-900 truncate">{sig.name || sig.email}</p>
+            )}
             <p className="text-xs text-gray-400 truncate">
               {sig.email}{sig.ssn_last4 ? ` · SSN •••-••-${sig.ssn_last4}` : ''}
             </p>
           </div>
           <div className="text-xs text-right shrink-0">
             {sig.instructor_id ? (
-              <span className="text-emerald-700">✓ Signed &amp; linked to {sig.instructor_name}</span>
+              <Link to={`/instructors/${sig.instructor_id}`} className="text-emerald-700 hover:text-emerald-900 hover:underline">
+                ✓ Signed &amp; linked to {sig.instructor_name}
+              </Link>
             ) : sig.signed_at ? (
               <span className="text-amber-600">Signed {fmt(sig.signed_at)} — not linked</span>
             ) : (

@@ -5,6 +5,7 @@ import DateInput from './DateInput'
 import TimeInput from './TimeInput'
 import ClientAddressEditor from './ClientAddressEditor'
 import DurationInput from './DurationInput'
+import ChargeInput from './ChargeInput'
 
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
@@ -121,13 +122,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               />
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Charge to client</label>
-                <input type="number" step="1" value={form.charge_amount} onChange={e => setField('charge_amount', e.target.value)}
-                  placeholder="95" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Charge note (optional)</label>
-                <input value={form.charge_note} onChange={e => setField('charge_note', e.target.value)}
-                  placeholder="e.g. TBD, $80–100" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                <ChargeInput amount={form.charge_amount} note={form.charge_note}
+                  onChange={({ amount, note }) => setForm(f => ({ ...f, charge_amount: amount, charge_note: note }))} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Instructor pay</label>
