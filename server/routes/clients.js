@@ -6,6 +6,41 @@ const { syncMentions, deleteMentions } = require('../lib/mentions');
 const router = express.Router();
 router.use(requireAuth);
 
+const LAST_CLASS_REMINDER_LEAD_DAYS = 7;
+
+// Keeps the "ask about next semester" reminder in sync with a client's last-class date —
+// not every client uses this (most run indefinitely with no defined end), so it's opt-in
+// per client via track_last_class. Creates/updates/removes the one linked reminder rather
+// than leaving a new one behind every time the date changes.
+async function syncLastClassReminder(client, initials) {
+  if (!client.track_last_class || !client.last_class_date) {
+    if (client.last_class_reminder_id) {
+      await pool.query('DELETE FROM reminders WHERE id = $1', [client.last_class_reminder_id]);
+      await pool.query('UPDATE clients SET last_class_reminder_id = NULL WHERE id = $1', [client.id]);
+    }
+    return;
+  }
+
+  const remindOn = new Date(client.last_class_date + 'T12:00:00');
+  remindOn.setDate(remindOn.getDate() - LAST_CLASS_REMINDER_LEAD_DAYS);
+  const remindOnStr = remindOn.toISOString().slice(0, 10);
+  const title = `Ask ${client.name} about next semester`;
+  const notes = `Last class on file is ${client.last_class_date}. Reach out to find out when we should follow up about scheduling, if they haven't told us already.`;
+
+  if (client.last_class_reminder_id) {
+    await pool.query(
+      `UPDATE reminders SET title=$1, notes=$2, remind_on=$3, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$4`,
+      [title, notes, remindOnStr, client.last_class_reminder_id]
+    );
+  } else {
+    const { rows: [reminder] } = await pool.query(
+      `INSERT INTO reminders (title, notes, remind_on, client_id, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [title, notes, remindOnStr, client.id, initials]
+    );
+    await pool.query('UPDATE clients SET last_class_reminder_id = $1 WHERE id = $2', [reminder.id, client.id]);
+  }
+}
+
 router.get('/', async (req, res) => {
   const { q } = req.query;
   let rows;
@@ -95,6 +130,7 @@ router.put('/:id', async (req, res) => {
     name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
+    track_last_class, last_class_date,
   } = req.body;
 
   const { rows: [client] } = await pool.query(
@@ -102,8 +138,8 @@ router.put('/:id', async (req, res) => {
        name=$1, phone=$2, email=$3, invoice_email=$4, preferred_contact=$5, notes=$6, rate_per_class=$7,
        contact_person_name=$8, contact_person_phone=$9, contact_person_email=$10, contact_person_role=$11,
        waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
-       client_type=$19
-     WHERE id=$20 RETURNING *`,
+       client_type=$19, track_last_class=$20, last_class_date=$21
+     WHERE id=$22 RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
       notes || null, rate_per_class || null,
@@ -112,6 +148,7 @@ router.put('/:id', async (req, res) => {
       waiver_signed ? 1 : 0, waiver_signed_date || null,
       street || null, city || null, state || null, zip || null, neighborhood || null,
       client_type === 'organization' ? 'organization' : 'individual',
+      !!track_last_class, last_class_date || null,
       req.params.id,
     ]
   );
@@ -119,7 +156,9 @@ router.put('/:id', async (req, res) => {
     sourceTable: 'client_notes', sourceId: client.id, text: notes || '',
     authorInitials: req.user.initials, linkPath: `/clients/${client.id}`,
   });
-  res.json(client);
+  await syncLastClassReminder(client, req.user.initials);
+  const { rows: [fresh] } = await pool.query('SELECT * FROM clients WHERE id = $1', [client.id]);
+  res.json(fresh);
 });
 
 // Partial update — only touches whichever of these fields are actually present in the

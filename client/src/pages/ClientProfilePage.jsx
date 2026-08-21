@@ -10,6 +10,7 @@ import NewCaseModal from '../components/NewCaseModal'
 import { NewInvoiceModal } from './InvoicesPage'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
+import DateInput from '../components/DateInput'
 import { renderWithMentions } from '../utils/mentions'
 import { fmtTimeRange } from '../utils/time'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
@@ -761,6 +762,8 @@ export default function ClientProfilePage() {
           state: c.state || '',
           zip: c.zip || '',
           neighborhood: c.neighborhood || '',
+          track_last_class: c.track_last_class ? true : false,
+          last_class_date: c.last_class_date || '',
         })
         setCases(cs)
         setInstructors(instr)
@@ -944,6 +947,25 @@ export default function ClientProfilePage() {
                   )}
                 </div>
               </div>
+              {/* Last class of semester — not relevant for most clients, so it's opt-in */}
+              <div className="col-span-2">
+                <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="checkbox" checked={editForm.track_last_class}
+                    onChange={e => setEditForm(f => ({ ...f, track_last_class: e.target.checked }))}
+                    className="rounded" />
+                  Track last class of semester/session for this client
+                </label>
+                {editForm.track_last_class && (
+                  <div className="mt-2 max-w-[200px]">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Last Class Date</label>
+                    <DateInput value={editForm.last_class_date}
+                      onChange={v => setEditForm(f => ({ ...f, last_class_date: v }))} />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      We'll remind you 7 days before to ask them when to follow up about next semester.
+                    </p>
+                  </div>
+                )}
+              </div>
               {/* Address */}
               <div className="col-span-2 pt-1">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Address</p>
@@ -1044,6 +1066,14 @@ export default function ClientProfilePage() {
                 </>
               )}
             </div>
+
+            {/* Last class of semester */}
+            {client.track_last_class && client.last_class_date && (
+              <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                📅 Last class {new Date(client.last_class_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                <span className="font-normal text-blue-500">— reminder set to follow up</span>
+              </div>
+            )}
 
             {/* Contact person (organizations) */}
             {client.client_type === 'organization' && (client.contact_person_name || client.contact_person_phone || client.contact_person_email || client.contact_person_role) && (
