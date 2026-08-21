@@ -15,7 +15,11 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
   const [newClient, setNewClient] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', state: '', zip: '', neighborhood: '' })
+  const [form, setForm] = useState({
+    name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '',
+    client_type: 'individual', contact_person_name: '', contact_person_phone: '', contact_person_email: '', contact_person_role: '',
+    street: '', city: '', state: '', zip: '', neighborhood: '',
+  })
   const [saving, setSaving] = useState(false)
   const [createError, setCreateError] = useState('')
   const [mentionableUsers, setMentionableUsers] = useState([])
@@ -41,7 +45,11 @@ export default function ClientsPage() {
       const c = await api.createClient(form)
       setClients(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))
       setNewClient(false)
-      setForm({ name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '', street: '', city: '', state: '', zip: '', neighborhood: '' })
+      setForm({
+        name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '',
+        client_type: 'individual', contact_person_name: '', contact_person_phone: '', contact_person_email: '', contact_person_role: '',
+        street: '', city: '', state: '', zip: '', neighborhood: '',
+      })
       setSignaturesRefresh(r => r + 1)
     } catch (err) {
       setCreateError(err.message)
@@ -145,7 +153,55 @@ export default function ClientsPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="e.g. Park Slope" />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Notes / Contact Person</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Client Type</label>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="radio" name="new_client_type" value="individual"
+                    checked={form.client_type !== 'organization'}
+                    onChange={() => setForm(f => ({ ...f, client_type: 'individual' }))} />
+                  Individual
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="radio" name="new_client_type" value="organization"
+                    checked={form.client_type === 'organization'}
+                    onChange={() => setForm(f => ({ ...f, client_type: 'organization' }))} />
+                  Organization
+                </label>
+              </div>
+            </div>
+            {form.client_type === 'organization' && (
+              <div className="col-span-2 bg-gray-50 rounded-lg border border-gray-100 p-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contact Person</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                    <input value={form.contact_person_name}
+                      onChange={e => setForm(f => ({ ...f, contact_person_name: e.target.value }))}
+                      placeholder="Jane Doe" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                    <input value={form.contact_person_phone}
+                      onChange={e => setForm(f => ({ ...f, contact_person_phone: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                    <input value={form.contact_person_email}
+                      onChange={e => setForm(f => ({ ...f, contact_person_email: e.target.value }))}
+                      placeholder="jane@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                    <input value={form.contact_person_role}
+                      onChange={e => setForm(f => ({ ...f, contact_person_role: e.target.value }))}
+                      placeholder="e.g. Director" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <MentionTextarea value={form.notes} onChange={v => setForm(f => ({ ...f, notes: v }))}
                 users={mentionableUsers} rows={2} placeholder="Type @ to tag someone"
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />

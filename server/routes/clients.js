@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
   const {
     name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
-    waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood,
+    waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
 
@@ -64,8 +64,8 @@ router.post('/', async (req, res) => {
     `INSERT INTO clients
        (name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
         contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
-        waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+        waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
@@ -74,6 +74,7 @@ router.post('/', async (req, res) => {
       contact_person_email || null, contact_person_role || null,
       signedFlag, signedDate,
       street || (sig?.street ?? null), city || (sig?.city ?? null), state || null, zip || (sig?.zip ?? null), neighborhood || null,
+      client_type === 'organization' ? 'organization' : 'individual',
     ]
   );
   if (signatureToLink) {
@@ -93,15 +94,16 @@ router.put('/:id', async (req, res) => {
   const {
     name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
-    waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood,
+    waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
   } = req.body;
 
   const { rows: [client] } = await pool.query(
     `UPDATE clients SET
        name=$1, phone=$2, email=$3, invoice_email=$4, preferred_contact=$5, notes=$6, rate_per_class=$7,
        contact_person_name=$8, contact_person_phone=$9, contact_person_email=$10, contact_person_role=$11,
-       waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18
-     WHERE id=$19 RETURNING *`,
+       waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
+       client_type=$19
+     WHERE id=$20 RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
       notes || null, rate_per_class || null,
@@ -109,6 +111,7 @@ router.put('/:id', async (req, res) => {
       contact_person_email || null, contact_person_role || null,
       waiver_signed ? 1 : 0, waiver_signed_date || null,
       street || null, city || null, state || null, zip || null, neighborhood || null,
+      client_type === 'organization' ? 'organization' : 'individual',
       req.params.id,
     ]
   );

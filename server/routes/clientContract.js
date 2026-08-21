@@ -147,11 +147,25 @@ router.post('/invite/preview', requireStaff, async (req, res) => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'A valid email is required' });
   }
-  const { rows: [contractRow] } = await pool.query(
-    "SELECT value FROM app_settings WHERE key = 'client_contract_text'"
-  );
+
+  // Individuals get a plain liability waiver; organizations get the fuller
+  // contract + payment-terms text. When this is sent from an existing client's
+  // profile, their own client_type (set on the client, not passed by the
+  // frontend) decides which one — the general "Send Contract to Sign" flow (no
+  // client_id yet) has always been organization-shaped (org name, deposit,
+  // payment terms), so it keeps using the contract text.
+  let clientType = 'organization';
+  if (client_id) {
+    const { rows: [c] } = await pool.query('SELECT client_type FROM clients WHERE id = $1', [client_id]);
+    if (c) clientType = c.client_type;
+  }
+  const textKey = clientType === 'individual' ? 'client_waiver_text' : 'client_contract_text';
+  const subjectKey = clientType === 'individual' ? 'client_waiver_invite_subject' : 'client_contract_invite_subject';
+  const bodyKey = clientType === 'individual' ? 'client_waiver_invite_body' : 'client_contract_invite_body';
+
+  const { rows: [contractRow] } = await pool.query('SELECT value FROM app_settings WHERE key = $1', [textKey]);
   const contractText = contractRow?.value || '';
-  if (!contractText) return res.status(400).json({ error: 'No contract text set up yet.' });
+  if (!contractText) return res.status(400).json({ error: `No ${clientType === 'individual' ? 'waiver' : 'contract'} text set up yet.` });
 
   const token = crypto.randomBytes(16).toString('hex');
   // client_id set here (sent from an existing client's profile) means the signature
@@ -169,12 +183,12 @@ router.post('/invite/preview', requireStaff, async (req, res) => {
   const fillName = (contact_name || '').trim() || 'there';
 
   const { rows: settingsRows } = await pool.query(
-    "SELECT key, value FROM app_settings WHERE key IN ('client_contract_invite_subject','client_contract_invite_body')"
+    'SELECT key, value FROM app_settings WHERE key IN ($1, $2)', [subjectKey, bodyKey]
   );
   const m = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
   const fill = (str) => (str || '').replace(/\{name\}/g, fillName).replace(/\{link\}/g, link);
-  const subject = fill(m.client_contract_invite_subject || 'Bring the Gym to Me — Contract & Payment Agreement');
-  const body = fill(m.client_contract_invite_body ||
+  const subject = fill(m[subjectKey] || 'Bring the Gym to Me — Contract & Payment Agreement');
+  const body = fill(m[bodyKey] ||
     `Hi {name},\n\nPlease review and sign the contract here:\n\n{link}\n\nLet us know if you have any questions.`);
 
   res.json({ signature_id: row.id, subject, body });

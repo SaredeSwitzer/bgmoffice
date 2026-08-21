@@ -16,10 +16,14 @@ import ClientContractInviteModal from '../components/ClientContractInviteModal'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
-// to "signed" automatically the moment they sign (see ClientContractInviteModal).
+// to "signed" automatically the moment they sign (see ClientContractInviteModal). For
+// organizations, many clients only have invoice_email (not email) or a contact person's
+// email on file, so fall back through those before hiding the button.
 function SendWaiverButton({ client }) {
   const [open, setOpen] = useState(false)
-  if (!client.email) return null
+  const signerEmail = client.email || client.contact_person_email || client.invoice_email
+  if (!signerEmail) return null
+  const signerPhone = client.phone || client.contact_person_phone
   return (
     <>
       <button
@@ -30,7 +34,7 @@ function SendWaiverButton({ client }) {
       </button>
       {open && (
         <ClientContractInviteModal
-          client={{ id: client.id, name: client.name, email: client.email, phone: client.phone }}
+          client={{ id: client.id, name: client.name, email: signerEmail, phone: signerPhone }}
           onClose={() => setOpen(false)}
         />
       )}
@@ -745,6 +749,7 @@ export default function ClientProfilePage() {
           invoice_email: c.invoice_email || '',
           preferred_contact: c.preferred_contact || '', notes: c.notes || '',
           rate_per_class: c.rate_per_class || '',
+          client_type: c.client_type === 'organization' ? 'organization' : 'individual',
           contact_person_name: c.contact_person_name || '',
           contact_person_phone: c.contact_person_phone || '',
           contact_person_email: c.contact_person_email || '',
@@ -861,8 +866,57 @@ export default function ClientProfilePage() {
                 <input value={editForm.rate_per_class} onChange={e => setEditForm(f => ({ ...f, rate_per_class: e.target.value }))}
                   placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
+              {/* Client type */}
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Notes / Contact Person</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Client Type</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="radio" name="client_type" value="individual"
+                      checked={editForm.client_type !== 'organization'}
+                      onChange={() => setEditForm(f => ({ ...f, client_type: 'individual' }))} />
+                    Individual
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="radio" name="client_type" value="organization"
+                      checked={editForm.client_type === 'organization'}
+                      onChange={() => setEditForm(f => ({ ...f, client_type: 'organization' }))} />
+                    Organization
+                  </label>
+                </div>
+              </div>
+              {editForm.client_type === 'organization' && (
+                <div className="col-span-2 bg-gray-50 rounded-lg border border-gray-100 p-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contact Person</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                      <input value={editForm.contact_person_name}
+                        onChange={e => setEditForm(f => ({ ...f, contact_person_name: e.target.value }))}
+                        placeholder="Jane Doe" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                      <input value={editForm.contact_person_phone}
+                        onChange={e => setEditForm(f => ({ ...f, contact_person_phone: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                      <input value={editForm.contact_person_email}
+                        onChange={e => setEditForm(f => ({ ...f, contact_person_email: e.target.value }))}
+                        placeholder="jane@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                      <input value={editForm.contact_person_role}
+                        onChange={e => setEditForm(f => ({ ...f, contact_person_role: e.target.value }))}
+                        placeholder="e.g. Director" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
                 <MentionTextarea value={editForm.notes} onChange={v => setEditForm(f => ({ ...f, notes: v }))}
                   users={mentionableUsers} rows={2}
                   placeholder="Type @ to tag someone"
@@ -937,7 +991,14 @@ export default function ClientProfilePage() {
           <>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{client.name}</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-gray-900">{client.name}</h1>
+                  {client.client_type === 'organization' && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold uppercase tracking-wide">
+                      Organization
+                    </span>
+                  )}
+                </div>
                 {client.rate_per_class && (
                   <p className="text-sm font-semibold text-emerald-700 mt-1">
                     💰 {client.rate_per_class} / class
@@ -983,6 +1044,18 @@ export default function ClientProfilePage() {
                 </>
               )}
             </div>
+
+            {/* Contact person (organizations) */}
+            {client.client_type === 'organization' && (client.contact_person_name || client.contact_person_phone || client.contact_person_email || client.contact_person_role) && (
+              <div className="mt-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Contact Person</p>
+                <p className="text-sm text-gray-800">
+                  {client.contact_person_name || '—'}
+                  {client.contact_person_role && <span className="text-gray-500"> · {client.contact_person_role}</span>}
+                </p>
+                <ContactInfo phone={client.contact_person_phone} email={client.contact_person_email} />
+              </div>
+            )}
 
             {/* Address */}
             {(client.street || client.city || client.state || client.zip || client.neighborhood) && (
