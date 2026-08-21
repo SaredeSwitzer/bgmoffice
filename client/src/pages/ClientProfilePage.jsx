@@ -20,10 +20,17 @@ import ClientContractInviteModal from '../components/ClientContractInviteModal'
 // to "signed" automatically the moment they sign (see ClientContractInviteModal). For
 // organizations, many clients only have invoice_email (not email) or a contact person's
 // email on file, so fall back through those before hiding the button.
-function SendWaiverButton({ client }) {
+function SendWaiverButton({ client, onNeedEmail }) {
   const [open, setOpen] = useState(false)
   const signerEmail = client.email || client.contact_person_email || client.invoice_email
-  if (!signerEmail) return null
+  if (!signerEmail) {
+    return (
+      <button onClick={onNeedEmail}
+        className="text-xs font-medium text-amber-600 hover:text-amber-800 underline decoration-dotted">
+        No email on file — add one to send a waiver
+      </button>
+    )
+  }
   const signerPhone = client.phone || client.contact_person_phone
   return (
     <>
@@ -1063,7 +1070,7 @@ export default function ClientProfilePage() {
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
                     ⚠️ Waiver Not Signed
                   </span>
-                  <SendWaiverButton client={client} />
+                  <SendWaiverButton client={client} onNeedEmail={() => setEditing(true)} />
                 </>
               )}
             </div>
