@@ -332,6 +332,46 @@ async function syncDateRange(startDate, endDate, { dryRun = false, clientId = nu
   };
 }
 
+// Once a client's last class of a billing month has actually happened, that month's
+// auto-generated invoice is done building and just needs a human to look it over and
+// send it — but nothing forces anyone to remember to check the "ready to send" list, so
+// it can sit there unsent indefinitely. This creates a one-time reminder the day after
+// their last class of the month, instead. Idempotent (skips invoices that already have
+// one) and self-resolving (server/routes/invoices.js clears it out once actually sent).
+async function syncInvoiceSendReminders(today = ymd(new Date())) {
+  const { rows: candidates } = await pool.query(
+    `SELECT i.id, i.client_id, i.billing_period, i.invoice_number, c.name AS client_name
+       FROM invoices i
+       JOIN clients c ON c.id = i.client_id
+      WHERE i.auto_generated = true AND i.status = 'draft'
+        AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.invoice_id = i.id)`
+  );
+
+  let created = 0;
+  for (const inv of candidates) {
+    const { rows: [{ has_upcoming }] } = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM class_sessions
+          WHERE client_id = $1 AND to_char(session_date, 'YYYY-MM') = $2 AND session_date >= $3
+       ) AS has_upcoming`,
+      [inv.client_id, inv.billing_period, today]
+    );
+    if (has_upcoming) continue; // still has classes left this month — not their last one yet
+
+    await pool.query(
+      `INSERT INTO reminders (title, notes, remind_on, client_id, invoice_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,'daily-sync')`,
+      [
+        `Send ${inv.invoice_number} to ${inv.client_name}`,
+        `Their last class of ${inv.billing_period} has passed — review and send this invoice.`,
+        today, inv.client_id, inv.id,
+      ]
+    );
+    created++;
+  }
+  return { invoice_reminders_created: created };
+}
+
 // Runs nightly: syncs the day that just fully completed ("yesterday" relative to `now`).
 // Classes get picked up the next morning rather than waiting for the end of the week.
 async function runDailySync(now = new Date()) {
@@ -341,7 +381,8 @@ async function runDailySync(now = new Date()) {
   // horizon just keeps sliding forward and effectively never runs out again.
   const horizon = ymd(addDays(now, 730));
   const generation = await generateUpcomingSessions(horizon);
-  return { ...sync, calendar_generation: generation };
+  const invoiceReminders = await syncInvoiceSendReminders(ymd(now));
+  return { ...sync, calendar_generation: generation, ...invoiceReminders };
 }
 
-module.exports = { syncDateRange, runDailySync, generateUpcomingSessions };
+module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, syncInvoiceSendReminders };

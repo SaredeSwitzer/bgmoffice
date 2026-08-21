@@ -11,7 +11,9 @@ const REMINDER_JOIN = `
     i.name   AS instructor_name,
     COALESCE(r.case_id, ai.case_id) AS resolved_case_id,
     cl2.name AS case_client_name,
-    i2.name  AS case_instructor_name
+    i2.name  AS case_instructor_name,
+    inv.invoice_number AS invoice_number,
+    inv.status          AS invoice_status
   FROM reminders r
   LEFT JOIN clients      c   ON c.id   = r.client_id
   LEFT JOIN instructors  i   ON i.id   = r.instructor_id
@@ -19,6 +21,7 @@ const REMINDER_JOIN = `
   LEFT JOIN cases        cas ON cas.id = COALESCE(r.case_id, ai.case_id)
   LEFT JOIN clients      cl2 ON cl2.id = cas.client_id
   LEFT JOIN instructors  i2  ON i2.id  = cas.instructor_id
+  LEFT JOIN invoices     inv ON inv.id = r.invoice_id
 `;
 
 function today() { return new Date().toISOString().slice(0, 10); }

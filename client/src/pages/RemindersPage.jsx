@@ -299,6 +299,14 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
               View Case →
             </button>
           )}
+          {reminder.invoice_id && (
+            <button
+              onClick={e => navClick(e, `/invoices/${reminder.invoice_id}`, navigate)}
+              className="text-xs text-emerald-600 hover:underline font-medium"
+            >
+              View Invoice {reminder.invoice_number} →
+            </button>
+          )}
         </div>
         {reminder.notes && (
           <p className="text-xs text-gray-500 mt-1.5 italic whitespace-pre-wrap leading-relaxed">{reminder.notes}</p>

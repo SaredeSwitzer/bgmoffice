@@ -267,6 +267,9 @@ router.patch('/:id/status', async (req, res) => {
     "UPDATE invoices SET status=$1, paid_at=$2, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$3",
     [status, paid_at, req.params.id]
   );
+  // "Send this invoice" reminder is done once it's no longer sitting in draft — clear
+  // it whether it left draft via "Mark as Sent" here or the real send-with-PDF flow.
+  if (status !== 'draft') await pool.query('DELETE FROM reminders WHERE invoice_id = $1', [req.params.id]);
   const { rows: [row] } = await pool.query('SELECT * FROM invoices WHERE id=$1', [req.params.id]);
   res.json(enrichInvoice(row));
 });
@@ -344,6 +347,7 @@ router.post('/:id/send', async (req, res) => {
     "UPDATE invoices SET status='sent', due_date=$1, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$2",
     [finalDueDate, req.params.id]
   );
+  await pool.query('DELETE FROM reminders WHERE invoice_id = $1', [req.params.id]);
   const { rows: [updatedRow] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
   res.json(enrichInvoice(updatedRow));
 });
