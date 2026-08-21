@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { navClick } from '../utils/nav'
 import SearchSelect from '../components/SearchSelect'
-import GmailComposeLink from '../components/GmailComposeLink'
+import SendInvoiceModal from '../components/SendInvoiceModal'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions, stripMentions } from '../utils/mentions'
 import jsPDF from 'jspdf'
@@ -44,6 +44,7 @@ export default function InvoiceDetailPage() {
   const [paymentForm, setPaymentForm] = useState(null)
   const [savingPayment, setSavingPayment] = useState(false)
   const [mentionableUsers, setMentionableUsers] = useState([])
+  const [showSendModal, setShowSendModal] = useState(false)
 
   function loadPayments() {
     return api.getInvoicePayments(id).then(setPayments)
@@ -212,14 +213,6 @@ export default function InvoiceDetailPage() {
     navigator.clipboard.writeText(getPaymentLink())
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  function emailSubject() {
-    return `Invoice ${invoice.invoice_number} from BGM Office`
-  }
-
-  function emailBody() {
-    return `Hi ${invoice.client_name || ''},\n\nPlease find your invoice below.\n\nInvoice: ${invoice.invoice_number}\nAmount Due: ${fmtMoney(invoice.total)}\nDue Date: ${fmtDate(invoice.due_date)}\n\nPay online here: ${getPaymentLink()}\n\nThank you!`
   }
 
   async function downloadPDF() {
@@ -718,14 +711,13 @@ export default function InvoiceDetailPage() {
               {copied ? '✓ Copied!' : '🔗 Copy Payment Link'}
             </button>
             <div className="flex flex-col gap-1">
-              <GmailComposeLink
-                to={invoice.client_email || ''}
-                subject={emailSubject()}
-                body={emailBody()}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
+              <button
+                onClick={() => setShowSendModal(true)}
+                disabled={!invoice.client_email}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
-                ✉️ Send by Email
-              </GmailComposeLink>
+                ✉️ Send Invoice + PDF
+              </button>
               {invoice.client_email
                 ? <span className="text-[11px] text-gray-400 pl-1">to: {invoice.client_email}</span>
                 : <button onClick={startEdit} className="text-[11px] text-amber-600 hover:underline pl-1 text-left">+ Add send-to email</button>
@@ -799,6 +791,14 @@ export default function InvoiceDetailPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showSendModal && (
+        <SendInvoiceModal
+          invoice={invoice}
+          onClose={() => setShowSendModal(false)}
+          onSent={updated => setInvoice(updated)}
+        />
       )}
     </div>
   )

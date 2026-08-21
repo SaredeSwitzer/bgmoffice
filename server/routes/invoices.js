@@ -4,6 +4,8 @@ const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { nextInvoiceNumber, calcTotals } = require('../lib/invoiceHelpers');
 const { syncMentions, deleteMentions, stripMentionsForPublic } = require('../lib/mentions');
+const { sendMail } = require('../lib/mailer');
+const { buildInvoicePdf } = require('../lib/invoicePdf');
 
 const router = express.Router();
 
@@ -267,6 +269,83 @@ router.patch('/:id/status', async (req, res) => {
   );
   const { rows: [row] } = await pool.query('SELECT * FROM invoices WHERE id=$1', [req.params.id]);
   res.json(enrichInvoice(row));
+});
+
+const APP_URL = process.env.PUBLIC_APP_URL || 'https://bgmoffice.com';
+const DUE_DATE_LEAD_DAYS = 7;
+
+function fmtMoney(n) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0); }
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const [y, m, d] = iso.split('-');
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function defaultDueDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + DUE_DATE_LEAD_DAYS);
+  return d.toISOString().slice(0, 10);
+}
+
+// Preview before sending — staff can edit subject/body/due-date here, same
+// preview-then-send pattern used for every other email in the app. due_date isn't
+// written yet; that only happens on the actual send, in case staff cancels out.
+router.post('/:id/send-preview', async (req, res) => {
+  const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Invoice not found' });
+  const invoice = enrichInvoice(row);
+  if (!invoice.client_email) return res.status(400).json({ error: 'This client has no invoice email on file. Add one first.' });
+
+  // "Due one week from when you send it" only kicks in as a default — an already-set
+  // due date (staff picked one deliberately) is left alone.
+  const due_date = invoice.due_date || defaultDueDate();
+  const payLink = `${APP_URL}/pay/${invoice.public_token}`;
+  const subject = `Invoice ${invoice.invoice_number} from BGM Office`;
+  const body = `Hi ${invoice.client_name || ''},\n\nPlease find your invoice attached.\n\n`
+    + `Invoice: ${invoice.invoice_number}\nAmount Due: ${fmtMoney(invoice.total)}\nDue Date: ${fmtDate(due_date)}\n\n`
+    + `Pay online here: ${payLink}\n\nThank you!`;
+
+  res.json({ to: invoice.client_email, subject, body, due_date });
+});
+
+// Actually sends it: PDF attached, due date persisted (if it wasn't already set),
+// status flipped to sent.
+router.post('/:id/send', async (req, res) => {
+  const { subject, body, due_date } = req.body;
+  const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
+  if (!row) return res.status(404).json({ error: 'Invoice not found' });
+  const invoice = enrichInvoice(row);
+  if (!invoice.client_email) return res.status(400).json({ error: 'This client has no invoice email on file. Add one first.' });
+  if (!subject?.trim() || !body?.trim()) return res.status(400).json({ error: 'Subject and message are required' });
+
+  const finalDueDate = invoice.due_date || due_date || defaultDueDate();
+  invoice.notes = await stripMentionsForPublic(invoice.notes);
+  invoice.due_date = finalDueDate;
+
+  let pdfBuffer;
+  try {
+    pdfBuffer = await buildInvoicePdf(invoice);
+  } catch (e) {
+    console.error('[invoices] PDF build failed:', e.message);
+    return res.status(500).json({ error: 'Could not generate the invoice PDF.' });
+  }
+
+  try {
+    await sendMail({
+      to: invoice.client_email,
+      subject: subject.trim(),
+      text: body,
+      attachments: [{ filename: `${invoice.invoice_number}.pdf`, content: pdfBuffer }],
+    });
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+
+  await pool.query(
+    "UPDATE invoices SET status='sent', due_date=$1, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$2",
+    [finalDueDate, req.params.id]
+  );
+  const { rows: [updatedRow] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
+  res.json(enrichInvoice(updatedRow));
 });
 
 router.patch('/:id/archive', async (req, res) => {

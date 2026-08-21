@@ -63,13 +63,15 @@ async function sendLoginCode(to, code) {
 // Generic transactional send (instructor confirmations, etc.). Same Resend path as the
 // login code. Throws in production if email isn't configured so a caller can surface it;
 // in dev it logs instead of silently dropping.
-async function sendMail({ to, subject, text, html, replyTo, from, cc }) {
+// attachments: [{ filename, content: Buffer }] — Resend wants base64 content, so callers
+// pass a raw Buffer and this base64-encodes it rather than making every caller remember to.
+async function sendMail({ to, subject, text, html, replyTo, from, cc, attachments }) {
   if (!to) throw new Error('No recipient email');
   if (!isConfigured()) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Email is not configured (RESEND_API_KEY / MAIL_FROM missing)');
     }
-    console.log(`\n[dev] email to ${to}: ${subject}\n${text || ''}\n`);
+    console.log(`\n[dev] email to ${to}: ${subject}\n${text || ''}\n${attachments ? `[${attachments.length} attachment(s)]\n` : ''}`);
     return;
   }
   const res = await fetch(RESEND_ENDPOINT, {
@@ -83,6 +85,9 @@ async function sendMail({ to, subject, text, html, replyTo, from, cc }) {
       ...(html ? { html } : {}),
       ...(replyTo ? { reply_to: replyTo } : {}),
       ...(cc ? { cc: Array.isArray(cc) ? cc : [cc] } : {}),
+      ...(attachments?.length
+        ? { attachments: attachments.map(a => ({ filename: a.filename, content: a.content.toString('base64') })) }
+        : {}),
     }),
   });
   if (!res.ok) {
