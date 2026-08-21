@@ -947,8 +947,9 @@ export default function ClientProfilePage() {
                   )}
                 </div>
               </div>
-              {/* Last class of semester — not relevant for most clients, so it's opt-in */}
-              <div className="col-span-2">
+              {/* Last class of semester — separate concept from the waiver above, not relevant for most clients so it's opt-in */}
+              <div className="col-span-2 pt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Semester Tracking</p>
                 <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
                   <input type="checkbox" checked={editForm.track_last_class}
                     onChange={e => setEditForm(f => ({ ...f, track_last_class: e.target.checked }))}
