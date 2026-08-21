@@ -55,14 +55,18 @@ export default function ClientContractSignaturesPanel({ clients, refreshKey }) {
             </p>
           </div>
           <div className="text-xs text-right shrink-0">
-            {sig.client_id ? (
+            {sig.signed_at && sig.client_id ? (
               <Link to={`/clients/${sig.client_id}`} className="text-emerald-700 hover:text-emerald-900 hover:underline">
                 ✓ Signed &amp; linked to {sig.client_name}
               </Link>
             ) : sig.signed_at ? (
               <span className="text-amber-600">Signed {fmt(sig.signed_at)} — not linked</span>
+            ) : sig.client_id ? (
+              <Link to={`/clients/${sig.client_id}`} className="text-orange-600 hover:text-orange-800 hover:underline">
+                Sent to {sig.client_name} — waiting for them to sign
+              </Link>
             ) : (
-              <span className="text-gray-400">Sent {fmt(sig.sent_at)} — awaiting signature</span>
+              <span className="text-orange-600">Sent {fmt(sig.sent_at)} — awaiting signature</span>
             )}
           </div>
           {sig.signed_at && !sig.client_id && (

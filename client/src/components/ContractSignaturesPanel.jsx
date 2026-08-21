@@ -63,14 +63,18 @@ export default function ContractSignaturesPanel({ instructors, refreshKey }) {
             </p>
           </div>
           <div className="text-xs text-right shrink-0">
-            {sig.instructor_id ? (
+            {sig.signed_at && sig.instructor_id ? (
               <Link to={`/instructors/${sig.instructor_id}`} className="text-emerald-700 hover:text-emerald-900 hover:underline">
                 ✓ Signed &amp; linked to {sig.instructor_name}
               </Link>
             ) : sig.signed_at ? (
               <span className="text-amber-600">Signed {fmt(sig.signed_at)} — not linked</span>
+            ) : sig.instructor_id ? (
+              <Link to={`/instructors/${sig.instructor_id}`} className="text-orange-600 hover:text-orange-800 hover:underline">
+                Sent to {sig.instructor_name} — waiting for them to sign
+              </Link>
             ) : (
-              <span className="text-gray-400">Sent {fmt(sig.sent_at)} — awaiting signature</span>
+              <span className="text-orange-600">Sent {fmt(sig.sent_at)} — awaiting signature</span>
             )}
           </div>
           {sig.signed_at && !sig.instructor_id && (
