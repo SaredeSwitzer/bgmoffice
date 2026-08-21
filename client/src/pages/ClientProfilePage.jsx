@@ -19,19 +19,21 @@ import ClientContractInviteModal from '../components/ClientContractInviteModal'
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
 // to "signed" automatically the moment they sign (see ClientContractInviteModal). For
 // organizations, many clients only have invoice_email (not email) or a contact person's
-// email on file, so fall back through those before hiding the button.
+// email on file, so fall back through those before hiding the button. No email at all
+// is still fine as long as there's a phone — the modal can generate a link to copy into
+// a text/WhatsApp message instead of emailing it.
 function SendWaiverButton({ client, onNeedEmail }) {
   const [open, setOpen] = useState(false)
   const signerEmail = client.email || client.contact_person_email || client.invoice_email
-  if (!signerEmail) {
+  const signerPhone = client.phone || client.contact_person_phone
+  if (!signerEmail && !signerPhone) {
     return (
       <button onClick={onNeedEmail}
         className="text-xs font-medium text-amber-600 hover:text-amber-800 underline decoration-dotted">
-        No email on file — add one to send a waiver
+        No email or phone on file — add one to send a waiver
       </button>
     )
   }
-  const signerPhone = client.phone || client.contact_person_phone
   return (
     <>
       <button

@@ -54,13 +54,13 @@ export default function ClientContractSignaturesPanel({ clients, refreshKey }) {
           <div className="flex-1 min-w-0">
             {sig.client_id ? (
               <Link to={`/clients/${sig.client_id}`} className="font-medium text-gray-900 hover:text-blue-600 hover:underline truncate block">
-                {sig.org_name || sig.contact_name || sig.email}
+                {sig.org_name || sig.contact_name || sig.email || sig.phone}
               </Link>
             ) : (
-              <p className="font-medium text-gray-900 truncate">{sig.org_name || sig.contact_name || sig.email}</p>
+              <p className="font-medium text-gray-900 truncate">{sig.org_name || sig.contact_name || sig.email || sig.phone}</p>
             )}
             <p className="text-xs text-gray-400 truncate">
-              {sig.email}{sig.deposit_amount ? ` · Deposit ${fmtMoney(sig.deposit_amount)}${sig.deposit_paid_at ? ' (paid)' : ' (unpaid)'}` : ''}
+              {sig.email || (sig.phone ? `${sig.phone} · shared by link` : '')}{sig.deposit_amount ? ` · Deposit ${fmtMoney(sig.deposit_amount)}${sig.deposit_paid_at ? ' (paid)' : ' (unpaid)'}` : ''}
             </p>
           </div>
           <div className="text-xs text-right shrink-0">

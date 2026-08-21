@@ -144,8 +144,14 @@ router.use(requireAuth);
 
 router.post('/invite/preview', requireStaff, async (req, res) => {
   const { org_name, contact_name, email, phone, payment_terms_text, deposit_amount, client_id } = req.body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'A valid email is required' });
+  // Email is preferred (lets us actually send it), but some clients only want to sign via
+  // a link staff paste into a text or WhatsApp message — so a phone number on its own is
+  // enough to generate the link. They still type their own email at signing time.
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: "That email address doesn't look right" });
+  }
+  if (!email?.trim() && !phone?.trim()) {
+    return res.status(400).json({ error: 'An email or phone number is required' });
   }
 
   // Individuals get a plain liability waiver; organizations get the fuller
@@ -176,7 +182,7 @@ router.post('/invite/preview', requireStaff, async (req, res) => {
     `INSERT INTO client_contract_signatures
        (org_name, contact_name, email, phone, token, contract_text, payment_terms_text, deposit_amount, client_id)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-    [org_name?.trim() || null, contact_name?.trim() || null, email.trim(), phone?.trim() || null,
+    [org_name?.trim() || null, contact_name?.trim() || null, email?.trim() || null, phone?.trim() || null,
      token, contractText, payment_terms_text?.trim() || null, deposit_amount || null, client_id || null]
   );
   const link = `${APP_URL}/sign-org-contract/${token}`;
@@ -191,25 +197,30 @@ router.post('/invite/preview', requireStaff, async (req, res) => {
   const body = fill(m[bodyKey] ||
     `Hi {name},\n\nPlease review and sign the contract here:\n\n{link}\n\nLet us know if you have any questions.`);
 
-  res.json({ signature_id: row.id, subject, body });
+  res.json({ signature_id: row.id, subject, body, link });
 });
 
+// email set + subject/body → actually emails it. email omitted → staff is sharing the
+// link by hand (text/WhatsApp); just record that it went out, nothing to send here.
 router.post('/invite/:id/send', requireStaff, async (req, res) => {
   const { email, subject, body } = req.body;
-  if (!email || !subject?.trim() || !body?.trim()) {
-    return res.status(400).json({ error: 'Email, subject, and message are required' });
-  }
   const { rows: [row] } = await pool.query(
     'SELECT id FROM client_contract_signatures WHERE id = $1', [req.params.id]
   );
   if (!row) return res.status(404).json({ error: 'Not found' });
-  try {
-    await sendMail({ to: email, subject: subject.trim(), text: body });
-  } catch (e) {
-    return res.status(502).json({ error: `Could not send: ${e.message}` });
+
+  if (email) {
+    if (!subject?.trim() || !body?.trim()) {
+      return res.status(400).json({ error: 'Subject and message are required' });
+    }
+    try {
+      await sendMail({ to: email, subject: subject.trim(), text: body });
+    } catch (e) {
+      return res.status(502).json({ error: `Could not send: ${e.message}` });
+    }
   }
   await pool.query('UPDATE client_contract_signatures SET sent_at = now() WHERE id = $1', [req.params.id]);
-  res.json({ ok: true, sent_to: email });
+  res.json({ ok: true, sent_to: email || null });
 });
 
 // Dismissed rows (staff has seen/handled them) are left out — see POST .../dismiss.

@@ -23,10 +23,15 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
+  const [link, setLink] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
 
   async function handlePreview(e) {
     e.preventDefault()
-    if (!email.trim()) { setError('Please enter an email address.'); return }
+    if (!email.trim() && !phone.trim()) {
+      setError('Enter an email, or at least a phone number if you plan to text/WhatsApp the link instead.')
+      return
+    }
     setLoadingPreview(true)
     setError('')
     try {
@@ -39,6 +44,7 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
       setSignatureId(p.signature_id)
       setSubject(p.subject)
       setBody(p.body)
+      setLink(p.link)
     } catch (err) {
       setError(err.message || 'Failed to build preview.')
     } finally {
@@ -60,6 +66,21 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
     }
   }
 
+  // Copying the link counts as "shared" the same as emailing it — records sent_at
+  // without actually sending an email, so it shows correctly in the signatures list
+  // instead of sitting there looking untouched.
+  async function handleCopyLink() {
+    await navigator.clipboard.writeText(link)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2500)
+    try {
+      await api.sendClientContractInvite(signatureId, {})
+      onSent?.()
+    } catch {
+      // Link is already copied either way — not worth surfacing a failed sent_at bookkeeping write.
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -68,9 +89,8 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
             {client ? `Send Waiver/Contract to Sign · ${client.name}` : 'Send Contract to Sign'}
           </h3>
           <p className="text-xs text-gray-500 mt-1 mb-4">
-            {client
-              ? "Emails a unique signing link — their profile updates to \"signed\" as soon as they do."
-              : 'Emails a unique signing link — no client record needed.'}
+            Emails a unique signing link, or copy it to text/WhatsApp instead —
+            {client ? ' their profile updates to "signed" as soon as they do.' : ' no client record needed.'}
           </p>
         </div>
 
@@ -107,9 +127,9 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="jane@example.com"
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="jane@example.com — leave blank if texting/WhatsApping the link instead"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
             </div>
@@ -130,7 +150,7 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
             <div className="flex gap-3 pt-1">
               <button type="submit" disabled={loadingPreview}
                 className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors">
-                {loadingPreview ? 'Loading…' : 'Preview Email'}
+                {loadingPreview ? 'Loading…' : 'Preview'}
               </button>
               <button type="button" onClick={onClose}
                 className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
@@ -141,31 +161,49 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
         ) : (
           <div className="px-6 pb-6 space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
-              <div className="text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
-                {email}
+              <label className="block text-xs font-medium text-gray-600 mb-1">Signing Link</label>
+              <div className="flex gap-2">
+                <div className="flex-1 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 truncate">
+                  {link}
+                </div>
+                <button type="button" onClick={handleCopyLink}
+                  className="px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 whitespace-nowrap">
+                  {linkCopied ? '✓ Copied' : '📋 Copy Link'}
+                </button>
               </div>
+              <p className="text-[11px] text-gray-400 mt-1">Paste this into a text or WhatsApp message — copying marks it as shared either way.</p>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
-              <input value={subject} onChange={e => setSubject(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
-              <textarea value={body} onChange={e => setBody(e.target.value)} rows={8}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed" />
-            </div>
-            <p className="text-[11px] text-gray-400">The signing link inside is unique to this org — edit the wording around it before sending.</p>
+            {email && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
+                  <div className="text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                    {email}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
+                  <input value={subject} onChange={e => setSubject(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
+                  <textarea value={body} onChange={e => setBody(e.target.value)} rows={8}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed" />
+                </div>
+              </>
+            )}
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex gap-3 pt-1">
-              <button type="button" onClick={handleSend} disabled={sending}
-                className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors">
-                {sending ? 'Sending…' : 'Send Invite'}
-              </button>
+              {email && (
+                <button type="button" onClick={handleSend} disabled={sending}
+                  className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors">
+                  {sending ? 'Sending…' : 'Send Invite'}
+                </button>
+              )}
               <button type="button" onClick={onClose}
-                className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
-                Cancel
+                className={`${email ? '' : 'flex-1'} border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 px-4`}>
+                {email ? 'Cancel' : 'Done'}
               </button>
             </div>
           </div>
