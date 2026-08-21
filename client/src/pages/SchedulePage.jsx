@@ -211,6 +211,12 @@ export default function SchedulePage() {
     await api.deleteClassSchedule(id); setSchedules(prev => prev.filter(s => s.id !== id))
   }
 
+  async function removeFutureSessions(s) {
+    if (!confirm(`Permanently delete every upcoming class for ${s.client_name}? Past classes are kept. This cannot be undone.`)) return
+    const { deleted } = await api.deleteFutureSessions(s.id)
+    alert(`Deleted ${deleted} upcoming class${deleted === 1 ? '' : 'es'}.`)
+  }
+
   async function toggleSchedulePause(s) {
     const status = s.status === 'active' ? 'paused' : 'active'
     setSchedules(prev => prev.map(x => x.id === s.id ? { ...x, status } : x))
@@ -511,6 +517,11 @@ export default function SchedulePage() {
                     <button onClick={() => toggleSchedulePause(s)}
                       className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-50">
                       {s.status === 'active' ? 'Pause' : 'Resume'}
+                    </button>
+                    <button onClick={() => removeFutureSessions(s)}
+                      title="Permanently delete every upcoming class for this recurring schedule (past classes are kept)"
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600">
+                      Delete Future Classes
                     </button>
                     <button onClick={() => removeSchedule(s.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
                   </div>

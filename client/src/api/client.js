@@ -361,6 +361,7 @@ export const api = {
   createClassSchedule: (data) => request('/schedule/schedules', { method: 'POST', body: JSON.stringify(data) }),
   updateClassSchedule: (id, data) => request(`/schedule/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteClassSchedule: (id) => request(`/schedule/schedules/${id}`, { method: 'DELETE' }),
+  deleteFutureSessions: (id) => request(`/schedule/schedules/${id}/future-sessions`, { method: 'DELETE' }),
   getClassSessions: (start, end, params = {}) => {
     const qs = new URLSearchParams({ start, end, ...params }).toString()
     return request(`/schedule/sessions?${qs}`)

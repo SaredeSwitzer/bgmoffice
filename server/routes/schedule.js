@@ -181,6 +181,18 @@ router.delete('/schedules/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+// Permanently removes every not-yet-happened session for this schedule (keeps the
+// recurring schedule itself, and keeps past sessions so billing/payroll history stays intact).
+router.delete('/schedules/:id/future-sessions', async (req, res) => {
+  const { rows: [existing] } = await pool.query('SELECT id FROM class_schedules WHERE id=$1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Schedule not found' });
+  const { rowCount } = await pool.query(
+    `DELETE FROM class_sessions WHERE schedule_id=$1 AND session_date >= CURRENT_DATE`,
+    [req.params.id]
+  );
+  res.json({ success: true, deleted: rowCount });
+});
+
 // ── Dated sessions (the weekly report Amber reads) ─────────────────────────────
 
 // GET /sessions?start=YYYY-MM-DD&end=YYYY-MM-DD  — the week's classes, with names.
