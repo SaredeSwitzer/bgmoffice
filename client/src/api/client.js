@@ -352,6 +352,9 @@ export const api = {
   sendCombinedConfirmation: (scheduleIds, data = {}) => request('/schedule/schedules/combined-send-confirmation', { method: 'POST', body: JSON.stringify({ schedule_ids: scheduleIds, ...data }) }),
   getSessionConfirmationPreview: (sessionId) => request(`/schedule/sessions/${sessionId}/confirmation-preview`),
   sendSessionConfirmation: (sessionId, data = {}) => request(`/schedule/sessions/${sessionId}/send-confirmation`, { method: 'POST', body: JSON.stringify(data) }),
+  getSessionSiblings: (sessionId) => request(`/schedule/sessions/${sessionId}/siblings`),
+  getCombinedSessionConfirmationPreview: (sessionIds) => request('/schedule/sessions/combined-confirmation-preview', { method: 'POST', body: JSON.stringify({ session_ids: sessionIds }) }),
+  sendCombinedSessionConfirmation: (sessionIds, data = {}) => request('/schedule/sessions/combined-send-confirmation', { method: 'POST', body: JSON.stringify({ session_ids: sessionIds, ...data }) }),
   // Editable confirmation template (admin)
   getConfirmationTemplate: () => request('/settings/confirmation-template'),
   saveConfirmationTemplate: (data) => request('/settings/confirmation-template', { method: 'POST', body: JSON.stringify(data) }),

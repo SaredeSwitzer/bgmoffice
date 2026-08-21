@@ -539,8 +539,11 @@ export default function SchedulePage() {
           schedule={confirmSession}
           kind="session"
           onClose={() => setConfirmSession(null)}
-          onSent={(r) => setSessions(prev => prev.map(x =>
-            x.id === confirmSession.id ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))}
+          onSent={(r, ids) => {
+            const idSet = new Set(ids || [confirmSession.id])
+            setSessions(prev => prev.map(x =>
+              idSet.has(x.id) ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))
+          }}
         />
       )}
 

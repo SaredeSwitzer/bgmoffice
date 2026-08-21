@@ -491,6 +491,96 @@ async function buildConfirmation(kind, id) {
   };
 }
 
+// Same idea as confirmationContextCombined, but for dated one-off sessions (e.g. a batch
+// added via "Add Class Dates") instead of a weekly-recurring schedule — each already has
+// its own concrete date, so the combined line is just every date/time listed together
+// rather than a "starting X" pattern.
+function confirmationContextCombinedSessions(rows) {
+  const ctx = confirmationContext(rows[0]);
+  const sorted = [...rows].sort((a, b) => a.session_date.localeCompare(b.session_date));
+  const parts = sorted.map(row =>
+    `${dayNameFromDate(row.session_date)}, ${fmtCalendarDate(row.session_date)} at ${fmtTimeRange(row.start_time, row.duration_minutes)}`
+  );
+  ctx.days_times = parts.length <= 1 ? parts.join('')
+    : `${parts.slice(0, -1).join('; ')}; and ${parts[parts.length - 1]}`;
+  return ctx;
+}
+
+// Other upcoming dated sessions for the same client+instructor as this one — e.g. the
+// rest of a batch added together via "Add Class Dates". Confirming any one of them
+// should offer to cover all of them in one email instead of sending one per date.
+async function getSessionSiblings(id) {
+  const row = await getSessionRow(id);
+  if (!row || !row.instructor_id) return [];
+  const { rows } = await pool.query(
+    `SELECT id FROM class_sessions
+      WHERE client_id = $1 AND instructor_id = $2 AND id != $3
+        AND session_date >= CURRENT_DATE AND status != 'cancelled'
+      ORDER BY session_date`,
+    [row.client_id, row.instructor_id, id]
+  );
+  return rows.map(r => r.id);
+}
+
+async function buildCombinedSessionConfirmation(sessionIds) {
+  const rows = await Promise.all(sessionIds.map(id => getSessionRow(id)));
+  if (rows.some(r => !r)) return { error: 'One or more classes not found', status: 404 };
+  const [first] = rows;
+  const mismatched = rows.some(r => r.client_id !== first.client_id || r.instructor_id !== first.instructor_id);
+  if (mismatched) {
+    return { error: 'Combined confirmations only work when every class is for the same client and instructor.', status: 400 };
+  }
+  const { rows: [inst] } = first.instructor_id
+    ? await pool.query('SELECT name, email FROM instructors WHERE id=$1', [first.instructor_id])
+    : { rows: [] };
+  const tpl = await getTemplate();
+  const ctx = confirmationContextCombinedSessions(rows);
+  return {
+    to: inst?.email || null,
+    instructor_name: inst?.name || null,
+    subject: renderTemplate(tpl.subject, ctx),
+    body: renderTemplate(tpl.body, ctx),
+    already_sent_at: rows.every(r => r.confirmation_sent_at) ? rows.map(r => r.confirmation_sent_at).sort().pop() : null,
+    already_sent_to: first.confirmation_sent_to || null,
+  };
+}
+
+router.get('/sessions/:id/siblings', async (req, res) => {
+  res.json({ sibling_ids: await getSessionSiblings(req.params.id) });
+});
+
+router.post('/sessions/combined-confirmation-preview', async (req, res) => {
+  const { session_ids } = req.body;
+  if (!Array.isArray(session_ids) || session_ids.length < 2) {
+    return res.status(400).json({ error: 'At least two session_ids are required' });
+  }
+  const r = await buildCombinedSessionConfirmation(session_ids);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
+});
+
+router.post('/sessions/combined-send-confirmation', async (req, res) => {
+  const { session_ids } = req.body;
+  if (!Array.isArray(session_ids) || session_ids.length < 2) {
+    return res.status(400).json({ error: 'At least two session_ids are required' });
+  }
+  const r = await buildCombinedSessionConfirmation(session_ids);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  if (!r.to) return res.status(400).json({ error: 'This instructor has no email on file. Add one on their profile first.' });
+  const subject = (req.body.subject ?? r.subject).trim();
+  const body    = (req.body.body ?? r.body);
+  try {
+    await sendMail({ to: r.to, subject, text: body, html: bodyToHtml(body), cc: CONFIRMATION_CC, replyTo: CONFIRMATION_REPLY_TO });
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+  await pool.query(
+    `UPDATE class_sessions SET confirmation_sent_at=now(), confirmation_sent_to=$1 WHERE id = ANY($2)`,
+    [r.to, session_ids]
+  );
+  res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
+});
+
 async function sendConfirmationRoute(kind, table, req, res) {
   const r = await buildConfirmation(kind, req.params.id);
   if (r.error) return res.status(r.status).json({ error: r.error });

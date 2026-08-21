@@ -6,6 +6,12 @@ import { api } from '../api/client'
 // client+instructor at once, e.g. someone teaching the same place twice a week gets one
 // email instead of two. The app fills the template from the class; staff review (and
 // can tweak) before sending. Nothing sends on its own.
+//
+// For kind='session', it also transparently checks for "siblings" — other upcoming
+// dated sessions for the same client+instructor with no time in common with a recurring
+// schedule (e.g. a batch added together via "Add Class Dates") — and if any exist,
+// silently switches to a combined email covering all of them, so confirming any one date
+// from that batch doesn't leave the rest unconfirmed or require sending one email each.
 export default function ConfirmClassModal({ schedule, scheduleIds, kind = 'schedule', onClose, onSent }) {
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(null)
@@ -13,26 +19,50 @@ export default function ConfirmClassModal({ schedule, scheduleIds, kind = 'sched
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
-
-  const getPreview = kind === 'session' ? api.getSessionConfirmationPreview
-    : kind === 'combined' ? () => api.getCombinedConfirmationPreview(scheduleIds)
-    : api.getConfirmationPreview
-  const doSend = kind === 'session' ? api.sendSessionConfirmation
-    : kind === 'combined' ? (id, data) => api.sendCombinedConfirmation(scheduleIds, data)
-    : api.sendConfirmation
+  const [effectiveIds, setEffectiveIds] = useState(kind === 'combined' ? scheduleIds : [schedule.id])
+  const [effectiveKind, setEffectiveKind] = useState(kind)
 
   useEffect(() => {
-    getPreview(schedule.id)
-      .then(p => { setPreview(p); setSubject(p.subject); setBody(p.body) })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [schedule.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    let cancelled = false
+    async function load() {
+      setLoading(true); setError(null)
+      try {
+        let ids = kind === 'combined' ? scheduleIds : [schedule.id]
+        let effKind = kind
+        if (kind === 'session') {
+          const { sibling_ids } = await api.getSessionSiblings(schedule.id)
+          if (sibling_ids.length > 0) {
+            ids = [schedule.id, ...sibling_ids]
+            effKind = 'combined-session'
+          }
+        }
+        if (cancelled) return
+        setEffectiveIds(ids)
+        setEffectiveKind(effKind)
+        const p = effKind === 'combined-session' ? await api.getCombinedSessionConfirmationPreview(ids)
+          : effKind === 'combined' ? await api.getCombinedConfirmationPreview(ids)
+          : effKind === 'session' ? await api.getSessionConfirmationPreview(schedule.id)
+          : await api.getConfirmationPreview(schedule.id)
+        if (cancelled) return
+        setPreview(p); setSubject(p.subject); setBody(p.body)
+      } catch (e) {
+        if (!cancelled) setError(e.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [schedule.id, kind]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function send() {
     setSending(true); setError(null)
     try {
-      const r = await doSend(schedule.id, { subject, body })
-      onSent?.(r)
+      const r = effectiveKind === 'combined-session' ? await api.sendCombinedSessionConfirmation(effectiveIds, { subject, body })
+        : effectiveKind === 'combined' ? await api.sendCombinedConfirmation(effectiveIds, { subject, body })
+        : effectiveKind === 'session' ? await api.sendSessionConfirmation(schedule.id, { subject, body })
+        : await api.sendConfirmation(schedule.id, { subject, body })
+      onSent?.(r, effectiveIds)
       onClose()
     } catch (e) {
       setError(e.message); setSending(false)
@@ -44,7 +74,8 @@ export default function ConfirmClassModal({ schedule, scheduleIds, kind = 'sched
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 text-sm">
-            Confirmation email · {schedule.client_name}{kind === 'combined' ? ` (${scheduleIds.length} classes combined)` : ''}
+            Confirmation email · {schedule.client_name}
+            {(effectiveKind === 'combined' || effectiveKind === 'combined-session') ? ` (${effectiveIds.length} classes combined)` : ''}
           </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
         </div>
