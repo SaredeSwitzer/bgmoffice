@@ -44,7 +44,7 @@ function SendWaiverButton({ client, onNeedEmail }) {
       </button>
       {open && (
         <ClientContractInviteModal
-          client={{ id: client.id, name: client.name, email: signerEmail, phone: signerPhone }}
+          client={{ id: client.id, name: client.name, email: signerEmail, phone: signerPhone, rate_per_class: client.rate_per_class }}
           onClose={() => setOpen(false)}
         />
       )}

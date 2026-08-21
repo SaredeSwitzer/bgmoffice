@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { api } from '../api/client'
 
+// Client's rate_per_class is free text ("105", "$125 or $150 if...", etc.) — if it
+// already reads like a sentence (has a $ or letters), leave it alone; a bare number gets
+// wrapped into "$X per class" so the waiver states a plain amount instead of a stray digit.
+function formatRateForWaiver(rate) {
+  const trimmed = rate?.trim()
+  if (!trimmed) return ''
+  return /[$a-zA-Z]/.test(trimmed) ? trimmed : `$${trimmed} per class`
+}
+
 // Step 1: org details + custom payment terms/deposit for this org. Step 2: preview the
 // invite email and edit before sending — same pattern as the instructor contract invite.
 //
@@ -14,7 +23,7 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
   const [contactName, setContactName] = useState('')
   const [email, setEmail] = useState(client?.email || '')
   const [phone, setPhone] = useState(client?.phone || '')
-  const [paymentTerms, setPaymentTerms] = useState('')
+  const [paymentTerms, setPaymentTerms] = useState(formatRateForWaiver(client?.rate_per_class))
   const [depositAmount, setDepositAmount] = useState('')
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [signatureId, setSignatureId] = useState(null)
