@@ -276,6 +276,7 @@ router.patch('/:id/status', async (req, res) => {
 
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://bgmoffice.com';
 const DUE_DATE_LEAD_DAYS = 7;
+const INVOICE_CC = 'sarede@bringthegymtome.com';
 
 function fmtMoney(n) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0); }
 function fmtDate(iso) {
@@ -335,6 +336,7 @@ router.post('/:id/send', async (req, res) => {
   try {
     await sendMail({
       to: invoice.client_email,
+      cc: INVOICE_CC,
       subject: subject.trim(),
       text: body,
       attachments: [{ filename: `${invoice.invoice_number}.pdf`, content: pdfBuffer }],

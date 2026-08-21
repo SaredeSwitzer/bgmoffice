@@ -54,6 +54,7 @@ export default function SendInvoiceModal({ invoice, onClose, onSent }) {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
                 <div className="text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">{to}</div>
+                <p className="text-[11px] text-gray-400 mt-1">Cc: sarede@bringthegymtome.com</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
