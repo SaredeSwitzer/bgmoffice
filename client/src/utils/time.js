@@ -8,12 +8,24 @@ export function fmtTime(t) {
 }
 
 // "HH:MM" + minutes -> "HH:MM", wrapping past midnight (24hr, for further formatting).
+// Exported as addMinutesToTime for computing a class's end time from its start+duration.
 function addMinutes(startTime, minutes) {
   const [h, m] = String(startTime).split(':').map(Number)
   const total = (h * 60 + m + minutes + 1440) % 1440
   const eh = Math.floor(total / 60)
   const em = total % 60
   return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+}
+export const addMinutesToTime = addMinutes
+
+// Minutes between two "HH:MM" 24hr times, assuming end is after start on the same day
+// (classes don't span midnight) — used so staff can enter an end time instead of a
+// duration and have the duration computed for them.
+export function minutesBetween(startTime, endTime) {
+  const [sh, sm] = String(startTime).split(':').map(Number)
+  const [eh, em] = String(endTime).split(':').map(Number)
+  const diff = (eh * 60 + em) - (sh * 60 + sm)
+  return diff > 0 ? diff : diff + 1440
 }
 
 // "9:30am–10:30am" from a start time + duration. Falls back to just the start time if

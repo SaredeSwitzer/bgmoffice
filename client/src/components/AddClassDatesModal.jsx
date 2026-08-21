@@ -4,15 +4,9 @@ import SearchSelect from './SearchSelect'
 import MultiDateInput from './MultiDateInput'
 import TimeInput from './TimeInput'
 import ClientAddressEditor from './ClientAddressEditor'
+import DurationInput from './DurationInput'
 
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
-const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 105, 120, 150, 180]
-function durationLabel(m) {
-  if (m < 60) return `${m} min`
-  if (m === 60) return '1 hour'
-  const h = Math.floor(m / 60), rem = m % 60
-  return rem ? `${h}h ${rem}m` : `${h}h`
-}
 
 // Add a set of specific dates at once — for a run of classes that doesn't fit a weekly
 // recurring pattern (e.g. "these 6 dates over the next two months"). Same fields as a
@@ -23,7 +17,7 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
   const [form, setForm] = useState({
     client: null, instructor: null, dates: [],
     start_time: '', duration_minutes: 60,
-    charge_amount: '', instructor_pay: '', payment_method: '', style: '',
+    charge_amount: '', charge_note: '', instructor_pay: '', payment_method: '', style: '',
     participant_count: '', participant_ages: '',
   })
   const [saving, setSaving] = useState(false)
@@ -48,6 +42,7 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
       start_time: form.start_time || null,
       duration_minutes: form.duration_minutes || 60,
       charge_amount: form.charge_amount === '' ? null : form.charge_amount,
+      charge_note: form.charge_note || null,
       instructor_pay: form.instructor_pay === '' ? null : form.instructor_pay,
       payment_method: form.payment_method || null,
       style: form.style || null,
@@ -96,17 +91,20 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
                 <TimeInput value={form.start_time} onChange={v => setField('start_time', v)} required />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
-                <select value={form.duration_minutes} onChange={e => setField('duration_minutes', Number(e.target.value))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
-                  {DURATION_OPTIONS.map(m => <option key={m} value={m}>{durationLabel(m)}</option>)}
-                </select>
-              </div>
+              <DurationInput
+                startTime={form.start_time}
+                durationMinutes={form.duration_minutes}
+                onDurationChange={v => setField('duration_minutes', v)}
+              />
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Charge to client</label>
                 <input type="number" step="1" value={form.charge_amount} onChange={e => setField('charge_amount', e.target.value)}
                   placeholder="95" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Charge note (optional)</label>
+                <input value={form.charge_note} onChange={e => setField('charge_note', e.target.value)}
+                  placeholder="e.g. TBD, $80–100" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Instructor pay</label>

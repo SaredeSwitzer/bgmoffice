@@ -8,10 +8,8 @@ import ClientAddressEditor from '../components/ClientAddressEditor'
 import PendingClassModal from '../components/PendingClassModal'
 import AddClassDatesModal from '../components/AddClassDatesModal'
 import TimeInput from '../components/TimeInput'
+import DurationInput from '../components/DurationInput'
 import { fmtTimeRange } from '../utils/time'
-
-// Common class lengths — 60 is the default for anything new.
-const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 105, 120, 150, 180]
 
 // Small pill showing a class's note / open-task counts; also the button that expands notes.
 function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
@@ -43,6 +41,11 @@ function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); retu
 function startOfWeek(d) { return addDays(d, -d.getDay()) } // back to Sunday
 function money(v) { return v == null || v === '' ? '—' : `$${Number(v).toFixed(0)}` }
 
+// A charge note ("TBD", "$80–100") is purely informational — the numeric charge_amount
+// stays whatever it is (usually blank alongside a note) since that's the field billing
+// actually sums, so a note never silently zeroes out a real invoice line.
+function chargeDisplay(s) { return s.charge_note || money(s.charge_amount) }
+
 // Street + city + zip, skipping whichever parts are blank — matches
 // server/routes/schedule.js's fmtAddress() used for the confirmation email.
 function fmtAddr(s) {
@@ -68,7 +71,7 @@ function fmtParticipants(s) {
 
 const BLANK_SCHEDULE = {
   client: null, instructor: null, weekday: '', start_time: '', duration_minutes: 60,
-  charge_amount: '', instructor_pay: '', payment_method: '', style: '', location: '', special_instructions: '',
+  charge_amount: '', charge_note: '', instructor_pay: '', payment_method: '', style: '', location: '', special_instructions: '',
   participant_count: '', participant_ages: '',
 }
 
@@ -161,6 +164,7 @@ export default function SchedulePage() {
         start_time: form.start_time || null,
         duration_minutes: form.duration_minutes || 60,
         charge_amount: form.charge_amount || null,
+        charge_note: form.charge_note || null,
         instructor_pay: form.instructor_pay || null,
         payment_method: form.payment_method || null,
         style: form.style || null,
@@ -188,6 +192,7 @@ export default function SchedulePage() {
       start_time: s.start_time ? s.start_time.slice(0, 5) : '',
       duration_minutes: s.duration_minutes ?? 60,
       charge_amount: s.charge_amount ?? '',
+      charge_note: s.charge_note || '',
       instructor_pay: s.instructor_pay ?? '',
       payment_method: s.payment_method || '',
       style: s.style || '',
@@ -321,7 +326,7 @@ export default function SchedulePage() {
                                   <p className="text-gray-400 truncate">{fmtParticipants(s)}</p>
                                 )}
                                 <div className="flex items-center justify-between mt-1">
-                                  <span className="font-semibold text-gray-800">{money(s.charge_amount)}</span>
+                                  <span className="font-semibold text-gray-800">{chargeDisplay(s)}</span>
                                   <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
                                     onClick={e => { e.stopPropagation(); toggleNotes(`session-${s.id}`) }} />
                                 </div>
@@ -392,17 +397,21 @@ export default function SchedulePage() {
                   <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
                   <TimeInput value={form.start_time} onChange={v => setForm(f => ({ ...f, start_time: v }))} required />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
-                  <select value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: Number(e.target.value) }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
-                    {DURATION_OPTIONS.map(m => <option key={m} value={m}>{m < 60 ? `${m} min` : m === 60 ? '1 hour' : `${Math.floor(m/60)}h ${m%60 || ''}${m%60?'m':''}`.trim()}</option>)}
-                  </select>
-                </div>
+                <DurationInput
+                  startTime={form.start_time}
+                  durationMinutes={form.duration_minutes}
+                  onDurationChange={v => setForm(f => ({ ...f, duration_minutes: v }))}
+                  py="py-1.5"
+                />
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Charge to client</label>
                   <input type="number" step="1" value={form.charge_amount} onChange={e => setForm(f => ({ ...f, charge_amount: e.target.value }))}
                     placeholder="95" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Charge note (optional)</label>
+                  <input value={form.charge_note} onChange={e => setForm(f => ({ ...f, charge_note: e.target.value }))}
+                    placeholder="e.g. TBD, $80–100" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Instructor pay</label>
@@ -478,7 +487,7 @@ export default function SchedulePage() {
                       )}
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-sm font-semibold text-gray-800">{money(s.charge_amount)}</p>
+                      <p className="text-sm font-semibold text-gray-800">{chargeDisplay(s)}</p>
                       <p className="text-[11px] text-gray-400">{s.payment_method || '—'}</p>
                     </div>
                     {s.instructor_id && (
