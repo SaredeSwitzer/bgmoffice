@@ -29,6 +29,15 @@ export default function ClientContractSignaturesPanel({ clients, refreshKey }) {
     }
   }
 
+  async function handleDismiss(sig) {
+    setRows(prev => prev.filter(r => r.id !== sig.id))
+    try {
+      await api.dismissClientContractSignature(sig.id)
+    } catch {
+      load() // put it back if the dismiss didn't actually save
+    }
+  }
+
   const fmt = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
   const fmtMoney = (n) => n == null ? '' : `$${Number(n).toFixed(0)}`
 
@@ -79,6 +88,8 @@ export default function ClientContractSignaturesPanel({ clients, refreshKey }) {
               />
             </div>
           )}
+          <button onClick={() => handleDismiss(sig)} title="Dismiss — hide this from the list"
+            className="text-gray-300 hover:text-red-500 text-lg leading-none shrink-0">×</button>
         </div>
       ))}
     </div>

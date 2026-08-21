@@ -212,15 +212,27 @@ router.post('/invite/:id/send', requireStaff, async (req, res) => {
   res.json({ ok: true, sent_to: email });
 });
 
+// Dismissed rows (staff has seen/handled them) are left out — see POST .../dismiss.
 router.get('/signatures', requireStaff, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT s.id, s.org_name, s.contact_name, s.email, s.phone, s.signed_name, s.signed_at, s.sent_at,
             s.deposit_amount, s.deposit_paid_at, s.client_id, c.name AS client_name
        FROM client_contract_signatures s
        LEFT JOIN clients c ON c.id = s.client_id
+      WHERE s.dismissed_at IS NULL
       ORDER BY s.created_at DESC LIMIT 100`
   );
   res.json(rows);
+});
+
+// Hide a signature from the list once staff have seen/handled it — doesn't delete
+// anything (or require it to be signed first), just stops it showing up again.
+router.post('/signatures/:id/dismiss', requireStaff, async (req, res) => {
+  const result = await pool.query(
+    'UPDATE client_contract_signatures SET dismissed_at = now() WHERE id = $1', [req.params.id]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Signature not found' });
+  res.json({ ok: true });
 });
 
 router.post('/signatures/:id/link', requireStaff, async (req, res) => {

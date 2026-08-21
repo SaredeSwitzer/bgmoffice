@@ -241,6 +241,7 @@ export const api = {
   sendClientContractInvite: (id, data) => request(`/client-contract/invite/${id}/send`, { method: 'POST', body: JSON.stringify(data) }),
   getClientContractSignatures: () => request('/client-contract/signatures'),
   linkClientContractSignature: (id, client_id) => request(`/client-contract/signatures/${id}/link`, { method: 'POST', body: JSON.stringify({ client_id }) }),
+  dismissClientContractSignature: (id) => request(`/client-contract/signatures/${id}/dismiss`, { method: 'POST' }),
   getClientContractSigningInfo: (token) => fetch(`${BASE}/client-contract/public/${token}`).then(r => r.json()),
   createClientContractPaymentIntent: (token) => fetch(`${BASE}/client-contract/public/${token}/create-payment-intent`, { method: 'POST' }).then(r => r.json()),
   signClientContract: (token, data) => fetch(`${BASE}/client-contract/public/${token}/sign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()),
