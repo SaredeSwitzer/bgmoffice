@@ -436,7 +436,7 @@ function confirmationContext(row) {
     style: row.style || '',
     participants: row.participant_count != null ? String(row.participant_count) : '',
     ages: row.participant_ages || '',
-    rate: fmtMoney(row.instructor_pay),
+    rate: fmtMoney(row.instructor_pay) ? `${fmtMoney(row.instructor_pay)} per class` : '',
   };
 }
 

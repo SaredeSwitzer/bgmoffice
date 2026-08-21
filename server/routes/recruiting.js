@@ -345,17 +345,42 @@ router.post('/styles', async (req, res) => {
   }
 });
 
+// instructors.styles_taught is a comma-separated free-text copy of style names (not a
+// foreign key), so renaming/deleting a style in the master class_styles list leaves
+// every instructor's copy of the old name sitting there unless something goes and fixes
+// it up. This does that: newName=null strips the style out entirely (delete), a string
+// swaps the old name for the new one in place (rename) — so the change staff make once
+// here is what shows up on every instructor profile, not just future ones.
+async function propagateStyleRename(oldName, newName) {
+  const { rows } = await pool.query(
+    `SELECT id, styles_taught FROM instructors WHERE styles_taught ILIKE $1`,
+    [`%${oldName}%`]
+  );
+  for (const row of rows) {
+    const names = row.styles_taught.split(',').map(s => s.trim()).filter(Boolean);
+    if (!names.some(n => n.toLowerCase() === oldName.toLowerCase())) continue;
+    const updated = names
+      .map(n => n.toLowerCase() === oldName.toLowerCase() ? newName : n)
+      .filter(Boolean);
+    const deduped = [...new Set(updated)];
+    await pool.query('UPDATE instructors SET styles_taught = $1 WHERE id = $2', [deduped.join(', ') || null, row.id]);
+  }
+}
+
 router.put('/styles/:id', async (req, res) => {
   const { name } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
-  const { rows: [existing] } = await pool.query('SELECT id FROM class_styles WHERE id = $1', [req.params.id]);
+  const { rows: [existing] } = await pool.query('SELECT id, name FROM class_styles WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const { rows: [style] } = await pool.query('UPDATE class_styles SET name = $1 WHERE id = $2 RETURNING *', [name.trim(), req.params.id]);
+  if (existing.name !== style.name) await propagateStyleRename(existing.name, style.name);
   res.json(style);
 });
 
 router.delete('/styles/:id', async (req, res) => {
+  const { rows: [existing] } = await pool.query('SELECT name FROM class_styles WHERE id = $1', [req.params.id]);
   await pool.query('DELETE FROM class_styles WHERE id = $1', [req.params.id]);
+  if (existing) await propagateStyleRename(existing.name, null);
   res.json({ success: true });
 });
 

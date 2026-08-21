@@ -7,6 +7,7 @@ import NewCaseModal from '../components/NewCaseModal'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import ContractInviteModal from '../components/ContractInviteModal'
 import StylePicker from '../components/StylePicker'
+import StylesManagerModal from '../components/StylesManagerModal'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -608,6 +609,7 @@ export default function InstructorProfilePage() {
   const [error, setError] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [classStyles, setClassStyles] = useState([])
+  const [showStylesManager, setShowStylesManager] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -710,7 +712,11 @@ export default function InstructorProfilePage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-2">Styles They Teach</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-medium text-gray-600">Styles They Teach</label>
+                  <button type="button" onClick={() => setShowStylesManager(true)}
+                    className="text-[10px] text-purple-500 hover:underline">✎ Manage styles</button>
+                </div>
                 <StylePicker
                   styleNames={[...new Set([
                     ...classStyles.map(s => s.name),
@@ -720,6 +726,20 @@ export default function InstructorProfilePage() {
                   onChange={v => setEditForm(f => ({ ...f, styles_taught: v }))}
                   onStyleAdded={s => setClassStyles(prev => [...prev, s])}
                 />
+                {showStylesManager && (
+                  <StylesManagerModal
+                    styles={classStyles}
+                    onChanged={async next => {
+                      setClassStyles(next)
+                      // Renaming/deleting a style is cascaded server-side to every
+                      // instructor's record, including this one — resync so a style
+                      // removed just now doesn't linger as "selected" in this open form.
+                      const fresh = await api.getInstructor(id)
+                      setEditForm(f => ({ ...f, styles_taught: fresh.styles_taught || '' }))
+                    }}
+                    onClose={() => setShowStylesManager(false)}
+                  />
+                )}
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>

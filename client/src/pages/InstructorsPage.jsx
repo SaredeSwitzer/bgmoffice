@@ -5,6 +5,7 @@ import MeetingInviteModal from '../components/MeetingInviteModal'
 import ContractInviteModal from '../components/ContractInviteModal'
 import ContractSignaturesPanel from '../components/ContractSignaturesPanel'
 import StylePicker from '../components/StylePicker'
+import StylesManagerModal from '../components/StylesManagerModal'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
@@ -22,6 +23,7 @@ function loginStatusOf(inst) {
 export default function InstructorsPage() {
   const [instructors, setInstructors] = useState([])
   const [classStyles, setClassStyles] = useState([])
+  const [showStylesManager, setShowStylesManager] = useState(false)
   const [query, setQuery] = useState('')
   const [styleFilter, setStyleFilter] = useState('')
   const [locationFilter, setLocationFilter] = useState('')
@@ -153,13 +155,32 @@ export default function InstructorsPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-2">Styles They Teach</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-medium text-gray-600">Styles They Teach</label>
+                <button type="button" onClick={() => setShowStylesManager(true)}
+                  className="text-[10px] text-purple-500 hover:underline">✎ Manage styles</button>
+              </div>
               <StylePicker
                 styleNames={styleNames}
                 value={form.styles_taught}
                 onChange={v => setForm(f => ({ ...f, styles_taught: v }))}
                 onStyleAdded={s => setClassStyles(prev => [...prev, s])}
               />
+              {showStylesManager && (
+                <StylesManagerModal
+                  styles={classStyles}
+                  onChanged={next => {
+                    setClassStyles(next)
+                    const names = new Set(next.map(s => s.name))
+                    setForm(f => ({
+                      ...f,
+                      styles_taught: (f.styles_taught || '').split(',').map(s => s.trim())
+                        .filter(s => s && names.has(s)).join(', '),
+                    }))
+                  }}
+                  onClose={() => setShowStylesManager(false)}
+                />
+              )}
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>

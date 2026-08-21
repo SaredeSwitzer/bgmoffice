@@ -14,6 +14,45 @@ function getToken() {
   return localStorage.getItem('bgm_token')
 }
 
+// A non-2xx from Vercel's platform itself (e.g. "Request Entity Too Large" for an
+// oversized upload) arrives as plain text, not JSON — res.json() on that throws an
+// unreadable "Unexpected token" error instead of the actual problem. Read as text first
+// and only parse it as JSON if it looks like JSON.
+async function parseUploadResponse(res) {
+  const text = await res.text()
+  let data
+  try { data = text ? JSON.parse(text) : {} }
+  catch { data = { error: res.status === 413 ? 'That file is too large to upload.' : text.slice(0, 200) || 'Upload failed.' } }
+  if (!res.ok) throw new Error(data.error || 'Upload failed.')
+  return data
+}
+
+// Large phone-camera photos routinely exceed what the upload endpoint accepts, and
+// nobody uploading a JPEG needs it at full resolution anyway. Downscale + recompress
+// client-side before it ever leaves the browser; leave non-images (PDFs, etc.) alone.
+function compressImage(file, maxDim = 1800, quality = 0.82) {
+  if (!file.type?.startsWith('image/') || file.type === 'image/gif') return Promise.resolve(file)
+  return new Promise(resolve => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => {
+        if (!blob || blob.size >= file.size) return resolve(file)
+        resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
+      }, 'image/jpeg', quality)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
+}
+
 async function request(path, options = {}) {
   const token = getToken()
   const res = await fetch(`${BASE}${path}`, {
@@ -103,25 +142,27 @@ export const api = {
   sendInstructorIntro: (id, data = {}) => request(`/instructors/${id}/send-intro`, { method: 'POST', body: JSON.stringify(data) }),
   sendInstructorEmailBlast: (data) => request('/instructors/email-blast', { method: 'POST', body: JSON.stringify(data) }),
   revealInstructorSSN: (id) => request(`/instructors/${id}/reveal-ssn`),
-  uploadInstructorPhoto: (id, file) => {
+  uploadInstructorPhoto: async (id, file) => {
     const token = getToken()
     const fd = new FormData()
-    fd.append('photo', file)
-    return fetch(`${BASE}/instructors/${id}/photo`, {
+    fd.append('photo', await compressImage(file))
+    const r = await fetch(`${BASE}/instructors/${id}/photo`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: fd,
-    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
+    })
+    return parseUploadResponse(r)
   },
-  uploadInstructorDocument: (id, file) => {
+  uploadInstructorDocument: async (id, file) => {
     const token = getToken()
     const fd = new FormData()
-    fd.append('document', file)
-    return fetch(`${BASE}/instructors/${id}/documents`, {
+    fd.append('document', await compressImage(file))
+    const r = await fetch(`${BASE}/instructors/${id}/documents`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: fd,
-    }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); return d })
+    })
+    return parseUploadResponse(r)
   },
   deleteInstructorDocument: (id, docId) =>
     request(`/instructors/${id}/documents/${docId}`, { method: 'DELETE' }),
@@ -242,7 +283,6 @@ export const api = {
   deleteInstructorAvailability: (id) =>
     request(`/recruiting/availability/${id}`, { method: 'DELETE' }),
   getClassStyles: () => request('/recruiting/styles'),
-  createClassStyle: (name) => request('/recruiting/styles', { method: 'POST', body: JSON.stringify({ name }) }),
   createClassStyle: (name) =>
     request('/recruiting/styles', { method: 'POST', body: JSON.stringify({ name }) }),
   updateClassStyle: (id, name) =>
