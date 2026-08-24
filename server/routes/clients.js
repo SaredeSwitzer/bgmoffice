@@ -75,6 +75,7 @@ router.post('/', async (req, res) => {
     name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
+    default_age, default_participants, default_style,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
 
@@ -99,8 +100,9 @@ router.post('/', async (req, res) => {
     `INSERT INTO clients
        (name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
         contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
-        waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
+        default_age, default_participants, default_style)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
      RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
@@ -110,6 +112,7 @@ router.post('/', async (req, res) => {
       signedFlag, signedDate,
       street || (sig?.street ?? null), city || (sig?.city ?? null), state || null, zip || (sig?.zip ?? null), neighborhood || null,
       client_type === 'organization' ? 'organization' : 'individual',
+      default_age || null, default_participants === '' ? null : default_participants ?? null, default_style || null,
     ]
   );
   if (signatureToLink) {
@@ -130,7 +133,7 @@ router.put('/:id', async (req, res) => {
     name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
-    track_last_class, last_class_date,
+    track_last_class, last_class_date, default_age, default_participants, default_style,
   } = req.body;
 
   const { rows: [client] } = await pool.query(
@@ -138,8 +141,9 @@ router.put('/:id', async (req, res) => {
        name=$1, phone=$2, email=$3, invoice_email=$4, preferred_contact=$5, notes=$6, rate_per_class=$7,
        contact_person_name=$8, contact_person_phone=$9, contact_person_email=$10, contact_person_role=$11,
        waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
-       client_type=$19, track_last_class=$20, last_class_date=$21
-     WHERE id=$22 RETURNING *`,
+       client_type=$19, track_last_class=$20, last_class_date=$21,
+       default_age=$22, default_participants=$23, default_style=$24
+     WHERE id=$25 RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
       notes || null, rate_per_class || null,
@@ -149,6 +153,7 @@ router.put('/:id', async (req, res) => {
       street || null, city || null, state || null, zip || null, neighborhood || null,
       client_type === 'organization' ? 'organization' : 'individual',
       !!track_last_class, last_class_date || null,
+      default_age || null, default_participants === '' ? null : default_participants ?? null, default_style || null,
       req.params.id,
     ]
   );

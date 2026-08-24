@@ -773,6 +773,9 @@ export default function ClientProfilePage() {
           neighborhood: c.neighborhood || '',
           track_last_class: c.track_last_class ? true : false,
           last_class_date: c.last_class_date || '',
+          default_age: c.default_age || '',
+          default_participants: c.default_participants ?? '',
+          default_style: c.default_style || '',
         })
         setCases(cs)
         setInstructors(instr)
@@ -976,6 +979,29 @@ export default function ClientProfilePage() {
                   </div>
                 )}
               </div>
+              {/* Class defaults — pre-fill new calendar entries + instructor confirmation emails for this client */}
+              <div className="col-span-2 pt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Class Defaults</p>
+                <p className="text-[11px] text-gray-400 mb-2">
+                  Used to pre-fill new classes on the schedule and the instructor confirmation email for this client. Leave blank if it varies.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Style of Class</label>
+                <input value={editForm.default_style} onChange={e => setEditForm(f => ({ ...f, default_style: e.target.value }))}
+                  placeholder="e.g. Zumba" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1"># of Participants</label>
+                <input type="number" min="0" value={editForm.default_participants}
+                  onChange={e => setEditForm(f => ({ ...f, default_participants: e.target.value }))}
+                  placeholder="e.g. 12" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Age of Participants</label>
+                <input value={editForm.default_age} onChange={e => setEditForm(f => ({ ...f, default_age: e.target.value }))}
+                  placeholder="e.g. 5-8 years" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
               {/* Address */}
               <div className="col-span-2 pt-1">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Address</p>
@@ -1082,6 +1108,20 @@ export default function ClientProfilePage() {
               <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
                 📅 Last class {new Date(client.last_class_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 <span className="font-normal text-blue-500">— reminder set to follow up</span>
+              </div>
+            )}
+
+            {/* Class defaults */}
+            {(client.default_style || client.default_participants != null || client.default_age) && (
+              <div className="mt-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Class Defaults</p>
+                <p className="text-sm text-gray-800">
+                  {[
+                    client.default_style,
+                    client.default_participants != null ? `${client.default_participants} participants` : null,
+                    client.default_age,
+                  ].filter(Boolean).join(' · ')}
+                </p>
               </div>
             )}
 

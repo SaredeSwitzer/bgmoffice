@@ -68,6 +68,28 @@ function isDate(v) {
   return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 }
 
+// New calendar entries fall back to the client's own default style/participant
+// count/ages when staff don't type them in for this particular class — so the
+// instructor confirmation email ({style}/{participants}/{ages}) still has something
+// to show without re-entering the same info every time for a client who always runs
+// the same kind of class. Explicit values on the class always win.
+async function fillClientDefaults(client_id, { style, participant_count, participant_ages }) {
+  const needsAny = !style || (participant_count === undefined || participant_count === null || participant_count === '') ||
+    !participant_ages;
+  if (!client_id || !needsAny) return { style, participant_count, participant_ages };
+
+  const { rows: [c] } = await pool.query(
+    'SELECT default_age, default_participants, default_style FROM clients WHERE id = $1', [client_id]
+  );
+  if (!c) return { style, participant_count, participant_ages };
+  return {
+    style: style || c.default_style || null,
+    participant_count: (participant_count === undefined || participant_count === null || participant_count === '')
+      ? c.default_participants : participant_count,
+    participant_ages: participant_ages || c.default_age || null,
+  };
+}
+
 // A schedule with client + instructor names attached (for list/detail views).
 async function getScheduleRow(id) {
   const { rows: [row] } = await pool.query(
@@ -125,6 +147,8 @@ router.post('/schedules', async (req, res) => {
   const wd = normalizeWeekday(weekday);
   if (wd === undefined) return res.status(400).json({ error: 'weekday must be 0–6 (0=Sun) or null' });
 
+  const filled = await fillClientDefaults(client_id, { style, participant_count, participant_ages });
+
   const { rows: [{ id }] } = await pool.query(
     `INSERT INTO class_schedules
        (client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount, charge_note, instructor_pay,
@@ -132,9 +156,9 @@ router.post('/schedules', async (req, res) => {
         participant_count, participant_ages)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
     [client_id, instructor_id || null, wd, start_time || null, duration_minutes || 60, charge_amount ?? null, charge_note || null,
-     instructor_pay ?? null, payment_method || null, style || null, location || null,
+     instructor_pay ?? null, payment_method || null, filled.style || null, location || null,
      special_instructions || null, status || 'active', start_date || null, end_date || null,
-     participant_count === '' ? null : participant_count ?? null, participant_ages || null]
+     filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
   );
   res.status(201).json(await getScheduleRow(id));
 });
@@ -231,6 +255,8 @@ router.post('/sessions', async (req, res) => {
   if (!isDate(session_date)) return res.status(400).json({ error: 'session_date (YYYY-MM-DD) required' });
   if (!start_time)         return res.status(400).json({ error: 'start_time required' });
 
+  const filled = await fillClientDefaults(client_id, { style, participant_count, participant_ages });
+
   const { rows: [row] } = await pool.query(
     `INSERT INTO class_sessions
        (schedule_id, client_id, instructor_id, session_date, start_time, duration_minutes,
@@ -238,9 +264,9 @@ router.post('/sessions', async (req, res) => {
         participant_count, participant_ages)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
     [schedule_id || null, client_id, instructor_id || null, session_date, start_time || null, duration_minutes || 60,
-     charge_amount ?? null, charge_note || null, instructor_pay ?? null, payment_method || null, style || null,
+     charge_amount ?? null, charge_note || null, instructor_pay ?? null, payment_method || null, filled.style || null,
      status || 'scheduled', notes || null,
-     participant_count === '' ? null : participant_count ?? null, participant_ages || null]
+     filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
   );
   res.status(201).json(row);
 });
@@ -261,6 +287,8 @@ router.post('/sessions/bulk', async (req, res) => {
   if (!Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'At least one date is required' });
   if (dates.some(d => !isDate(d))) return res.status(400).json({ error: 'Every date must be YYYY-MM-DD' });
 
+  const filled = await fillClientDefaults(client_id, { style, participant_count, participant_ages });
+
   const created = [];
   for (const session_date of dates) {
     const { rows: [row] } = await pool.query(
@@ -270,8 +298,8 @@ router.post('/sessions/bulk', async (req, res) => {
           participant_count, participant_ages)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'scheduled',$11,$12,$13) RETURNING *`,
       [client_id, instructor_id || null, session_date, start_time || null, duration_minutes || 60,
-       charge_amount ?? null, charge_note || null, instructor_pay ?? null, payment_method || null, style || null, notes || null,
-       participant_count === '' ? null : participant_count ?? null, participant_ages || null]
+       charge_amount ?? null, charge_note || null, instructor_pay ?? null, payment_method || null, filled.style || null, notes || null,
+       filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
     );
     created.push(row);
   }

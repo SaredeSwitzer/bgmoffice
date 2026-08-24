@@ -382,7 +382,16 @@ export default function SchedulePage() {
               <h3 className="font-semibold text-gray-800 text-sm">{editingId ? 'Edit Recurring Class' : 'New Recurring Class'}</h3>
               <div className="grid grid-cols-2 gap-3">
                 <SearchSelect label="Client" required options={clients} value={form.client}
-                  onChange={c => setForm(f => ({ ...f, client: c }))} placeholder="Search clients…" />
+                  onChange={c => setForm(f => ({
+                    ...f,
+                    client: c,
+                    // Pre-fill from the client's class defaults — only when this field
+                    // hasn't already been typed in, so switching clients never clobbers
+                    // something staff already entered for this specific class.
+                    style: f.style || c?.default_style || '',
+                    participant_count: f.participant_count || (c?.default_participants ?? ''),
+                    participant_ages: f.participant_ages || c?.default_age || '',
+                  }))} placeholder="Search clients…" />
                 <SearchSelect label="Instructor" options={instructors} value={form.instructor}
                   onChange={i => setForm(f => ({ ...f, instructor: i }))} placeholder="Search instructors…" />
                 {form.client && (
