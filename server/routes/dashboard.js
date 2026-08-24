@@ -111,12 +111,47 @@ async function loadMentionTasks(userId) {
   }));
 }
 
+// Reminders delegated to this person that are due (today or overdue) — anything
+// scheduled further out stays on the Reminders page until its date arrives, so My
+// Tasks only shows what actually needs doing right now.
+async function loadReminderTasks(delegateName) {
+  // remind_on is stored as TEXT ('YYYY-MM-DD', a SQLite-era leftover — see
+  // reminders.js `today()`), so the due-date comparison happens in JS rather than
+  // SQL to avoid a text/date operator mismatch.
+  const { rows } = await pool.query(
+    `SELECT r.id, r.title, r.notes, r.remind_on, r.created_at, r.created_by,
+            r.client_id, c.name AS client_name,
+            r.instructor_id, i.name AS instructor_name
+       FROM reminders r
+       LEFT JOIN clients     c ON c.id = r.client_id
+       LEFT JOIN instructors i ON i.id = r.instructor_id
+      WHERE r.status = 'pending' AND LOWER(r.delegate_name) = LOWER($1)
+      ORDER BY r.remind_on ASC`,
+    [delegateName]
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  return rows.filter(r => r.remind_on <= today).map(r => ({
+    id: r.id,
+    source: 'reminder',
+    categories: ['reminder'],
+    created_at: r.created_at || r.remind_on,
+    created_by: r.created_by,
+    client_id: r.client_id, client_name: r.client_name,
+    instructor_id: r.instructor_id, instructor_name: r.instructor_name,
+    last_note: { text: r.notes || r.title, author_initials: 'Reminder' },
+    title: r.title,
+    remind_on: r.remind_on,
+  }));
+}
+
 router.get('/my-tasks', async (req, res) => {
   const mentionTasks = await loadMentionTasks(req.user.id);
 
   const firstName = req.user.name.split(' ')[0];
   const { rows: [delegate] } = await pool.query('SELECT * FROM delegates WHERE LOWER(name) = LOWER($1) LIMIT 1', [firstName]);
   if (!delegate) return res.json({ tasks: sortItems(mentionTasks), delegate_name: null });
+
+  const reminderTasks = await loadReminderTasks(delegate.name);
 
   const { rows: aiRows } = await pool.query(`${BASE_SQL} AND d.id = $1 ORDER BY ai.created_at ASC`, [delegate.id]);
   const processedAI = sortItems(await attachLastNote(await attachActionTypes(aiRows)))
@@ -150,7 +185,7 @@ router.get('/my-tasks', async (req, res) => {
     recruiting_entry_id: t.recruiting_entry_id || null,
   }));
 
-  res.json({ tasks: sortItems([...processedAI, ...standaloneTasks, ...mentionTasks]), delegate_name: delegate.name });
+  res.json({ tasks: sortItems([...processedAI, ...standaloneTasks, ...mentionTasks, ...reminderTasks]), delegate_name: delegate.name });
 });
 
 router.patch('/mentions/:id/resolve', async (req, res) => {

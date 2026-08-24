@@ -87,6 +87,7 @@ function getItemCategories(item) {
 const CATEGORY_FILTERS = [
   { key: 'all',                 label: 'All' },
   { key: 'mention',             label: '@Mentions' },
+  { key: 'reminder',            label: 'Reminders' },
   { key: 'client_followup',     label: 'Client F/U' },
   { key: 'instructor_followup', label: 'Instructor F/U' },
   { key: 'recruiting',          label: 'Recruiting' },
@@ -100,14 +101,20 @@ function getItemUrl(item) {
     return item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting'
   }
   if (item.source === 'standalone') return `/tasks?id=${item.id}`
+  if (item.source === 'reminder') {
+    if (item.client_id) return `/clients/${item.client_id}`
+    if (item.instructor_id) return `/instructors/${item.instructor_id}`
+    return '/reminders'
+  }
   if (item.case_id) return `/cases/${item.case_id}`
   return null
 }
 
-function MyTaskRow({ item, onClick, onResolveMention, isNew }) {
+function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }) {
   const days = daysOpen(item.created_at)
   const isMention    = item.source === 'mention'
   const isRecruiting = item.source === 'recruiting'
+  const isReminder   = item.source === 'reminder'
   const isReference  = item.task_type === 'reference'
   const actionTypes  = item.action_types || []
   const url = getItemUrl(item)
@@ -156,6 +163,10 @@ function MyTaskRow({ item, onClick, onResolveMention, isNew }) {
           <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
             Recruiting ↗
           </span>
+        ) : isReminder ? (
+          <span className="inline-block text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
+            Reminder
+          </span>
         ) : isReference ? (
           <span className="inline-block text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
             Reference
@@ -186,6 +197,15 @@ function MyTaskRow({ item, onClick, onResolveMention, isNew }) {
           <button
             onClick={e => { e.stopPropagation(); onResolveMention(item) }}
             title="Dismiss"
+            className="text-gray-300 hover:text-green-600 transition-all text-sm leading-none mr-1.5"
+          >
+            ✓
+          </button>
+        )}
+        {isReminder && (
+          <button
+            onClick={e => { e.stopPropagation(); onResolveReminder(item) }}
+            title="Mark done"
             className="text-gray-300 hover:text-green-600 transition-all text-sm leading-none mr-1.5"
           >
             ✓
@@ -251,6 +271,9 @@ export default function MyTasksPage() {
       navigate(item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting')
     } else if (item.source === 'standalone') {
       navigate(`/tasks?id=${item.id}`)
+    } else if (item.source === 'reminder') {
+      const url = getItemUrl(item)
+      if (url) navigate(url)
     } else if (item.case_id) {
       navigate(`/cases/${item.case_id}`)
     }
@@ -265,6 +288,15 @@ export default function MyTasksPage() {
     }
   }
 
+  async function handleResolveReminder(item) {
+    setTasks(prev => prev.filter(t => t.id !== item.id))
+    try {
+      await api.markReminderDone(item.id)
+    } catch {
+      setTasks(prev => [...prev, item])
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
@@ -272,7 +304,7 @@ export default function MyTasksPage() {
           <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {delegateName
-              ? `Open action items assigned to ${delegateName}, plus anything you're @mentioned in`
+              ? `Open action items and due reminders assigned to ${delegateName}, plus anything you're @mentioned in`
               : `No delegate match found for ${user?.name?.split(' ')[0]} — showing anything you're @mentioned in`}
           </p>
         </div>
@@ -338,6 +370,7 @@ export default function MyTasksPage() {
                     item={item}
                     onClick={() => handleClick(item)}
                     onResolveMention={handleResolveMention}
+                    onResolveReminder={handleResolveReminder}
                     isNew={isNew(item)}
                   />
                 ))}
