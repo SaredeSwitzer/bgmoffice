@@ -133,6 +133,15 @@ router.post('/public/:token/sign', async (req, res) => {
        WHERE id = $8`,
       [signedDate, updated.contact_name, updated.phone, email.trim(), updated.street, updated.city, updated.zip, row.client_id]
     );
+    // This client is now signed — any other outstanding invite for them (an
+    // earlier attempt that was never sent/signed/dismissed, a duplicate, etc.)
+    // is moot. Clear it so it doesn't sit in the notifications list forever.
+    await pool.query(
+      `UPDATE client_contract_signatures
+          SET dismissed_at = now()
+        WHERE client_id = $1 AND id != $2 AND signed_at IS NULL AND dismissed_at IS NULL`,
+      [row.client_id, row.id]
+    );
   }
 
   res.json({ ok: true, signed_at: updated.signed_at });
@@ -231,6 +240,7 @@ router.get('/signatures', requireStaff, async (req, res) => {
        FROM client_contract_signatures s
        LEFT JOIN clients c ON c.id = s.client_id
       WHERE s.dismissed_at IS NULL
+        AND (s.signed_at IS NOT NULL OR c.waiver_signed IS DISTINCT FROM 1)
       ORDER BY s.created_at DESC LIMIT 100`
   );
   res.json(rows);
@@ -267,6 +277,14 @@ router.post('/signatures/:id/link', requireStaff, async (req, res) => {
        street = COALESCE(street, $5), city = COALESCE(city, $6), zip = COALESCE(zip, $7)
      WHERE id = $8`,
     [signedDate, sig.contact_name, sig.phone, sig.email, sig.street, sig.city, sig.zip, client_id]
+  );
+  // Same cleanup as the public sign flow — clear any other stale, unsigned
+  // invite left over for this client now that they're linked and signed.
+  await pool.query(
+    `UPDATE client_contract_signatures
+        SET dismissed_at = now()
+      WHERE client_id = $1 AND id != $2 AND signed_at IS NULL AND dismissed_at IS NULL`,
+    [client_id, req.params.id]
   );
   res.json({ ok: true });
 });
