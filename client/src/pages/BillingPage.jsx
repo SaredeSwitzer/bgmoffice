@@ -590,13 +590,14 @@ function ReportTab({ weekStart, weekEnd, label }) {
             )}
             <button
               onClick={() => downloadCsv(`classes_${weekTag}${hasFilters ? '_filtered' : ''}.csv`,
-                ['Date', 'Time', 'Client', 'Instructor', 'Style', 'Charge', 'Instructor Pay', 'Payment Method', 'Status'],
+                ['Client Name', 'Contact Phone', 'Start Date', 'Charge to Client', 'Payment Method', 'Full Name', 'Instructor Rate', 'Expected Rate'],
                 [
-                  ...filteredSessions.map(s => [s.session_date, s.start_time ? s.start_time.slice(0, 5) : '', s.client_name,
-                    s.instructor_name || '', s.style || '', s.charge_amount, s.instructor_pay, s.payment_method || '', s.status]),
-                  ['', '', '', '', 'Total',
+                  ...filteredSessions.map(s => [s.client_name, s.client_phone || '', s.session_date,
+                    s.charge_amount, s.payment_method || '', s.instructor_name || '', s.instructor_pay, s.instructor_expected_rate]),
+                  ['Total', '', '',
                     filteredSessions.reduce((sum, s) => sum + (Number(s.charge_amount) || 0), 0),
-                    filteredSessions.reduce((sum, s) => sum + (Number(s.instructor_pay) || 0), 0), '', ''],
+                    '', '',
+                    filteredSessions.reduce((sum, s) => sum + (Number(s.instructor_pay) || 0), 0), ''],
                 ])}
               className="text-xs text-blue-600 hover:underline">Export CSV</button>
           </div>

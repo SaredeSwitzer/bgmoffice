@@ -231,8 +231,8 @@ router.get('/report', async (req, res) => {
   // whatever ad-hoc question the summaries don't answer.
   const { rows: sessions } = await pool.query(
     `SELECT s.id, s.session_date::text AS session_date, s.start_time::text AS start_time,
-            c.id AS client_id, c.name AS client_name,
-            i.id AS instructor_id, i.name AS instructor_name, s.style,
+            c.id AS client_id, c.name AS client_name, c.phone AS client_phone,
+            i.id AS instructor_id, i.name AS instructor_name, i.pay_rate AS instructor_expected_rate, s.style,
             s.charge_amount, s.instructor_pay, s.payment_method, s.status
        FROM class_sessions s
        JOIN clients c            ON c.id = s.client_id
