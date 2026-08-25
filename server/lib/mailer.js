@@ -15,6 +15,8 @@ const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 // Default "from" for everything except login codes and billing — those keep their own
 // dedicated addresses (login@, billing@) so the sender reads correctly for what it is.
 const OFFICE_FROM = 'Bring the Gym To Me <office@bgmoffice.com>';
+// office@ isn't a real inbox — route replies to Sarede so they don't disappear.
+const OFFICE_REPLY = 'sarede@bringthegymtome.com';
 
 function isConfigured() {
   return Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
@@ -87,7 +89,7 @@ async function sendMail({ to, subject, text, html, replyTo, from, cc, attachment
       subject,
       ...(text ? { text } : {}),
       ...(html ? { html } : {}),
-      ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(replyTo || !from ? { reply_to: replyTo || OFFICE_REPLY } : {}),
       ...(cc ? { cc: Array.isArray(cc) ? cc : [cc] } : {}),
       ...(attachments?.length
         ? { attachments: attachments.map(a => ({ filename: a.filename, content: a.content.toString('base64') })) }
