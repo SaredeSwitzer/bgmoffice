@@ -1,7 +1,10 @@
 import { useEffect, useState, useCallback, Fragment } from 'react'
 import { api } from '../api/client'
+import { useAuth } from '../context/AuthContext'
+import { isOwnerUser } from '../utils/ownerAccess'
 import SearchSelect from '../components/SearchSelect'
 import ClassNotes from '../components/ClassNotes'
+import AdminNotes from '../components/AdminNotes'
 import ConfirmClassModal from '../components/ConfirmClassModal'
 import ClassSessionModal from '../components/ClassSessionModal'
 import ClientAddressEditor from '../components/ClientAddressEditor'
@@ -108,9 +111,15 @@ export default function SchedulePage() {
   // "+ Add Class Dates" — a batch of specific, possibly-irregular dates for one class.
   const [addDatesOpen, setAddDatesOpen] = useState(false)
 
+  const { user } = useAuth()
+  const canSeeAdminNotes = isOwnerUser(user)
+
   // Which class's notes panel is open, keyed like 'session-12' / 'schedule-5'.
   const [openNotes, setOpenNotes] = useState(null)
   const toggleNotes = (key) => setOpenNotes(prev => (prev === key ? null : key))
+  // Separate from openNotes so staff notes and admin notes can be open at the same time.
+  const [openAdminNotes, setOpenAdminNotes] = useState(null)
+  const toggleAdminNotes = (key) => setOpenAdminNotes(prev => (prev === key ? null : key))
   // Keep the row's badge in sync after edits inside the panel, without a full reload.
   function applyCounts(kind, id, rows) {
     const note_count = rows.length
@@ -332,10 +341,21 @@ export default function SchedulePage() {
                                 {fmtParticipants(s) && (
                                   <p className="text-gray-400 truncate">{fmtParticipants(s)}</p>
                                 )}
-                                <div className="flex items-center justify-between mt-1">
+                                <div className="flex items-center justify-between mt-1 gap-1">
                                   <span className="font-semibold text-gray-800">{chargeDisplay(s)}</span>
-                                  <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
-                                    onClick={e => { e.stopPropagation(); toggleNotes(`session-${s.id}`) }} />
+                                  <div className="flex items-center gap-1">
+                                    {canSeeAdminNotes && (
+                                      <button onClick={e => { e.stopPropagation(); toggleAdminNotes(`session-${s.id}`) }}
+                                        title="Admin notes (Sarede/Claire/Maria only)"
+                                        className={`text-xs rounded-lg px-1.5 py-1 border transition-colors ${
+                                          openAdminNotes === `session-${s.id}` ? 'ring-1 ring-amber-400 border-amber-300 bg-amber-50' : 'border-amber-200 text-amber-600 hover:bg-amber-50'
+                                        }`}>
+                                        🔒
+                                      </button>
+                                    )}
+                                    <NotesToggle open={openNotes === `session-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
+                                      onClick={e => { e.stopPropagation(); toggleNotes(`session-${s.id}`) }} />
+                                  </div>
                                 </div>
                                 {s.instructor_id && (
                                   <button onClick={e => { e.stopPropagation(); setConfirmSession(s) }} title="Email the instructor a class confirmation"
@@ -351,6 +371,11 @@ export default function SchedulePage() {
                               {openNotes === `session-${s.id}` && (
                                 <div onClick={e => e.stopPropagation()}>
                                   <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
+                                </div>
+                              )}
+                              {openAdminNotes === `session-${s.id}` && (
+                                <div onClick={e => e.stopPropagation()}>
+                                  <AdminNotes kind="session" id={s.id} />
                                 </div>
                               )}
                             </Fragment>
@@ -517,6 +542,15 @@ export default function SchedulePage() {
                           : (s.confirmation_sent_at ? '✓ Emailed' : 'Send Confirmation Email')}
                       </button>
                     )}
+                    {canSeeAdminNotes && (
+                      <button onClick={() => toggleAdminNotes(`schedule-${s.id}`)}
+                        title="Admin notes (Sarede/Claire/Maria only)"
+                        className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
+                          openAdminNotes === `schedule-${s.id}` ? 'ring-1 ring-amber-400 border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-200 text-amber-600 hover:bg-amber-50'
+                        }`}>
+                        🔒 Admin
+                      </button>
+                    )}
                     <NotesToggle open={openNotes === `schedule-${s.id}`} noteCount={s.note_count} openTasks={s.open_task_count}
                       onClick={() => toggleNotes(`schedule-${s.id}`)} />
                     <button onClick={() => editSchedule(s)}
@@ -536,6 +570,9 @@ export default function SchedulePage() {
                   </div>
                   {openNotes === `schedule-${s.id}` && (
                     <ClassNotes kind="schedule" id={s.id} onCountChange={rows => applyCounts('schedule', s.id, rows)} />
+                  )}
+                  {openAdminNotes === `schedule-${s.id}` && (
+                    <AdminNotes kind="schedule" id={s.id} />
                   )}
                 </Fragment>
                 )

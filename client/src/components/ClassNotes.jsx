@@ -42,6 +42,9 @@ export default function ClassNotes({ kind, id, onCountChange }) {
 
   return (
     <div className="bg-gray-50 border-t border-gray-100 px-4 py-3 space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+        Staff notes — not visible to the instructor
+      </p>
       {loading ? (
         <p className="text-xs text-gray-400">Loading notes…</p>
       ) : notes.length === 0 ? (

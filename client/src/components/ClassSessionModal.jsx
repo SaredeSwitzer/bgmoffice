@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useAuth } from '../context/AuthContext'
+import { isOwnerUser } from '../utils/ownerAccess'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
 import TimeInput from './TimeInput'
 import ClientAddressEditor from './ClientAddressEditor'
 import DurationInput from './DurationInput'
 import ChargeInput from './ChargeInput'
+import ClassNotes from './ClassNotes'
+import AdminNotes from './AdminNotes'
 
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
@@ -15,6 +19,7 @@ const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Pa
 //   session: {...}, duplicate: true  → pre-filled from that session, but saves as a new one
 export default function ClassSessionModal({ session, defaultDate, duplicate = false, onClose, onSaved, onDeleted }) {
   const isEdit = !!session?.id && !duplicate
+  const { user } = useAuth()
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [form, setForm] = useState({
@@ -83,7 +88,7 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 px-4 py-6 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md my-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md my-auto overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-bold text-gray-900 text-base">{isEdit ? 'Edit Class' : duplicate ? 'Duplicate Class' : 'Add Class'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
@@ -182,6 +187,13 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
             )}
           </div>
         </form>
+        {/* Outside the <form> above — these have their own add-note forms, and forms can't nest. */}
+        {isEdit && (
+          <>
+            <ClassNotes kind="session" id={session.id} />
+            {isOwnerUser(user) && <AdminNotes kind="session" id={session.id} />}
+          </>
+        )}
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 const express = require('express');
 const pool    = require('../db/pg');
-const { requireAuth, requireStaff } = require('../middleware/auth');
+const { requireAuth, requireStaff, requireOwnerAccess } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
 
 // Return DATE columns as plain 'YYYY-MM-DD' strings, not JS Date objects: a Date
@@ -827,6 +827,73 @@ router.patch('/notes/:noteId/done', async (req, res) => {
 
 router.delete('/notes/:noteId', async (req, res) => {
   const result = await pool.query('DELETE FROM class_notes WHERE id=$1', [req.params.noteId]);
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
+  res.json({ success: true });
+});
+
+// ── Admin-only notes on a class ─────────────────────────────────────────────────
+// Same shape as class_notes above, but a separate table gated by requireOwnerAccess —
+// visible only to Sarede/Claire/Maria, not every staff/admin login. Plain notes, no
+// task/checkbox (that's what class_notes is for).
+
+async function listAdminNotes(col, id) {
+  const { rows } = await pool.query(
+    `SELECT * FROM admin_notes WHERE ${col} = $1 ORDER BY created_at ASC`, [id]
+  );
+  return rows;
+}
+
+async function addAdminNote(col, id, body, author) {
+  const text = (body.text || '').trim();
+  if (!text) { const e = new Error('Text required'); e.status = 400; throw e; }
+  const { rows: [note] } = await pool.query(
+    `INSERT INTO admin_notes (${col}, text, author) VALUES ($1,$2,$3) RETURNING *`,
+    [id, text, author || null]
+  );
+  return note;
+}
+
+router.get('/schedules/:id/admin-notes', requireOwnerAccess, async (req, res) => {
+  const { rows: [s] } = await pool.query('SELECT id FROM class_schedules WHERE id=$1', [req.params.id]);
+  if (!s) return res.status(404).json({ error: 'Schedule not found' });
+  res.json(await listAdminNotes('schedule_id', req.params.id));
+});
+
+router.post('/schedules/:id/admin-notes', requireOwnerAccess, async (req, res) => {
+  const { rows: [s] } = await pool.query('SELECT id FROM class_schedules WHERE id=$1', [req.params.id]);
+  if (!s) return res.status(404).json({ error: 'Schedule not found' });
+  try {
+    res.status(201).json(await addAdminNote('schedule_id', req.params.id, req.body, req.user.name));
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+router.get('/sessions/:id/admin-notes', requireOwnerAccess, async (req, res) => {
+  const { rows: [s] } = await pool.query('SELECT id FROM class_sessions WHERE id=$1', [req.params.id]);
+  if (!s) return res.status(404).json({ error: 'Session not found' });
+  res.json(await listAdminNotes('session_id', req.params.id));
+});
+
+router.post('/sessions/:id/admin-notes', requireOwnerAccess, async (req, res) => {
+  const { rows: [s] } = await pool.query('SELECT id FROM class_sessions WHERE id=$1', [req.params.id]);
+  if (!s) return res.status(404).json({ error: 'Session not found' });
+  try {
+    res.status(201).json(await addAdminNote('session_id', req.params.id, req.body, req.user.name));
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
+
+router.patch('/admin-notes/:noteId', requireOwnerAccess, async (req, res) => {
+  const text = (req.body.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'Text required' });
+  const { rows: [updated] } = await pool.query(
+    'UPDATE admin_notes SET text=$1, updated_at=now() WHERE id=$2 RETURNING *',
+    [text, req.params.noteId]
+  );
+  if (!updated) return res.status(404).json({ error: 'Note not found' });
+  res.json(updated);
+});
+
+router.delete('/admin-notes/:noteId', requireOwnerAccess, async (req, res) => {
+  const result = await pool.query('DELETE FROM admin_notes WHERE id=$1', [req.params.noteId]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
   res.json({ success: true });
 });

@@ -389,6 +389,11 @@ export const api = {
   toggleClassNoteDone: (noteId) => request(`/schedule/notes/${noteId}/done`, { method: 'PATCH' }),
   deleteClassNote: (noteId) => request(`/schedule/notes/${noteId}`, { method: 'DELETE' }),
 
+  // Admin-only notes — same shape, but only visible to Sarede/Claire/Maria (server-enforced).
+  getAdminNotes: (kind, id) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/admin-notes`),
+  addAdminNote: (kind, id, data) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/admin-notes`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteAdminNote: (noteId) => request(`/schedule/admin-notes/${noteId}`, { method: 'DELETE' }),
+
   // Instructor confirmation email — preview (fills the template from the class) then send.
   // Works for a recurring schedule or a single dated session.
   getConfirmationPreview: (scheduleId) => request(`/schedule/schedules/${scheduleId}/confirmation-preview`),
