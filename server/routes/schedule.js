@@ -352,7 +352,7 @@ router.delete('/sessions/:id', async (req, res) => {
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// Confirmation emails send from login@bgmoffice.com (MAIL_FROM) — an automated address
+// Confirmation emails send from office@bgmoffice.com (OFFICE_FROM) — an automated address
 // nobody reads. Route replies and a standing copy to Maria instead, so an instructor's
 // reply doesn't disappear into an inbox nobody checks.
 const CONFIRMATION_CC       = 'maria@bringthegymtome.com';

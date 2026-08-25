@@ -12,6 +12,10 @@
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
+// Default "from" for everything except login codes and billing — those keep their own
+// dedicated addresses (login@, billing@) so the sender reads correctly for what it is.
+const OFFICE_FROM = 'Bring the Gym To Me <office@bgmoffice.com>';
+
 function isConfigured() {
   return Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
 }
@@ -78,7 +82,7 @@ async function sendMail({ to, subject, text, html, replyTo, from, cc, attachment
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: from || process.env.MAIL_FROM,
+      from: from || OFFICE_FROM,
       to: [to],
       subject,
       ...(text ? { text } : {}),
