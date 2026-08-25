@@ -79,11 +79,28 @@ const BLANK_SCHEDULE = {
   participant_count: '', participant_ages: '',
 }
 
+// Remembers which week was on screen across navigating away to another page and back
+// (SchedulePage remounts on every visit, which would otherwise silently snap back to the
+// current week). sessionStorage rather than localStorage so it clears with the tab/session
+// instead of surprising someone with a stale week days later.
+const WEEK_STORAGE_KEY = 'bgm_schedule_week_anchor'
+
+function loadSavedAnchor() {
+  const saved = sessionStorage.getItem(WEEK_STORAGE_KEY)
+  if (saved) {
+    const [y, m, d] = saved.split('-').map(Number)
+    if (y && m && d) return new Date(y, m - 1, d)
+  }
+  return startOfWeek(new Date())
+}
+
 export default function SchedulePage() {
   const [tab, setTab] = useState('week') // 'week' | 'recurring'
-  const [anchor, setAnchor] = useState(() => startOfWeek(new Date()))
+  const [anchor, setAnchor] = useState(loadSavedAnchor)
   const weekStart = startOfWeek(anchor)
   const weekEnd = addDays(weekStart, 6)
+
+  useEffect(() => { sessionStorage.setItem(WEEK_STORAGE_KEY, ymd(weekStart)) }, [weekStart])
 
   const [sessions, setSessions] = useState([])
   const [schedules, setSchedules] = useState([])
