@@ -40,14 +40,31 @@ function presetRange(key) {
   }
 }
 
+function money(v) { return v == null || v === '' ? '' : `$${Number(v).toFixed(0)}` }
+// A charge note ("TBD", "$80–100") is purely informational — the numeric charge_amount
+// stays whatever it is, so a note never silently zeroes out a real invoice line. Matches
+// the same helper in SchedulePage.jsx.
+function chargeDisplay(s) { return s.charge_note || money(s.charge_amount) }
+
 function csvCell(v) {
   const s = String(v ?? '')
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-function downloadCsv(rows) {
-  const header = ['Date', 'Time', 'Client', 'Instructor', 'Style', 'Status']
-  const lines = [header, ...rows.map(s => [s.session_date, s.start_time ? fmtTime(s.start_time) : '', s.client_name, s.instructor_name || '', s.style || '', s.status || ''])]
+function downloadCsv(rows, clients, instructors) {
+  const clientsById = new Map(clients.map(c => [c.id, c]))
+  const instructorsById = new Map(instructors.map(i => [i.id, i]))
+  const header = ['Client Name', 'Contact Phone', 'Start Date', 'Charge to Client', 'Payment Method', 'Full Name', 'Instructor Rate', 'Expected Rate']
+  const lines = [header, ...rows.map(s => [
+    s.client_name,
+    clientsById.get(s.client_id)?.phone || '',
+    s.session_date,
+    chargeDisplay(s),
+    s.payment_method || '',
+    s.instructor_name || '',
+    s.instructor_pay ?? '',
+    instructorsById.get(s.instructor_id)?.pay_rate ?? '',
+  ])]
   const csv = lines.map(row => row.map(csvCell).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
@@ -215,7 +232,7 @@ export default function ReportsPage() {
             Run Report
           </button>
           {results && results.length > 0 && (
-            <button type="button" onClick={() => downloadCsv(results)}
+            <button type="button" onClick={() => downloadCsv(results, clients, instructors)}
               className="text-xs text-gray-500 hover:text-gray-800 font-medium">
               Export CSV
             </button>
