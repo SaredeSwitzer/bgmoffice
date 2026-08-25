@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
 import DateInput from '../components/DateInput'
+import BulkEditSessionsModal from '../components/BulkEditSessionsModal'
 import { fmtTime, fmtTimeRange } from '../utils/time'
 
 function fmtDate(iso) {
@@ -73,6 +74,8 @@ export default function ReportsPage() {
   const [results, setResults] = useState(null)
   const [error, setError] = useState('')
   const [ran, setRan] = useState(false)
+  const [selected, setSelected] = useState(new Set())
+  const [showBulkEdit, setShowBulkEdit] = useState(false)
 
   useEffect(() => {
     Promise.all([api.getClients(), api.getInstructors()])
@@ -117,10 +120,34 @@ export default function ReportsPage() {
       )
       filtered.sort((a, b) => a.session_date.localeCompare(b.session_date) || String(a.start_time || '').localeCompare(String(b.start_time || '')))
       setResults(filtered)
+      setSelected(new Set())
     } catch (e2) {
       setError(e2.message)
       setResults(null)
     }
+  }
+
+  function toggleSelected(id) {
+    setSelected(s => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAllSelected() {
+    setSelected(s => (s.size === results.length ? new Set() : new Set(results.map(r => r.id))))
+  }
+
+  function handleBulkSaved(updatedRows) {
+    const byId = new Map(updatedRows.map(r => [r.id, r]))
+    setResults(rs => rs.map(r => {
+      const u = byId.get(r.id)
+      if (!u) return r
+      return { ...r, ...u, instructor_name: instructors.find(i => i.id === u.instructor_id)?.name || null }
+    }))
+    setSelected(new Set())
+    setShowBulkEdit(false)
   }
 
   // Auto-run once the client list (and any deep-linked client) is loaded.
@@ -200,10 +227,19 @@ export default function ReportsPage() {
 
       {results && (
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
               {results.length} class{results.length === 1 ? '' : 'es'}
             </p>
+            {selected.size > 0 && (
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-gray-500">{selected.size} selected</p>
+                <button type="button" onClick={() => setShowBulkEdit(true)}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-700">
+                  Edit Selected
+                </button>
+              </div>
+            )}
           </div>
           {results.length === 0 ? (
             <p className="px-4 py-6 text-sm text-gray-400 text-center">No classes match these filters.</p>
@@ -212,6 +248,11 @@ export default function ReportsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs font-semibold text-gray-500">
+                    <th className="px-4 py-2 w-8">
+                      <input type="checkbox" className="rounded border-gray-300"
+                        checked={results.length > 0 && selected.size === results.length}
+                        onChange={toggleAllSelected} />
+                    </th>
                     <th className="px-4 py-2">Date</th>
                     <th className="px-4 py-2">Time</th>
                     <th className="px-4 py-2">Client</th>
@@ -222,7 +263,11 @@ export default function ReportsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {results.map(s => (
-                    <tr key={s.id} className="hover:bg-gray-50">
+                    <tr key={s.id} className={`hover:bg-gray-50 ${selected.has(s.id) ? 'bg-gray-50' : ''}`}>
+                      <td className="px-4 py-2">
+                        <input type="checkbox" className="rounded border-gray-300"
+                          checked={selected.has(s.id)} onChange={() => toggleSelected(s.id)} />
+                      </td>
                       <td className="px-4 py-2 whitespace-nowrap">{fmtDate(s.session_date)}</td>
                       <td className="px-4 py-2 text-gray-500">{s.start_time ? fmtTimeRange(s.start_time, s.duration_minutes) : '—'}</td>
                       <td className="px-4 py-2">{s.client_name}</td>
@@ -242,6 +287,14 @@ export default function ReportsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {showBulkEdit && (
+        <BulkEditSessionsModal
+          sessionIds={[...selected]}
+          onClose={() => setShowBulkEdit(false)}
+          onSaved={handleBulkSaved}
+        />
       )}
     </div>
   )

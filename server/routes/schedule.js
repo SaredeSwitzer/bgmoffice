@@ -306,6 +306,40 @@ router.post('/sessions/bulk', async (req, res) => {
   res.status(201).json(created);
 });
 
+// Bulk-edit a set of existing sessions at once (e.g. "swap the instructor on every
+// upcoming class for this client"). Patch-style like PUT /sessions/:id, but only the
+// fields present in the body are touched — across every id in session_ids — and
+// session_date/status/notes are deliberately left out since those are per-occurrence,
+// not something you'd want to stamp identically across a whole batch.
+router.patch('/sessions/bulk-update', async (req, res) => {
+  const { session_ids } = req.body;
+  if (!Array.isArray(session_ids) || session_ids.length === 0) {
+    return res.status(400).json({ error: 'session_ids (non-empty array) required' });
+  }
+  const fields = ['instructor_id', 'start_time', 'duration_minutes', 'charge_amount', 'instructor_pay', 'payment_method', 'style'];
+  const sets = [];
+  const args = [];
+  for (const key of fields) {
+    if (req.body[key] === undefined) continue;
+    const val = req.body[key];
+    args.push(val === '' ? null : val);
+    sets.push(`${key} = $${args.length}`);
+  }
+  if (sets.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+  // Switching who's teaching invalidates any confirmation already sent — clear it so
+  // the UI goes back to "needs confirmation" for whoever's teaching now.
+  if ('instructor_id' in req.body) sets.push('confirmation_sent_at = NULL, confirmation_sent_to = NULL');
+  sets.push('updated_at = now()');
+
+  args.push(session_ids);
+  const { rows } = await pool.query(
+    `UPDATE class_sessions SET ${sets.join(', ')} WHERE id = ANY($${args.length}) RETURNING *`,
+    args
+  );
+  res.json(rows);
+});
+
 router.put('/sessions/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT * FROM class_sessions WHERE id=$1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Session not found' });

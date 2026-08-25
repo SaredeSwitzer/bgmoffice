@@ -369,6 +369,7 @@ export const api = {
   createClassSession: (data) => request('/schedule/sessions', { method: 'POST', body: JSON.stringify(data) }),
   createClassSessionsBulk: (data) => request('/schedule/sessions/bulk', { method: 'POST', body: JSON.stringify(data) }),
   updateClassSession: (id, data) => request(`/schedule/sessions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  bulkUpdateClassSessions: (data) => request('/schedule/sessions/bulk-update', { method: 'PATCH', body: JSON.stringify(data) }),
   deleteClassSession: (id) => request(`/schedule/sessions/${id}`, { method: 'DELETE' }),
 
   // Instructor accounts only — the caller's own classes. The server scopes this to the
