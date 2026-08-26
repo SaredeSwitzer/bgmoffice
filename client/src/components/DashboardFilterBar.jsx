@@ -10,8 +10,6 @@ export const CATEGORY_FILTERS = [
   { key: 'all',                 label: 'All' },
   { key: 'client_followup',     label: 'Client F/U' },
   { key: 'instructor_followup', label: 'Instructor F/U' },
-  { key: 'recruiting',          label: 'Recruiting' },
-  { key: 'reference',           label: 'Reference' },
   { key: 'other',               label: 'Other' },
 ]
 
@@ -77,10 +75,8 @@ export default function DashboardFilterBar({
           <button key={key} onClick={() => handleCategory(key)}
             className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
               activeCategory === key
-                ? key === 'recruiting'          ? 'bg-amber-500 text-white'
-                : key === 'client_followup'     ? 'bg-green-600 text-white'
+                ? key === 'client_followup'     ? 'bg-green-600 text-white'
                 : key === 'instructor_followup' ? 'bg-blue-600 text-white'
-                : key === 'reference'           ? 'bg-purple-600 text-white'
                 : 'bg-gray-900 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>

@@ -84,7 +84,6 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
   }
   const days = daysOpen(item.created_at)
   const isRecruiting = item.source === 'recruiting'
-  const isReference  = item.task_type === 'reference'
   const actionTypes = item.action_types || []
 
   return (
@@ -111,10 +110,6 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
         {isRecruiting ? (
           <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap">
             Recruiting ↗
-          </span>
-        ) : isReference ? (
-          <span className="inline-block text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
-            Reference
           </span>
         ) : actionTypes.length > 0 ? (
           <div className="flex flex-wrap gap-1">
@@ -171,8 +166,10 @@ const INSTRUCTOR_FACING_TYPES = [
 
 function getItemCategories(item) {
   if (item.categories?.length) return item.categories
-  if (item.source === 'recruiting') return ['recruiting']
-  if (item.source === 'standalone') return [item.task_type || 'task']
+  // Standalone tasks (recruiting-linked ones included) don't have a Client/Instructor
+  // F/U distinction the way action items do — they all land in Other, including one
+  // with no explicit type at all, which used to only ever show up under "All".
+  if (item.source === 'recruiting' || item.source === 'standalone') return ['other']
   const typeNames = (item.action_types || []).map(at => at.name)
   const cats = []
   if (typeNames.some(n => CLIENT_FACING_TYPES.includes(n))) cats.push('client_followup')

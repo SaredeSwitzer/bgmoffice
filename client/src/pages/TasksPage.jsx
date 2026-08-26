@@ -84,7 +84,6 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
           <select value={form.task_type || 'task'} onChange={e => set('task_type', e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
             <option value="task">Task</option>
-            <option value="reference">Reference</option>
             <option value="other">Other</option>
           </select>
         </div>
@@ -210,9 +209,6 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
 
       {/* Metadata */}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-3 text-xs text-gray-400">
-        {task.task_type === 'reference' && (
-          <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">Reference</span>
-        )}
         {task.assigned_to && <span className="font-medium text-gray-600">→ {task.assigned_to}</span>}
         {task.client_name && (
           <Link to={`/clients/${task.client_id}`} onClick={e => e.stopPropagation()}
@@ -378,16 +374,20 @@ function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultTyp
 }
 
 const TYPE_META = {
-  reference: { label: 'Reference', borderColor: 'border-purple-300', defaultType: 'reference' },
-  other:     { label: 'Other',     borderColor: 'border-blue-300',   defaultType: 'other'     },
-  task:      { label: 'Tasks',     borderColor: 'border-gray-300',   defaultType: 'task'      },
+  other: { label: 'Other', borderColor: 'border-blue-300', defaultType: 'other' },
+  task:  { label: 'Tasks', borderColor: 'border-gray-300', defaultType: 'task'  },
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function TasksPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const focusId = searchParams.get('id') ? Number(searchParams.get('id')) : null
+  // Kept as a string — task ids come back from Postgres as bigint strings, and
+  // converting to Number() here made the lookup below (String(t.id) === focusId)
+  // fail silently for every task, since '64' !== 64. That's what made a task
+  // opened via /tasks?id=… show "Task not found" unless it happened to already be
+  // in the currently-rendered section.
+  const focusId = searchParams.get('id') || null
   const { user } = useAuth()
   const { seen, markSeen } = useSeenTasks(user?.initials)
 
@@ -427,7 +427,7 @@ export default function TasksPage() {
     if (!confirm('Delete this task?')) return
     await api.deleteTask(id)
     setTasks(prev => prev.filter(t => t.id !== id))
-    if (focusId === id) navigate('/tasks')
+    if (focusId === String(id)) navigate('/tasks')
   }
 
   const open = tasks.filter(t => t.status === 'open')
@@ -444,13 +444,15 @@ export default function TasksPage() {
     <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
   )
 
-  const openTasks     = filtered(open.filter(t => !t.task_type || t.task_type === 'task'))
-  const openReference = filtered(open.filter(t => t.task_type === 'reference'))
-  const openOther     = filtered(open.filter(t => t.task_type === 'other'))
+  // A task with no type at all (task_type null/empty — e.g. an older row from
+  // before the type field existed) reads as "no category" to whoever's looking at
+  // it, so it belongs in Other, not silently in the generic Tasks bucket.
+  const openTasks = filtered(open.filter(t => t.task_type === 'task'))
+  const openOther = filtered(open.filter(t => t.task_type === 'other' || !t.task_type))
 
   // ── Focused single-task view ──────────────────────────────────────────────
   if (focusId) {
-    const focusedTask = tasks.find(t => t.id === focusId)
+    const focusedTask = tasks.find(t => String(t.id) === focusId)
     const typeKey = focusedTask?.task_type || 'task'
     const meta = TYPE_META[typeKey] || TYPE_META.task
 
@@ -510,9 +512,6 @@ export default function TasksPage() {
 
       <TaskSection label="Tasks" borderColor="border-gray-300" tasks={openTasks}
         onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} />
-
-      <TaskSection label="Reference" borderColor="border-purple-300" tasks={openReference}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="reference" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} />
 
       <TaskSection label="Other" borderColor="border-blue-300" tasks={openOther}
         onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} />

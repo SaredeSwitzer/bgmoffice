@@ -75,8 +75,12 @@ const INSTRUCTOR_FACING_TYPES = [
 
 function getItemCategories(item) {
   if (item.categories?.length) return item.categories
-  if (item.source === 'recruiting') return ['recruiting']
-  if (item.source === 'standalone') return [item.task_type || 'task']
+  // Standalone tasks (and recruiting-linked ones, which are standalone tasks under
+  // the hood) don't have a Client/Instructor F/U distinction the way action items
+  // do — they all land in Other. A task with no explicit type at all reads as "no
+  // category" to whoever's looking at it, so it belongs here too, not off in a
+  // limbo that only shows up under "All".
+  if (item.source === 'recruiting' || item.source === 'standalone') return ['other']
   const typeNames = (item.action_types || []).map(at => at.name)
   const cats = []
   if (typeNames.some(n => CLIENT_FACING_TYPES.includes(n))) cats.push('client_followup')
@@ -90,8 +94,6 @@ const CATEGORY_FILTERS = [
   { key: 'reminder',            label: 'Reminders' },
   { key: 'client_followup',     label: 'Client F/U' },
   { key: 'instructor_followup', label: 'Instructor F/U' },
-  { key: 'recruiting',          label: 'Recruiting' },
-  { key: 'reference',           label: 'Reference' },
   { key: 'other',               label: 'Other' },
 ]
 
@@ -115,7 +117,6 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
   const isMention    = item.source === 'mention'
   const isRecruiting = item.source === 'recruiting'
   const isReminder   = item.source === 'reminder'
-  const isReference  = item.task_type === 'reference'
   const actionTypes  = item.action_types || []
   const url = getItemUrl(item)
 
@@ -166,10 +167,6 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
         ) : isReminder ? (
           <span className="inline-block text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
             Reminder
-          </span>
-        ) : isReference ? (
-          <span className="inline-block text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
-            Reference
           </span>
         ) : actionTypes.length > 0 ? (
           <div className="flex flex-wrap gap-1">
@@ -321,10 +318,8 @@ export default function MyTasksPage() {
             className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
               categoryFilter === key
                 ? key === 'mention'             ? 'bg-indigo-600 text-white'
-                : key === 'recruiting'          ? 'bg-amber-500 text-white'
                 : key === 'client_followup'     ? 'bg-green-600 text-white'
                 : key === 'instructor_followup' ? 'bg-blue-600 text-white'
-                : key === 'reference'           ? 'bg-purple-600 text-white'
                 : 'bg-gray-900 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>

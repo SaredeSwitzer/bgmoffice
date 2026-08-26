@@ -181,7 +181,7 @@ router.get('/my-tasks', async (req, res) => {
     action_types: t.action_type_id
       ? [{ id: t.action_type_id, name: t.action_type_name, color: t.action_type_color }]
       : [],
-    last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : (t.task_type === 'reference' ? 'Reference' : 'Task') },
+    last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
     recruiting_entry_id: t.recruiting_entry_id || null,
   }));
 
@@ -231,7 +231,9 @@ router.get('/', async (req, res) => {
     action_type_color: t.action_type_color || 'gray',
     last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
     source: t.recruiting_note_id ? 'recruiting' : 'standalone',
-    categories: t.recruiting_note_id ? ['recruiting'] : [t.task_type || 'task'],
+    // Standalone tasks don't have a Client/Instructor F/U distinction the way action
+    // items do — they all land in Other, including ones with no explicit type at all.
+    categories: ['other'],
     recruiting_note_id: t.recruiting_note_id,
     recruiting_entry_id: t.recruiting_entry_id || null,
   }));
