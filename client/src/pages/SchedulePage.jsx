@@ -46,6 +46,18 @@ function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); retu
 function startOfWeek(d) { return addDays(d, -d.getDay()) } // back to Sunday
 function money(v) { return v == null || v === '' ? '—' : `$${Number(v).toFixed(0)}` }
 
+// Used only for drag-and-drop reordering: translating a drop position between two
+// neighboring classes into a concrete new start_time.
+function timeToMinutes(t) {
+  if (!t) return null
+  const [h, m] = String(t).slice(0, 5).split(':').map(Number)
+  return h * 60 + m
+}
+function minutesToTime(mins) {
+  const wrapped = ((Math.round(mins) % 1440) + 1440) % 1440
+  return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`
+}
+
 // A charge note ("TBD", "$80–100") is purely informational — the numeric charge_amount
 // stays whatever it is (usually blank alongside a note) since that's the field billing
 // actually sums, so a note never silently zeroes out a real invoice line.
@@ -113,6 +125,73 @@ export default function SchedulePage() {
   const [pendingModal, setPendingModal] = useState(null)
   // "+ Add Class Dates" — a batch of specific, possibly-irregular dates for one class.
   const [addDatesOpen, setAddDatesOpen] = useState(false)
+
+  // Drag-and-drop rescheduling in the week view. draggingId is the session being
+  // dragged; dragOverDate highlights whichever day column the cursor is currently over.
+  const [draggingId, setDraggingId] = useState(null)
+  const [dragOverDate, setDragOverDate] = useState(null)
+
+  function handleDragStart(e, s) {
+    setDraggingId(s.id)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', String(s.id))
+  }
+  function handleDragEnd() {
+    setDraggingId(null)
+    setDragOverDate(null)
+  }
+
+  // Moves a session to `date`. When newStartTime is omitted, the time-of-day is left
+  // alone (dropped in empty space / at the end of a day's list) — only the date changes.
+  async function rescheduleSession(id, date, newStartTime) {
+    const patch = { session_date: date }
+    if (newStartTime !== undefined) patch.start_time = newStartTime
+    // Optimistic update so the card doesn't visually snap back while the request is in flight.
+    setSessions(prev => prev.map(x => (x.id === id ? { ...x, ...patch } : x)))
+    try {
+      await api.updateClassSession(id, patch)
+    } finally {
+      loadWeek()
+    }
+  }
+
+  // Dropped on empty column space (not on a specific card) — just changes the day.
+  function handleColumnDrop(e, date) {
+    e.preventDefault()
+    setDragOverDate(null)
+    const id = draggingId
+    setDraggingId(null)
+    if (!id) return
+    rescheduleSession(id, date)
+  }
+
+  // Dropped on/near a specific card — also slots the new time in relative to whichever
+  // neighbor it landed next to (before/after based on which half of the card the cursor
+  // is over), so dragging a class earlier or later in the day actually changes its time.
+  function handleCardDrop(e, date, dayRows, targetSession) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverDate(null)
+    const id = draggingId
+    setDraggingId(null)
+    if (!id || id === targetSession.id) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const droppedAbove = (e.clientY - rect.top) < rect.height / 2
+    const others = dayRows.filter(r => r.id !== id)
+    const idx = others.findIndex(r => r.id === targetSession.id)
+    const prevRow = droppedAbove ? others[idx - 1] : others[idx]
+    const nextRow = droppedAbove ? others[idx] : others[idx + 1]
+    const prevMin = timeToMinutes(prevRow?.start_time)
+    const nextMin = timeToMinutes(nextRow?.start_time)
+    let newMin
+    if (prevMin != null && nextMin != null) newMin = (prevMin + nextMin) / 2
+    else if (nextMin != null) newMin = nextMin - 15
+    else if (prevMin != null) newMin = prevMin + 15
+    const newStartTime = newMin != null ? minutesToTime(newMin) : undefined
+
+    rescheduleSession(id, date, newStartTime)
+  }
 
   const { user } = useAuth()
   const canSeeAdminNotes = isOwnerUser(user)
@@ -295,7 +374,12 @@ export default function SchedulePage() {
                     const isToday = date === ymd(new Date())
                     return (
                       <div key={date}
-                        className={`flex-1 min-w-[130px] rounded-xl border ${isToday ? 'border-gray-900' : 'border-gray-200'} bg-white shadow-sm overflow-hidden flex flex-col`}>
+                        onDragOver={e => { e.preventDefault(); if (dragOverDate !== date) setDragOverDate(date) }}
+                        onDragLeave={() => setDragOverDate(prev => (prev === date ? null : prev))}
+                        onDrop={e => handleColumnDrop(e, date)}
+                        className={`flex-1 min-w-[130px] rounded-xl border ${
+                          dragOverDate === date ? 'border-blue-400 ring-2 ring-blue-100' : (isToday ? 'border-gray-900' : 'border-gray-200')
+                        } bg-white shadow-sm overflow-hidden flex flex-col`}>
                         <div className={`px-2 py-2 text-center border-b ${isToday ? 'bg-gray-900 border-gray-900' : 'bg-gray-50 border-gray-100'}`}>
                           <p className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-gray-300' : 'text-gray-400'}`}>{dayName.slice(0, 3)}</p>
                           <p className={`text-sm font-bold ${isToday ? 'text-white' : 'text-gray-700'}`}>
@@ -308,7 +392,15 @@ export default function SchedulePage() {
                           ) : rows.map(s => (
                             <Fragment key={s.id}>
                               <div onClick={() => setSessionModal({ session: s })}
-                                className={`border rounded-lg p-2 text-xs cursor-pointer transition-colors ${
+                                draggable
+                                onDragStart={e => handleDragStart(e, s)}
+                                onDragEnd={handleDragEnd}
+                                onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+                                onDrop={e => handleCardDrop(e, date, rows, s)}
+                                title="Drag to reschedule to a different day or time"
+                                className={`border rounded-lg p-2 text-xs cursor-grab active:cursor-grabbing transition-colors ${
+                                  draggingId === s.id ? 'opacity-40' : ''
+                                } ${
                                   s.status === 'pending'
                                     ? 'border-amber-300 bg-amber-50 hover:border-amber-400'
                                     : 'border-gray-200 hover:border-gray-400'
