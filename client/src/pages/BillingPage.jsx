@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { fmtTime } from '../utils/time'
 import DateInput from '../components/DateInput'
+import { loadSavedWeekAnchor, saveWeekAnchor } from '../utils/weekAnchor'
 
 // Weekly recurring CC billing — review then charge. The amounts are computed live
 // from the schedule (class_sessions), so updating the schedule updates this. Nothing
@@ -702,9 +703,10 @@ function InvoicePreviewModal({ detail, onApply, onClose, applying }) {
 
 export default function BillingPage() {
   const [tab, setTab] = useState('charge') // 'charge' | 'report' | 'stripe'
-  const [anchor, setAnchor] = useState(() => startOfWeek(new Date()))
+  const [anchor, setAnchor] = useState(() => loadSavedWeekAnchor(startOfWeek))
   const weekStart = startOfWeek(anchor)
   const weekEnd = addDays(weekStart, 6)
+  useEffect(() => { saveWeekAnchor(weekStart) }, [weekStart])
 
   const [rows, setRows] = useState([])       // { client_id, client_name, amount(edited), session_count, card_last4, has_card, charged_status, include }
   const [loading, setLoading] = useState(true)
