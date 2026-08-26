@@ -5,6 +5,7 @@ import { navClick } from '../utils/nav'
 import SearchSelect from '../components/SearchSelect'
 import SendInvoiceModal from '../components/SendInvoiceModal'
 import MentionTextarea from '../components/MentionTextarea'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 import { renderWithMentions, stripMentions } from '../utils/mentions'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -548,8 +549,12 @@ export default function InvoiceDetailPage() {
                   <p className="text-base font-semibold text-gray-800 mb-1">{invoice.title}</p>
                 )}
                 <p className="text-sm text-gray-600">
-                  {invoice.client_name || 'No client'}
-                  {invoice.instructor_name && ` · ${invoice.instructor_name}`}
+                  {invoice.client_name
+                    ? <ClientLink id={invoice.client_id} name={invoice.client_name} stopPropagation={false} />
+                    : 'No client'}
+                  {invoice.instructor_name && (
+                    <> · <InstructorLink id={invoice.instructor_id} name={invoice.instructor_name} stopPropagation={false} /></>
+                  )}
                 </p>
                 <div className="flex gap-4 mt-1 text-xs text-gray-400">
                   <span>Issued {fmtDate(invoice.invoice_date)}</span>

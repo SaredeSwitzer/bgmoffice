@@ -8,6 +8,7 @@ import DashboardFilterBar from '../components/DashboardFilterBar'
 import ContractInviteModal from '../components/ContractInviteModal'
 import StylePicker from '../components/StylePicker'
 import StylesManagerModal from '../components/StylesManagerModal'
+import { ClientLink } from '../components/NameLink'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -948,7 +949,9 @@ export default function InstructorProfilePage() {
                     <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                       <span className="font-semibold text-gray-700">{entry.day_of_week}</span>
                       {entry.time_slot && <span>{entry.time_slot}</span>}
-                      {entry.client_name && <span>· {entry.client_name}</span>}
+                      {entry.client_name && (
+                        <span>· <ClientLink id={entry.client_id} name={entry.client_name} stopPropagation={false} /></span>
+                      )}
                       {entry.neighborhood && <span>· {entry.neighborhood}</span>}
                       {entry.style && <span>· {entry.style}</span>}
                       {entry.archived && <span className="text-gray-400 italic">archived</span>}

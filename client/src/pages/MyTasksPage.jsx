@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import { useSeenTasks } from '../hooks/useSeenTasks'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -149,11 +150,11 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
       <td className="px-3 py-2.5 text-sm whitespace-nowrap">
         <span className={`flex items-center gap-1.5 ${isNew ? 'font-bold text-gray-900' : 'text-gray-900'}`}>
           {isNew && <span className="inline-block w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
-          {item.client_name || <span className="text-gray-400 font-normal">—</span>}
+          {item.client_name ? <ClientLink id={item.client_id} name={item.client_name} /> : <span className="text-gray-400 font-normal">—</span>}
         </span>
       </td>
       <td className="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">
-        {item.instructor_name || <span className="text-gray-400">—</span>}
+        {item.instructor_name ? <InstructorLink id={item.instructor_id} name={item.instructor_name} /> : <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
         {isMention ? (

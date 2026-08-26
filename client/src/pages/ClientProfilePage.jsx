@@ -14,6 +14,7 @@ import DateInput from '../components/DateInput'
 import { renderWithMentions } from '../utils/mentions'
 import { fmtTimeRange } from '../utils/time'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
+import { InstructorLink } from '../components/NameLink'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
@@ -71,7 +72,9 @@ function PrefCard({ pref, onDelete }) {
           <span className={`text-xs font-bold uppercase tracking-wide ${isLiked ? 'text-green-700' : 'text-red-700'}`}>
             {isLiked ? '👍 Liked' : '👎 Disliked'}
           </span>
-          <span className="text-sm font-semibold text-gray-900">{pref.instructor_name}</span>
+          <span className="text-sm font-semibold text-gray-900">
+            <InstructorLink id={pref.instructor_id} name={pref.instructor_name} stopPropagation={false} />
+          </span>
         </div>
         {pref.reason && (
           <p className="text-xs text-gray-600 italic whitespace-pre-wrap">"{pref.reason}"</p>
@@ -199,7 +202,9 @@ function PackageCard({
               {pkg.total_classes}-class package
             </span>
             {pkg.instructor_name && (
-              <span className="text-xs text-gray-500">w/ {pkg.instructor_name}</span>
+              <span className="text-xs text-gray-500">
+                w/ <InstructorLink id={pkg.instructor_id} name={pkg.instructor_name} stopPropagation={false} />
+              </span>
             )}
             {pkg.status === 'completed' && (
               <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Completed</span>
@@ -334,7 +339,7 @@ function ClassesSummary({ clientId, clientName }) {
           {next ? (
             <p className="text-xs text-gray-500 pl-2 truncate">
               Next: {fmtInvDate(next.session_date)}{next.start_time ? ` at ${fmtTimeRange(next.start_time, next.duration_minutes)}` : ''}
-              {next.instructor_name ? ` with ${next.instructor_name}` : ''}
+              {next.instructor_name ? <> with <InstructorLink id={next.instructor_id} name={next.instructor_name} stopPropagation={false} /></> : ''}
             </p>
           ) : (
             <p className="text-xs text-gray-400 pl-2">{count === 0 ? 'No classes on file' : count == null ? 'Loading…' : 'No upcoming classes'}</p>
@@ -1190,7 +1195,9 @@ export default function ClientProfilePage() {
                       {entry.neighborhood && <span>· {entry.neighborhood}</span>}
                       {entry.style && <span>· {entry.style}</span>}
                       {entry.participants && <span>· {entry.participants}</span>}
-                      {entry.instructor_name && <span>· {entry.instructor_name}</span>}
+                      {entry.instructor_name && (
+                        <span>· <InstructorLink id={entry.instructor_id} name={entry.instructor_name} stopPropagation={false} /></span>
+                      )}
                       {entry.archived && <span className="text-gray-400 italic">archived</span>}
                     </div>
                     {entry.address && <p className="text-xs text-gray-400 mt-0.5">{entry.address}</p>}

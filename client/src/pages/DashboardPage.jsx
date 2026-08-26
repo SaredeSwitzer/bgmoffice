@@ -6,6 +6,7 @@ import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar, { FILTER_ALL, FILTER_ANYONE, FILTER_STARRED, CATEGORY_FILTERS } from '../components/DashboardFilterBar'
 import { navClick } from '../utils/nav'
 import { TaskForm } from './TasksPage'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -100,11 +101,13 @@ function TaskRow({ item, onClick, isOwn, onStar }) {
         <StarButton starred={!!item.starred} onToggle={() => onStar(item, !item.starred)} />
       </td>
       <td className="px-3 py-2.5 whitespace-nowrap">
-        <div className="text-sm text-gray-900">{item.client_name || <span className="text-gray-400">—</span>}</div>
+        <div className="text-sm text-gray-900">
+          {item.client_name ? <ClientLink id={item.client_id} name={item.client_name} /> : <span className="text-gray-400">—</span>}
+        </div>
         {item.case_title && <div className="text-xs text-gray-400 truncate max-w-[160px]">{item.case_title}</div>}
       </td>
       <td className="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">
-        {item.instructor_name || <span className="text-gray-400">—</span>}
+        {item.instructor_name ? <InstructorLink id={item.instructor_id} name={item.instructor_name} /> : <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
         {isRecruiting ? (
@@ -394,7 +397,11 @@ export default function DashboardPage() {
                 <div>
                   <span className="text-sm font-semibold text-gray-800">{pkg.client_name}</span>
                   <span className="text-xs text-gray-500 ml-2">{pkg.total_classes}-class package</span>
-                  {pkg.instructor_name && <span className="text-xs text-gray-400 ml-2">w/ {pkg.instructor_name}</span>}
+                  {pkg.instructor_name && (
+                    <span className="text-xs text-gray-400 ml-2">
+                      w/ <InstructorLink id={pkg.instructor_id} name={pkg.instructor_name} stopPropagation={false} />
+                    </span>
+                  )}
                   {pkg.last_session && (
                     <span className="text-xs text-gray-400 ml-2">
                       — last session {new Date(pkg.last_session + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -421,7 +428,9 @@ export default function DashboardPage() {
             {readyInvoices.map(inv => (
               <div key={inv.id} className="flex items-center justify-between gap-3 bg-white border border-blue-100 rounded-xl px-4 py-2.5">
                 <div>
-                  <span className="text-sm font-semibold text-gray-800">{inv.client_name}</span>
+                  <span className="text-sm font-semibold text-gray-800">
+                    <ClientLink id={inv.client_id} name={inv.client_name} stopPropagation={false} />
+                  </span>
                   <span className="text-xs text-gray-500 ml-2">{inv.title}</span>
                   <span className="text-xs text-gray-400 ml-2">— ${Number(inv.total).toFixed(0)}</span>
                   {inv.is_current_month && (

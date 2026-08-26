@@ -413,14 +413,14 @@ router.get('/stripe-charges', async (req, res) => {
 
     const [byCustomer, byClientId, byInvoiceId] = await Promise.all([
       customerIds.length
-        ? pool.query('SELECT stripe_customer_id AS key, name FROM clients WHERE stripe_customer_id = ANY($1)', [customerIds])
+        ? pool.query('SELECT stripe_customer_id AS key, id, name FROM clients WHERE stripe_customer_id = ANY($1)', [customerIds])
         : { rows: [] },
       clientIds.length
-        ? pool.query('SELECT id::text AS key, name FROM clients WHERE id = ANY($1::int[])', [clientIds])
+        ? pool.query('SELECT id::text AS key, id, name FROM clients WHERE id = ANY($1::int[])', [clientIds])
         : { rows: [] },
       invoiceIds.length
         ? pool.query(
-            `SELECT i.id::text AS key, c.name FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = ANY($1::int[])`,
+            `SELECT i.id::text AS key, c.id, c.name FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = ANY($1::int[])`,
             [invoiceIds]
           )
         : { rows: [] },
@@ -428,6 +428,9 @@ router.get('/stripe-charges', async (req, res) => {
     const nameByCustomer = Object.fromEntries(byCustomer.rows.map(r => [r.key, r.name]));
     const nameByClientId = Object.fromEntries(byClientId.rows.map(r => [r.key, r.name]));
     const nameByInvoiceId = Object.fromEntries(byInvoiceId.rows.map(r => [r.key, r.name]));
+    const idByCustomer = Object.fromEntries(byCustomer.rows.map(r => [r.key, r.id]));
+    const idByClientId = Object.fromEntries(byClientId.rows.map(r => [r.key, r.id]));
+    const idByInvoiceId = Object.fromEntries(byInvoiceId.rows.map(r => [r.key, r.id]));
 
     const items = charges.map(c => ({
       id: c.id,
@@ -443,6 +446,10 @@ router.get('/stripe-charges', async (req, res) => {
         || nameByInvoiceId[c.metadata?.invoice_id]
         || nameByCustomer[c.customer]
         || c.billing_details?.name
+        || null,
+      client_id: idByClientId[c.metadata?.client_id]
+        || idByInvoiceId[c.metadata?.invoice_id]
+        || idByCustomer[c.customer]
         || null,
       description: c.description || null,
       failure_message: c.failure_message || null,

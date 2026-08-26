@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
+import { ClientLink } from '../components/NameLink'
 import { navClick, auxNavClick } from '../utils/nav'
 
 const STATUS_COLORS = {
@@ -507,7 +508,9 @@ export default function InvoicesPage() {
                     <span className="font-mono text-xs text-gray-700 font-semibold">{inv.invoice_number}</span>
                     {inv.title && <p className="text-xs text-gray-500 mt-0.5">{inv.title}</p>}
                   </td>
-                  <td className="px-4 py-3 text-gray-900">{inv.client_name || <span className="text-gray-400">—</span>}</td>
+                  <td className="px-4 py-3 text-gray-900">
+                    {inv.client_name ? <ClientLink id={inv.client_id} name={inv.client_name} /> : <span className="text-gray-400">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{fmtDate(inv.invoice_date)}</td>
                   <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{fmtDate(inv.due_date)}</td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmtMoney(inv.total)}</td>

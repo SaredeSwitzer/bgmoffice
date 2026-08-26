@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { fmtTime } from '../utils/time'
 import DateInput from '../components/DateInput'
 import { loadSavedWeekAnchor, saveWeekAnchor } from '../utils/weekAnchor'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 
 // Weekly recurring CC billing — review then charge. The amounts are computed live
 // from the schedule (class_sessions), so updating the schedule updates this. Nothing
@@ -172,7 +173,9 @@ function StripeChargesTab() {
                     <td className="px-4 py-1.5 text-gray-500 whitespace-nowrap">
                       {new Date(c.created * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                     </td>
-                    <td className="px-2 py-1.5 text-gray-800">{c.client_name || '—'}</td>
+                    <td className="px-2 py-1.5 text-gray-800">
+                      <ClientLink id={c.client_id} name={c.client_name || '—'} />
+                    </td>
                     <td className="px-2 py-1.5 text-gray-500 capitalize whitespace-nowrap">
                       {c.card_brand ? `${c.card_brand} •${c.card_last4}` : '—'}
                     </td>
@@ -482,7 +485,7 @@ function ReportTab({ weekStart, weekEnd, label }) {
                             {new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                             {s.start_time ? ` · ${fmtTime(s.start_time)}` : ''}
                             {s.style ? ` · ${s.style}` : ''}
-                            {s.instructor_name ? ` · ${s.instructor_name}` : ''}
+                            {s.instructor_name ? <> · <InstructorLink id={s.instructor_id} name={s.instructor_name} /></> : ''}
                           </span>
                           <span className="flex items-center gap-3 shrink-0">
                             <span>{s.payment_method || '—'}</span>
@@ -625,8 +628,8 @@ function ReportTab({ weekStart, weekEnd, label }) {
                       {new Date(s.session_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       {s.start_time ? ` ${fmtTime(s.start_time)}` : ''}
                     </td>
-                    <td className="px-2 py-1.5 text-gray-800">{s.client_name}</td>
-                    <td className="px-2 py-1.5 text-gray-500">{s.instructor_name || '—'}</td>
+                    <td className="px-2 py-1.5 text-gray-800"><ClientLink id={s.client_id} name={s.client_name} /></td>
+                    <td className="px-2 py-1.5 text-gray-500"><InstructorLink id={s.instructor_id} name={s.instructor_name || '—'} /></td>
                     <td className="px-2 py-1.5 text-right text-gray-800">{money(s.charge_amount)}</td>
                     <td className="px-2 py-1.5 text-right text-gray-500">{money(s.instructor_pay)}</td>
                     <td className="px-4 py-1.5 text-gray-400">{s.payment_method || '—'}</td>
@@ -653,7 +656,9 @@ function InvoicePreviewModal({ detail, onApply, onClose, applying }) {
             <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 inline-block mb-1">
               Preview — not yet {detail.new_invoice ? 'created' : 'saved'}
             </p>
-            <h3 className="font-bold text-gray-900 text-base">{detail.client_name}</h3>
+            <h3 className="font-bold text-gray-900 text-base">
+              <ClientLink id={detail.client_id} name={detail.client_name} stopPropagation={false} />
+            </h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
         </div>
@@ -837,7 +842,7 @@ export default function BillingPage() {
               <p className="text-sm font-semibold text-gray-800 mb-2">Charge results</p>
               {results.map(r => (
                 <div key={r.client_id} className="flex justify-between text-sm">
-                  <span className="text-gray-700">{r.client_name}</span>
+                  <span className="text-gray-700"><ClientLink id={r.client_id} name={r.client_name} stopPropagation={false} /></span>
                   <span className={r.status === 'charged' ? 'text-green-600' : r.status === 'skipped' ? 'text-gray-400' : 'text-red-600'}>
                     {r.status === 'charged' ? `charged ${money(r.amount)}` : r.status === 'skipped' ? 'skipped' : `failed — ${r.error}`}
                   </span>
@@ -929,7 +934,7 @@ export default function BillingPage() {
                         <div key={rowKey} className="px-3 py-2">
                           <div className={`flex items-center justify-between gap-2 ${d.status === 'updated' && !justApplied ? 'text-gray-700' : 'text-gray-400'}`}>
                             <span>
-                              {d.client_name}{' — '}
+                              <ClientLink id={d.client_id} name={d.client_name} stopPropagation={false} />{' — '}
                               {justApplied ? `applied, ${d.classes_added} class${d.classes_added === 1 ? '' : 'es'} added`
                                 : d.status === 'updated' ? `${d.new_invoice ? 'new invoice' : 'add to invoice'}, ${d.classes_added} class${d.classes_added === 1 ? '' : 'es'}`
                                 : d.status === 'up_to_date' ? 'already up to date'
@@ -977,7 +982,7 @@ export default function BillingPage() {
                       return (
                         <div key={rowKey} className="px-3 py-2">
                           <div className="flex items-center justify-between gap-2 text-gray-700">
-                            <span>{group.client_name}</span>
+                            <span><ClientLink id={group.client_id} name={group.client_name} stopPropagation={false} /></span>
                             <div className="flex items-center gap-2 shrink-0">
                               {justApplied && <span className="text-green-600">✓ applied</span>}
                               {hasPending && (

@@ -15,6 +15,7 @@ import AddClassDatesModal from '../components/AddClassDatesModal'
 import TimeInput from '../components/TimeInput'
 import DurationInput from '../components/DurationInput'
 import ChargeInput from '../components/ChargeInput'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 import { fmtTime, fmtTimeRange } from '../utils/time'
 
 // The horizontal line + time label shown between classes while dragging, so it's clear
@@ -497,9 +498,11 @@ export default function SchedulePage() {
                                 {s.status === 'pending' && (
                                   <p className="text-amber-700 font-semibold mt-0.5">⚠ Pending{s.notes ? `: ${s.notes}` : ''}</p>
                                 )}
-                                <p className="font-semibold text-gray-900 truncate mt-0.5">{s.client_name}</p>
+                                <p className="font-semibold text-gray-900 truncate mt-0.5">
+                                  <ClientLink id={s.client_id} name={s.client_name} />
+                                </p>
                                 <p className="text-gray-500 truncate">
-                                  {s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
+                                  {s.instructor_name ? <InstructorLink id={s.instructor_id} name={s.instructor_name} /> : 'No instructor'}{s.style ? ` · ${s.style}` : ''}
                                 </p>
                                 {s.neighborhood && (
                                   <p className="text-gray-400 truncate">📍 {s.neighborhood}</p>
@@ -689,13 +692,15 @@ export default function SchedulePage() {
                 <Fragment key={s.id}>
                   <div className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''} ${s.status === 'paused' ? 'opacity-50' : ''}`}>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{s.client_name}</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        <ClientLink id={s.client_id} name={s.client_name} stopPropagation={false} />
+                      </p>
                       <p className="text-xs text-gray-500 mt-0.5 truncate">
                         {s.weekday != null ? WEEKDAYS[s.weekday] : 'Flexible'}
                         {s.start_time ? ` · ${fmtTimeRange(s.start_time, s.duration_minutes)}` : (
                           <span className="text-amber-600 font-medium"> · No time set</span>
                         )}
-                        {' · '}{s.instructor_name || 'No instructor'}{s.style ? ` · ${s.style}` : ''}
+                        {' · '}{s.instructor_name ? <InstructorLink id={s.instructor_id} name={s.instructor_name} stopPropagation={false} /> : 'No instructor'}{s.style ? ` · ${s.style}` : ''}
                         {s.neighborhood ? ` · 📍 ${s.neighborhood}` : ''}
                       </p>
                       {fmtAddr(s) && (
