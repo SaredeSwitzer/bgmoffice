@@ -210,6 +210,11 @@ export const api = {
     request(`/reminders/${id}/done`, { method: 'PATCH' }),
   deleteReminder: (id) =>
     request(`/reminders/${id}`, { method: 'DELETE' }),
+  getReminderNotes: (id) => request(`/reminders/${id}/notes`),
+  addReminderNote: (id, text) =>
+    request(`/reminders/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  deleteReminderNote: (id, noteId) =>
+    request(`/reminders/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
   // Lookups + all-user action type management
   getActionTypes: () => request('/action-types'),

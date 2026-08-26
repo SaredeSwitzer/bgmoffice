@@ -10,6 +10,10 @@ import ResumingClassesModal from '../components/ResumingClassesModal'
 import InstructorCheckInModal from '../components/InstructorCheckInModal'
 import WaiverContractReminderModal from '../components/WaiverContractReminderModal'
 import SearchSelect from '../components/SearchSelect'
+import MentionTextarea from '../components/MentionTextarea'
+import { renderWithMentions } from '../utils/mentions'
+
+function today() { return new Date().toISOString().slice(0, 10) }
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -109,9 +113,94 @@ function FollowUpModal({ reminder, onClose, onAddReminder, navigate }) {
   )
 }
 
+// ── Note thread (once a reminder is due) ───────────────────────────────────────
+// Lazily loaded on expand — most reminders never get a note, so there's no reason to
+// fetch a thread for every row on page load. "Send" tags whoever's mentioned the same
+// way replies do everywhere else in the app (task replies, action item follow-ups).
+
+function ReminderNoteThread({ reminderId, initialCount, mentionableUsers }) {
+  const { user } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [notes, setNotes] = useState(null)
+  const [count, setCount] = useState(initialCount || 0)
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+
+  function toggle() {
+    if (open) { setOpen(false); return }
+    setOpen(true)
+    if (notes === null) {
+      setLoading(true)
+      api.getReminderNotes(reminderId).then(setNotes).finally(() => setLoading(false))
+    }
+  }
+
+  async function handleSend(e) {
+    e.preventDefault()
+    if (!text.trim()) return
+    setSending(true)
+    try {
+      const note = await api.addReminderNote(reminderId, text.trim())
+      setNotes(prev => [...(prev || []), note])
+      setCount(c => c + 1)
+      setText('')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function handleDelete(noteId) {
+    await api.deleteReminderNote(reminderId, noteId)
+    setNotes(prev => prev.filter(n => n.id !== noteId))
+    setCount(c => Math.max(0, c - 1))
+  }
+
+  return (
+    <div className="mt-2">
+      <button type="button" onClick={toggle} className="text-xs text-gray-400 hover:text-gray-700 font-medium">
+        💬 {count > 0 ? `${count} note${count === 1 ? '' : 's'}` : 'Leave a note'}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2 bg-gray-50 border border-gray-100 rounded-xl p-3">
+          {loading ? (
+            <p className="text-xs text-gray-400">Loading…</p>
+          ) : notes?.length > 0 ? (
+            <div className="space-y-2">
+              {notes.map(n => (
+                <div key={n.id} className="flex gap-2 items-start group">
+                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600">
+                    {n.author_initials}
+                  </div>
+                  <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-xl rounded-tl-sm px-2.5 py-1.5">
+                    <p className="text-xs text-gray-800 whitespace-pre-wrap">{renderWithMentions(n.text, mentionableUsers)}</p>
+                  </div>
+                  <button onClick={() => handleDelete(n.id)}
+                    className="text-gray-300 hover:text-red-500 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs">✕</button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 italic">No notes yet.</p>
+          )}
+          <form onSubmit={handleSend} className="flex gap-2 items-start">
+            <MentionTextarea value={text} onChange={setText} users={mentionableUsers}
+              placeholder={`Note as ${user?.initials}… (type @ to tag someone)`} rows={1}
+              className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
+            <button type="submit" disabled={sending || !text.trim()}
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40 flex-shrink-0">
+              {sending ? '…' : 'Send'}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Reminder row with inline edit ─────────────────────────────────────────────
 
-function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors }) {
+function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors, mentionableUsers }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
@@ -316,6 +405,9 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
             Added {fmt(reminder.created_at)}{reminder.created_by ? ` — ${reminder.created_by}` : ''}
           </p>
         )}
+        {(isOverdue || reminder.remind_on === today()) && (
+          <ReminderNoteThread reminderId={reminder.id} initialCount={reminder.note_count} mentionableUsers={mentionableUsers} />
+        )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         {canEdit && (
@@ -351,7 +443,7 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors }) {
+function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors, mentionableUsers }) {
   const accentClass = accent === 'red' ? 'border-red-400 text-red-700' : 'border-blue-400 text-blue-700'
   return (
     <section>
@@ -376,6 +468,7 @@ function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, 
               delegates={delegates}
               clients={clients}
               instructors={instructors}
+              mentionableUsers={mentionableUsers}
             />
           ))}
         </div>
@@ -394,6 +487,7 @@ export default function RemindersPage() {
   const [delegates,   setDelegates]   = useState([])
   const [clients,     setClients]     = useState([])
   const [instructors, setInstructors] = useState([])
+  const [mentionableUsers, setMentionableUsers] = useState([])
   const [loading,     setLoading]     = useState(true)
   const [showAdd,        setShowAdd]        = useState(false)
   const [showFirstClass, setShowFirstClass] = useState(false)
@@ -415,6 +509,7 @@ export default function RemindersPage() {
       api.getDelegates().then(setDelegates),
       api.getClients().then(setClients),
       api.getInstructors().then(setInstructors),
+      api.getMentionableUsers().then(setMentionableUsers),
     ]).finally(() => setLoading(false))
   }, [])
 
@@ -492,6 +587,7 @@ export default function RemindersPage() {
         delegates={delegates}
         clients={clients}
         instructors={instructors}
+        mentionableUsers={mentionableUsers}
       />
       <Section
         title="Upcoming"
@@ -505,6 +601,7 @@ export default function RemindersPage() {
         delegates={delegates}
         clients={clients}
         instructors={instructors}
+        mentionableUsers={mentionableUsers}
       />
 
       {showAdd && (

@@ -82,13 +82,14 @@ function attachCategories(items) {
 }
 
 // Resolves display context (client name) per source table (recruiting_notes,
-// client_notes, invoice_notes). Add a LEFT JOIN here when a new note type
+// client_notes, invoice_notes, standalone_tasks/task_replies, action_items/
+// follow_up_notes, reminder_notes). Add a LEFT JOIN here when a new note type
 // (source_table) gains @mention support.
 async function loadMentionTasks(userId) {
   const { rows } = await pool.query(
     `SELECT m.id, m.snippet, m.author_initials, m.created_at, m.link_path,
-            COALESCE(re.client_name, cl.name, icl.name, stcl.name, aicl.name, fucl.name) AS client_name,
-            COALESCE(stins.name, aiins.name, fuins.name) AS instructor_name
+            COALESCE(re.client_name, cl.name, icl.name, stcl.name, aicl.name, fucl.name, rncl.name) AS client_name,
+            COALESCE(stins.name, aiins.name, fuins.name, rnins.name) AS instructor_name
      FROM mentions m
      LEFT JOIN recruiting_notes    rn    ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
      LEFT JOIN recruiting_entries  re    ON re.id = rn.entry_id
@@ -112,6 +113,13 @@ async function loadMentionTasks(userId) {
      LEFT JOIN cases               fuc   ON fuc.id = fuai.case_id
      LEFT JOIN clients             fucl  ON fucl.id = fuc.client_id
      LEFT JOIN instructors         fuins ON fuins.id = fuc.instructor_id
+     -- reminder_notes mentions are keyed by the note's own id — join through to the
+     -- reminder itself, which (unlike task_replies/follow_up_notes) already carries its
+     -- own client_id/instructor_id directly, no case indirection needed.
+     LEFT JOIN reminder_notes      rnn   ON m.source_table = 'reminder_notes' AND rnn.id = m.source_id
+     LEFT JOIN reminders           rnr   ON rnr.id = rnn.reminder_id
+     LEFT JOIN clients             rncl  ON rncl.id = rnr.client_id
+     LEFT JOIN instructors         rnins ON rnins.id = rnr.instructor_id
      WHERE m.mentioned_user_id = $1 AND m.resolved_at IS NULL
      ORDER BY m.created_at DESC`,
     [userId]

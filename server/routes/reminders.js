@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -13,7 +14,8 @@ const REMINDER_JOIN = `
     cl2.name AS case_client_name,
     i2.name  AS case_instructor_name,
     inv.invoice_number AS invoice_number,
-    inv.status          AS invoice_status
+    inv.status          AS invoice_status,
+    (SELECT COUNT(*) FROM reminder_notes rn WHERE rn.reminder_id = r.id)::int AS note_count
   FROM reminders r
   LEFT JOIN clients      c   ON c.id   = r.client_id
   LEFT JOIN instructors  i   ON i.id   = r.instructor_id
@@ -90,8 +92,48 @@ router.patch('/:id/done', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  const { rows: notes } = await pool.query('SELECT id FROM reminder_notes WHERE reminder_id = $1', [req.params.id]);
   await pool.query('DELETE FROM reminders WHERE id = $1', [req.params.id]);
+  await Promise.all(notes.map(n => deleteMentions('reminder_notes', n.id)));
   res.json({ ok: true });
+});
+
+// ── Notes (once a reminder is due, staff can log what happened working it — "tried to
+// call, no answer" — and @mention a teammate about it, same pattern as follow-up notes
+// on an action item) ─────────────────────────────────────────────────────────────────
+
+router.get('/:id/notes', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT * FROM reminder_notes WHERE reminder_id = $1 ORDER BY created_at ASC',
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
+router.post('/:id/notes', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'text required' });
+  const { rows: [reminder] } = await pool.query('SELECT id FROM reminders WHERE id = $1', [req.params.id]);
+  if (!reminder) return res.status(404).json({ error: 'Reminder not found' });
+  const { rows: [note] } = await pool.query(
+    'INSERT INTO reminder_notes (reminder_id, text, author_initials) VALUES ($1,$2,$3) RETURNING *',
+    [req.params.id, text.trim(), req.user.initials]
+  );
+  await syncMentions({
+    sourceTable: 'reminder_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: '/reminders',
+  });
+  res.status(201).json(note);
+});
+
+router.delete('/:id/notes/:noteId', async (req, res) => {
+  const result = await pool.query(
+    'DELETE FROM reminder_notes WHERE id = $1 AND reminder_id = $2',
+    [req.params.noteId, req.params.id]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
+  await deleteMentions('reminder_notes', req.params.noteId);
+  res.json({ success: true });
 });
 
 module.exports = router;
