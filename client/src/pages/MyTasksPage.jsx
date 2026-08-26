@@ -194,10 +194,10 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
         {isMention && (
           <button
             onClick={e => { e.stopPropagation(); onResolveMention(item) }}
-            title="Dismiss"
-            className="text-gray-300 hover:text-green-600 transition-all text-sm leading-none mr-1.5"
+            title="Dismiss this mention"
+            className="text-gray-300 hover:text-gray-700 transition-all text-sm leading-none mr-1.5 font-bold"
           >
-            ✓
+            ✕
           </button>
         )}
         {isReminder && (
