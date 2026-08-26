@@ -2,6 +2,7 @@ const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth, requireStaff, requireOwnerAccess } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
+const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync');
 
 // Return DATE columns as plain 'YYYY-MM-DD' strings, not JS Date objects: a Date
 // gets JSON-serialized to a UTC timestamp and can shift a calendar day off the
@@ -160,6 +161,9 @@ router.post('/schedules', async (req, res) => {
      special_instructions || null, status || 'active', start_date || null, end_date || null,
      filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
   );
+  // Fill the calendar for this schedule right away — otherwise it wouldn't show up
+  // until the nightly cron runs, which can be up to 24h away.
+  await generateUpcomingSessions(defaultHorizon(), { scheduleId: id });
   res.status(201).json(await getScheduleRow(id));
 });
 
@@ -195,6 +199,9 @@ router.put('/schedules/:id', async (req, res) => {
      participant_count === '' ? null : participant_count ?? null, participant_ages || null,
      req.params.id]
   );
+  // Same reasoning as POST /schedules — pick up a new weekday/reactivation/date change
+  // immediately instead of waiting for the nightly cron.
+  await generateUpcomingSessions(defaultHorizon(), { scheduleId: Number(req.params.id) });
   res.json(await getScheduleRow(req.params.id));
 });
 

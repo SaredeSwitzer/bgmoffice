@@ -19,9 +19,11 @@ function addDays(d, n) {
 // class_sessions row (or its start_date / today if it has none yet) — never re-walks
 // dates already generated. That means a session someone deliberately deleted (a one-off
 // cancellation) stays deleted instead of being silently resurrected on the next run.
-async function generateUpcomingSessions(horizonDate) {
+async function generateUpcomingSessions(horizonDate, { scheduleId = null } = {}) {
   const { rows: schedules } = await pool.query(
-    `SELECT * FROM class_schedules WHERE status = 'active' AND weekday IS NOT NULL`
+    `SELECT * FROM class_schedules WHERE status = 'active' AND weekday IS NOT NULL
+       AND ($1::bigint IS NULL OR id = $1::bigint)`,
+    [scheduleId]
   );
 
   const today = ymd(new Date());
@@ -385,4 +387,11 @@ async function runDailySync(now = new Date()) {
   return { ...sync, calendar_generation: generation, ...invoiceReminders };
 }
 
-module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, syncInvoiceSendReminders };
+// Same 2-year lookahead the nightly cron uses (see runDailySync) — exposed so a schedule
+// create/edit can generate its own calendar entries immediately instead of waiting
+// for the next nightly run.
+function defaultHorizon() {
+  return ymd(addDays(new Date(), 730));
+}
+
+module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, syncInvoiceSendReminders, defaultHorizon };
