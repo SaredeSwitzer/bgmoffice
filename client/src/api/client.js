@@ -216,6 +216,17 @@ export const api = {
   deleteReminderNote: (id, noteId) =>
     request(`/reminders/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
+  // Sales leads (Sarede-only)
+  getSalesLeads: () => request('/sales'),
+  createSalesLead: (data) => request('/sales', { method: 'POST', body: JSON.stringify(data) }),
+  updateSalesLead: (id, data) => request(`/sales/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSalesLead: (id) => request(`/sales/${id}`, { method: 'DELETE' }),
+  getSalesLeadNotes: (id) => request(`/sales/${id}/notes`),
+  addSalesLeadNote: (id, text) =>
+    request(`/sales/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  deleteSalesLeadNote: (id, noteId) =>
+    request(`/sales/${id}/notes/${noteId}`, { method: 'DELETE' }),
+
   // Lookups + all-user action type management
   getActionTypes: () => request('/action-types'),
   getDelegates: () => request('/delegates'),

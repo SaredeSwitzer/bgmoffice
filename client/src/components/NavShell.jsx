@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { RemindersProvider, useRemindersContext } from '../context/RemindersContext'
 import AmberChat from './AmberChat'
+import { isSaredeUser } from '../utils/saredeAccess'
 
 function Shell() {
   const { user, logout } = useAuth()
@@ -25,6 +26,7 @@ function Shell() {
     { to: '/schedule',   label: 'Schedule' },
     { to: '/reports',    label: 'Reports' },
     { to: '/billing',    label: 'Billing' },
+    ...(isSaredeUser(user) ? [{ to: '/sales', label: 'Sales' }] : []),
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
     { to: '/invoices',   label: 'Invoices' },
     { to: '/recruiting', label: 'Recruiting' },

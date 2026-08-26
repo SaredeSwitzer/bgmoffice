@@ -43,4 +43,16 @@ function requireOwnerAccess(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin, requireStaff, requireOwnerAccess };
+// Narrower still than requireOwnerAccess — Sarede's own login, or the generic Admin
+// login she also signs into (same person, different device/habit). NOT Claire or Maria.
+// Used for the sales-leads tracker, which is deliberately hers alone.
+const SAREDE_EMAILS = ['admin@bgmoffice.com', 'sarede@bgmoffice.com'];
+
+function requireSaredeOnly(req, res, next) {
+  if (!SAREDE_EMAILS.includes(req.user?.email)) {
+    return res.status(403).json({ error: 'Not available on this account' });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin, requireStaff, requireOwnerAccess, requireSaredeOnly };

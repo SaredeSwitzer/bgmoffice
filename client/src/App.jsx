@@ -29,6 +29,7 @@ import PrivacyPage from './pages/PrivacyPage'
 import SchedulePage from './pages/SchedulePage'
 import BillingPage from './pages/BillingPage'
 import ReportsPage from './pages/ReportsPage'
+import SalesPage from './pages/SalesPage'
 
 export default function App() {
   return (
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="schedule" element={<SchedulePage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="billing" element={<BillingPage />} />
+            <Route path="sales" element={<SalesPage />} />
             <Route
               path="settings"
               element={
