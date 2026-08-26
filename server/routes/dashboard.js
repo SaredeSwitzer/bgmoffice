@@ -87,8 +87,8 @@ function attachCategories(items) {
 async function loadMentionTasks(userId) {
   const { rows } = await pool.query(
     `SELECT m.id, m.snippet, m.author_initials, m.created_at, m.link_path,
-            COALESCE(re.client_name, cl.name, icl.name, stcl.name) AS client_name,
-            stins.name AS instructor_name
+            COALESCE(re.client_name, cl.name, icl.name, stcl.name, aicl.name, fucl.name) AS client_name,
+            COALESCE(stins.name, aiins.name, fuins.name) AS instructor_name
      FROM mentions m
      LEFT JOIN recruiting_notes    rn    ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
      LEFT JOIN recruiting_entries  re    ON re.id = rn.entry_id
@@ -101,6 +101,17 @@ async function loadMentionTasks(userId) {
      LEFT JOIN standalone_tasks    stt   ON m.source_table = 'standalone_tasks' AND stt.id = m.source_id
      LEFT JOIN clients             stcl  ON stcl.id = stt.client_id
      LEFT JOIN instructors         stins ON stins.id = stt.instructor_id
+     LEFT JOIN action_items        ai    ON m.source_table = 'action_items' AND ai.id = m.source_id
+     LEFT JOIN cases               aic   ON aic.id = ai.case_id
+     LEFT JOIN clients             aicl  ON aicl.id = aic.client_id
+     LEFT JOIN instructors         aiins ON aiins.id = aic.instructor_id
+     -- follow_up_notes mentions are keyed by the note's own id, same reasoning as
+     -- task_replies above — join through to the case for display context.
+     LEFT JOIN follow_up_notes     fun   ON m.source_table = 'follow_up_notes' AND fun.id = m.source_id
+     LEFT JOIN action_items        fuai  ON fuai.id = fun.action_item_id
+     LEFT JOIN cases               fuc   ON fuc.id = fuai.case_id
+     LEFT JOIN clients             fucl  ON fucl.id = fuc.client_id
+     LEFT JOIN instructors         fuins ON fuins.id = fuc.instructor_id
      WHERE m.mentioned_user_id = $1 AND m.resolved_at IS NULL
      ORDER BY m.created_at DESC`,
     [userId]

@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -68,11 +69,15 @@ router.post('/', async (req, res) => {
     [case_id, action_type_ids[0] ?? null, delegate_id ?? null, initial_note ?? null, req.user.initials]
   );
   await setActionTypes(item.id, action_type_ids);
+  await syncMentions({
+    sourceTable: 'action_items', sourceId: item.id, text: initial_note || '',
+    authorInitials: req.user.initials, linkPath: `/cases/${case_id}`,
+  });
   res.status(201).json(await getItem(item.id));
 });
 
 router.put('/:id', async (req, res) => {
-  const { rows: [existing] } = await pool.query('SELECT id FROM action_items WHERE id = $1', [req.params.id]);
+  const { rows: [existing] } = await pool.query('SELECT id, case_id FROM action_items WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Action item not found' });
 
   const { action_type_ids, delegate_id, initial_note } = req.body;
@@ -81,6 +86,10 @@ router.put('/:id', async (req, res) => {
     [action_type_ids?.[0] ?? null, delegate_id ?? null, initial_note ?? null, req.params.id]
   );
   await setActionTypes(req.params.id, action_type_ids ?? []);
+  await syncMentions({
+    sourceTable: 'action_items', sourceId: req.params.id, text: initial_note || '',
+    authorInitials: req.user.initials, linkPath: `/cases/${existing.case_id}`,
+  });
   res.json(await getItem(req.params.id));
 });
 
@@ -100,8 +109,11 @@ router.patch('/:id/status', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  const { rows: notes } = await pool.query('SELECT id FROM follow_up_notes WHERE action_item_id = $1', [req.params.id]);
   const result = await pool.query('DELETE FROM action_items WHERE id = $1', [req.params.id]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Action item not found' });
+  await deleteMentions('action_items', req.params.id);
+  await Promise.all(notes.map(n => deleteMentions('follow_up_notes', n.id)));
   res.json({ success: true });
 });
 
@@ -119,18 +131,27 @@ router.put('/:id/notes/:noteId', async (req, res) => {
     `UPDATE follow_up_notes SET text=$1, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$2 RETURNING *`,
     [text.trim(), req.params.noteId]
   );
+  const { rows: [item] } = await pool.query('SELECT case_id FROM action_items WHERE id = $1', [req.params.id]);
+  await syncMentions({
+    sourceTable: 'follow_up_notes', sourceId: req.params.noteId, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: `/cases/${item?.case_id}`,
+  });
   res.json(updated);
 });
 
 router.post('/:id/notes', async (req, res) => {
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'text required' });
-  const { rows: [existing] } = await pool.query('SELECT id FROM action_items WHERE id = $1', [req.params.id]);
+  const { rows: [existing] } = await pool.query('SELECT id, case_id FROM action_items WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Action item not found' });
   const { rows: [note] } = await pool.query(
     'INSERT INTO follow_up_notes (action_item_id, text, author_initials) VALUES ($1,$2,$3) RETURNING *',
     [req.params.id, text.trim(), req.user.initials]
   );
+  await syncMentions({
+    sourceTable: 'follow_up_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: `/cases/${existing.case_id}`,
+  });
   res.status(201).json(note);
 });
 
@@ -140,6 +161,7 @@ router.delete('/:id/notes/:noteId', async (req, res) => {
     [req.params.noteId, req.params.id]
   );
   if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
+  await deleteMentions('follow_up_notes', req.params.noteId);
   res.json({ success: true });
 });
 

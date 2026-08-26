@@ -4,6 +4,8 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar from '../components/DashboardFilterBar'
+import MentionTextarea from '../components/MentionTextarea'
+import { renderWithMentions } from '../utils/mentions'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -202,7 +204,7 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
 
 // ── Individual note with inline edit ─────────────────────────────────────────
 
-function NoteItem({ note, onEdited, onDeleted }) {
+function NoteItem({ note, onEdited, onDeleted, mentionableUsers = [] }) {
   const { user } = useAuth()
   const [editing,  setEditing]  = useState(false)
   const [text,     setText]     = useState(note.text)
@@ -251,15 +253,16 @@ function NoteItem({ note, onEdited, onDeleted }) {
       <div className="flex-1 min-w-0">
         <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2">
           {editing ? (
-            <AutoTextarea
+            <MentionTextarea
               value={text}
-              onChange={e => setText(e.target.value)}
+              onChange={setText}
               onKeyDown={handleKeyDown}
-              minRows={2}
-              className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+              users={mentionableUsers}
+              rows={2}
+              className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none"
             />
           ) : (
-            <p className="text-sm text-gray-800 leading-snug whitespace-pre-wrap">{note.text}</p>
+            <p className="text-sm text-gray-800 leading-snug whitespace-pre-wrap">{renderWithMentions(note.text, mentionableUsers)}</p>
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 px-1">
@@ -314,12 +317,12 @@ function NoteItem({ note, onEdited, onDeleted }) {
 
 // ── Follow-up thread ──────────────────────────────────────────────────────────
 
-function NoteThread({ notes, onNoteEdited, onNoteDeleted }) {
+function NoteThread({ notes, onNoteEdited, onNoteDeleted, mentionableUsers = [] }) {
   if (!notes.length) return null
   return (
     <div className="space-y-3 mt-3">
       {notes.map(n => (
-        <NoteItem key={n.id} note={n} onEdited={onNoteEdited} onDeleted={onNoteDeleted} />
+        <NoteItem key={n.id} note={n} onEdited={onNoteEdited} onDeleted={onNoteDeleted} mentionableUsers={mentionableUsers} />
       ))}
     </div>
   )
@@ -327,7 +330,7 @@ function NoteThread({ notes, onNoteEdited, onNoteDeleted }) {
 
 // ── Add-note input ────────────────────────────────────────────────────────────
 
-function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdded }) {
+function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdded, mentionableUsers = [] }) {
   const [text, setText] = useState('')
   const [wantReminder, setWantReminder] = useState(false)
   const [reminderDate, setReminderDate] = useState(new Date().toLocaleDateString('en-CA'))
@@ -381,13 +384,14 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
   return (
     <form onSubmit={submit} className="mt-3 space-y-2">
       <div className="flex gap-2 items-end">
-        <AutoTextarea
+        <MentionTextarea
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={setText}
           onKeyDown={handleKeyDown}
-          placeholder="Add a follow-up note… (Ctrl+Enter to send)"
-          minRows={1}
-          className="flex-1 border border-gray-300 rounded-2xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+          users={mentionableUsers}
+          placeholder="Add a follow-up note… (Ctrl+Enter to send, @ to tag someone)"
+          rows={1}
+          className="flex-1 border border-gray-300 rounded-2xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none"
         />
         <button
           type="submit"
@@ -480,7 +484,7 @@ function LinkedReminderItem({ reminder, onDone }) {
 
 // ── Action Item Card ───────────────────────────────────────────────────────────
 
-function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, caseContext, onActionTypesUpdated }) {
+function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, caseContext, onActionTypesUpdated, mentionableUsers = [] }) {
   const [item, setItem] = useState(initItem)
   const [open, setOpen] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -710,12 +714,13 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Initial Note</label>
-                <AutoTextarea
+                <MentionTextarea
                   value={editForm.initial_note}
-                  onChange={e => setEditForm(f => ({ ...f, initial_note: e.target.value }))}
-                  minRows={3}
-                  placeholder="Describe what needs to be done…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                  onChange={v => setEditForm(f => ({ ...f, initial_note: v }))}
+                  users={mentionableUsers}
+                  rows={3}
+                  placeholder="Describe what needs to be done… (@ to tag someone)"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none"
                 />
               </div>
               <div className="flex gap-2">
@@ -737,7 +742,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
               {item.initial_note && (
                 <div className="mt-2">
                   <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 whitespace-pre-wrap leading-relaxed">
-                    {item.initial_note}
+                    {renderWithMentions(item.initial_note, mentionableUsers)}
                   </p>
                   {wasEdited && (
                     <p className="text-[10px] text-gray-400 mt-1 px-1 italic">edited {fmt(item.updated_at)}</p>
@@ -798,9 +803,9 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                 </div>
               )}
 
-              <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} onNoteDeleted={handleNoteDeleted} />
+              <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} onNoteDeleted={handleNoteDeleted} mentionableUsers={mentionableUsers} />
               {!isResolved && (
-                <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} onReminderAdded={handleReminderAdded} />
+                <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} onReminderAdded={handleReminderAdded} mentionableUsers={mentionableUsers} />
               )}
             </>
           )}
@@ -812,7 +817,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
 
 // ── Add Action Item modal ──────────────────────────────────────────────────────
 
-function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, onActionTypesUpdated }) {
+function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, onActionTypesUpdated, mentionableUsers = [] }) {
   const [form, setForm] = useState({
     action_type_ids: [],
     delegate_id: '',
@@ -904,12 +909,13 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, 
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Initial Note</label>
-            <AutoTextarea
+            <MentionTextarea
               value={form.initial_note}
-              onChange={e => setForm(f => ({ ...f, initial_note: e.target.value }))}
-              minRows={3}
-              placeholder="Describe what needs to be done…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              onChange={v => setForm(f => ({ ...f, initial_note: v }))}
+              users={mentionableUsers}
+              rows={3}
+              placeholder="Describe what needs to be done… (@ to tag someone)"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
             />
           </div>
         </form>
@@ -1006,6 +1012,7 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState(null)
   const [actionTypes, setActionTypes] = useState([])
   const [delegates, setDelegates] = useState([])
+  const [mentionableUsers, setMentionableUsers] = useState([])
   const [error, setError] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [resolving, setResolving] = useState(false)
@@ -1015,11 +1022,13 @@ export default function CaseDetailPage() {
       api.getCase(id),
       api.getActionTypes(),
       api.getDelegates(),
+      api.getMentionableUsers(),
     ])
-      .then(([c, at, d]) => {
+      .then(([c, at, d, mu]) => {
         setCaseData(c)
         setActionTypes(at)
         setDelegates(d)
+        setMentionableUsers(mu)
       })
       .catch(e => setError(e.message))
   }, [id])
@@ -1199,6 +1208,7 @@ export default function CaseDetailPage() {
               onDeleted={handleItemDeleted}
               caseContext={caseData}
               onActionTypesUpdated={refreshActionTypes}
+              mentionableUsers={mentionableUsers}
             />
           ))}
           {openItems.length === 0 && (
@@ -1234,6 +1244,7 @@ export default function CaseDetailPage() {
           onClose={() => setShowAddModal(false)}
           onAdded={handleItemAdded}
           onActionTypesUpdated={refreshActionTypes}
+          mentionableUsers={mentionableUsers}
         />
       )}
     </div>
