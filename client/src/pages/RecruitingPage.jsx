@@ -1038,12 +1038,34 @@ function OpeningsPanel({ grouped, availability }) {
 
 // ── Instructor Availability Tab ───────────────────────────────────────────────
 
+// created_at on instructor_availability is stored 'YYYY-MM-DD HH24:MI:SS' (no timezone
+// suffix, see column default `to_char(now(), 'YYYY-MM-DD HH24:MI:SS')`) — format the
+// "last viewed" stamp the same way so a plain string comparison is still chronological.
+function dbTimestamp(d) {
+  return d.toISOString().slice(0, 19).replace('T', ' ')
+}
+
 function InstructorAvailabilityTab({ availability, instructors, grouped, styles, onChanged }) {
+  const { user } = useAuth()
   const [form,          setForm]         = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
   const [saving,        setSaving]       = useState(false)
   const [showOpenings,  setShowOpenings] = useState(false)
   const [editingSlotId, setEditingSlotId] = useState(null)
   const [editSlot,      setEditSlot]     = useState({ day_of_week: '', time_slot: '' })
+
+  // Highlight slots added since the last time this staffer opened this tab — a fresh
+  // "since you last checked" marker, not a persistent read/unread state. Captured once on
+  // mount (before overwriting), then the stamp is bumped to now so the *next* visit's
+  // highlight starts from here.
+  const lastViewedKey = `bgm_availability_last_viewed_${user?.initials || 'anon'}`
+  const [lastViewed] = useState(() => localStorage.getItem(lastViewedKey))
+  useEffect(() => {
+    localStorage.setItem(lastViewedKey, dbTimestamp(new Date()))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  function isNewSlot(slot) {
+    return !!lastViewed && !!slot.created_at && slot.created_at > lastViewed
+  }
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -1199,9 +1221,15 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
                                 </div>
                               )
                             }
+                            const isNew = isNewSlot(slot)
                             return (
-                              <div key={slot.id} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl px-3 py-2 group">
+                              <div key={slot.id} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 group border ${
+                                isNew ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200'
+                              }`}>
                                 <div className="flex items-baseline gap-2 flex-wrap min-w-0">
+                                  {isNew && (
+                                    <span className="text-[10px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide">New</span>
+                                  )}
                                   <Link to={`/instructors/${slot.instructor_id}`}
                                     className="text-sm font-semibold text-gray-800 hover:text-purple-700 hover:underline whitespace-nowrap">
                                     {slot.instructor_name}
