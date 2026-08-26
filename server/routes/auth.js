@@ -11,16 +11,27 @@ const { notifyCrew } = require('../lib/notifyCrew');
 
 const router = express.Router();
 
+const STALE_LOGIN_MS = 7 * 24 * 60 * 60 * 1000;
+
 // Stamps last_login_at, and pings the crew group the very first time an instructor
 // signs in — so staff notice new portal adoption without having to go check.
+//
+// Also reports back whether THIS login is "stale" for an instructor — either their very
+// first login ever, or their last one was 7+ days ago — so the client can show the
+// availability check-in nudge once for this sign-in. Computed from `prev` (the row as it
+// stood before this UPDATE), not looked up again later, since after this call
+// last_login_at is always "now" and the gap would be unrecoverable.
 async function recordLogin(user) {
   const { rows: [prev] } = await pool.query('SELECT last_login_at FROM users WHERE id = $1', [user.id]);
   await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
+  const staleLogin = user.role === 'instructor' &&
+    (!prev?.last_login_at || Date.now() - new Date(prev.last_login_at).getTime() >= STALE_LOGIN_MS);
   if (!prev?.last_login_at && user.role === 'instructor') {
     // Awaited on purpose: Vercel can freeze/kill the function the instant the response
     // is sent, which was silently dropping this fire-and-forget call more often than not.
     await notifyCrew(`🎉 ${user.name} just logged into the instructor portal for the first time.`);
   }
+  return { staleLogin };
 }
 
 // Two ways to sign in, both ending in the same JWT the whole app already trusts:
@@ -173,9 +184,9 @@ router.post('/verify-code', loginLimiter, async (req, res) => {
   }
 
   await pool.query('UPDATE login_codes SET consumed_at = now() WHERE id = $1', [record.id]);
-  await recordLogin(user);
+  const { staleLogin } = await recordLogin(user);
 
-  res.json({ token: signToken(user), user: publicUser(user) });
+  res.json({ token: signToken(user), user: publicUser(user), stale_login: staleLogin });
 });
 
 // ── 2. Password sign-in (backup) ──────────────────────────────────────────────
@@ -191,9 +202,9 @@ router.post('/login', loginLimiter, async (req, res) => {
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
-  await recordLogin(user);
+  const { staleLogin } = await recordLogin(user);
 
-  res.json({ token: signToken(user), user: publicUser(user) });
+  res.json({ token: signToken(user), user: publicUser(user), stale_login: staleLogin });
 });
 
 router.get('/me', requireAuth, async (req, res) => {

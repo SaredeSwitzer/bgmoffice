@@ -121,6 +121,134 @@ function DocumentsSection({ instructorId, documents, onDocAdded, onDocDeleted })
   )
 }
 
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// Self-service availability — same instructor_availability rows staff see/edit from
+// /recruiting, but scoped to just this instructor via GET/POST/PUT/DELETE
+// /instructors/:id/availability (server/routes/instructors.js), so this is the first
+// place an instructor can see or change what they've told the office they're free for.
+function MyAvailabilitySection({ instructorId }) {
+  const [slots, setSlots] = useState(null)
+  const [addForm, setAddForm] = useState({ day_of_week: '', time_slot: '' })
+  const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editSlot, setEditSlot] = useState({ day_of_week: '', time_slot: '' })
+
+  useEffect(() => {
+    api.getMyAvailability(instructorId).then(setSlots).catch(() => setSlots([]))
+  }, [instructorId])
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (!addForm.day_of_week) return
+    setSaving(true)
+    try {
+      const row = await api.addMyAvailability(instructorId, addForm)
+      setSlots(s => [...s, row])
+      setAddForm({ day_of_week: '', time_slot: '' })
+    } finally { setSaving(false) }
+  }
+
+  async function handleDelete(id) {
+    await api.deleteMyAvailability(instructorId, id)
+    setSlots(s => s.filter(x => x.id !== id))
+  }
+
+  function startEdit(slot) {
+    setEditingId(slot.id)
+    setEditSlot({ day_of_week: slot.day_of_week, time_slot: slot.time_slot || '' })
+  }
+
+  async function handleSaveEdit(id) {
+    if (!editSlot.day_of_week) return
+    const updated = await api.updateMyAvailability(instructorId, id, editSlot)
+    setSlots(s => s.map(x => x.id === id ? updated : x))
+    setEditingId(null)
+  }
+
+  if (slots === null) return null
+
+  const byDay = {}
+  for (const s of slots) {
+    if (!byDay[s.day_of_week]) byDay[s.day_of_week] = []
+    byDay[s.day_of_week].push(s)
+  }
+  const daysWithSlots = DAYS.filter(d => byDay[d])
+
+  return (
+    <section id="availability" className="bg-white border border-gray-200 rounded-xl p-5 space-y-3 scroll-mt-4">
+      <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-gray-300 mb-1">
+        My Availability
+      </h2>
+      <p className="text-xs text-gray-500 -mt-1">
+        This is what the office sees when they're scheduling — keep it up to date if your free times change.
+      </p>
+
+      {daysWithSlots.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">Nothing on file yet — add the days/times you're generally free below.</p>
+      ) : (
+        <div className="space-y-3">
+          {daysWithSlots.map(day => (
+            <div key={day}>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-l-2 border-gray-300 pl-2">{day}</p>
+              <div className="space-y-1.5 pl-1">
+                {byDay[day].map(slot => (
+                  editingId === slot.id ? (
+                    <div key={slot.id} className="flex flex-wrap gap-2 items-center bg-gray-50 border border-gray-300 rounded-xl px-3 py-2">
+                      <select value={editSlot.day_of_week} onChange={e => setEditSlot(s => ({ ...s, day_of_week: e.target.value }))}
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                        {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                      <input value={editSlot.time_slot} onChange={e => setEditSlot(s => ({ ...s, time_slot: e.target.value }))}
+                        placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28" />
+                      <button type="button" onClick={() => handleSaveEdit(slot.id)}
+                        className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg">Save</button>
+                      <button type="button" onClick={() => setEditingId(null)}
+                        className="px-3 py-1 border border-gray-300 text-gray-500 text-xs rounded-lg">Cancel</button>
+                    </div>
+                  ) : (
+                    <div key={slot.id} className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 group">
+                      <span className="text-sm text-gray-700">
+                        {slot.time_slot || <span className="text-gray-400 italic">No time set</span>}
+                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button type="button" onClick={() => startEdit(slot)}
+                          className="text-gray-400 hover:text-gray-700 text-xs" title="Edit">✎</button>
+                        <button type="button" onClick={() => handleDelete(slot.id)}
+                          className="text-gray-300 hover:text-red-500 text-xs" title="Delete">✕</button>
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={handleAdd} className="flex flex-wrap gap-2 items-end pt-1">
+        <div>
+          <label className="block text-[10px] font-medium text-gray-500 mb-1">Day</label>
+          <select value={addForm.day_of_week} onChange={e => setAddForm(f => ({ ...f, day_of_week: e.target.value }))}
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white">
+            <option value="">Choose a day…</option>
+            {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-medium text-gray-500 mb-1">Time (optional)</label>
+          <input value={addForm.time_slot} onChange={e => setAddForm(f => ({ ...f, time_slot: e.target.value }))}
+            placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs w-32" />
+        </div>
+        <button type="submit" disabled={saving || !addForm.day_of_week}
+          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          {saving ? 'Adding…' : '+ Add'}
+        </button>
+      </form>
+    </section>
+  )
+}
+
 export default function InstructorMyProfilePage() {
   const { user } = useAuth()
   const [instructor, setInstructor] = useState(null)
@@ -272,6 +400,8 @@ export default function InstructorMyProfilePage() {
           {saved && <span className="text-xs text-green-600">Saved ✓</span>}
         </div>
       </form>
+
+      <MyAvailabilitySection instructorId={instructor.id} />
 
       <DocumentsSection
         instructorId={instructor.id}

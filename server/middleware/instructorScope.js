@@ -30,6 +30,12 @@ const INSTRUCTOR_ALLOWLIST = [
   { method: 'GET',    path: /^\/instructors\/\d+\/documents$/ },
   { method: 'POST',   path: /^\/instructors\/\d+\/documents$/ },
   { method: 'DELETE', path: /^\/instructors\/\d+\/documents\/\d+$/ },
+  { method: 'GET',    path: /^\/instructors\/\d+\/availability$/ },
+  { method: 'POST',   path: /^\/instructors\/\d+\/availability$/ },
+  { method: 'PUT',    path: /^\/instructors\/\d+\/availability\/\d+$/ },
+  { method: 'DELETE', path: /^\/instructors\/\d+\/availability\/\d+$/ },
+  { method: 'GET',    path: /^\/instructors\/\d+\/availability-check$/ },
+  { method: 'POST',   path: /^\/instructors\/\d+\/availability-check$/ },
 ];
 
 function denyInstructor(req, res, next) {

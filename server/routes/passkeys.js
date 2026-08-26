@@ -203,9 +203,9 @@ router.post('/login', async (req, res) => {
     'UPDATE passkeys SET counter = $1, last_used_at = now() WHERE id = $2',
     [verification.authenticationInfo.newCounter, pk.id]
   );
-  await recordLogin(user);
+  const { staleLogin } = await recordLogin(user);
 
-  res.json({ token: signToken(user), user: publicUser(user) });
+  res.json({ token: signToken(user), user: publicUser(user), stale_login: staleLogin });
 });
 
 // ── Managing her passkeys ─────────────────────────────────────────────────────

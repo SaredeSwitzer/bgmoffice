@@ -382,6 +382,20 @@ export const api = {
   getMyPayoutRequestStatus: (week_start) => request(`/payout-requests/status?${new URLSearchParams({ week_start }).toString()}`),
   recordPayoutRequest: (data) => request('/payout-requests', { method: 'POST', body: JSON.stringify(data) }),
 
+  // Instructor accounts only — their own availability slots (instructors/:id/availability
+  // is locked to req.user.instructor_id server-side; instructorId here is just for the URL).
+  getMyAvailability: (instructorId) => request(`/instructors/${instructorId}/availability`),
+  addMyAvailability: (instructorId, data) =>
+    request(`/instructors/${instructorId}/availability`, { method: 'POST', body: JSON.stringify(data) }),
+  updateMyAvailability: (instructorId, availId, data) =>
+    request(`/instructors/${instructorId}/availability/${availId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteMyAvailability: (instructorId, availId) =>
+    request(`/instructors/${instructorId}/availability/${availId}`, { method: 'DELETE' }),
+  getMyAvailabilityCheckStatus: (instructorId, week_start) =>
+    request(`/instructors/${instructorId}/availability-check?${new URLSearchParams({ week_start }).toString()}`),
+  confirmMyAvailability: (instructorId, week_start) =>
+    request(`/instructors/${instructorId}/availability-check`, { method: 'POST', body: JSON.stringify({ week_start }) }),
+
   // Notes & to-do tasks on a class — attach to a recurring class ('schedule') or a dated 'session'.
   getClassNotes: (kind, id) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`),
   addClassNote: (kind, id, data) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`, { method: 'POST', body: JSON.stringify(data) }),

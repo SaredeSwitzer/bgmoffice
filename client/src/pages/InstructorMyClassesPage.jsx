@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import PayoutNudge from '../components/PayoutNudge'
+import AvailabilityNudge from '../components/AvailabilityNudge'
 import { fmtTimeRange } from '../utils/time'
 
 // Read-only "my classes" week view for instructors (Phase 4 of instructor logins).
@@ -89,6 +90,7 @@ export default function InstructorMyClassesPage() {
       </div>
 
       <PayoutNudge instructorName={user?.name} />
+      <AvailabilityNudge instructorId={user?.instructor_id} staleLogin={user?.stale_login} />
 
       <div className="flex items-center justify-between gap-2 mb-4 bg-white border border-gray-200 rounded-xl px-3 py-2">
         <button

@@ -24,10 +24,13 @@ export function AuthProvider({ children }) {
   }, [])
 
   // Both sign-in paths end in the same token — the code path just proves who you are
-  // with an emailed code instead of a password.
+  // with an emailed code instead of a password. stale_login only comes back from the
+  // login endpoints themselves (not /auth/me on refresh), so it's a one-shot "this is a
+  // fresh sign-in after 7+ days (or ever)" signal for the instructor availability nudge —
+  // it deliberately doesn't persist across a page reload within the same session.
   function accept(data) {
     localStorage.setItem('bgm_token', data.token)
-    setUser(data.user)
+    setUser({ ...data.user, stale_login: !!data.stale_login })
     return data.user
   }
 

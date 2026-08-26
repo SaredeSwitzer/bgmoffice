@@ -432,4 +432,77 @@ router.delete('/:id/notes/:noteId', async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Availability (self-service) ─────────────────────────────────────────────
+// Staff already have a full editor at /recruiting (server/routes/recruiting.js), reading
+// every instructor's rows unscoped. These are the instructor-facing equivalent — same
+// instructor_availability table, but locked to their own record via ownRecordOrForbidden,
+// same as the documents/photo routes above.
+
+router.get('/:id/availability', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
+  const { rows } = await pool.query(
+    'SELECT * FROM instructor_availability WHERE instructor_id = $1 ORDER BY day_of_week, time_slot',
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
+router.post('/:id/availability', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
+  const { day_of_week, time_slot } = req.body;
+  if (!day_of_week) return res.status(400).json({ error: 'day_of_week required' });
+  const { rows: [row] } = await pool.query(
+    'INSERT INTO instructor_availability (instructor_id, day_of_week, time_slot) VALUES ($1,$2,$3) RETURNING *',
+    [req.params.id, day_of_week, time_slot || null]
+  );
+  res.status(201).json(row);
+});
+
+router.put('/:id/availability/:availId', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
+  const { rows: [existing] } = await pool.query(
+    'SELECT id FROM instructor_availability WHERE id = $1 AND instructor_id = $2', [req.params.availId, req.params.id]
+  );
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  const { day_of_week, time_slot } = req.body;
+  if (!day_of_week) return res.status(400).json({ error: 'day_of_week required' });
+  const { rows: [row] } = await pool.query(
+    'UPDATE instructor_availability SET day_of_week = $1, time_slot = $2 WHERE id = $3 RETURNING *',
+    [day_of_week, time_slot || null, req.params.availId]
+  );
+  res.json(row);
+});
+
+router.delete('/:id/availability/:availId', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
+  await pool.query('DELETE FROM instructor_availability WHERE id = $1 AND instructor_id = $2', [req.params.availId, req.params.id]);
+  res.json({ success: true });
+});
+
+// Has this instructor already confirmed "still accurate" (or edited) their availability
+// this week? Same shape as payout_requests/status (server/routes/payoutRequests.js).
+router.get('/:id/availability-check', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
+  const { week_start } = req.query;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) return res.status(400).json({ error: 'week_start (YYYY-MM-DD) required' });
+  const { rows: [row] } = await pool.query(
+    'SELECT confirmed_at FROM availability_confirmations WHERE instructor_id = $1 AND week_start = $2',
+    [req.params.id, week_start]
+  );
+  res.json({ confirmed: !!row, confirmed_at: row?.confirmed_at ?? null });
+});
+
+router.post('/:id/availability-check', async (req, res) => {
+  if (!ownRecordOrForbidden(req, res)) return;
+  const { week_start } = req.body;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) return res.status(400).json({ error: 'week_start (YYYY-MM-DD) required' });
+  await pool.query(
+    `INSERT INTO availability_confirmations (instructor_id, week_start, confirmed_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (instructor_id, week_start) DO UPDATE SET confirmed_at = now()`,
+    [req.params.id, week_start]
+  );
+  res.status(201).json({ ok: true });
+});
+
 module.exports = router;
