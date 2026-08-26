@@ -14,7 +14,22 @@ import AddClassDatesModal from '../components/AddClassDatesModal'
 import TimeInput from '../components/TimeInput'
 import DurationInput from '../components/DurationInput'
 import ChargeInput from '../components/ChargeInput'
-import { fmtTimeRange } from '../utils/time'
+import { fmtTime, fmtTimeRange } from '../utils/time'
+
+// The horizontal line + time label shown between classes while dragging, so it's clear
+// exactly where a class will land (and what time it'll get) before you let go.
+function DropIndicator({ time }) {
+  return (
+    <div className="relative h-0 -my-1 z-10 pointer-events-none">
+      <div className="h-0.5 bg-blue-500 rounded-full" />
+      {time && (
+        <span className="absolute -top-2 left-1 text-[9px] font-bold text-white bg-blue-600 px-1 py-0.5 rounded whitespace-nowrap">
+          → {fmtTime(time)}
+        </span>
+      )}
+    </div>
+  )
+}
 
 // Small pill showing a class's note / open-task counts; also the button that expands notes.
 function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
@@ -127,9 +142,13 @@ export default function SchedulePage() {
   const [addDatesOpen, setAddDatesOpen] = useState(false)
 
   // Drag-and-drop rescheduling in the week view. draggingId is the session being
-  // dragged; dragOverDate highlights whichever day column the cursor is currently over.
+  // dragged; dragOverDate highlights whichever day column the cursor is currently over;
+  // dragOverSlot additionally tracks exactly which gap between two cards it'll land in
+  // (and the time that gap resolves to), so there's a visible insertion line + time
+  // preview before you let go, not just a vague "somewhere in this column".
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverDate, setDragOverDate] = useState(null)
+  const [dragOverSlot, setDragOverSlot] = useState(null) // { date, beforeId: sessionId | 'end', time }
 
   function handleDragStart(e, s) {
     setDraggingId(s.id)
@@ -139,11 +158,55 @@ export default function SchedulePage() {
   function handleDragEnd() {
     setDraggingId(null)
     setDragOverDate(null)
+    setDragOverSlot(null)
+  }
+
+  // Given the dragged id, the target day's rows, which card the cursor is over, and
+  // whether it's over the top or bottom half of that card, works out the new start_time:
+  // halfway between the two neighboring classes it'd land between, or 15 min before/after
+  // if it's landing at the very start/end of the day.
+  function computeSlotTime(dayRows, draggedId, targetId, droppedAbove) {
+    const others = dayRows.filter(r => r.id !== draggedId)
+    const idx = others.findIndex(r => r.id === targetId)
+    const prevRow = droppedAbove ? others[idx - 1] : others[idx]
+    const nextRow = droppedAbove ? others[idx] : others[idx + 1]
+    const prevMin = timeToMinutes(prevRow?.start_time)
+    const nextMin = timeToMinutes(nextRow?.start_time)
+    let newMin
+    if (prevMin != null && nextMin != null) newMin = (prevMin + nextMin) / 2
+    else if (nextMin != null) newMin = nextMin - 15
+    else if (prevMin != null) newMin = prevMin + 15
+    return newMin != null ? minutesToTime(newMin) : undefined
   }
 
   // Moves a session to `date`. When newStartTime is omitted, the time-of-day is left
   // alone (dropped in empty space / at the end of a day's list) — only the date changes.
+  // If the instructor already has another class at the resulting time, this is allowed
+  // (staff sometimes deliberately double-book — e.g. paying an instructor for a cancelled
+  // class while also booking them a different one at the same slot) but only after an
+  // explicit confirm, so it never happens by accident.
   async function rescheduleSession(id, date, newStartTime) {
+    const dragged = sessions.find(x => x.id === id)
+    if (!dragged) return
+    const effectiveTime = newStartTime !== undefined ? newStartTime : dragged.start_time
+    if (dragged.instructor_id && effectiveTime) {
+      const draggedStart = timeToMinutes(effectiveTime)
+      const draggedEnd = draggedStart + (dragged.duration_minutes || 60)
+      const conflict = sessions.find(s => {
+        if (s.id === id || s.instructor_id !== dragged.instructor_id || s.session_date !== date) return false
+        const sStart = timeToMinutes(s.start_time)
+        if (sStart == null) return false
+        const sEnd = sStart + (s.duration_minutes || 60)
+        return draggedStart < sEnd && sStart < draggedEnd
+      })
+      if (conflict) {
+        const ok = confirm(
+          `${dragged.instructor_name} already has a class with ${conflict.client_name} at ${fmtTime(conflict.start_time)} on this day.\n\n` +
+          `Schedule this class at the same time anyway?`
+        )
+        if (!ok) return
+      }
+    }
     const patch = { session_date: date }
     if (newStartTime !== undefined) patch.start_time = newStartTime
     // Optimistic update so the card doesn't visually snap back while the request is in flight.
@@ -159,10 +222,25 @@ export default function SchedulePage() {
   function handleColumnDrop(e, date) {
     e.preventDefault()
     setDragOverDate(null)
+    setDragOverSlot(null)
     const id = draggingId
     setDraggingId(null)
     if (!id) return
     rescheduleSession(id, date)
+  }
+
+  // Hovering a specific card while dragging — updates the insertion-line preview.
+  function handleCardDragOver(e, date, dayRows, targetSession) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!draggingId || draggingId === targetSession.id) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const droppedAbove = (e.clientY - rect.top) < rect.height / 2
+    const others = dayRows.filter(r => r.id !== draggingId)
+    const idx = others.findIndex(r => r.id === targetSession.id)
+    const beforeId = droppedAbove ? targetSession.id : (others[idx + 1]?.id ?? 'end')
+    const time = computeSlotTime(dayRows, draggingId, targetSession.id, droppedAbove)
+    setDragOverSlot(prev => (prev?.date === date && prev?.beforeId === beforeId ? prev : { date, beforeId, time }))
   }
 
   // Dropped on/near a specific card — also slots the new time in relative to whichever
@@ -172,23 +250,14 @@ export default function SchedulePage() {
     e.preventDefault()
     e.stopPropagation()
     setDragOverDate(null)
+    setDragOverSlot(null)
     const id = draggingId
     setDraggingId(null)
     if (!id || id === targetSession.id) return
 
     const rect = e.currentTarget.getBoundingClientRect()
     const droppedAbove = (e.clientY - rect.top) < rect.height / 2
-    const others = dayRows.filter(r => r.id !== id)
-    const idx = others.findIndex(r => r.id === targetSession.id)
-    const prevRow = droppedAbove ? others[idx - 1] : others[idx]
-    const nextRow = droppedAbove ? others[idx] : others[idx + 1]
-    const prevMin = timeToMinutes(prevRow?.start_time)
-    const nextMin = timeToMinutes(nextRow?.start_time)
-    let newMin
-    if (prevMin != null && nextMin != null) newMin = (prevMin + nextMin) / 2
-    else if (nextMin != null) newMin = nextMin - 15
-    else if (prevMin != null) newMin = prevMin + 15
-    const newStartTime = newMin != null ? minutesToTime(newMin) : undefined
+    const newStartTime = computeSlotTime(dayRows, id, targetSession.id, droppedAbove)
 
     rescheduleSession(id, date, newStartTime)
   }
@@ -391,11 +460,14 @@ export default function SchedulePage() {
                             <p className="text-[11px] text-gray-300 italic text-center pt-3">No classes</p>
                           ) : rows.map(s => (
                             <Fragment key={s.id}>
+                              {dragOverSlot?.date === date && dragOverSlot.beforeId === s.id && (
+                                <DropIndicator time={dragOverSlot.time} />
+                              )}
                               <div onClick={() => setSessionModal({ session: s })}
                                 draggable
                                 onDragStart={e => handleDragStart(e, s)}
                                 onDragEnd={handleDragEnd}
-                                onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+                                onDragOver={e => handleCardDragOver(e, date, rows, s)}
                                 onDrop={e => handleCardDrop(e, date, rows, s)}
                                 title="Drag to reschedule to a different day or time"
                                 className={`border rounded-lg p-2 text-xs cursor-grab active:cursor-grabbing transition-colors ${
@@ -475,6 +547,9 @@ export default function SchedulePage() {
                               )}
                             </Fragment>
                           ))}
+                          {dragOverSlot?.date === date && dragOverSlot.beforeId === 'end' && (
+                            <DropIndicator time={dragOverSlot.time} />
+                          )}
                           <button onClick={() => setSessionModal({ session: null, defaultDate: date })}
                             className="w-full text-[11px] text-gray-400 hover:text-gray-700 border border-dashed border-gray-200 hover:border-gray-300 rounded-lg py-1">
                             + Add
