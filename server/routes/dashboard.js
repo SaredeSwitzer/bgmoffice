@@ -87,13 +87,20 @@ function attachCategories(items) {
 async function loadMentionTasks(userId) {
   const { rows } = await pool.query(
     `SELECT m.id, m.snippet, m.author_initials, m.created_at, m.link_path,
-            COALESCE(re.client_name, cl.name, icl.name) AS client_name
+            COALESCE(re.client_name, cl.name, icl.name, stcl.name) AS client_name,
+            stins.name AS instructor_name
      FROM mentions m
-     LEFT JOIN recruiting_notes    rn  ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
-     LEFT JOIN recruiting_entries  re  ON re.id = rn.entry_id
-     LEFT JOIN clients             cl  ON m.source_table = 'client_notes' AND cl.id = m.source_id
-     LEFT JOIN invoices            inv ON m.source_table = 'invoice_notes' AND inv.id = m.source_id
-     LEFT JOIN clients             icl ON icl.id = inv.client_id
+     LEFT JOIN recruiting_notes    rn    ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
+     LEFT JOIN recruiting_entries  re    ON re.id = rn.entry_id
+     LEFT JOIN clients             cl    ON m.source_table = 'client_notes' AND cl.id = m.source_id
+     LEFT JOIN invoices            inv   ON m.source_table = 'invoice_notes' AND inv.id = m.source_id
+     LEFT JOIN clients             icl   ON icl.id = inv.client_id
+     -- task_replies mentions are keyed by the reply's own id, not the task's, so
+     -- there's no row here to join back to the task/client — link_path alone
+     -- still takes the mentioned person straight to the right task.
+     LEFT JOIN standalone_tasks    stt   ON m.source_table = 'standalone_tasks' AND stt.id = m.source_id
+     LEFT JOIN clients             stcl  ON stcl.id = stt.client_id
+     LEFT JOIN instructors         stins ON stins.id = stt.instructor_id
      WHERE m.mentioned_user_id = $1 AND m.resolved_at IS NULL
      ORDER BY m.created_at DESC`,
     [userId]
@@ -105,7 +112,7 @@ async function loadMentionTasks(userId) {
     categories: ['mention'],
     created_at: m.created_at,
     client_name: m.client_name || null,
-    instructor_name: null,
+    instructor_name: m.instructor_name || null,
     link_path: m.link_path || null,
     last_note: { text: m.snippet, author_initials: m.author_initials },
   }));

@@ -6,6 +6,8 @@ import { useSeenTasks } from '../hooks/useSeenTasks'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import SearchSelect from '../components/SearchSelect'
+import MentionTextarea from '../components/MentionTextarea'
+import { renderWithMentions } from '../utils/mentions'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -27,6 +29,8 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
     title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: 'task',
     client: null, instructor: null,
   })
+  const [mentionableUsers, setMentionableUsers] = useState([])
+  useEffect(() => { api.getMentionableUsers().then(setMentionableUsers).catch(() => {}) }, [])
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   function handleSubmit(e) {
@@ -50,8 +54,8 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-          <textarea value={form.description} onChange={e => set('description', e.target.value)}
-            rows={2} placeholder="Optional additional details"
+          <MentionTextarea value={form.description} onChange={v => set('description', v)} users={mentionableUsers}
+            rows={2} placeholder="Optional additional details — type @ to tag someone"
             className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
         </div>
         <SearchSelect label="Related Client (optional)" options={clients} value={form.client}
@@ -109,7 +113,7 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
-function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], instructors = [] }) {
+function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], instructors = [], mentionableUsers = [] }) {
   const { user } = useAuth()
   const [editing,         setEditing]         = useState(false)
   const [saving,          setSaving]          = useState(false)
@@ -205,7 +209,7 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
         </div>
       </div>
 
-      {task.description && <p className="text-xs text-gray-500 mb-2">{task.description}</p>}
+      {task.description && <p className="text-xs text-gray-500 mb-2">{renderWithMentions(task.description, mentionableUsers)}</p>}
 
       {/* Metadata */}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-3 text-xs text-gray-400">
@@ -259,7 +263,7 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
                     )}
                   </div>
                 )}
-                <span className="text-gray-700">{r.text}</span>
+                <span className="text-gray-700">{renderWithMentions(r.text, mentionableUsers)}</span>
               </div>
               <span className="text-gray-300 flex-shrink-0">{fmtTs(r.created_at)}</span>
               <button onClick={() => handleDeleteReply(r.id)}
@@ -273,9 +277,10 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
       {showReply && (
         <form onSubmit={handleReply} className="border-t border-gray-100 pt-2 mb-2 space-y-1.5">
           <div className="flex gap-2">
-            <input ref={replyRef} value={replyText} onChange={e => setReplyText(e.target.value)}
-              placeholder={`Reply as ${user?.initials}…`} autoFocus
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
+            <MentionTextarea ref={replyRef} value={replyText} onChange={setReplyText} users={mentionableUsers}
+              placeholder={`Reply as ${user?.initials}… (type @ to tag someone)`} rows={1} autoFocus
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(e) } }}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
             <button type="submit" disabled={saving || !replyText.trim()}
               className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40">
               Send
@@ -324,7 +329,7 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
 }
 
 // ── Task section (by type) ────────────────────────────────────────────────────
-function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType, isNewFn, actionTypes, clients, instructors }) {
+function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultType, isNewFn, actionTypes, clients, instructors, mentionableUsers }) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -365,7 +370,7 @@ function TaskSection({ label, borderColor, tasks, onUpdate, onDelete, defaultTyp
           {tasks
             .sort((a, b) => (b.starred - a.starred) || (b.priority === 'urgent' ? 1 : -1))
             .map(t => (
-              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} isNew={isNewFn?.(t)} actionTypes={actionTypes} clients={clients} instructors={instructors} />
+              <TaskCard key={t.id} task={t} onUpdate={t => onUpdate(t, 'update')} onDelete={onDelete} isNew={isNewFn?.(t)} actionTypes={actionTypes} clients={clients} instructors={instructors} mentionableUsers={mentionableUsers} />
             ))}
         </div>
       )}
@@ -395,6 +400,7 @@ export default function TasksPage() {
   const [actionTypes, setActionTypes] = useState([])
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
+  const [mentionableUsers, setMentionableUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showDone, setShowDone] = useState(false)
   const [filterAssignee, setFilterAssignee] = useState('')
@@ -409,8 +415,8 @@ export default function TasksPage() {
   }
 
   useEffect(() => {
-    Promise.all([api.getTasks(), api.getActionTypes(), api.getClients(), api.getInstructors()])
-      .then(([t, at, c, i]) => { setTasks(t); setActionTypes(at); setClients(c); setInstructors(i) })
+    Promise.all([api.getTasks(), api.getActionTypes(), api.getClients(), api.getInstructors(), api.getMentionableUsers()])
+      .then(([t, at, c, i, mu]) => { setTasks(t); setActionTypes(at); setClients(c); setInstructors(i); setMentionableUsers(mu) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -486,6 +492,7 @@ export default function TasksPage() {
             actionTypes={actionTypes}
             clients={clients}
             instructors={instructors}
+            mentionableUsers={mentionableUsers}
           />
         ) : (
           <p className="text-sm text-gray-400 italic">Task not found.</p>
@@ -511,10 +518,10 @@ export default function TasksPage() {
       </div>
 
       <TaskSection label="Tasks" borderColor="border-gray-300" tasks={openTasks}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} mentionableUsers={mentionableUsers} />
 
       <TaskSection label="Other" borderColor="border-blue-300" tasks={openOther}
-        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} />
+        onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="other" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} mentionableUsers={mentionableUsers} />
 
       {/* Completed tasks (collapsible) */}
       {done.length > 0 && (
@@ -529,7 +536,7 @@ export default function TasksPage() {
           {showDone && (
             <div className="space-y-2">
               {filtered(done).map(t => (
-                <TaskCard key={t.id} task={t} onUpdate={t => handleSectionUpdate(t, 'update')} onDelete={handleDelete} actionTypes={actionTypes} clients={clients} instructors={instructors} />
+                <TaskCard key={t.id} task={t} onUpdate={t => handleSectionUpdate(t, 'update')} onDelete={handleDelete} actionTypes={actionTypes} clients={clients} instructors={instructors} mentionableUsers={mentionableUsers} />
               ))}
             </div>
           )}

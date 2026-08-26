@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -32,6 +33,11 @@ router.post('/', async (req, res) => {
      req.user.initials, task_type || 'task', client_id || null, instructor_id || null]
   );
   const { rows: [task] } = await pool.query(`${TASK_JOIN} WHERE st.id = $1`, [id]);
+  await syncMentions({
+    sourceTable: 'standalone_tasks', sourceId: id,
+    text: `${description || ''} ${notes || ''}`,
+    authorInitials: req.user.initials, linkPath: `/tasks?id=${id}`,
+  });
   res.status(201).json(task);
 });
 
@@ -52,6 +58,11 @@ router.put('/:id', async (req, res) => {
      req.params.id]
   );
   const { rows: [task] } = await pool.query(`${TASK_JOIN} WHERE st.id = $1`, [req.params.id]);
+  await syncMentions({
+    sourceTable: 'standalone_tasks', sourceId: req.params.id,
+    text: `${description || ''} ${notes || ''}`,
+    authorInitials: req.user.initials, linkPath: `/tasks?id=${req.params.id}`,
+  });
   res.json(task);
 });
 
@@ -72,6 +83,14 @@ router.post('/:id/replies', async (req, res) => {
   const existing = task.replies ? JSON.parse(task.replies) : [];
   await pool.query('UPDATE standalone_tasks SET replies = $1 WHERE id = $2', [JSON.stringify([...existing, reply]), task.id]);
 
+  // Each reply gets its own mentions row keyed by the reply's own id (not the task's)
+  // since replies are append-only — reusing the task's id here would wipe out every
+  // earlier reply's mentions the next time someone tags a person.
+  await syncMentions({
+    sourceTable: 'task_replies', sourceId: reply.id, text: reply.text,
+    authorInitials: req.user.initials, linkPath: `/tasks?id=${task.id}`,
+  });
+
   const response = { reply };
   if (assigned_to !== undefined) {
     await pool.query('UPDATE standalone_tasks SET assigned_to = $1 WHERE id = $2', [assigned_to || null, task.id]);
@@ -86,6 +105,7 @@ router.delete('/:id/replies/:replyId', async (req, res) => {
   if (!task) return res.status(404).json({ error: 'Not found' });
   const existing = task.replies ? JSON.parse(task.replies) : [];
   await pool.query('UPDATE standalone_tasks SET replies = $1 WHERE id = $2', [JSON.stringify(existing.filter(r => String(r.id) !== String(req.params.replyId))), task.id]);
+  await deleteMentions('task_replies', req.params.replyId);
   res.json({ success: true });
 });
 
@@ -96,7 +116,11 @@ router.patch('/:id/star', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  const { rows: [task] } = await pool.query('SELECT replies FROM standalone_tasks WHERE id = $1', [req.params.id]);
   await pool.query('DELETE FROM standalone_tasks WHERE id = $1', [req.params.id]);
+  await deleteMentions('standalone_tasks', req.params.id);
+  const replies = task?.replies ? JSON.parse(task.replies) : [];
+  await Promise.all(replies.map(r => deleteMentions('task_replies', r.id)));
   res.json({ success: true });
 });
 
