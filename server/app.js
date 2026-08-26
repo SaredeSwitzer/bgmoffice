@@ -7,7 +7,7 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-const rawOrigins = process.env.ALLOWED_ORIGIN || 'https://bgmoffice.netlify.app';
+const rawOrigins = process.env.ALLOWED_ORIGIN || 'https://bgmoffice.com';
 const allowedOrigins = rawOrigins.split(',').map(o => o.trim());
 app.use(cors({
   origin: (origin, cb) => {
