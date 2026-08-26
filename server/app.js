@@ -184,6 +184,7 @@ app.use('/api/clients',      require('./routes/clients'));
 app.use('/api/client-contract', require('./routes/clientContract'));
 app.use('/api/instructors',  require('./routes/instructors'));
 app.use('/api/instructor-contract', require('./routes/instructorContract'));
+app.use('/api/instructor-signup', require('./routes/instructorSignup'));
 app.use('/api/cases',        require('./routes/cases'));
 app.use('/api/action-items', require('./routes/actionItems'));
 app.use('/api/settings',     require('./routes/settings'));

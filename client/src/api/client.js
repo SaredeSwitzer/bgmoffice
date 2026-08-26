@@ -142,6 +142,12 @@ export const api = {
   sendInstructorIntro: (id, data = {}) => request(`/instructors/${id}/send-intro`, { method: 'POST', body: JSON.stringify(data) }),
   sendInstructorEmailBlast: (data) => request('/instructors/email-blast', { method: 'POST', body: JSON.stringify(data) }),
   revealInstructorSSN: (id) => request(`/instructors/${id}/reveal-ssn`),
+
+  // Instructor sign-ups — public submission (from /join, no login) + staff review
+  submitInstructorSignup: (data) => request('/instructor-signup', { method: 'POST', body: JSON.stringify(data) }),
+  getInstructorSignups: (status) => request(`/instructor-signup${status ? `?status=${status}` : ''}`),
+  approveInstructorSignup: (id) => request(`/instructor-signup/${id}/approve`, { method: 'POST' }),
+  rejectInstructorSignup: (id) => request(`/instructor-signup/${id}/reject`, { method: 'POST' }),
   uploadInstructorPhoto: async (id, file) => {
     const token = getToken()
     const fd = new FormData()

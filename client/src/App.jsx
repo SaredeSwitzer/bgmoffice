@@ -30,6 +30,7 @@ import SchedulePage from './pages/SchedulePage'
 import BillingPage from './pages/BillingPage'
 import ReportsPage from './pages/ReportsPage'
 import SalesPage from './pages/SalesPage'
+import InstructorSignupPage from './pages/InstructorSignupPage'
 
 export default function App() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/save-card/:token" element={<SaveCardPage />} />
           <Route path="/sign-contract/:token" element={<SignContractPage />} />
           <Route path="/sign-org-contract/:token" element={<OrgContractSignPage />} />
+          <Route path="/join" element={<InstructorSignupPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           {/* Instructor accounts: their own week only, in a shell with no staff nav. */}
           <Route

@@ -9,6 +9,80 @@ import StylesManagerModal from '../components/StylesManagerModal'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
+function fmtSignupDate(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// Pending submissions from the public /join page (client/src/pages/InstructorSignupPage.jsx)
+// — e.g. after a site-wide "are you staying on with us?" email. Approving creates the real
+// instructor (+ login, same as adding one manually) and offers the same welcome-email step.
+function PendingSignups({ signups, onApproved, onRejected }) {
+  const [busyId, setBusyId] = useState(null)
+
+  async function handleApprove(signup) {
+    setBusyId(signup.id)
+    try {
+      const { instructor_id, has_login } = await api.approveInstructorSignup(signup.id)
+      onApproved(signup, instructor_id, has_login)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleReject(signup) {
+    if (!confirm(`Not moving forward with ${signup.name}?`)) return
+    setBusyId(signup.id)
+    try {
+      await api.rejectInstructorSignup(signup.id)
+      onRejected(signup.id)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  if (signups.length === 0) return null
+
+  return (
+    <div className="bg-teal-50 border border-teal-200 rounded-2xl px-5 py-4">
+      <h2 className="text-sm font-bold uppercase tracking-widest text-teal-700 mb-3">
+        🙋 Instructor Sign-ups
+        <span className="ml-2 text-xs font-semibold bg-teal-200 text-teal-800 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+          {signups.length}
+        </span>
+      </h2>
+      <div className="space-y-2">
+        {signups.map(s => (
+          <div key={s.id} className="bg-white border border-teal-100 rounded-xl px-4 py-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">{s.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {[s.email, s.phone, s.neighborhood].filter(Boolean).join(' · ')}
+                </p>
+                {s.styles_taught && <p className="text-xs text-gray-500 mt-0.5">Teaches: {s.styles_taught}</p>}
+                {s.specialties && <p className="text-xs text-gray-500 mt-0.5">Specialties: {s.specialties}</p>}
+                {s.notes && <p className="text-xs text-gray-600 italic mt-1 whitespace-pre-wrap">"{s.notes}"</p>}
+                <p className="text-[10px] text-gray-400 mt-1">Submitted {fmtSignupDate(s.created_at)}</p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => handleReject(s)} disabled={busyId === s.id}
+                  className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                  Not now
+                </button>
+                <button onClick={() => handleApprove(s)} disabled={busyId === s.id}
+                  className="px-3 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                  {busyId === s.id ? '…' : 'Approve → Add as Instructor'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const LOGIN_STATUS_LABELS = {
   not_logged_in: 'Not logged in yet',
   active: 'Active',
@@ -38,6 +112,7 @@ export default function InstructorsPage() {
   const [selected, setSelected] = useState(() => new Set())
   const [emailBlastOpen, setEmailBlastOpen] = useState(false)
   const [welcomeEmailFor, setWelcomeEmailFor] = useState(null) // newly-created instructor, or null
+  const [signups, setSignups] = useState([])
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
@@ -49,6 +124,23 @@ export default function InstructorsPage() {
   useEffect(() => {
     api.getInstructors().then(setInstructors).finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    api.getInstructorSignups('pending').then(setSignups).catch(() => {})
+  }, [])
+
+  function handleSignupApproved(signup, instructorId, hasLogin) {
+    setSignups(prev => prev.filter(s => s.id !== signup.id))
+    api.getInstructor(instructorId).then(i => {
+      setInstructors(prev => [...prev, i].sort((a, b) => a.name.localeCompare(b.name)))
+      setSignaturesRefresh(r => r + 1)
+      if (hasLogin && i.email) setWelcomeEmailFor(i)
+    })
+  }
+
+  function handleSignupRejected(signupId) {
+    setSignups(prev => prev.filter(s => s.id !== signupId))
+  }
 
   const has = (hay, needle) => (hay || '').toLowerCase().includes(needle.toLowerCase())
 
@@ -132,6 +224,8 @@ export default function InstructorsPage() {
           onSent={() => setSignaturesRefresh(r => r + 1)}
         />
       )}
+
+      <PendingSignups signups={signups} onApproved={handleSignupApproved} onRejected={handleSignupRejected} />
 
       <ContractSignaturesPanel instructors={instructors} refreshKey={signaturesRefresh} />
 
