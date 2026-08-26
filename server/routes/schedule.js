@@ -749,6 +749,55 @@ router.get('/sessions/:id/confirmation-preview', async (req, res) => {
 
 router.post('/sessions/:id/send-confirmation', (req, res) => sendConfirmationRoute('session', 'class_sessions', req, res));
 
+// ── "Your class time/date changed" alert ────────────────────────────────────────
+// Separate from the initial confirmation — this is a one-off heads-up staff send after
+// editing (or drag-and-dropping) a session to a different date/time, so the instructor
+// doesn't find out by showing up at the old slot. Reuses confirmationContext for the
+// {placeholders}, since the "new" day/time IS whatever the session's current values are.
+async function buildRescheduleAlert(id) {
+  const row = await getSessionRow(id);
+  if (!row) return { error: 'Session not found', status: 404 };
+  const { rows: [inst] } = row.instructor_id
+    ? await pool.query('SELECT name, email FROM instructors WHERE id=$1', [row.instructor_id])
+    : { rows: [] };
+  const ctx = confirmationContext(row);
+  const subject = `Class time updated — ${ctx.client_name}`;
+  const body = `Hi ${ctx.instructor_name},\n\n`
+    + `Just a heads up — the date/time for your class with ${ctx.client_name} has changed.\n\n`
+    + `New Day/Time: ${ctx.days_times}\n`
+    + (ctx.address ? `Location: ${ctx.address}\n` : '')
+    + (ctx.style ? `Style of Class: ${ctx.style}\n` : '')
+    + (ctx.rate ? `Rate: ${ctx.rate}\n` : '')
+    + `\nLet us know if this doesn't work for you.\n\n— BGM Office`;
+  return {
+    to: inst?.email || null,
+    instructor_name: ctx.instructor_name,
+    subject, body,
+    already_sent_at: row.reschedule_alert_sent_at || null,
+    already_sent_to: row.reschedule_alert_sent_to || null,
+  };
+}
+
+router.get('/sessions/:id/reschedule-alert-preview', async (req, res) => {
+  const r = await buildRescheduleAlert(req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
+});
+
+router.post('/sessions/:id/send-reschedule-alert', async (req, res) => {
+  const r = await buildRescheduleAlert(req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  if (!r.to) return res.status(400).json({ error: 'No email on file for this instructor' });
+  const subject = req.body.subject || r.subject;
+  const body = req.body.body || r.body;
+  await sendMail({ to: r.to, subject, text: body, html: bodyToHtml(body), cc: CONFIRMATION_CC, replyTo: CONFIRMATION_REPLY_TO });
+  await pool.query(
+    `UPDATE class_sessions SET reschedule_alert_sent_at=now(), reschedule_alert_sent_to=$1 WHERE id=$2`,
+    [r.to, req.params.id]
+  );
+  res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
+});
+
 // ── Notes & tasks on a class ───────────────────────────────────────────────────
 // Attached to either a recurring class (schedule) or a dated session. Each row is a
 // plain note, or a task (is_task) that can be checked off (is_done). Same shape for

@@ -10,6 +10,7 @@ import DurationInput from './DurationInput'
 import ChargeInput from './ChargeInput'
 import ClassNotes from './ClassNotes'
 import AdminNotes from './AdminNotes'
+import RescheduleAlertModal from './RescheduleAlertModal'
 
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
@@ -41,6 +42,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showRescheduleAlert, setShowRescheduleAlert] = useState(false)
+  const [notifiedAt, setNotifiedAt] = useState(session?.reschedule_alert_sent_at || null)
 
   useEffect(() => {
     Promise.all([api.getClients(), api.getInstructors()])
@@ -186,6 +189,19 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               </button>
             )}
           </div>
+          {isEdit && form.instructor && (
+            <div className="px-5 pb-4">
+              <button type="button" onClick={() => setShowRescheduleAlert(true)}
+                title="Email the instructor that this class's date/time changed"
+                className={`w-full text-xs rounded-lg px-3 py-1.5 border transition-colors ${
+                  notifiedAt
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                }`}>
+                {notifiedAt ? '✓ Notified of change' : 'Notify Instructor of Change'}
+              </button>
+            </div>
+          )}
         </form>
         {/* Outside the <form> above — these have their own add-note forms, and forms can't nest. */}
         {isEdit && (
@@ -195,6 +211,13 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
           </>
         )}
       </div>
+      {showRescheduleAlert && (
+        <RescheduleAlertModal
+          session={session}
+          onClose={() => setShowRescheduleAlert(false)}
+          onSent={r => setNotifiedAt(r.sent_at)}
+        />
+      )}
     </div>
   )
 }

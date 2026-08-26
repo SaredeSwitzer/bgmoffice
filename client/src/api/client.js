@@ -402,6 +402,8 @@ export const api = {
   sendCombinedConfirmation: (scheduleIds, data = {}) => request('/schedule/schedules/combined-send-confirmation', { method: 'POST', body: JSON.stringify({ schedule_ids: scheduleIds, ...data }) }),
   getSessionConfirmationPreview: (sessionId) => request(`/schedule/sessions/${sessionId}/confirmation-preview`),
   sendSessionConfirmation: (sessionId, data = {}) => request(`/schedule/sessions/${sessionId}/send-confirmation`, { method: 'POST', body: JSON.stringify(data) }),
+  getRescheduleAlertPreview: (sessionId) => request(`/schedule/sessions/${sessionId}/reschedule-alert-preview`),
+  sendRescheduleAlert: (sessionId, data = {}) => request(`/schedule/sessions/${sessionId}/send-reschedule-alert`, { method: 'POST', body: JSON.stringify(data) }),
   getSessionSiblings: (sessionId) => request(`/schedule/sessions/${sessionId}/siblings`),
   getCombinedSessionConfirmationPreview: (sessionIds) => request('/schedule/sessions/combined-confirmation-preview', { method: 'POST', body: JSON.stringify({ session_ids: sessionIds }) }),
   sendCombinedSessionConfirmation: (sessionIds, data = {}) => request('/schedule/sessions/combined-send-confirmation', { method: 'POST', body: JSON.stringify({ session_ids: sessionIds, ...data }) }),

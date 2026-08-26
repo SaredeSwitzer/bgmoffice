@@ -7,6 +7,7 @@ import SearchSelect from '../components/SearchSelect'
 import ClassNotes from '../components/ClassNotes'
 import AdminNotes from '../components/AdminNotes'
 import ConfirmClassModal from '../components/ConfirmClassModal'
+import RescheduleAlertModal from '../components/RescheduleAlertModal'
 import ClassSessionModal from '../components/ClassSessionModal'
 import ClientAddressEditor from '../components/ClientAddressEditor'
 import PendingClassModal from '../components/PendingClassModal'
@@ -130,6 +131,7 @@ export default function SchedulePage() {
   // Recurring class / dated session whose instructor-confirmation email modal is open.
   const [confirmSchedule, setConfirmSchedule] = useState(null)
   const [confirmSession, setConfirmSession] = useState(null)
+  const [rescheduleAlertSession, setRescheduleAlertSession] = useState(null)
   // Recurring schedules for the same client+instructor (e.g. teaching there twice a
   // week) that got combined into one confirmation email, if any.
   const [confirmCombinedGroup, setConfirmCombinedGroup] = useState(null)
@@ -534,6 +536,17 @@ export default function SchedulePage() {
                                     {s.confirmation_sent_at ? '✓ Emailed' : 'Confirmation Email'}
                                   </button>
                                 )}
+                                {s.instructor_id && (
+                                  <button onClick={e => { e.stopPropagation(); setRescheduleAlertSession(s) }}
+                                    title="Email the instructor that this class's date/time changed"
+                                    className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
+                                      s.reschedule_alert_sent_at
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                                    }`}>
+                                    {s.reschedule_alert_sent_at ? '✓ Notified of change' : 'Notify of Change'}
+                                  </button>
+                                )}
                               </div>
                               {openNotes === `session-${s.id}` && (
                                 <div onClick={e => e.stopPropagation()}>
@@ -771,6 +784,15 @@ export default function SchedulePage() {
             setSessions(prev => prev.map(x =>
               idSet.has(x.id) ? { ...x, confirmation_sent_at: r.sent_at, confirmation_sent_to: r.sent_to } : x))
           }}
+        />
+      )}
+
+      {rescheduleAlertSession && (
+        <RescheduleAlertModal
+          session={rescheduleAlertSession}
+          onClose={() => setRescheduleAlertSession(null)}
+          onSent={(r) => setSessions(prev => prev.map(x =>
+            x.id === rescheduleAlertSession.id ? { ...x, reschedule_alert_sent_at: r.sent_at, reschedule_alert_sent_to: r.sent_to } : x))}
         />
       )}
 
