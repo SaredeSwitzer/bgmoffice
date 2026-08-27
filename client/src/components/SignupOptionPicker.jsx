@@ -103,6 +103,14 @@ export default function SignupOptionPicker({ options, value, onChange, onAdd, ad
           </button>
         )}
       </div>
+      {names.length === 0 && (
+        // Empty means the option list never loaded (the fetch failed) — previously this
+        // just rendered a lone "+ Other" with no explanation, which reads as "the feature
+        // is broken/missing" rather than "reload me".
+        <p className="text-[11px] text-amber-700 mt-1">
+          Couldn’t load the list of options — try refreshing the page.
+        </p>
+      )}
       {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
     </div>
   )
