@@ -36,6 +36,15 @@ const INSTRUCTOR_ALLOWLIST = [
   { method: 'DELETE', path: /^\/instructors\/\d+\/availability\/\d+$/ },
   { method: 'GET',    path: /^\/instructors\/\d+\/availability-check$/ },
   { method: 'POST',   path: /^\/instructors\/\d+\/availability-check$/ },
+  // Shared option lists behind the neighborhood/class-style pickers on an instructor's
+  // own profile. These are already fully public (server/routes/instructorSignup.js
+  // registers them ahead of requireAuth, for the no-login /join page), so listing them
+  // grants an instructor account nothing it couldn't get while signed out — without it
+  // the pickers render empty for the very people meant to use them.
+  { method: 'GET',    path: /^\/instructor-signup\/neighborhoods$/ },
+  { method: 'POST',   path: /^\/instructor-signup\/neighborhoods$/ },
+  { method: 'GET',    path: /^\/instructor-signup\/class-styles$/ },
+  { method: 'POST',   path: /^\/instructor-signup\/class-styles$/ },
 ];
 
 function denyInstructor(req, res, next) {
