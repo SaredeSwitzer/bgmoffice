@@ -154,6 +154,14 @@ export const api = {
   getInstructorSignups: (status) => request(`/instructor-signup${status ? `?status=${status}` : ''}`),
   approveInstructorSignup: (id) => request(`/instructor-signup/${id}/approve`, { method: 'POST' }),
   rejectInstructorSignup: (id) => request(`/instructor-signup/${id}/reject`, { method: 'POST' }),
+  // Public option lists for the /join page — separate from the authenticated
+  // /recruiting/styles equivalents, since that whole router requires a login.
+  getSignupNeighborhoods: () => request('/instructor-signup/neighborhoods'),
+  addSignupNeighborhood: (name) =>
+    request('/instructor-signup/neighborhoods', { method: 'POST', body: JSON.stringify({ name }) }),
+  getSignupClassStyles: () => request('/instructor-signup/class-styles'),
+  addSignupClassStyle: (name) =>
+    request('/instructor-signup/class-styles', { method: 'POST', body: JSON.stringify({ name }) }),
   uploadInstructorPhoto: async (id, file) => {
     const token = getToken()
     const fd = new FormData()

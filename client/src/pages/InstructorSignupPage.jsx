@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import SignupOptionPicker from '../components/SignupOptionPicker'
 
 // Public, no-login page at /join — an instructor who heard about the new system (e.g. a
 // site-wide email to everyone in Shiftboard) opts in here. Staff review and approve/reject
@@ -15,8 +16,32 @@ export default function InstructorSignupPage() {
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
+  const [neighborhoods, setNeighborhoods] = useState([])
+  const [classStyles, setClassStyles] = useState([])
+
+  useEffect(() => {
+    api.getSignupNeighborhoods().then(setNeighborhoods).catch(() => {})
+    api.getSignupClassStyles().then(setClassStyles).catch(() => {})
+  }, [])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  // The neighborhood multi-picker is for NY instructors only — everyone else keeps the
+  // plain free-text field, since the canonical list is NY-area and asking someone in
+  // New Jersey to pick from it (or worse, add their town to it) isn't useful.
+  const isNY = ['ny', 'new york'].includes(form.state.trim().toLowerCase())
+
+  async function handleAddNeighborhood(name) {
+    const row = await api.addSignupNeighborhood(name)
+    setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
+    return row
+  }
+
+  async function handleAddClassStyle(name) {
+    const row = await api.addSignupClassStyle(name)
+    setClassStyles(prev => prev.some(s => s.id === row.id) ? prev : [...prev, row])
+    return row
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -90,12 +115,7 @@ export default function InstructorSignupPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
-              <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
               <input value={form.city} onChange={e => set('city', e.target.value)}
@@ -108,10 +128,41 @@ export default function InstructorSignupPage() {
             </div>
           </div>
           <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              {isNY ? 'Neighborhoods you can teach in' : 'Neighborhood'}
+            </label>
+            {isNY ? (
+              <>
+                <p className="text-[11px] text-gray-400 mb-1.5">
+                  Pick as many as you'd travel to — type to search, and add yours if it's not listed.
+                </p>
+                <SignupOptionPicker
+                  options={neighborhoods}
+                  value={form.neighborhood}
+                  onChange={v => set('neighborhood', v)}
+                  onAdd={handleAddNeighborhood}
+                  placeholder="e.g. Williamsburg, Upper West Side…"
+                  addLabel="neighborhood"
+                />
+              </>
+            ) : (
+              <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            )}
+          </div>
+          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Classes you teach</label>
-            <input value={form.styles_taught} onChange={e => set('styles_taught', e.target.value)}
-              placeholder="e.g. Zumba, Yoga, Gymnastics"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <p className="text-[11px] text-gray-400 mb-1.5">
+              Type to search what we already offer — if you teach something new to us, add it.
+            </p>
+            <SignupOptionPicker
+              options={classStyles}
+              value={form.styles_taught}
+              onChange={v => set('styles_taught', v)}
+              onAdd={handleAddClassStyle}
+              placeholder="e.g. Zumba, Yoga, Gymnastics…"
+              addLabel="class style"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Specialties</label>

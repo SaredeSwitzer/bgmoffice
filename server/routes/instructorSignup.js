@@ -20,6 +20,62 @@ function deriveInitials(name) {
 // public token routes. Placed before router.use(requireAuth) below, which is what
 // actually makes it public (Express middleware only applies to routes registered after it).
 
+// Drops a task on Sarede's My Tasks (assigned_to matches her `delegates` row, same
+// lookup dashboard.js's /my-tasks uses) whenever the public sign-up page adds a brand
+// new neighborhood or class style to the shared list — she wasn't the one who typed it,
+// so this is how she finds out a new option now exists site-wide.
+async function notifySaredeNewOption(kind, name) {
+  // created_at is TEXT here (a SQLite-era leftover) and its default writes UTC, which the
+  // dashboard's age math then reads as local — enough to render a fresh task as "-1d".
+  // Write the local-time string the rest of the app's rows use instead.
+  await pool.query(
+    `INSERT INTO standalone_tasks (title, notes, assigned_to, task_type, created_by, created_at)
+     VALUES ($1,$2,'Sarede','other','signup', to_char(now() AT TIME ZONE 'America/New_York', 'YYYY-MM-DD HH24:MI:SS'))`,
+    [`New ${kind} added via instructor sign-up: "${name}"`, 'Added through the public /join page — just flagging it so you know it\'s now an option everywhere.']
+  );
+}
+
+// Neighborhoods — the NY-only "click off which neighborhoods you can teach in" picker on
+// /join reads/writes this list. Public GET so the unauthenticated signup page can show
+// the current options; public POST so a name typed there that isn't in the list yet gets
+// added immediately (same "public write, staff notices after" trust level as the signup
+// itself) instead of only ever being free text nobody else's picker will ever offer.
+router.get('/neighborhoods', async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM neighborhoods ORDER BY name');
+  res.json(rows);
+});
+
+router.post('/neighborhoods', async (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  const trimmed = name.trim();
+  const { rows: [existing] } = await pool.query('SELECT * FROM neighborhoods WHERE LOWER(name) = LOWER($1)', [trimmed]);
+  if (existing) return res.json(existing);
+  const { rows: [row] } = await pool.query('INSERT INTO neighborhoods (name) VALUES ($1) RETURNING *', [trimmed]);
+  await notifySaredeNewOption('neighborhood', trimmed);
+  res.status(201).json(row);
+});
+
+// Class styles — same idea, but for the "what do you teach" autocomplete. Deliberately a
+// separate public GET/POST from the authenticated ones in recruiting.js (that router
+// requires a login start to finish) rather than carving an exception into it — this stays
+// scoped to what the public signup page actually needs.
+router.get('/class-styles', async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM class_styles ORDER BY name');
+  res.json(rows);
+});
+
+router.post('/class-styles', async (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  const trimmed = name.trim();
+  const { rows: [existing] } = await pool.query('SELECT * FROM class_styles WHERE LOWER(name) = LOWER($1)', [trimmed]);
+  if (existing) return res.json(existing);
+  const { rows: [row] } = await pool.query('INSERT INTO class_styles (name) VALUES ($1) RETURNING *', [trimmed]);
+  await notifySaredeNewOption('class style', trimmed);
+  res.status(201).json(row);
+});
+
 router.post('/', async (req, res) => {
   const { name, email, phone, neighborhood, city, state, styles_taught, specialties, notes } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
