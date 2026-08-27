@@ -41,19 +41,31 @@ async function notifySaredeNewOption(kind, name) {
 // the current options; public POST so a name typed there that isn't in the list yet gets
 // added immediately (same "public write, staff notices after" trust level as the signup
 // itself) instead of only ever being free text nobody else's picker will ever offer.
+// The borough/area headings the picker groups under. Kept server-side so the sign-up
+// page, the instructor's own profile and the staff screens can't drift apart.
+const NEIGHBORHOOD_REGIONS = [
+  'Brooklyn', 'Manhattan', 'Queens', 'Bronx', 'Staten Island',
+  'Westchester & Upstate', 'Long Island', 'New Jersey', 'Other',
+];
+
 router.get('/neighborhoods', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM neighborhoods ORDER BY name');
-  res.json(rows);
+  res.json({ neighborhoods: rows, regions: NEIGHBORHOOD_REGIONS });
 });
 
 router.post('/neighborhoods', async (req, res) => {
-  const { name } = req.body;
+  const { name, region } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   const trimmed = name.trim();
   const { rows: [existing] } = await pool.query('SELECT * FROM neighborhoods WHERE LOWER(name) = LOWER($1)', [trimmed]);
   if (existing) return res.json(existing);
-  const { rows: [row] } = await pool.query('INSERT INTO neighborhoods (name) VALUES ($1) RETURNING *', [trimmed]);
-  await notifySaredeNewOption('neighborhood', trimmed);
+  // Anything not one of the known headings lands in "Other" rather than inventing a new
+  // heading from whatever a stranger typed.
+  const safeRegion = NEIGHBORHOOD_REGIONS.includes(region) ? region : 'Other';
+  const { rows: [row] } = await pool.query(
+    'INSERT INTO neighborhoods (name, region) VALUES ($1,$2) RETURNING *', [trimmed, safeRegion]
+  );
+  await notifySaredeNewOption('neighborhood', `${trimmed} (${safeRegion})`);
   res.status(201).json(row);
 });
 

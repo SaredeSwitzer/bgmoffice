@@ -157,8 +157,8 @@ export const api = {
   // Public option lists for the /join page — separate from the authenticated
   // /recruiting/styles equivalents, since that whole router requires a login.
   getSignupNeighborhoods: () => request('/instructor-signup/neighborhoods'),
-  addSignupNeighborhood: (name) =>
-    request('/instructor-signup/neighborhoods', { method: 'POST', body: JSON.stringify({ name }) }),
+  addSignupNeighborhood: (name, region) =>
+    request('/instructor-signup/neighborhoods', { method: 'POST', body: JSON.stringify({ name, region }) }),
   getSignupClassStyles: () => request('/instructor-signup/class-styles'),
   addSignupClassStyle: (name) =>
     request('/instructor-signup/class-styles', { method: 'POST', body: JSON.stringify({ name }) }),

@@ -116,14 +116,17 @@ export default function InstructorsPage() {
   const [tab, setTab] = useState(searchParams.get('waiting') ? 'waiting' : 'instructors')
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [neighborhoods, setNeighborhoods] = useState([])
+  const [regions, setRegions] = useState([])
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
-    api.getSignupNeighborhoods().then(setNeighborhoods).catch(() => {})
+    api.getSignupNeighborhoods()
+      .then(d => { setNeighborhoods(d.neighborhoods || []); setRegions(d.regions || []) })
+      .catch(() => {})
   }, [])
 
-  async function handleAddNeighborhood(name) {
-    const row = await api.addSignupNeighborhood(name)
+  async function handleAddNeighborhood(name, region) {
+    const row = await api.addSignupNeighborhood(name, region)
     setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
     return row
   }
@@ -323,6 +326,7 @@ export default function InstructorsPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood(s)</label>
               <SignupOptionPicker
                 options={neighborhoods}
+                  regions={regions}
                 value={form.neighborhood}
                 onChange={v => setForm(f => ({ ...f, neighborhood: v }))}
                 onAdd={handleAddNeighborhood}

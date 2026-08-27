@@ -17,10 +17,13 @@ export default function InstructorSignupPage() {
   const [submitted, setSubmitted] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
   const [neighborhoods, setNeighborhoods] = useState([])
+  const [regions, setRegions] = useState([])
   const [classStyles, setClassStyles] = useState([])
 
   useEffect(() => {
-    api.getSignupNeighborhoods().then(setNeighborhoods).catch(() => {})
+    api.getSignupNeighborhoods()
+      .then(d => { setNeighborhoods(d.neighborhoods || []); setRegions(d.regions || []) })
+      .catch(() => {})
     api.getSignupClassStyles().then(setClassStyles).catch(() => {})
   }, [])
 
@@ -31,8 +34,8 @@ export default function InstructorSignupPage() {
   // New Jersey to pick from it (or worse, add their town to it) isn't useful.
   const isNY = ['ny', 'new york'].includes(form.state.trim().toLowerCase())
 
-  async function handleAddNeighborhood(name) {
-    const row = await api.addSignupNeighborhood(name)
+  async function handleAddNeighborhood(name, region) {
+    const row = await api.addSignupNeighborhood(name, region)
     setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
     return row
   }
@@ -138,6 +141,7 @@ export default function InstructorSignupPage() {
                 </p>
                 <SignupOptionPicker
                   options={neighborhoods}
+                  regions={regions}
                   value={form.neighborhood}
                   onChange={v => set('neighborhood', v)}
                   onAdd={handleAddNeighborhood}

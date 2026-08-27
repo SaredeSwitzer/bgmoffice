@@ -614,18 +614,21 @@ export default function InstructorProfilePage() {
   const [showStylesManager, setShowStylesManager] = useState(false)
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [neighborhoods, setNeighborhoods] = useState([])
+  const [regions, setRegions] = useState([])
 
   useEffect(() => {
     api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
-    api.getSignupNeighborhoods().then(setNeighborhoods).catch(() => {})
+    api.getSignupNeighborhoods()
+      .then(d => { setNeighborhoods(d.neighborhoods || []); setRegions(d.regions || []) })
+      .catch(() => {})
   }, [])
 
   // Same NY-only rule as the sign-up page and the instructor's own profile — the
   // canonical neighborhood list is NY-area, so only offer it to NY-based instructors.
   const isNY = ['ny', 'new york'].includes((editForm.state || '').trim().toLowerCase())
 
-  async function handleAddNeighborhood(name) {
-    const row = await api.addSignupNeighborhood(name)
+  async function handleAddNeighborhood(name, region) {
+    const row = await api.addSignupNeighborhood(name, region)
     setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
     return row
   }
@@ -796,6 +799,7 @@ export default function InstructorProfilePage() {
                 {isNY ? (
                   <SignupOptionPicker
                     options={neighborhoods}
+                  regions={regions}
                     value={editForm.neighborhood}
                     onChange={v => setEditForm(f => ({ ...f, neighborhood: v }))}
                     onAdd={handleAddNeighborhood}

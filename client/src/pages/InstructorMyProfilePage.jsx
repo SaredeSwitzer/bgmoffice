@@ -255,6 +255,7 @@ export default function InstructorMyProfilePage() {
   const [form, setForm] = useState(null)
   const [classStyles, setClassStyles] = useState([])
   const [neighborhoods, setNeighborhoods] = useState([])
+  const [regions, setRegions] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -262,7 +263,9 @@ export default function InstructorMyProfilePage() {
 
   useEffect(() => {
     api.getSignupClassStyles().then(setClassStyles).catch(() => {})
-    api.getSignupNeighborhoods().then(setNeighborhoods).catch(() => {})
+    api.getSignupNeighborhoods()
+      .then(d => { setNeighborhoods(d.neighborhoods || []); setRegions(d.regions || []) })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -285,8 +288,8 @@ export default function InstructorMyProfilePage() {
   // NY-area, so only offer the multi-picker to instructors actually based there.
   const isNY = ['ny', 'new york'].includes((form?.state || '').trim().toLowerCase())
 
-  async function handleAddNeighborhood(name) {
-    const row = await api.addSignupNeighborhood(name)
+  async function handleAddNeighborhood(name, region) {
+    const row = await api.addSignupNeighborhood(name, region)
     setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
     return row
   }
@@ -366,6 +369,7 @@ export default function InstructorMyProfilePage() {
                 </p>
                 <SignupOptionPicker
                   options={neighborhoods}
+                  regions={regions}
                   value={form.neighborhood}
                   onChange={v => setForm(f => ({ ...f, neighborhood: v }))}
                   onAdd={handleAddNeighborhood}
