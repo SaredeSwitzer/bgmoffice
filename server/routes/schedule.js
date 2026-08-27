@@ -557,11 +557,29 @@ async function getSessionRow(id) {
 async function buildConfirmation(kind, id) {
   const row = kind === 'session' ? await getSessionRow(id) : await getScheduleRow(id);
   if (!row) return { error: `${kind === 'session' ? 'Session' : 'Schedule'} not found`, status: 404 };
+  // A dated session generated from a recurring schedule (schedule_id set) should read
+  // as "Every Thursday 10:45–11:45am beginning 10/8/26", same as confirming from the
+  // recurring-schedule list — not as its own one-off date. Build the wording off the
+  // parent schedule row; the session row still owns its own confirmation_sent_at below.
+  let wordingRow = (kind === 'session' && row.schedule_id)
+    ? (await getScheduleRow(row.schedule_id)) || row
+    : row;
+  // A recurring schedule with no explicit start_date on file would otherwise fall back
+  // to "next Thursday from today" — misleading once real classes are already on the
+  // calendar (e.g. it actually starts after the holidays in October, not this week).
+  // The earliest generated class_sessions row is the more trustworthy answer.
+  if (wordingRow.weekday != null && !wordingRow.start_date) {
+    const { rows: [{ min_date }] } = await pool.query(
+      'SELECT MIN(session_date)::text AS min_date FROM class_sessions WHERE schedule_id = $1',
+      [wordingRow.id]
+    );
+    if (min_date) wordingRow = { ...wordingRow, start_date: min_date };
+  }
   const { rows: [inst] } = row.instructor_id
     ? await pool.query('SELECT name, email FROM instructors WHERE id=$1', [row.instructor_id])
     : { rows: [] };
   const tpl = await getTemplate();
-  const ctx = confirmationContext(row);
+  const ctx = confirmationContext(wordingRow);
   return {
     to: inst?.email || null,
     instructor_name: inst?.name || null,
@@ -590,13 +608,17 @@ function confirmationContextCombinedSessions(rows) {
 // Other upcoming dated sessions for the same client+instructor as this one — e.g. the
 // rest of a batch added together via "Add Class Dates". Confirming any one of them
 // should offer to cover all of them in one email instead of sending one per date.
+// Sessions generated from a recurring schedule (schedule_id set) are excluded on both
+// ends: a recurring occurrence already gets its "Every Thursday…" wording from
+// buildConfirmation and shouldn't pull in its own future occurrences as if they were a
+// manually-added batch of distinct dates.
 async function getSessionSiblings(id) {
   const row = await getSessionRow(id);
-  if (!row || !row.instructor_id) return [];
+  if (!row || !row.instructor_id || row.schedule_id) return [];
   const { rows } = await pool.query(
     `SELECT id FROM class_sessions
       WHERE client_id = $1 AND instructor_id = $2 AND id != $3
-        AND session_date >= CURRENT_DATE AND status != 'cancelled'
+        AND session_date >= CURRENT_DATE AND status != 'cancelled' AND schedule_id IS NULL
       ORDER BY session_date`,
     [row.client_id, row.instructor_id, id]
   );
