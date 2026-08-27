@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 
 // Public, no-login page at /join — an instructor who heard about the new system (e.g. a
@@ -13,6 +14,7 @@ export default function InstructorSignupPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false)
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -22,14 +24,30 @@ export default function InstructorSignupPage() {
     setSaving(true)
     setError('')
     try {
-      await api.submitInstructorSignup(form)
-      setSubmitted(true)
+      const result = await api.submitInstructorSignup(form)
+      if (result.already_registered) setAlreadyRegistered(true)
+      else setSubmitted(true)
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }
   }
+
+  if (alreadyRegistered) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 max-w-md w-full p-8 text-center">
+        <div className="text-5xl mb-4">👋</div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Looks like you're already set up!</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          That email already has an account with us — no need to sign up again. Just log in instead.
+        </p>
+        <Link to="/login" className="inline-block px-5 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors">
+          Go to Login
+        </Link>
+      </div>
+    </div>
+  )
 
   if (submitted) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -48,8 +66,11 @@ export default function InstructorSignupPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 max-w-lg w-full p-8">
         <h1 className="text-xl font-bold text-gray-900 mb-1">Join Bring the Gym to Me</h1>
-        <p className="text-sm text-gray-500 mb-6">
+        <p className="text-sm text-gray-500 mb-1">
           Interested in staying on with us? Fill this out and we'll be in touch about getting you set up.
+        </p>
+        <p className="text-xs text-gray-400 mb-6">
+          Already have an account? <Link to="/login" className="text-blue-600 hover:underline">Log in instead</Link>.
         </p>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>

@@ -23,6 +23,22 @@ function deriveInitials(name) {
 router.post('/', async (req, res) => {
   const { name, email, phone, neighborhood, city, state, styles_taught, specialties, notes } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
+
+  // Someone who already has a login is trying to sign up again — a form submission
+  // with no client-side memory of prior visits can't know that on its own. Tell them to
+  // sign in instead of quietly filing another pending signup nobody will notice needs
+  // rejecting. Anything without an actual login yet (approved-but-no-account,
+  // already-pending) still just gets treated as a normal resubmission below.
+  if (email?.trim()) {
+    const { rows: [existingUser] } = await pool.query(
+      `SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND role = 'instructor'`,
+      [email.trim()]
+    );
+    if (existingUser) {
+      return res.status(200).json({ already_registered: true });
+    }
+  }
+
   const { rows: [signup] } = await pool.query(
     `INSERT INTO instructor_signups (name, email, phone, neighborhood, city, state, styles_taught, specialties, notes)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
