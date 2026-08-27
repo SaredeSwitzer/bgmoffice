@@ -103,6 +103,9 @@ app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), asy
   res.json({ received: true });
 });
 
+// Telnyx inbound SMS webhook — raw body, registered BEFORE express.json() (Ed25519 verify needs exact bytes)
+app.post('/api/telnyx/webhook', express.raw({ type: 'application/json' }), require('./lib/telnyxInbound').handleWebhook);
+
 app.use(express.json());
 
 // Real health check, replacing a `res.json({status:'ok'})` stub that would have reported
