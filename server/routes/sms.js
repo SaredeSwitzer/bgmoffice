@@ -4,6 +4,7 @@
 // requireAuth (below) + the app-level denyInstructor guard keep this staff-only.
 
 const express = require('express');
+const pool = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const store = require('../lib/smsStore');
 const { sendSMS, toE164 } = require('../lib/telnyxSend');
@@ -30,6 +31,25 @@ router.get('/thread/:phone', async (req, res) => {
   } catch (e) {
     console.error('[sms] thread failed:', e.message);
     res.status(500).json({ error: 'Failed to load conversation' });
+  }
+});
+
+// People she can text: clients + instructors that have a phone on file. Used by the compose
+// picker (one-to-one) and the announcement audience count.
+router.get('/contacts', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT id, name, phone, 'client' AS kind FROM clients
+        WHERE coalesce(phone,'') <> ''
+      UNION ALL
+      SELECT id, name, phone, 'instructor' AS kind FROM instructors
+        WHERE coalesce(phone,'') <> ''
+      ORDER BY name
+    `);
+    res.json(rows);
+  } catch (e) {
+    console.error('[sms] contacts failed:', e.message);
+    res.status(500).json({ error: 'Failed to load contacts' });
   }
 });
 

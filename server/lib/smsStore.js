@@ -109,4 +109,19 @@ async function markRead(phone) {
   );
 }
 
-module.exports = { ensureSchema, logMessage, updateStatusByTelnyxId, listThreads, listThread, markRead };
+// Log an outbound text seen on the Telnyx webhook. If a row with this telnyx_id already exists
+// (e.g. a reply just sent from the Texts UI), only refresh its status; otherwise insert a new
+// outbound row (e.g. a reminder sent by Amber). Dedups so every send appears once.
+async function logOutboundFromWebhook(m) {
+  await ensureSchema();
+  if (m.telnyx_id) {
+    const { rows } = await pool.query('SELECT id FROM sms_messages WHERE telnyx_id = $1 LIMIT 1', [m.telnyx_id]);
+    if (rows[0]) {
+      if (m.status) await pool.query('UPDATE sms_messages SET status = $1 WHERE telnyx_id = $2', [m.status, m.telnyx_id]);
+      return rows[0];
+    }
+  }
+  return logMessage({ ...m, direction: 'outbound' });
+}
+
+module.exports = { ensureSchema, logMessage, updateStatusByTelnyxId, logOutboundFromWebhook, listThreads, listThread, markRead };

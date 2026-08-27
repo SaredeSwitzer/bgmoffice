@@ -84,6 +84,7 @@ export const api = {
 
   // SMS inbox (two-way texting)
   smsThreads: () => request('/sms/threads'),
+  smsContacts: () => request('/sms/contacts'),
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
 

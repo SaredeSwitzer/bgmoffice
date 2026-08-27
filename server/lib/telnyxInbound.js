@@ -161,12 +161,21 @@ async function handleWebhook(req, res) {
       } catch (e) { console.error('[telnyx inbound] sms log failed:', e.message); }
       await notifyCrew(buildReplyNotice({ from, text, person, sessions }));
     } else if (type === 'message.finalized' || type === 'message.sent') {
-      // Outbound delivery receipt — only surface failures; successes are noise.
+      // Outbound: reminders sent via Amber AND replies from the Texts UI both flow through this
+      // messaging profile, so log every outbound here (dedup by telnyx_id) to fill the inbox.
       const to = payload.to?.[0];
-      if (type === 'message.finalized') {
-        try { await smsStore.updateStatusByTelnyxId(payload.id, to?.status); }
-        catch (e) { console.error('[telnyx inbound] status update failed:', e.message); }
+      const outPhone = to?.phone_number;
+      if (outPhone) {
+        try {
+          const outPerson = await lookupPerson(outPhone);
+          await smsStore.logOutboundFromWebhook({
+            telnyx_id: payload.id, phone: outPhone, from_number: payload.from?.phone_number || null,
+            to_number: outPhone, body: payload.text || null,
+            status: to?.status || (type === 'message.sent' ? 'sent' : 'finalized'),
+            person_id: outPerson?.id, person_kind: outPerson?.kind, person_name: outPerson?.name });
+        } catch (e) { console.error('[telnyx inbound] outbound log failed:', e.message); }
       }
+      // Only surface delivery FAILURES to the crew; successes are noise.
       const errs = payload.errors;
       const failed = (to?.status && to.status !== 'delivered' && to.status !== 'sent')
         || (Array.isArray(errs) && errs.length);
