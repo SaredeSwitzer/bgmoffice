@@ -362,14 +362,13 @@ export default function InstructorMyProfilePage() {
             {isNY ? (
               <>
                 <p className="text-[11px] text-gray-400 mb-1.5">
-                  Pick as many as you'd travel to — type to search, and add yours if it's not listed.
+                  Tap all the ones you'd travel to. Not listed? Use “+ Other”.
                 </p>
                 <SignupOptionPicker
                   options={neighborhoods}
                   value={form.neighborhood}
                   onChange={v => setForm(f => ({ ...f, neighborhood: v }))}
                   onAdd={handleAddNeighborhood}
-                  placeholder="e.g. Williamsburg, Upper West Side…"
                   addLabel="neighborhood"
                 />
               </>
@@ -381,14 +380,13 @@ export default function InstructorMyProfilePage() {
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Classes You Can Teach</label>
             <p className="text-[11px] text-gray-400 mb-1.5">
-              Type to search what we already offer — if you teach something new to us, add it.
+              Tap everything you teach. Teach something we don’t list? Use “+ Other”.
             </p>
             <SignupOptionPicker
               options={classStyles}
               value={form.styles_taught}
               onChange={v => setForm(f => ({ ...f, styles_taught: v }))}
               onAdd={handleAddClassStyle}
-              placeholder="e.g. Zumba, Yoga, Gymnastics…"
               addLabel="class style"
             />
           </div>
