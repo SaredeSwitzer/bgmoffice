@@ -3,6 +3,7 @@ const crypto   = require('crypto');
 const bcrypt   = require('bcryptjs');
 const pool     = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
+const { notifyCrew } = require('../lib/notifyCrew');
 
 const router = express.Router();
 
@@ -114,6 +115,18 @@ router.post('/', async (req, res) => {
     [name.trim(), email || null, phone || null, neighborhood || null, city || null, state || null,
      styles_taught || null, specialties || null, notes || null]
   );
+
+  // Ping the crew Telegram — a sign-up sits in Instructors → Sign-ups waiting to be
+  // approved, and nothing else would surface it until someone happened to look.
+  const where = [neighborhood, [city, state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+  await notifyCrew(
+    `🙋 New instructor sign-up: ${name.trim()}` +
+    (email ? `\n${email}` : '') +
+    (where ? `\n${where}` : '') +
+    (styles_taught ? `\nTeaches: ${styles_taught}` : '') +
+    `\n\nApprove or decline in Instructors → Sign-ups.`
+  );
+
   res.status(201).json({ id: signup.id });
 });
 
