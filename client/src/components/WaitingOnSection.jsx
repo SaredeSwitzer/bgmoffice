@@ -2,12 +2,22 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import MentionTextarea from './MentionTextarea'
+import DateInput from './DateInput'
 import { useHashHighlight } from '../utils/hashHighlight'
 
 function fmtDate(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// need_by is a plain YYYY-MM-DD (no time component), so format it without going through
+// the browser's local timezone — new Date('2026-08-30') would otherwise read back as
+// Aug 29 for anyone west of UTC.
+function fmtNeedBy(ymd) {
+  if (!ymd) return ''
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function NoteThread({ itemId, mentionableUsers }) {
@@ -72,11 +82,18 @@ function NoteThread({ itemId, mentionableUsers }) {
   )
 }
 
-function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, showLink, autoOpen }) {
+function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeedBy, showLink, autoOpen }) {
   const [open, setOpen] = useState(!!autoOpen)
+  const [editingDate, setEditingDate] = useState(false)
   const resolved = item.status === 'resolved'
   const linkedName = item.client_name || item.instructor_name
   const linkTo = item.client_id ? `/clients/${item.client_id}` : item.instructor_id ? `/instructors/${item.instructor_id}` : null
+  const isOverdue = item.need_by && !resolved && item.need_by < new Date().toISOString().slice(0, 10)
+
+  async function saveDate(v) {
+    setEditingDate(false)
+    if (v !== item.need_by) await onSetNeedBy(item.id, v || null)
+  }
 
   return (
     <div className={`bg-white border rounded-xl px-4 py-3 ${resolved ? 'border-gray-100 opacity-70' : 'border-gray-200'}`}>
@@ -102,6 +119,28 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, showLink,
               ? `Resolved ${fmtDate(item.resolved_at)}${item.resolved_by ? ` — ${item.resolved_by}` : ''}`
               : `${fmtDate(item.created_at)}${item.created_by ? ` — ${item.created_by}` : ''}`}
           </p>
+          {!item.synthetic && (
+            editingDate ? (
+              <div className="mt-1.5 max-w-[180px]" onClick={e => e.stopPropagation()}>
+                <DateInput value={item.need_by || ''} onChange={saveDate} />
+                <button type="button" onClick={() => setEditingDate(false)} className="text-[10px] text-gray-400 hover:underline mt-1">
+                  Cancel
+                </button>
+              </div>
+            ) : item.need_by ? (
+              <button type="button" onClick={() => setEditingDate(true)}
+                className={`mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                  isOverdue ? 'bg-red-100 text-red-700' : 'bg-blue-50 text-blue-700'
+                }`}>
+                📅 {isOverdue ? 'Overdue — ' : 'Need reply by '}{fmtNeedBy(item.need_by)}
+              </button>
+            ) : (
+              <button type="button" onClick={() => setEditingDate(true)}
+                className="mt-1.5 text-[10px] text-gray-400 hover:text-gray-600 hover:underline">
+                + Need-by date
+              </button>
+            )
+          )}
         </div>
         {item.synthetic ? (
           linkTo && (
@@ -143,7 +182,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ name: linkedName || '', what: '' })
+  const [form, setForm] = useState({ name: linkedName || '', what: '', need_by: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -169,7 +208,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
     try {
       const match = linkedId ? null : people.find(p => p.name.trim().toLowerCase() === form.name.trim().toLowerCase())
       const body = {
-        kind, what: form.what.trim(),
+        kind, what: form.what.trim(), need_by: form.need_by || null,
         name: linkedId ? linkedName : (form.name.trim() || match?.name),
         client_id: linkedId && kind === 'client' ? linkedId : (kind === 'client' ? match?.id : null),
         instructor_id: linkedId && kind === 'instructor' ? linkedId : (kind === 'instructor' ? match?.id : null),
@@ -177,7 +216,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
       if (!body.name) { setError('Name required'); setSaving(false); return }
       const item = await api.createWaitingOn(body)
       setData(d => ({ ...d, open: [item, ...d.open] }))
-      setForm({ name: linkedName || '', what: '' })
+      setForm({ name: linkedName || '', what: '', need_by: '' })
       setAdding(false)
     } catch (err) {
       setError(err.message)
@@ -198,6 +237,19 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
     if (!confirm('Delete this item? This removes its follow-up notes too.')) return
     await api.deleteWaitingOn(id)
     setData(d => ({ open: d.open.filter(x => x.id !== id), resolved: d.resolved.filter(x => x.id !== id) }))
+  }
+  async function handleSetNeedBy(id, need_by) {
+    const current = [...data.open, ...data.resolved].find(x => x.id === id)
+    if (!current) return
+    const updated = await api.updateWaitingOn(id, {
+      name: current.name, what: current.what,
+      client_id: current.client_id, instructor_id: current.instructor_id,
+      need_by,
+    })
+    setData(d => ({
+      open: d.open.map(x => x.id === id ? updated : x),
+      resolved: d.resolved.map(x => x.id === id ? updated : x),
+    }))
   }
 
   const total = data.open.length + data.resolved.length
@@ -245,6 +297,10 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
               rows={2} placeholder="e.g. waiver signature, callback about class times…"
               className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Need to hear back by (optional)</label>
+            <DateInput value={form.need_by} onChange={v => setForm(f => ({ ...f, need_by: v }))} />
+          </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button type="submit" disabled={saving}
@@ -265,7 +321,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
         <div className="space-y-2">
           {data.open.map(item => (
             <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
-              onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} showLink={showLink}
+              onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} showLink={showLink}
               autoOpen={String(item.id) === targetItemId} />
           ))}
         </div>
@@ -280,8 +336,8 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
             <div className="space-y-2 mt-2">
               {data.resolved.map(item => (
                 <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
-                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} showLink={showLink}
-              autoOpen={String(item.id) === targetItemId} />
+                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} showLink={showLink}
+                  autoOpen={String(item.id) === targetItemId} />
               ))}
             </div>
           )}

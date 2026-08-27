@@ -92,15 +92,15 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { kind, name, client_id, instructor_id, what } = req.body;
+  const { kind, name, client_id, instructor_id, what, need_by } = req.body;
   if (!kind || !['client', 'instructor'].includes(kind)) return res.status(400).json({ error: 'kind must be client or instructor' });
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   if (!what?.trim()) return res.status(400).json({ error: 'what required' });
 
   const { rows: [item] } = await pool.query(
-    `INSERT INTO waiting_on_items (kind, name, client_id, instructor_id, what, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-    [kind, name.trim(), client_id || null, instructor_id || null, what.trim(), req.user.initials]
+    `INSERT INTO waiting_on_items (kind, name, client_id, instructor_id, what, need_by, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [kind, name.trim(), client_id || null, instructor_id || null, what.trim(), need_by || null, req.user.initials]
   );
   const { rows: [row] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [item.id]);
   res.status(201).json(row);
@@ -109,12 +109,12 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT id FROM waiting_on_items WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Not found' });
-  const { name, what, client_id, instructor_id } = req.body;
+  const { name, what, client_id, instructor_id, need_by } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   if (!what?.trim()) return res.status(400).json({ error: 'what required' });
   await pool.query(
-    'UPDATE waiting_on_items SET name = $1, what = $2, client_id = $3, instructor_id = $4 WHERE id = $5',
-    [name.trim(), what.trim(), client_id || null, instructor_id || null, req.params.id]
+    'UPDATE waiting_on_items SET name = $1, what = $2, client_id = $3, instructor_id = $4, need_by = $5 WHERE id = $6',
+    [name.trim(), what.trim(), client_id || null, instructor_id || null, need_by || null, req.params.id]
   );
   const { rows: [row] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [req.params.id]);
   res.json(row);
