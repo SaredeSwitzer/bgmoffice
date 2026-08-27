@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import MeetingInviteModal from '../components/MeetingInviteModal'
 import ContractInviteModal from '../components/ContractInviteModal'
-import StylePicker from '../components/StylePicker'
+import SignupOptionPicker from '../components/SignupOptionPicker'
 import StylesManagerModal from '../components/StylesManagerModal'
 import WaitingOnSection from '../components/WaitingOnSection'
 
@@ -115,10 +115,24 @@ export default function InstructorsPage() {
   const [searchParams] = useSearchParams()
   const [tab, setTab] = useState(searchParams.get('waiting') ? 'waiting' : 'instructors')
   const [mentionableUsers, setMentionableUsers] = useState([])
+  const [neighborhoods, setNeighborhoods] = useState([])
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
+    api.getSignupNeighborhoods().then(setNeighborhoods).catch(() => {})
   }, [])
+
+  async function handleAddNeighborhood(name) {
+    const row = await api.addSignupNeighborhood(name)
+    setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
+    return row
+  }
+
+  async function handleAddClassStyle(name) {
+    const row = await api.addSignupClassStyle(name)
+    setClassStyles(prev => prev.some(s => s.id === row.id) ? prev : [...prev, row])
+    return row
+  }
 
   useEffect(() => {
     api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
@@ -272,11 +286,12 @@ export default function InstructorsPage() {
                 <button type="button" onClick={() => setShowStylesManager(true)}
                   className="text-[10px] text-purple-500 hover:underline">✎ Manage styles</button>
               </div>
-              <StylePicker
-                styleNames={styleNames}
+              <SignupOptionPicker
+                options={classStyles}
                 value={form.styles_taught}
                 onChange={v => setForm(f => ({ ...f, styles_taught: v }))}
-                onStyleAdded={s => setClassStyles(prev => [...prev, s])}
+                onAdd={handleAddClassStyle}
+                addLabel="class style"
               />
               {showStylesManager && (
                 <StylesManagerModal
@@ -304,10 +319,15 @@ export default function InstructorsPage() {
               <input value={form.pay_rate} onChange={e => setForm(f => ({ ...f, pay_rate: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="$85/hr" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
-              <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
-                placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood(s)</label>
+              <SignupOptionPicker
+                options={neighborhoods}
+                value={form.neighborhood}
+                onChange={v => setForm(f => ({ ...f, neighborhood: v }))}
+                onAdd={handleAddNeighborhood}
+                addLabel="neighborhood"
+              />
             </div>
           </div>
           <div className="flex gap-2">

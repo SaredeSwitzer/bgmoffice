@@ -6,7 +6,7 @@ import CaseHistoryList from '../components/CaseHistoryList'
 import NewCaseModal from '../components/NewCaseModal'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import ContractInviteModal from '../components/ContractInviteModal'
-import StylePicker from '../components/StylePicker'
+import SignupOptionPicker from '../components/SignupOptionPicker'
 import StylesManagerModal from '../components/StylesManagerModal'
 import { ClientLink } from '../components/NameLink'
 import WaitingOnSection from '../components/WaitingOnSection'
@@ -613,10 +613,28 @@ export default function InstructorProfilePage() {
   const [classStyles, setClassStyles] = useState([])
   const [showStylesManager, setShowStylesManager] = useState(false)
   const [mentionableUsers, setMentionableUsers] = useState([])
+  const [neighborhoods, setNeighborhoods] = useState([])
 
   useEffect(() => {
     api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
+    api.getSignupNeighborhoods().then(setNeighborhoods).catch(() => {})
   }, [])
+
+  // Same NY-only rule as the sign-up page and the instructor's own profile — the
+  // canonical neighborhood list is NY-area, so only offer it to NY-based instructors.
+  const isNY = ['ny', 'new york'].includes((editForm.state || '').trim().toLowerCase())
+
+  async function handleAddNeighborhood(name) {
+    const row = await api.addSignupNeighborhood(name)
+    setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
+    return row
+  }
+
+  async function handleAddClassStyle(name) {
+    const row = await api.addSignupClassStyle(name)
+    setClassStyles(prev => prev.some(s => s.id === row.id) ? prev : [...prev, row])
+    return row
+  }
 
   useEffect(() => {
     Promise.all([
@@ -725,14 +743,12 @@ export default function InstructorProfilePage() {
                   <button type="button" onClick={() => setShowStylesManager(true)}
                     className="text-[10px] text-purple-500 hover:underline">✎ Manage styles</button>
                 </div>
-                <StylePicker
-                  styleNames={[...new Set([
-                    ...classStyles.map(s => s.name),
-                    ...(editForm.styles_taught || '').split(',').map(s => s.trim()).filter(Boolean),
-                  ])].sort()}
+                <SignupOptionPicker
+                  options={classStyles}
                   value={editForm.styles_taught}
                   onChange={v => setEditForm(f => ({ ...f, styles_taught: v }))}
-                  onStyleAdded={s => setClassStyles(prev => [...prev, s])}
+                  onAdd={handleAddClassStyle}
+                  addLabel="class style"
                 />
                 {showStylesManager && (
                   <StylesManagerModal
@@ -774,9 +790,21 @@ export default function InstructorProfilePage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
-                <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
-                  placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {isNY ? 'Neighborhoods They Can Teach In' : 'Neighborhood'}
+                </label>
+                {isNY ? (
+                  <SignupOptionPicker
+                    options={neighborhoods}
+                    value={editForm.neighborhood}
+                    onChange={v => setEditForm(f => ({ ...f, neighborhood: v }))}
+                    onAdd={handleAddNeighborhood}
+                    addLabel="neighborhood"
+                  />
+                ) : (
+                  <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
+                    placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                )}
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
