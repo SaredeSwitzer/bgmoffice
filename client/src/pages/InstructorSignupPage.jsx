@@ -8,7 +8,7 @@ import { api } from '../api/client'
 
 export default function InstructorSignupPage() {
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', neighborhood: '', styles_taught: '', specialties: '', notes: '',
+    name: '', email: '', phone: '', neighborhood: '', city: '', state: '', styles_taught: '', specialties: '', notes: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -69,10 +69,22 @@ export default function InstructorSignupPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
-            <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
+              <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+              <input value={form.city} onChange={e => set('city', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
+              <input value={form.state} onChange={e => set('state', e.target.value)}
+                placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Classes you teach</label>

@@ -270,7 +270,7 @@ export default function InstructorMyProfilePage() {
         setInstructor(inst)
         setForm({
           phone: inst.phone || '', email: inst.email || '',
-          mailing_address: inst.mailing_address || '', state: inst.state || '', neighborhood: inst.neighborhood || '',
+          mailing_address: inst.mailing_address || '', city: inst.city || '', state: inst.state || '', neighborhood: inst.neighborhood || '',
           styles_taught: inst.styles_taught || '', specialties: inst.specialties || '',
           payout_method: inst.payout_method || '', payout_handle: inst.payout_handle || '',
         })
@@ -332,6 +332,11 @@ export default function InstructorMyProfilePage() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
             <input value={form.mailing_address} onChange={e => setForm(f => ({ ...f, mailing_address: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+            <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
           </div>
           <div>

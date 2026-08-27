@@ -58,7 +58,7 @@ function PendingSignups({ signups, onApproved, onRejected }) {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">{s.name}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {[s.email, s.phone, s.neighborhood].filter(Boolean).join(' · ')}
+                  {[s.email, s.phone, s.neighborhood, [s.city, s.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
                 </p>
                 {s.styles_taught && <p className="text-xs text-gray-500 mt-0.5">Teaches: {s.styles_taught}</p>}
                 {s.specialties && <p className="text-xs text-gray-500 mt-0.5">Specialties: {s.specialties}</p>}

@@ -21,12 +21,13 @@ function deriveInitials(name) {
 // actually makes it public (Express middleware only applies to routes registered after it).
 
 router.post('/', async (req, res) => {
-  const { name, email, phone, neighborhood, styles_taught, specialties, notes } = req.body;
+  const { name, email, phone, neighborhood, city, state, styles_taught, specialties, notes } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
   const { rows: [signup] } = await pool.query(
-    `INSERT INTO instructor_signups (name, email, phone, neighborhood, styles_taught, specialties, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-    [name.trim(), email || null, phone || null, neighborhood || null, styles_taught || null, specialties || null, notes || null]
+    `INSERT INTO instructor_signups (name, email, phone, neighborhood, city, state, styles_taught, specialties, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    [name.trim(), email || null, phone || null, neighborhood || null, city || null, state || null,
+     styles_taught || null, specialties || null, notes || null]
   );
   res.status(201).json({ id: signup.id });
 });
@@ -67,11 +68,12 @@ router.post('/:id/approve', async (req, res) => {
   }
 
   const { rows: [inst] } = await pool.query(
-    `INSERT INTO instructors (name, phone, email, specialties, notes, neighborhood, styles_taught,
+    `INSERT INTO instructors (name, phone, email, specialties, notes, neighborhood, city, state, styles_taught,
        contract_signed, contract_signed_date, ssn_encrypted, ssn_last4)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
     [signup.name, signup.phone || null, signup.email || null, signup.specialties || null, signup.notes || null,
-     signup.neighborhood || null, signup.styles_taught || null, signedFlag, signedDate, sigSsnEncrypted, sigSsnLast4]
+     signup.neighborhood || null, signup.city || null, signup.state || null, signup.styles_taught || null,
+     signedFlag, signedDate, sigSsnEncrypted, sigSsnLast4]
   );
   if (signatureToLink) {
     await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [inst.id, signatureToLink]);

@@ -635,6 +635,7 @@ export default function InstructorProfilePage() {
           payout_method: inst.payout_method || '',
           payout_handle: inst.payout_handle || '',
           mailing_address: inst.mailing_address || '',
+          city: inst.city || '',
           state: inst.state || '',
           neighborhood: inst.neighborhood || '',
           ssn: inst.ssn || '',
@@ -777,6 +778,11 @@ export default function InstructorProfilePage() {
                   rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
+                <input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
                 <input value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
                   placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
@@ -878,6 +884,12 @@ export default function InstructorProfilePage() {
                 <div className="flex gap-2">
                   <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Neighborhood</span>
                   <span className="text-gray-700">{instructor.neighborhood}</span>
+                </div>
+              )}
+              {(instructor.city || instructor.state) && (
+                <div className="flex gap-2">
+                  <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">City / State</span>
+                  <span className="text-gray-700">{[instructor.city, instructor.state].filter(Boolean).join(', ')}</span>
                 </div>
               )}
               {instructor.mailing_address && (

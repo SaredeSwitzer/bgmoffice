@@ -220,7 +220,7 @@ router.get('/:id/reveal-ssn', requireStaff, async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
+  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
 
   // If this person already signed the contract in-app before being added as an instructor
@@ -244,9 +244,9 @@ router.post('/', async (req, res) => {
   }
 
   const { rows: [inst] } = await pool.query(
-    `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle, ssn_encrypted, ssn_last4)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, state || null, ssn || null, signedFlag, signedDate, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, sigSsnEncrypted, sigSsnLast4]
+    `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle, ssn_encrypted, ssn_last4)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, signedFlag, signedDate, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, sigSsnEncrypted, sigSsnLast4]
   );
   if (signatureToLink) {
     await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [inst.id, signatureToLink]);
@@ -328,12 +328,12 @@ router.put('/:id', async (req, res) => {
     // Self-service: contact info, what they teach, and how they want to be paid — never
     // pay RATE, contract, name, or SSN. payout_method/handle is just "how to reach me for
     // pay" (a Venmo @handle, a phone for Zelle, etc.) — same trust level as phone/email.
-    const { phone, email, mailing_address, state, neighborhood, styles_taught, specialties, payout_method, payout_handle } = req.body;
+    const { phone, email, mailing_address, city, state, neighborhood, styles_taught, specialties, payout_method, payout_handle } = req.body;
     await pool.query(
-      `UPDATE instructors SET phone=$1, email=$2, mailing_address=$3, state=$4, neighborhood=$5, styles_taught=$6, specialties=$7,
-         payout_method=$8, payout_handle=$9
-       WHERE id=$10`,
-      [phone || null, email || null, mailing_address || null, state || null, neighborhood || null, styles_taught || null, specialties || null, payout_method || null, payout_handle || null, req.params.id]
+      `UPDATE instructors SET phone=$1, email=$2, mailing_address=$3, city=$4, state=$5, neighborhood=$6, styles_taught=$7, specialties=$8,
+         payout_method=$9, payout_handle=$10
+       WHERE id=$11`,
+      [phone || null, email || null, mailing_address || null, city || null, state || null, neighborhood || null, styles_taught || null, specialties || null, payout_method || null, payout_handle || null, req.params.id]
     );
     // Keep the login email in sync — instructors only ever see one "email" field and
     // shouldn't have to know their contact info and login credential are separate rows.
@@ -345,13 +345,13 @@ router.put('/:id', async (req, res) => {
     return res.json(safe);
   }
 
-  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
+  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   await pool.query(
     `UPDATE instructors SET name=$1, phone=$2, email=$3, specialties=$4, style=$5, notes=$6, pay_rate=$7,
-       mailing_address=$8, state=$9, ssn=$10, contract_signed=$11, contract_signed_date=$12, neighborhood=$13, styles_taught=$14,
-       payout_method=$15, payout_handle=$16
-     WHERE id=$17`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, state || null, ssn || null, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id]
+       mailing_address=$8, city=$9, state=$10, ssn=$11, contract_signed=$12, contract_signed_date=$13, neighborhood=$14, styles_taught=$15,
+       payout_method=$16, payout_handle=$17
+     WHERE id=$18`,
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id]
   );
   res.json(await getInstructorRow(req.params.id));
 });
