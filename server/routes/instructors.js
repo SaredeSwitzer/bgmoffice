@@ -6,6 +6,7 @@ const pool     = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { decryptSSN } = require('../lib/ssnCrypto');
 const { sendMail } = require('../lib/mailer');
+const { notifyCrew } = require('../lib/notifyCrew');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 
@@ -455,6 +456,7 @@ router.post('/:id/availability', async (req, res) => {
     'INSERT INTO instructor_availability (instructor_id, day_of_week, time_slot) VALUES ($1,$2,$3) RETURNING *',
     [req.params.id, day_of_week, time_slot || null]
   );
+  await notifyCrew(`📅 ${req.user.name} added availability: ${day_of_week}${time_slot ? ` (${time_slot})` : ''}`);
   res.status(201).json(row);
 });
 
@@ -470,12 +472,14 @@ router.put('/:id/availability/:availId', async (req, res) => {
     'UPDATE instructor_availability SET day_of_week = $1, time_slot = $2 WHERE id = $3 RETURNING *',
     [day_of_week, time_slot || null, req.params.availId]
   );
+  await notifyCrew(`📅 ${req.user.name} updated availability: ${day_of_week}${time_slot ? ` (${time_slot})` : ''}`);
   res.json(row);
 });
 
 router.delete('/:id/availability/:availId', async (req, res) => {
   if (!ownRecordOrForbidden(req, res)) return;
   await pool.query('DELETE FROM instructor_availability WHERE id = $1 AND instructor_id = $2', [req.params.availId, req.params.id]);
+  await notifyCrew(`📅 ${req.user.name} removed an availability slot`);
   res.json({ success: true });
 });
 
