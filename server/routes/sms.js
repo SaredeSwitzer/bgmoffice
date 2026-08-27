@@ -9,6 +9,7 @@ const { requireAuth } = require('../middleware/auth');
 const store = require('../lib/smsStore');
 const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const { lookupPerson } = require('../lib/telnyxInbound');
+const { buildWeeklyReminders } = require('../lib/weeklyReminders');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -80,6 +81,60 @@ router.post('/send', async (req, res) => {
     console.error('[sms] send failed:', e.message);
     res.status(500).json({ error: e.message || 'Failed to send text' });
   }
+});
+
+// ── Weekly class reminders ───────────────────────────────────────────────────────────
+// Preview is read-only and safe to call repeatedly; sending is a separate explicit step
+// so staff always sees exactly who gets what before anything leaves.
+
+router.get('/weekly-reminders', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    res.json(await buildWeeklyReminders(start && end ? { start, end } : {}));
+  } catch (e) {
+    console.error('[sms] weekly reminder preview failed:', e.message);
+    res.status(500).json({ error: 'Failed to build the weekly reminders' });
+  }
+});
+
+router.post('/weekly-reminders/send', async (req, res) => {
+  const { messages } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'Nothing to send.' });
+  }
+  // Sent one at a time rather than in parallel: a partial failure has to be reportable
+  // per-person, and Amber's history here is a run that silently delivered nothing while
+  // reporting success. Every result is echoed back, failures included.
+  const results = [];
+  for (const m of messages) {
+    if (!m?.to || !m?.body?.trim()) {
+      results.push({ to: m?.to || null, name: m?.name || null, ok: false, error: 'Missing number or message' });
+      continue;
+    }
+    try {
+      const phone = toE164(m.to);
+      const person = await lookupPerson(phone);
+      const sent = await sendSMS({ to: phone, text: m.body.trim() });
+      await store.logMessage({
+        direction: 'outbound',
+        phone,
+        from_number: process.env.TELNYX_FROM_NUMBER || null,
+        to_number: phone,
+        body: m.body.trim(),
+        telnyx_id: sent?.id || null,
+        status: sent?.to?.[0]?.status || 'queued',
+        person_id: person?.id,
+        person_kind: person?.kind,
+        person_name: person?.name || m.name,
+      });
+      results.push({ to: phone, name: m.name || person?.name || null, ok: true });
+    } catch (e) {
+      console.error(`[sms] weekly reminder to ${m.to} failed:`, e.message);
+      results.push({ to: m.to, name: m.name || null, ok: false, error: e.message });
+    }
+  }
+  const sent = results.filter(r => r.ok).length;
+  res.json({ sent, failed: results.length - sent, results });
 });
 
 module.exports = router;

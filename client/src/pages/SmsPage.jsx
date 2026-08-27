@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { api } from '../api/client'
+import WeeklyRemindersPanel from '../components/WeeklyRemindersPanel'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -32,6 +33,7 @@ export default function SmsPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [remindersOpen, setRemindersOpen] = useState(false)
   const scrollRef = useRef(null)
 
   const loadThreads = useCallback(async () => {
@@ -99,11 +101,17 @@ export default function SmsPage() {
         >
           New message
         </button>
+        <button
+          onClick={() => { setRemindersOpen(true); setComposeOpen(false); setActive(null) }}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Weekly reminders
+        </button>
       </div>
 
       <div className="flex h-[70vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         {/* Conversation list */}
-        <aside className={`${active || composeOpen ? 'hidden md:block' : 'block'} w-full shrink-0 overflow-y-auto border-r border-gray-200 md:w-72`}>
+        <aside className={`${active || composeOpen || remindersOpen ? 'hidden md:block' : 'block'} w-full shrink-0 overflow-y-auto border-r border-gray-200 md:w-72`}>
           {loading ? (
             <p className="p-4 text-sm text-gray-400">Loading…</p>
           ) : threads.length === 0 ? (
@@ -133,7 +141,11 @@ export default function SmsPage() {
         </aside>
 
         {/* Right pane: compose OR conversation */}
-        {composeOpen ? (
+        {remindersOpen ? (
+          <section className="min-w-0 flex-1">
+            <WeeklyRemindersPanel onClose={() => setRemindersOpen(false)} onSent={loadThreads} />
+          </section>
+        ) : composeOpen ? (
           <ComposePanel onClose={() => setComposeOpen(false)} onOpenThread={openThread} onSent={loadThreads} />
         ) : (
           <section className={`${active ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col`}>
