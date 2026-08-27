@@ -15,6 +15,7 @@ import { renderWithMentions } from '../utils/mentions'
 import { fmtTimeRange } from '../utils/time'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
 import { InstructorLink } from '../components/NameLink'
+import WaitingOnSection from '../components/WaitingOnSection'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
@@ -1255,6 +1256,9 @@ export default function ClientProfilePage() {
           </div>
         </section>
       )}
+
+      {/* Waiting to Hear Back From */}
+      <WaitingOnSection kind="client" linkedId={Number(id)} linkedName={client.name} mentionableUsers={mentionableUsers} />
 
       {/* Classes — teaser + link to the full filterable report */}
       <ClassesSummary clientId={id} clientName={client.name} />

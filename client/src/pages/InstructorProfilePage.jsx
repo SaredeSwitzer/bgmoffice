@@ -9,6 +9,7 @@ import ContractInviteModal from '../components/ContractInviteModal'
 import StylePicker from '../components/StylePicker'
 import StylesManagerModal from '../components/StylesManagerModal'
 import { ClientLink } from '../components/NameLink'
+import WaitingOnSection from '../components/WaitingOnSection'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -611,6 +612,11 @@ export default function InstructorProfilePage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [classStyles, setClassStyles] = useState([])
   const [showStylesManager, setShowStylesManager] = useState(false)
+  const [mentionableUsers, setMentionableUsers] = useState([])
+
+  useEffect(() => {
+    api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -1023,6 +1029,9 @@ export default function InstructorProfilePage() {
           </div>
         </section>
       )}
+
+      {/* Waiting to Hear Back From */}
+      <WaitingOnSection kind="instructor" linkedId={Number(id)} linkedName={instructor.name} mentionableUsers={mentionableUsers} />
 
       {/* Case history */}
       <section>

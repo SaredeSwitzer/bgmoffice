@@ -6,6 +6,7 @@ import ContractInviteModal from '../components/ContractInviteModal'
 import ContractSignaturesPanel from '../components/ContractSignaturesPanel'
 import StylePicker from '../components/StylePicker'
 import StylesManagerModal from '../components/StylesManagerModal'
+import WaitingOnSection from '../components/WaitingOnSection'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
@@ -113,9 +114,15 @@ export default function InstructorsPage() {
   const [emailBlastOpen, setEmailBlastOpen] = useState(false)
   const [welcomeEmailFor, setWelcomeEmailFor] = useState(null) // newly-created instructor, or null
   const [signups, setSignups] = useState([])
+  const [tab, setTab] = useState('instructors')
+  const [mentionableUsers, setMentionableUsers] = useState([])
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
   }, [])
 
   // Fetch the whole roster once; the three filters (search + style + location)
@@ -217,19 +224,37 @@ export default function InstructorsPage() {
         </div>
       </div>
 
-      {inviteOpen && <MeetingInviteModal onClose={() => setInviteOpen(false)} />}
-      {contractInviteOpen && (
+      <div className="flex gap-1 border-b border-gray-200">
+        {[['instructors', 'All Instructors'], ['waiting', 'Waiting to Hear Back From']].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === key ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'waiting' && (
+        <WaitingOnSection kind="instructor" people={instructors.map(i => ({ id: i.id, name: i.name }))}
+          mentionableUsers={mentionableUsers} showLink />
+      )}
+
+      {tab === 'instructors' && inviteOpen && <MeetingInviteModal onClose={() => setInviteOpen(false)} />}
+      {tab === 'instructors' && contractInviteOpen && (
         <ContractInviteModal
           onClose={() => setContractInviteOpen(false)}
           onSent={() => setSignaturesRefresh(r => r + 1)}
         />
       )}
 
-      <PendingSignups signups={signups} onApproved={handleSignupApproved} onRejected={handleSignupRejected} />
+      {tab === 'instructors' && (
+        <PendingSignups signups={signups} onApproved={handleSignupApproved} onRejected={handleSignupRejected} />
+      )}
 
-      <ContractSignaturesPanel instructors={instructors} refreshKey={signaturesRefresh} />
+      {tab === 'instructors' && <ContractSignaturesPanel instructors={instructors} refreshKey={signaturesRefresh} />}
 
-      {newInstructor && (
+      {tab === 'instructors' && newInstructor && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">
           <h3 className="font-semibold text-gray-800 text-sm">New Instructor</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -305,6 +330,7 @@ export default function InstructorsPage() {
         </form>
       )}
 
+      {tab === 'instructors' && (
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -333,8 +359,9 @@ export default function InstructorsPage() {
           {Object.entries(LOGIN_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
         </select>
       </div>
+      )}
 
-      {loading ? (
+      {tab === 'instructors' && (loading ? (
         <p className="text-gray-400 text-sm text-center py-8">Loading…</p>
       ) : filtered.length === 0 ? (
         <p className="text-gray-400 text-sm italic text-center py-8">No instructors found.</p>
@@ -407,7 +434,7 @@ export default function InstructorsPage() {
             })}
           </div>
         </>
-      )}
+      ))}
 
       {emailBlastOpen && (
         <EmailBlastModal

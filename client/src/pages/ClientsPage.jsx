@@ -6,6 +6,7 @@ import GmailComposeLink from '../components/GmailComposeLink'
 import MentionTextarea from '../components/MentionTextarea'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
 import ClientContractSignaturesPanel from '../components/ClientContractSignaturesPanel'
+import WaitingOnSection from '../components/WaitingOnSection'
 
 const CONTACT_ICONS = { text: '💬', email: '✉️', whatsapp: '📱', call: '📞' }
 
@@ -25,6 +26,7 @@ export default function ClientsPage() {
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [contractInviteOpen, setContractInviteOpen] = useState(false)
   const [signaturesRefresh, setSignaturesRefresh] = useState(0)
+  const [tab, setTab] = useState('clients')
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -81,16 +83,32 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      {contractInviteOpen && (
+      <div className="flex gap-1 border-b border-gray-200">
+        {[['clients', 'All Clients'], ['waiting', 'Waiting to Hear Back From']].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === key ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'waiting' && (
+        <WaitingOnSection kind="client" people={clients.map(c => ({ id: c.id, name: c.name }))}
+          mentionableUsers={mentionableUsers} showLink />
+      )}
+
+      {tab === 'clients' && contractInviteOpen && (
         <ClientContractInviteModal
           onClose={() => setContractInviteOpen(false)}
           onSent={() => setSignaturesRefresh(r => r + 1)}
         />
       )}
 
-      <ClientContractSignaturesPanel clients={clients} refreshKey={signaturesRefresh} />
+      {tab === 'clients' && <ClientContractSignaturesPanel clients={clients} refreshKey={signaturesRefresh} />}
 
-      {newClient && (
+      {tab === 'clients' && newClient && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">
           <h3 className="font-semibold text-gray-800 text-sm">New Client</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -221,19 +239,21 @@ export default function ClientsPage() {
         </form>
       )}
 
-      <div className="relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search clients…"
-          className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
-        />
-      </div>
+      {tab === 'clients' && (
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search clients…"
+            className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+          />
+        </div>
+      )}
 
-      {loading ? (
+      {tab === 'clients' && (loading ? (
         <p className="text-gray-400 text-sm text-center py-8">Loading…</p>
       ) : clients.length === 0 ? (
         <p className="text-gray-400 text-sm italic text-center py-8">No clients found.</p>
@@ -268,7 +288,7 @@ export default function ClientsPage() {
             </Link>
           ))}
         </div>
-      )}
+      ))}
 
       {showNew && <NewCaseModal onClose={() => setShowNew(false)} />}
     </div>

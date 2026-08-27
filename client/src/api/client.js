@@ -227,6 +227,22 @@ export const api = {
   deleteReminderNote: (id, noteId) =>
     request(`/reminders/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
+  // Waiting to Hear Back From
+  getWaitingOn: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request(`/waiting-on${qs ? `?${qs}` : ''}`)
+  },
+  createWaitingOn: (data) => request('/waiting-on', { method: 'POST', body: JSON.stringify(data) }),
+  updateWaitingOn: (id, data) => request(`/waiting-on/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  resolveWaitingOn: (id) => request(`/waiting-on/${id}/resolve`, { method: 'PATCH' }),
+  reopenWaitingOn: (id) => request(`/waiting-on/${id}/reopen`, { method: 'PATCH' }),
+  deleteWaitingOn: (id) => request(`/waiting-on/${id}`, { method: 'DELETE' }),
+  getWaitingOnNotes: (id) => request(`/waiting-on/${id}/notes`),
+  addWaitingOnNote: (id, text) =>
+    request(`/waiting-on/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  deleteWaitingOnNote: (id, noteId) =>
+    request(`/waiting-on/${id}/notes/${noteId}`, { method: 'DELETE' }),
+
   // Sales leads (Sarede-only)
   getSalesLeads: () => request('/sales'),
   createSalesLead: (data) => request('/sales', { method: 'POST', body: JSON.stringify(data) }),
