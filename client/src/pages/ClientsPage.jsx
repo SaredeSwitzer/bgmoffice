@@ -5,7 +5,6 @@ import NewCaseModal from '../components/NewCaseModal'
 import GmailComposeLink from '../components/GmailComposeLink'
 import MentionTextarea from '../components/MentionTextarea'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
-import ClientContractSignaturesPanel from '../components/ClientContractSignaturesPanel'
 import WaitingOnSection from '../components/WaitingOnSection'
 
 const CONTACT_ICONS = { text: '💬', email: '✉️', whatsapp: '📱', call: '📞' }
@@ -25,7 +24,6 @@ export default function ClientsPage() {
   const [createError, setCreateError] = useState('')
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [contractInviteOpen, setContractInviteOpen] = useState(false)
-  const [signaturesRefresh, setSignaturesRefresh] = useState(0)
   const [searchParams] = useSearchParams()
   const [tab, setTab] = useState(searchParams.get('waiting') ? 'waiting' : 'clients')
 
@@ -53,7 +51,6 @@ export default function ClientsPage() {
         client_type: 'individual', contact_person_name: '', contact_person_phone: '', contact_person_email: '', contact_person_role: '',
         street: '', city: '', state: '', zip: '', neighborhood: '',
       })
-      setSignaturesRefresh(r => r + 1)
     } catch (err) {
       setCreateError(err.message)
     } finally {
@@ -101,13 +98,8 @@ export default function ClientsPage() {
       )}
 
       {tab === 'clients' && contractInviteOpen && (
-        <ClientContractInviteModal
-          onClose={() => setContractInviteOpen(false)}
-          onSent={() => setSignaturesRefresh(r => r + 1)}
-        />
+        <ClientContractInviteModal onClose={() => setContractInviteOpen(false)} />
       )}
-
-      {tab === 'clients' && <ClientContractSignaturesPanel clients={clients} refreshKey={signaturesRefresh} />}
 
       {tab === 'clients' && newClient && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">

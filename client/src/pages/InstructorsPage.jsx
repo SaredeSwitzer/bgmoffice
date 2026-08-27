@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import MeetingInviteModal from '../components/MeetingInviteModal'
 import ContractInviteModal from '../components/ContractInviteModal'
-import ContractSignaturesPanel from '../components/ContractSignaturesPanel'
 import StylePicker from '../components/StylePicker'
 import StylesManagerModal from '../components/StylesManagerModal'
 import WaitingOnSection from '../components/WaitingOnSection'
@@ -109,7 +108,6 @@ export default function InstructorsPage() {
   const [saving, setSaving] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [contractInviteOpen, setContractInviteOpen] = useState(false)
-  const [signaturesRefresh, setSignaturesRefresh] = useState(0)
   const [selected, setSelected] = useState(() => new Set())
   const [emailBlastOpen, setEmailBlastOpen] = useState(false)
   const [welcomeEmailFor, setWelcomeEmailFor] = useState(null) // newly-created instructor, or null
@@ -141,7 +139,6 @@ export default function InstructorsPage() {
     setSignups(prev => prev.filter(s => s.id !== signup.id))
     api.getInstructor(instructorId).then(i => {
       setInstructors(prev => [...prev, i].sort((a, b) => a.name.localeCompare(b.name)))
-      setSignaturesRefresh(r => r + 1)
       if (hasLogin && i.email) setWelcomeEmailFor(i)
     })
   }
@@ -192,7 +189,6 @@ export default function InstructorsPage() {
       setInstructors(prev => [...prev, i].sort((a, b) => a.name.localeCompare(b.name)))
       setNewInstructor(false)
       setForm(BLANK_FORM)
-      setSignaturesRefresh(r => r + 1)
       if (i.email) setWelcomeEmailFor(i)
     } finally {
       setSaving(false)
@@ -243,17 +239,13 @@ export default function InstructorsPage() {
 
       {tab === 'instructors' && inviteOpen && <MeetingInviteModal onClose={() => setInviteOpen(false)} />}
       {tab === 'instructors' && contractInviteOpen && (
-        <ContractInviteModal
-          onClose={() => setContractInviteOpen(false)}
-          onSent={() => setSignaturesRefresh(r => r + 1)}
-        />
+        <ContractInviteModal onClose={() => setContractInviteOpen(false)} />
       )}
 
       {tab === 'instructors' && (
         <PendingSignups signups={signups} onApproved={handleSignupApproved} onRejected={handleSignupRejected} />
       )}
 
-      {tab === 'instructors' && <ContractSignaturesPanel instructors={instructors} refreshKey={signaturesRefresh} />}
 
       {tab === 'instructors' && newInstructor && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">
