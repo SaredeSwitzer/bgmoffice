@@ -374,6 +374,38 @@ async function syncInvoiceSendReminders(today = ymd(new Date())) {
   return { invoice_reminders_created: created };
 }
 
+// A "Waiting to Hear Back From" item whose "need to hear back by" date has passed and
+// hasn't been resolved gets an automatic reminder — otherwise an overdue one just sits
+// quietly in that tab and nobody's prompted to actually chase it. Idempotent (skips
+// items that already have one via the waiting_on_id link) — see server/routes/waitingOn.js
+// for the matching cleanup when the item is resolved or its date is pushed back.
+async function syncWaitingOnReminders(today = ymd(new Date())) {
+  // need_by::text — left as the DATE type it actually is, node-pg hands back a JS Date
+  // (parsed at UTC midnight) instead of a plain 'YYYY-MM-DD' string, which would then get
+  // stored into remind_on (itself just TEXT) as a full ISO timestamp instead of a date,
+  // breaking every date compare the rest of the reminders code does on that column.
+  const { rows: overdue } = await pool.query(
+    `SELECT id, name, what, kind, client_id, instructor_id, need_by::text AS need_by
+       FROM waiting_on_items
+      WHERE status = 'open' AND need_by IS NOT NULL AND need_by < $1
+        AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.waiting_on_id = waiting_on_items.id)`,
+    [today]
+  );
+
+  for (const w of overdue) {
+    await pool.query(
+      `INSERT INTO reminders (title, notes, remind_on, client_id, instructor_id, waiting_on_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,'daily-sync')`,
+      [
+        `Follow up: ${w.name}`,
+        w.what,
+        w.need_by, w.client_id, w.instructor_id, w.id,
+      ]
+    );
+  }
+  return { waiting_on_reminders_created: overdue.length };
+}
+
 // Runs nightly: syncs the day that just fully completed ("yesterday" relative to `now`).
 // Classes get picked up the next morning rather than waiting for the end of the week.
 async function runDailySync(now = new Date()) {
@@ -384,7 +416,8 @@ async function runDailySync(now = new Date()) {
   const horizon = ymd(addDays(now, 730));
   const generation = await generateUpcomingSessions(horizon);
   const invoiceReminders = await syncInvoiceSendReminders(ymd(now));
-  return { ...sync, calendar_generation: generation, ...invoiceReminders };
+  const waitingOnReminders = await syncWaitingOnReminders(ymd(now));
+  return { ...sync, calendar_generation: generation, ...invoiceReminders, ...waitingOnReminders };
 }
 
 // Same 2-year lookahead the nightly cron uses (see runDailySync) — exposed so a schedule
@@ -394,4 +427,4 @@ function defaultHorizon() {
   return ymd(addDays(new Date(), 730));
 }
 
-module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, syncInvoiceSendReminders, defaultHorizon };
+module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, syncInvoiceSendReminders, syncWaitingOnReminders, defaultHorizon };

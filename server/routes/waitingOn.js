@@ -107,7 +107,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { rows: [existing] } = await pool.query('SELECT id FROM waiting_on_items WHERE id = $1', [req.params.id]);
+  const { rows: [existing] } = await pool.query('SELECT id, need_by::text AS need_by FROM waiting_on_items WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const { name, what, client_id, instructor_id, need_by } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
@@ -116,6 +116,15 @@ router.put('/:id', async (req, res) => {
     'UPDATE waiting_on_items SET name = $1, what = $2, client_id = $3, instructor_id = $4, need_by = $5 WHERE id = $6',
     [name.trim(), what.trim(), client_id || null, instructor_id || null, need_by || null, req.params.id]
   );
+  // The date changed away from what it was — if that date is the reason an auto reminder
+  // exists (it's no longer overdue, or was cleared entirely), that reminder is stale.
+  // Only touches the one this feature created; a reminder someone made by hand stays put.
+  if (existing.need_by !== (need_by || null)) {
+    await pool.query(
+      `DELETE FROM reminders WHERE waiting_on_id = $1 AND created_by = 'daily-sync' AND status = 'pending'`,
+      [req.params.id]
+    );
+  }
   const { rows: [row] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [req.params.id]);
   res.json(row);
 });
@@ -126,6 +135,10 @@ router.patch('/:id/resolve', async (req, res) => {
     [req.user.initials, req.params.id]
   );
   if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  await pool.query(
+    `UPDATE reminders SET status = 'done' WHERE waiting_on_id = $1 AND status = 'pending'`,
+    [req.params.id]
+  );
   const { rows: [row] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [req.params.id]);
   res.json(row);
 });
