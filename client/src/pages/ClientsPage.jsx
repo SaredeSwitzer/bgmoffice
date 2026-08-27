@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import NewCaseModal from '../components/NewCaseModal'
 import GmailComposeLink from '../components/GmailComposeLink'
@@ -26,7 +26,8 @@ export default function ClientsPage() {
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [contractInviteOpen, setContractInviteOpen] = useState(false)
   const [signaturesRefresh, setSignaturesRefresh] = useState(0)
-  const [tab, setTab] = useState('clients')
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState(searchParams.get('waiting') ? 'waiting' : 'clients')
 
   useEffect(() => {
     const t = setTimeout(() => {

@@ -16,6 +16,7 @@ import { fmtTimeRange } from '../utils/time'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
 import { InstructorLink } from '../components/NameLink'
 import WaitingOnSection from '../components/WaitingOnSection'
+import { useHashHighlight } from '../utils/hashHighlight'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
@@ -749,6 +750,8 @@ export default function ClientProfilePage() {
   const [showNewCase, setShowNewCase] = useState(false)
   const [error, setError] = useState('')
 
+  useHashHighlight([client])
+
   useEffect(() => {
     Promise.all([
       api.getClient(id),
@@ -1068,7 +1071,7 @@ export default function ClientProfilePage() {
                     💰 {client.rate_per_class} / class
                   </p>
                 )}
-                {client.notes && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{renderWithMentions(client.notes, mentionableUsers)}</p>}
+                {client.notes && <p id={`note-client_notes-${client.id}`} className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{renderWithMentions(client.notes, mentionableUsers)}</p>}
               </div>
               <div className="flex gap-2 flex-shrink-0">
                 <button onClick={() => setEditing(true)}

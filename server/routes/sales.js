@@ -76,7 +76,7 @@ router.post('/:id/notes', async (req, res) => {
   );
   await syncMentions({
     sourceTable: 'sales_lead_notes', sourceId: note.id, text: text.trim(),
-    authorInitials: req.user.initials, linkPath: '/sales',
+    authorInitials: req.user.initials, linkPath: `/sales?lead=${req.params.id}`,
   });
   res.status(201).json(note);
 });

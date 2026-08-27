@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import MeetingInviteModal from '../components/MeetingInviteModal'
 import ContractInviteModal from '../components/ContractInviteModal'
@@ -114,7 +114,8 @@ export default function InstructorsPage() {
   const [emailBlastOpen, setEmailBlastOpen] = useState(false)
   const [welcomeEmailFor, setWelcomeEmailFor] = useState(null) // newly-created instructor, or null
   const [signups, setSignups] = useState([])
-  const [tab, setTab] = useState('instructors')
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState(searchParams.get('waiting') ? 'waiting' : 'instructors')
   const [mentionableUsers, setMentionableUsers] = useState([])
 
   useEffect(() => {

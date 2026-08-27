@@ -7,6 +7,7 @@ import SendInvoiceModal from '../components/SendInvoiceModal'
 import MentionTextarea from '../components/MentionTextarea'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import { renderWithMentions, stripMentions } from '../utils/mentions'
+import { useHashHighlight } from '../utils/hashHighlight'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -46,6 +47,8 @@ export default function InvoiceDetailPage() {
   const [savingPayment, setSavingPayment] = useState(false)
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [showSendModal, setShowSendModal] = useState(false)
+
+  useHashHighlight([invoice])
 
   function loadPayments() {
     return api.getInvoicePayments(id).then(setPayments)
@@ -662,7 +665,7 @@ export default function InvoiceDetailPage() {
             )}
 
             {invoice.notes && (
-              <div className="mt-4 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-600 border border-gray-100">
+              <div id={`note-invoice_notes-${invoice.id}`} className="mt-4 bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-600 border border-gray-100">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Notes</p>
                 {renderWithMentions(invoice.notes, mentionableUsers)}
               </div>

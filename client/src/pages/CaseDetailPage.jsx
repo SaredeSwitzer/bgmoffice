@@ -6,6 +6,7 @@ import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
+import { useHashHighlight } from '../utils/hashHighlight'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -246,7 +247,7 @@ function NoteItem({ note, onEdited, onDeleted, mentionableUsers = [] }) {
   }
 
   return (
-    <div className="flex gap-2 items-start group">
+    <div id={`note-follow_up_notes-${note.id}`} className="flex gap-2 items-start group">
       <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
         {note.author_initials}
       </div>
@@ -740,7 +741,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                 Created by {item.created_by || '—'} — {fmt(item.created_at)}
               </p>
               {item.initial_note && (
-                <div className="mt-2">
+                <div id={`note-action_items-${item.id}`} className="mt-2">
                   <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 whitespace-pre-wrap leading-relaxed">
                     {renderWithMentions(item.initial_note, mentionableUsers)}
                   </p>
@@ -1016,6 +1017,8 @@ export default function CaseDetailPage() {
   const [error, setError] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [resolving, setResolving] = useState(false)
+
+  useHashHighlight([caseData])
 
   useEffect(() => {
     Promise.all([

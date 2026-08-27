@@ -8,6 +8,7 @@ import DashboardFilterBar from '../components/DashboardFilterBar'
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
+import { useHashHighlight } from '../utils/hashHighlight'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -187,7 +188,7 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
   )
 
   return (
-    <div className={`bg-white border rounded-xl px-4 py-3 transition-colors ${
+    <div id={`note-standalone_tasks-${task.id}`} className={`bg-white border rounded-xl px-4 py-3 transition-colors ${
       isDone ? 'border-gray-100 opacity-70' :
       task.starred ? 'border-yellow-300 bg-yellow-50/40' :
       isUrgent ? 'border-red-200 bg-red-50/30' :
@@ -248,7 +249,7 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
       {replies.length > 0 && (
         <div className="border-t border-gray-100 pt-2 mb-2 space-y-1.5">
           {replies.map(r => (
-            <div key={r.id} className="flex gap-2 text-xs items-start group">
+            <div key={r.id} id={`note-task_replies-${r.id}`} className="flex gap-2 text-xs items-start group">
               <span className="font-semibold text-gray-500 flex-shrink-0 mt-0.5">{r.author}</span>
               <div className="flex-1 min-w-0">
                 {(r.action_type_name || r.assigned_to) && (
@@ -423,6 +424,8 @@ export default function TasksPage() {
   useEffect(() => {
     if (focusId) markSeen(focusId)
   }, [focusId])
+
+  useHashHighlight([focusId, tasks])
 
   function handleSectionUpdate(t, action) {
     if (action === 'add') setTasks(prev => [t, ...prev])

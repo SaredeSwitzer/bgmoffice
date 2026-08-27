@@ -110,15 +110,23 @@ router.get('/:id/notes', async (req, res) => {
 router.post('/:id/notes', async (req, res) => {
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'text required' });
-  const { rows: [item] } = await pool.query('SELECT id FROM waiting_on_items WHERE id = $1', [req.params.id]);
+  const { rows: [item] } = await pool.query(
+    'SELECT id, kind, client_id, instructor_id FROM waiting_on_items WHERE id = $1', [req.params.id]
+  );
   if (!item) return res.status(404).json({ error: 'Not found' });
   const { rows: [note] } = await pool.query(
     'INSERT INTO waiting_on_notes (waiting_on_id, text, author_initials) VALUES ($1,$2,$3) RETURNING *',
     [req.params.id, text.trim(), req.user.initials]
   );
+  // Land on the linked profile if there is one (where the item already shows), else the
+  // sub-tab list on Clients/Instructors — either way `?waiting=<id>` tells the page which
+  // item's follow-up thread to auto-expand before scrolling to the note itself.
+  const linkPath = item.client_id ? `/clients/${item.client_id}?waiting=${item.id}`
+    : item.instructor_id ? `/instructors/${item.instructor_id}?waiting=${item.id}`
+    : `/${item.kind}s?waiting=${item.id}`;
   await syncMentions({
     sourceTable: 'waiting_on_notes', sourceId: note.id, text: text.trim(),
-    authorInitials: req.user.initials, linkPath: '/clients',
+    authorInitials: req.user.initials, linkPath,
   });
   res.status(201).json(note);
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { navClick } from '../utils/nav'
 import { useAuth } from '../context/AuthContext'
@@ -12,6 +12,7 @@ import WaiverContractReminderModal from '../components/WaiverContractReminderMod
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
+import { useHashHighlight } from '../utils/hashHighlight'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 
@@ -118,14 +119,26 @@ function FollowUpModal({ reminder, onClose, onAddReminder, navigate }) {
 // fetch a thread for every row on page load. "Send" tags whoever's mentioned the same
 // way replies do everywhere else in the app (task replies, action item follow-ups).
 
-function ReminderNoteThread({ reminderId, initialCount, mentionableUsers }) {
+function ReminderNoteThread({ reminderId, initialCount, mentionableUsers, autoOpen }) {
   const { user } = useAuth()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!autoOpen)
   const [loading, setLoading] = useState(false)
   const [notes, setNotes] = useState(null)
   const [count, setCount] = useState(initialCount || 0)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+
+  useHashHighlight([notes])
+
+  useEffect(() => {
+    // A mention notification links straight to the reminder + note ("?id=<id>#note-<id>")
+    // — open this thread automatically so useHashHighlight can find and scroll to it.
+    if (autoOpen && notes === null) {
+      setLoading(true)
+      api.getReminderNotes(reminderId).then(setNotes).finally(() => setLoading(false))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen])
 
   function toggle() {
     if (open) { setOpen(false); return }
@@ -168,7 +181,7 @@ function ReminderNoteThread({ reminderId, initialCount, mentionableUsers }) {
           ) : notes?.length > 0 ? (
             <div className="space-y-2">
               {notes.map(n => (
-                <div key={n.id} className="flex gap-2 items-start group">
+                <div key={n.id} id={`note-reminder_notes-${n.id}`} className="flex gap-2 items-start group">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600">
                     {n.author_initials}
                   </div>
@@ -200,7 +213,7 @@ function ReminderNoteThread({ reminderId, initialCount, mentionableUsers }) {
 
 // ── Reminder row with inline edit ─────────────────────────────────────────────
 
-function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors, mentionableUsers }) {
+function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors, mentionableUsers, targetReminderId }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
@@ -406,7 +419,8 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
           </p>
         )}
         {(isOverdue || reminder.remind_on === today()) && (
-          <ReminderNoteThread reminderId={reminder.id} initialCount={reminder.note_count} mentionableUsers={mentionableUsers} />
+          <ReminderNoteThread reminderId={reminder.id} initialCount={reminder.note_count} mentionableUsers={mentionableUsers}
+            autoOpen={String(reminder.id) === targetReminderId} />
         )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
@@ -443,7 +457,7 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors, mentionableUsers }) {
+function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, isOverdue, delegates, clients, instructors, mentionableUsers, targetReminderId }) {
   const accentClass = accent === 'red' ? 'border-red-400 text-red-700' : 'border-blue-400 text-blue-700'
   return (
     <section>
@@ -469,6 +483,7 @@ function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, 
               clients={clients}
               instructors={instructors}
               mentionableUsers={mentionableUsers}
+              targetReminderId={targetReminderId}
             />
           ))}
         </div>
@@ -482,6 +497,10 @@ function Section({ title, accent, items, emptyMsg, onDone, onDelete, onUpdated, 
 export default function RemindersPage() {
   const { refresh: refreshBadge } = useRemindersContext()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Kept as a string, not Number() — reminder ids come back from Postgres as bigint
+  // strings, and comparing against a Number would fail (same pitfall noted for tasks above).
+  const targetReminderId = searchParams.get('id') || null
   const [overdue,     setOverdue]     = useState([])
   const [upcoming,    setUpcoming]    = useState([])
   const [delegates,   setDelegates]   = useState([])
@@ -588,6 +607,7 @@ export default function RemindersPage() {
         clients={clients}
         instructors={instructors}
         mentionableUsers={mentionableUsers}
+        targetReminderId={targetReminderId}
       />
       <Section
         title="Upcoming"
@@ -602,6 +622,7 @@ export default function RemindersPage() {
         clients={clients}
         instructors={instructors}
         mentionableUsers={mentionableUsers}
+        targetReminderId={targetReminderId}
       />
 
       {showAdd && (

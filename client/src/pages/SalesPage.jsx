@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { isSaredeUser } from '../utils/saredeAccess'
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
+import { useHashHighlight } from '../utils/hashHighlight'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -15,14 +16,26 @@ function fmt(iso) {
 // ── Note thread — same lazy-load-on-expand pattern as ReminderNoteThread
 // (client/src/pages/RemindersPage.jsx), just pointed at sales leads instead. ──────────
 
-function LeadNoteThread({ leadId, initialCount, mentionableUsers }) {
+function LeadNoteThread({ leadId, initialCount, mentionableUsers, autoOpen }) {
   const { user } = useAuth()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!autoOpen)
   const [loading, setLoading] = useState(false)
   const [notes, setNotes] = useState(null)
   const [count, setCount] = useState(initialCount || 0)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+
+  useHashHighlight([notes])
+
+  useEffect(() => {
+    // A mention notification links straight to the lead + note ("?lead=<id>#note-<id>")
+    // — open this thread automatically so useHashHighlight can find and scroll to it.
+    if (autoOpen && notes === null) {
+      setLoading(true)
+      api.getSalesLeadNotes(leadId).then(setNotes).finally(() => setLoading(false))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen])
 
   function toggle() {
     if (open) { setOpen(false); return }
@@ -65,7 +78,7 @@ function LeadNoteThread({ leadId, initialCount, mentionableUsers }) {
           ) : notes?.length > 0 ? (
             <div className="space-y-2">
               {notes.map(n => (
-                <div key={n.id} className="flex gap-2 items-start group">
+                <div key={n.id} id={`note-sales_lead_notes-${n.id}`} className="flex gap-2 items-start group">
                   <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600">
                     {n.author_initials}
                   </div>
@@ -153,6 +166,10 @@ function AddLeadForm({ clients, onAdded }) {
 
 export default function SalesPage() {
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
+  // Kept as a string — ids come back from Postgres as bigint strings, so comparing
+  // against a Number() would silently never match.
+  const targetLeadId = searchParams.get('lead') || null
   const [leads, setLeads] = useState([])
   const [clients, setClients] = useState([])
   const [mentionableUsers, setMentionableUsers] = useState([])
@@ -218,7 +235,8 @@ export default function SalesPage() {
                 <button onClick={() => handleDelete(lead.id)}
                   className="text-xs text-gray-300 hover:text-red-500 flex-shrink-0">Remove</button>
               </div>
-              <LeadNoteThread leadId={lead.id} initialCount={lead.note_count} mentionableUsers={mentionableUsers} />
+              <LeadNoteThread leadId={lead.id} initialCount={lead.note_count} mentionableUsers={mentionableUsers}
+                autoOpen={String(lead.id) === targetLeadId} />
             </div>
           ))}
         </div>

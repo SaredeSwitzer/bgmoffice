@@ -60,7 +60,7 @@ function NoteCard({ note: n, currentUserInitials, users, onDelete, onEdit, onRep
 
   if (editing) {
     return (
-      <form onSubmit={handleSave} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 space-y-2">
+      <form id={`note-recruiting_notes-${n.id}`} onSubmit={handleSave} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 space-y-2">
         <MentionTextarea value={editText} onChange={setEditText} users={users} rows={2} autoFocus
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white" />
         <div className="flex items-center gap-2">
@@ -78,7 +78,7 @@ function NoteCard({ note: n, currentUserInitials, users, onDelete, onEdit, onRep
   }
 
   return (
-    <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
+    <div id={`note-recruiting_notes-${n.id}`} className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
       <div className="flex items-start justify-between gap-2 mb-0.5">
         <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
         <div className="flex items-center gap-1.5">
@@ -539,7 +539,20 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, mentionabl
 
   useEffect(() => {
     if (isTarget && cardRef.current) {
-      setTimeout(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400)
+      setTimeout(() => {
+        // A mention's hash (#note-<id>) points at the specific note within this entry —
+        // scroll to that if present, otherwise fall back to the whole card.
+        const hash = window.location.hash
+        const noteEl = hash.startsWith('#note-') ? document.getElementById(hash.slice(1)) : null
+        const target = noteEl || cardRef.current
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (noteEl) {
+          noteEl.style.transition = 'background-color 0.3s ease, box-shadow 0.3s ease'
+          noteEl.style.backgroundColor = '#fef9c3'
+          noteEl.style.boxShadow = '0 0 0 2px #fbbf24'
+          setTimeout(() => { noteEl.style.backgroundColor = ''; noteEl.style.boxShadow = '' }, 2400)
+        }
+      }, 400)
     }
   }, [isTarget])
 

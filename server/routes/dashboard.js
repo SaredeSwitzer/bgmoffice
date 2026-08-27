@@ -87,7 +87,7 @@ function attachCategories(items) {
 // new note type (source_table) gains @mention support.
 async function loadMentionTasks(userId) {
   const { rows } = await pool.query(
-    `SELECT m.id, m.snippet, m.author_initials, m.created_at, m.link_path,
+    `SELECT m.id, m.source_table, m.source_id, m.snippet, m.author_initials, m.created_at, m.link_path,
             COALESCE(re.client_name, cl.name, icl.name, stcl.name, aicl.name, fucl.name, rncl.name, slcl.name, sl.name) AS client_name,
             COALESCE(stins.name, aiins.name, fuins.name, rnins.name) AS instructor_name
      FROM mentions m
@@ -138,7 +138,11 @@ async function loadMentionTasks(userId) {
     created_at: m.created_at,
     client_name: m.client_name || null,
     instructor_name: m.instructor_name || null,
-    link_path: m.link_path || null,
+    // Anchors straight to the specific note the mention lives in (not just the page/
+    // entity it's on) — every note-rendering page gives its notes a matching
+    // id="note-<source_table>-<id>" DOM id (table-namespaced since source ids aren't
+    // unique across tables), see client/src/utils/hashHighlight.js.
+    link_path: m.link_path ? `${m.link_path}#note-${m.source_table}-${m.source_id}` : null,
     last_note: { text: m.snippet, author_initials: m.author_initials },
   }));
 }

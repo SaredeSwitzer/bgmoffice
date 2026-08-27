@@ -121,7 +121,7 @@ router.post('/:id/notes', async (req, res) => {
   );
   await syncMentions({
     sourceTable: 'reminder_notes', sourceId: note.id, text: text.trim(),
-    authorInitials: req.user.initials, linkPath: '/reminders',
+    authorInitials: req.user.initials, linkPath: `/reminders?id=${req.params.id}`,
   });
   res.status(201).json(note);
 });

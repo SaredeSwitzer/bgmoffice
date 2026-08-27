@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import MentionTextarea from './MentionTextarea'
+import { useHashHighlight } from '../utils/hashHighlight'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -15,6 +16,7 @@ function NoteThread({ itemId, mentionableUsers }) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { api.getWaitingOnNotes(itemId).then(setNotes) }, [itemId])
+  useHashHighlight([notes])
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -43,7 +45,7 @@ function NoteThread({ itemId, mentionableUsers }) {
         <p className="text-xs text-gray-400 italic">No follow-ups logged yet.</p>
       ) : (
         notes.map(n => (
-          <div key={n.id} className="group flex gap-2 items-start">
+          <div key={n.id} id={`note-waiting_on_notes-${n.id}`} className="group flex gap-2 items-start">
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-gray-400">
                 {fmtDate(n.created_at)}{n.author_initials ? ` — ${n.author_initials}` : ''}
@@ -70,8 +72,8 @@ function NoteThread({ itemId, mentionableUsers }) {
   )
 }
 
-function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, showLink }) {
-  const [open, setOpen] = useState(false)
+function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, showLink, autoOpen }) {
+  const [open, setOpen] = useState(!!autoOpen)
   const resolved = item.status === 'resolved'
   const linkedName = item.client_name || item.instructor_name
   const linkTo = item.client_id ? `/clients/${item.client_id}` : item.instructor_id ? `/instructors/${item.instructor_id}` : null
@@ -116,6 +118,10 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, showLink 
 // linkedId + linkedName: profile-page mode — scoped to one client/instructor, name locked
 // people: list mode (Clients/Instructors sub-tab) — [{id, name}] for the picker
 export default function WaitingOnSection({ kind, linkedId, linkedName, people = [], mentionableUsers = [], showLink = false }) {
+  const [searchParams] = useSearchParams()
+  // Kept as a string — ids come back from Postgres as bigint strings, so comparing
+  // against a Number() would silently never match.
+  const targetItemId = searchParams.get('waiting') || null
   const [data, setData] = useState({ open: [], resolved: [] })
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
@@ -127,7 +133,12 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
   function load() {
     const params = { kind }
     if (linkedId) params[kind === 'client' ? 'client_id' : 'instructor_id'] = linkedId
-    api.getWaitingOn(params).then(setData).finally(() => setLoading(false))
+    api.getWaitingOn(params).then(d => {
+      setData(d)
+      // A mention notification links here with "?waiting=<id>" — if that item only
+      // shows up under resolved ones, reveal that section so it's actually on screen.
+      if (targetItemId && d.resolved.some(i => String(i.id) === targetItemId)) setShowResolved(true)
+    }).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [kind, linkedId])
@@ -237,7 +248,8 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
         <div className="space-y-2">
           {data.open.map(item => (
             <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
-              onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} showLink={showLink} />
+              onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} showLink={showLink}
+              autoOpen={String(item.id) === targetItemId} />
           ))}
         </div>
       )}
@@ -251,7 +263,8 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
             <div className="space-y-2 mt-2">
               {data.resolved.map(item => (
                 <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
-                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} showLink={showLink} />
+                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} showLink={showLink}
+              autoOpen={String(item.id) === targetItemId} />
               ))}
             </div>
           )}
