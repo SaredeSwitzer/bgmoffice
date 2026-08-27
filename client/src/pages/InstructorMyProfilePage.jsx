@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, uploadsUrl } from '../api/client'
 import { useAuth } from '../context/AuthContext'
-import StylePicker from '../components/StylePicker'
+import SignupOptionPicker from '../components/SignupOptionPicker'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -254,13 +254,15 @@ export default function InstructorMyProfilePage() {
   const [instructor, setInstructor] = useState(null)
   const [form, setForm] = useState(null)
   const [classStyles, setClassStyles] = useState([])
+  const [neighborhoods, setNeighborhoods] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.getClassStyles().then(setClassStyles).catch(() => {})
+    api.getSignupClassStyles().then(setClassStyles).catch(() => {})
+    api.getSignupNeighborhoods().then(setNeighborhoods).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -279,12 +281,21 @@ export default function InstructorMyProfilePage() {
       .finally(() => setLoading(false))
   }, [user?.instructor_id])
 
-  // The canonical style list, plus whatever's already on this instructor's record
-  // (e.g. something typed in before this picker existed) so it doesn't disappear.
-  const styleNames = [...new Set([
-    ...classStyles.map(s => s.name),
-    ...(form?.styles_taught || '').split(',').map(s => s.trim()).filter(Boolean),
-  ])].sort()
+  // Same NY-only rule as the public sign-up page: the canonical neighborhood list is
+  // NY-area, so only offer the multi-picker to instructors actually based there.
+  const isNY = ['ny', 'new york'].includes((form?.state || '').trim().toLowerCase())
+
+  async function handleAddNeighborhood(name) {
+    const row = await api.addSignupNeighborhood(name)
+    setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
+    return row
+  }
+
+  async function handleAddClassStyle(name) {
+    const row = await api.addSignupClassStyle(name)
+    setClassStyles(prev => prev.some(s => s.id === row.id) ? prev : [...prev, row])
+    return row
+  }
 
   async function handleSave(e) {
     e.preventDefault()
@@ -344,18 +355,41 @@ export default function InstructorMyProfilePage() {
             <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
               placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
-            <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+          <div className={isNY ? 'sm:col-span-2' : undefined}>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              {isNY ? 'Neighborhoods You Can Teach In' : 'Neighborhood'}
+            </label>
+            {isNY ? (
+              <>
+                <p className="text-[11px] text-gray-400 mb-1.5">
+                  Pick as many as you'd travel to — type to search, and add yours if it's not listed.
+                </p>
+                <SignupOptionPicker
+                  options={neighborhoods}
+                  value={form.neighborhood}
+                  onChange={v => setForm(f => ({ ...f, neighborhood: v }))}
+                  onAdd={handleAddNeighborhood}
+                  placeholder="e.g. Williamsburg, Upper West Side…"
+                  addLabel="neighborhood"
+                />
+              </>
+            ) : (
+              <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            )}
           </div>
           <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-2">Classes You Can Teach</label>
-            <StylePicker
-              styleNames={styleNames}
+            <label className="block text-xs font-medium text-gray-600 mb-1">Classes You Can Teach</label>
+            <p className="text-[11px] text-gray-400 mb-1.5">
+              Type to search what we already offer — if you teach something new to us, add it.
+            </p>
+            <SignupOptionPicker
+              options={classStyles}
               value={form.styles_taught}
               onChange={v => setForm(f => ({ ...f, styles_taught: v }))}
-              onStyleAdded={s => setClassStyles(prev => [...prev, s])}
+              onAdd={handleAddClassStyle}
+              placeholder="e.g. Zumba, Yoga, Gymnastics…"
+              addLabel="class style"
             />
           </div>
           <div className="sm:col-span-2">

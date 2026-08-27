@@ -21,9 +21,10 @@ function deriveInitials(name) {
 // actually makes it public (Express middleware only applies to routes registered after it).
 
 // Drops a task on Sarede's My Tasks (assigned_to matches her `delegates` row, same
-// lookup dashboard.js's /my-tasks uses) whenever the public sign-up page adds a brand
-// new neighborhood or class style to the shared list — she wasn't the one who typed it,
-// so this is how she finds out a new option now exists site-wide.
+// lookup dashboard.js's /my-tasks uses) whenever an instructor adds a brand new
+// neighborhood or class style to the shared list — from the public /join page or from
+// their own profile once they're in. She wasn't the one who typed it, so this is how she
+// finds out a new option now exists site-wide.
 async function notifySaredeNewOption(kind, name) {
   // created_at is TEXT here (a SQLite-era leftover) and its default writes UTC, which the
   // dashboard's age math then reads as local — enough to render a fresh task as "-1d".
@@ -31,7 +32,7 @@ async function notifySaredeNewOption(kind, name) {
   await pool.query(
     `INSERT INTO standalone_tasks (title, notes, assigned_to, task_type, created_by, created_at)
      VALUES ($1,$2,'Sarede','other','signup', to_char(now() AT TIME ZONE 'America/New_York', 'YYYY-MM-DD HH24:MI:SS'))`,
-    [`New ${kind} added via instructor sign-up: "${name}"`, 'Added through the public /join page — just flagging it so you know it\'s now an option everywhere.']
+    [`New ${kind} added by an instructor: "${name}"`, 'Typed in by an instructor (sign-up form or their own profile) — just flagging it so you know it\'s now an option everywhere.']
   );
 }
 
