@@ -20,6 +20,56 @@ const ITEM_JOIN = `
   LEFT JOIN instructors i ON i.id = w.instructor_id
 `;
 
+// Pending (unsigned, not dismissed) contract signatures fold into this list as
+// read-only entries — they're exactly the "waiting to hear back" shape, and Sarede
+// asked for them to show up here rather than only in the separate signatures panel.
+// Unlike waiting_on_items they have no note thread and can't be resolved/deleted here;
+// they naturally disappear once signed or dismissed via the existing contract-invite flow.
+async function loadPendingContractSignatures({ kind, client_id, instructor_id }) {
+  const out = [];
+  if (!kind || kind === 'client') {
+    const conditions = [`s.signed_at IS NULL`, `s.dismissed_at IS NULL`];
+    const params = [];
+    if (client_id) conditions.push(`s.client_id = $${params.push(client_id)}`);
+    const { rows } = await pool.query(
+      `SELECT s.id, s.client_id, s.org_name, s.contact_name, s.email, s.phone, s.sent_at, c.name AS client_name
+       FROM client_contract_signatures s
+       LEFT JOIN clients c ON c.id = s.client_id
+       WHERE ${conditions.join(' AND ')}`,
+      params
+    );
+    out.push(...rows.map(s => ({
+      id: `cc-${s.id}`, kind: 'client', synthetic: true,
+      name: s.client_name || s.org_name || s.contact_name || s.email || s.phone || 'Unknown',
+      client_id: s.client_id, instructor_id: null,
+      client_name: s.client_name || null, instructor_name: null,
+      what: 'Contract sent — awaiting signature',
+      status: 'open', created_at: s.sent_at, created_by: null, note_count: 0,
+    })));
+  }
+  if (!kind || kind === 'instructor') {
+    const conditions = [`s.signed_at IS NULL`, `s.dismissed_at IS NULL`];
+    const params = [];
+    if (instructor_id) conditions.push(`s.instructor_id = $${params.push(instructor_id)}`);
+    const { rows } = await pool.query(
+      `SELECT s.id, s.instructor_id, s.name, s.email, s.sent_at, i.name AS instructor_name
+       FROM instructor_contract_signatures s
+       LEFT JOIN instructors i ON i.id = s.instructor_id
+       WHERE ${conditions.join(' AND ')}`,
+      params
+    );
+    out.push(...rows.map(s => ({
+      id: `ic-${s.id}`, kind: 'instructor', synthetic: true,
+      name: s.instructor_name || s.name || s.email || 'Unknown',
+      client_id: null, instructor_id: s.instructor_id,
+      client_name: null, instructor_name: s.instructor_name || null,
+      what: 'Contract sent — awaiting signature',
+      status: 'open', created_at: s.sent_at, created_by: null, note_count: 0,
+    })));
+  }
+  return out;
+}
+
 router.get('/', async (req, res) => {
   const { kind, client_id, instructor_id } = req.query;
   const conditions = [];
@@ -29,12 +79,14 @@ router.get('/', async (req, res) => {
   if (instructor_id) conditions.push(`w.instructor_id = $${params.push(instructor_id)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  const { rows } = await pool.query(
-    `${ITEM_JOIN} ${where} ORDER BY w.status ASC, w.created_at DESC`,
-    params
-  );
+  const [{ rows }, pendingSignatures] = await Promise.all([
+    pool.query(`${ITEM_JOIN} ${where} ORDER BY w.status ASC, w.created_at DESC`, params),
+    loadPendingContractSignatures({ kind, client_id, instructor_id }),
+  ]);
+  const open = [...rows.filter(r => r.status === 'open'), ...pendingSignatures]
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   res.json({
-    open:     rows.filter(r => r.status === 'open'),
+    open,
     resolved: rows.filter(r => r.status === 'resolved'),
   });
 });

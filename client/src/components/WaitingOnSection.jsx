@@ -85,6 +85,11 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, showLink,
           <p className="text-sm font-semibold text-gray-900">
             {showLink && linkTo ? <Link to={linkTo} className="hover:underline">{item.name}</Link> : item.name}
             {linkedName && linkedName.trim() !== item.name.trim() && <span className="text-gray-400 font-normal"> ({linkedName.trim()})</span>}
+            {item.synthetic && (
+              <span className="ml-2 text-[10px] font-semibold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full align-middle">
+                Contract
+              </span>
+            )}
             {resolved && (
               <span className="ml-2 text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full align-middle">
                 Resolved
@@ -98,18 +103,30 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, showLink,
               : `${fmtDate(item.created_at)}${item.created_by ? ` — ${item.created_by}` : ''}`}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <button onClick={() => resolved ? onReopen(item.id) : onResolve(item.id)}
-            className={`text-xs font-medium rounded-lg px-2 py-1 ${resolved ? 'text-gray-500 hover:bg-gray-50' : 'text-green-700 hover:bg-green-50'}`}>
-            {resolved ? 'Reopen' : 'Mark Resolved'}
-          </button>
-          <button onClick={() => onDelete(item.id)} className="text-[11px] text-gray-300 hover:text-red-500">Delete</button>
-        </div>
+        {item.synthetic ? (
+          linkTo && (
+            <Link to={linkTo} className="text-xs font-medium text-blue-600 hover:underline flex-shrink-0">
+              View →
+            </Link>
+          )
+        ) : (
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            <button onClick={() => resolved ? onReopen(item.id) : onResolve(item.id)}
+              className={`text-xs font-medium rounded-lg px-2 py-1 ${resolved ? 'text-gray-500 hover:bg-gray-50' : 'text-green-700 hover:bg-green-50'}`}>
+              {resolved ? 'Reopen' : 'Mark Resolved'}
+            </button>
+            <button onClick={() => onDelete(item.id)} className="text-[11px] text-gray-300 hover:text-red-500">Delete</button>
+          </div>
+        )}
       </div>
-      <button onClick={() => setOpen(o => !o)} className="text-[11px] text-blue-600 hover:underline mt-2">
-        {open ? 'Hide follow-ups' : `Follow-ups${item.note_count ? ` (${item.note_count})` : ''}`}
-      </button>
-      {open && <NoteThread itemId={item.id} mentionableUsers={mentionableUsers} />}
+      {!item.synthetic && (
+        <>
+          <button onClick={() => setOpen(o => !o)} className="text-[11px] text-blue-600 hover:underline mt-2">
+            {open ? 'Hide follow-ups' : `Follow-ups${item.note_count ? ` (${item.note_count})` : ''}`}
+          </button>
+          {open && <NoteThread itemId={item.id} mentionableUsers={mentionableUsers} />}
+        </>
+      )}
     </div>
   )
 }
