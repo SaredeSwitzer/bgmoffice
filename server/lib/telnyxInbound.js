@@ -17,6 +17,7 @@
 const crypto = require('crypto');
 const pool = require('../db/pg');
 const { notifyCrew } = require('./notifyCrew');
+const smsStore = require('./smsStore');
 
 // Wrap a raw 32-byte Ed25519 public key in DER/SPKI so Node's crypto can use it.
 function ed25519KeyFromBase64(b64) {
@@ -153,10 +154,19 @@ async function handleWebhook(req, res) {
       const text = (payload.text || '').trim();
       const person = await lookupPerson(from);
       const sessions = person ? await getUpcomingSessions(person) : [];
+      try {
+        await smsStore.logMessage({ direction: 'inbound', phone: from, from_number: from,
+          to_number: payload.to?.[0]?.phone_number || null, body: text, telnyx_id: payload.id,
+          status: 'received', person_id: person?.id, person_kind: person?.kind, person_name: person?.name });
+      } catch (e) { console.error('[telnyx inbound] sms log failed:', e.message); }
       await notifyCrew(buildReplyNotice({ from, text, person, sessions }));
     } else if (type === 'message.finalized' || type === 'message.sent') {
       // Outbound delivery receipt — only surface failures; successes are noise.
       const to = payload.to?.[0];
+      if (type === 'message.finalized') {
+        try { await smsStore.updateStatusByTelnyxId(payload.id, to?.status); }
+        catch (e) { console.error('[telnyx inbound] status update failed:', e.message); }
+      }
       const errs = payload.errors;
       const failed = (to?.status && to.status !== 'delivered' && to.status !== 'sent')
         || (Array.isArray(errs) && errs.length);

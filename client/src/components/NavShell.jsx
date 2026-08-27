@@ -28,6 +28,7 @@ function Shell() {
     { to: '/billing',    label: 'Billing' },
     ...(isSaredeUser(user) ? [{ to: '/sales', label: 'Sales' }] : []),
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
+    { to: '/sms',        label: 'Texts' },
     { to: '/invoices',   label: 'Invoices' },
     { to: '/recruiting', label: 'Recruiting' },
     { to: '/reference',  label: 'Reference' },

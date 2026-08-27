@@ -82,6 +82,11 @@ async function request(path, options = {}) {
 export const api = {
   myTasks: () => request('/dashboard/my-tasks'),
 
+  // SMS inbox (two-way texting)
+  smsThreads: () => request('/sms/threads'),
+  smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
+  smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
+
   // Standalone Tasks
   getTasks: (status) => request(`/tasks${status ? `?status=${status}` : ''}`),
   createTask: (data) => request('/tasks', { method: 'POST', body: JSON.stringify(data) }),
