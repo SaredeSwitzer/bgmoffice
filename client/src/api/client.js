@@ -329,6 +329,8 @@ export const api = {
   resolveMention: (id) => request(`/dashboard/mentions/${id}/resolve`, { method: 'PATCH' }),
   unresolveMention: (id) => request(`/dashboard/mentions/${id}/unresolve`, { method: 'PATCH' }),
   getReadMentions: () => request('/dashboard/mentions/read'),
+  scheduleFromRecruiting: (entryId, data) =>
+    request(`/recruiting/${entryId}/schedule`, { method: 'POST', body: JSON.stringify(data) }),
   getRecruitingColumns: () => request('/recruiting/columns'),
   addRecruitingColumn: (data) =>
     request('/recruiting/columns', { method: 'POST', body: JSON.stringify(data) }),

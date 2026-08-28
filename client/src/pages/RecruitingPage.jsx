@@ -7,6 +7,7 @@ import ActionTypeBadge from '../components/ActionTypeBadge'
 import PhoneLink from '../components/PhoneLink'
 import MentionTextarea from '../components/MentionTextarea'
 import StylesManagerModal from '../components/StylesManagerModal'
+import ScheduleFromRecruitingModal from '../components/ScheduleFromRecruitingModal'
 import { renderWithMentions } from '../utils/mentions'
 
 const ALL_DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
@@ -531,6 +532,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, mentionabl
   const [editing,  setEditing]  = useState(false)
   const [notes,    setNotes]    = useState(entry.notes || [])
   const [quickNote, setQuickNote] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
   const cardRef = useRef(null)
 
   const latestNote = notes.length > 0
@@ -668,17 +670,39 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, mentionabl
               <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓ Waiver</span>
             )}
             {!entry.archived ? (
-              <button
-                onClick={handleQuickNote}
-                title="Add a note for this entry"
-                className="text-[10px] px-1.5 py-0.5 bg-gray-800 text-white rounded-full font-medium hover:bg-gray-700 whitespace-nowrap"
-              >
-                + Note
-              </button>
+              <>
+                <button
+                  onClick={handleQuickNote}
+                  title="Add a note for this entry"
+                  className="text-[10px] px-1.5 py-0.5 bg-gray-800 text-white rounded-full font-medium hover:bg-gray-700 whitespace-nowrap"
+                >
+                  + Note
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); setScheduling(true) }}
+                  title="Turn this into real classes on the calendar"
+                  className="text-[10px] px-1.5 py-0.5 bg-emerald-600 text-white rounded-full font-medium hover:bg-emerald-700 whitespace-nowrap"
+                >
+                  📅 Add to calendar
+                </button>
+              </>
             ) : null}
           </div>
         </div>
       </div>
+
+      {scheduling && (
+        <ScheduleFromRecruitingModal
+          entry={entry}
+          instructors={instructors}
+          onClose={() => setScheduling(false)}
+          onDone={(res) => {
+            setScheduling(false)
+            if (res.archived) onArchived({ ...entry, archived: 1 })
+            else onUpdated({ ...entry, client_id: res.client_id })
+          }}
+        />
+      )}
 
       {/* Expanded detail */}
       {expanded && (

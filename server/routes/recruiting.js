@@ -3,6 +3,7 @@ const pool    = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
 const { sendMail } = require('../lib/mailer');
+const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -327,6 +328,111 @@ router.put('/availability/:id', async (req, res) => {
 router.delete('/availability/:id', async (req, res) => {
   await pool.query('DELETE FROM instructor_availability WHERE id = $1', [req.params.id]);
   res.json({ success: true });
+});
+
+// ── Recruiting entry → calendar ──────────────────────────────────────────────────────
+// Once an entry has an instructor lined up, this turns it into real calendar classes
+// without retyping everything into the Schedule screen. Two shapes, same as the Schedule
+// page itself: a weekly recurring class, or a set of specific dates.
+//
+// An entry often has no client record yet (it's a lead — Henchi Gross had client_id null),
+// so this can create the client from what's already on the entry rather than making
+// someone go build it by hand first.
+const WEEKDAY_INDEX = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
+
+router.post('/:id/schedule', async (req, res) => {
+  const { rows: [entry] } = await pool.query('SELECT * FROM recruiting_entries WHERE id = $1', [req.params.id]);
+  if (!entry) return res.status(404).json({ error: 'Recruiting entry not found' });
+
+  const {
+    mode, client_id, create_client, instructor_id, weekday, start_time,
+    duration_minutes, charge_amount, instructor_pay, payment_method, style,
+    participant_count, participant_ages, dates, archive,
+  } = req.body || {};
+
+  if (!['recurring', 'dates'].includes(mode)) return res.status(400).json({ error: 'mode must be recurring or dates' });
+  if (!start_time) return res.status(400).json({ error: 'A start time is required' });
+
+  // ── who is this for
+  let clientId = client_id || entry.client_id || null;
+  if (!clientId) {
+    if (!create_client) return res.status(400).json({ error: 'Pick an existing client, or let this create one.' });
+    const name = (entry.client_name || '').trim();
+    if (!name) return res.status(400).json({ error: 'This entry has no client name to create a client from.' });
+    const { rows: [existing] } = await pool.query(
+      'SELECT id, phone, street, neighborhood, rate_per_class FROM clients WHERE LOWER(name) = LOWER($1)', [name]
+    );
+    if (existing) {
+      clientId = existing.id;
+      // A client record already existed under this name — reuse it rather than creating a
+      // duplicate, but fill in anything the recruiting call captured that the record is
+      // still missing. COALESCE order matters: never overwrite what's already there.
+      await pool.query(
+        `UPDATE clients SET
+           phone          = COALESCE(NULLIF(TRIM(COALESCE(phone,'')),''), $2),
+           street         = COALESCE(NULLIF(TRIM(COALESCE(street,'')),''), $3),
+           neighborhood   = COALESCE(NULLIF(TRIM(COALESCE(neighborhood,'')),''), $4),
+           rate_per_class = COALESCE(NULLIF(TRIM(COALESCE(rate_per_class,'')),''), $5)
+         WHERE id = $1`,
+        [clientId, entry.phone || null, (entry.address || '').trim() || null,
+         entry.neighborhood || null, entry.client_rate || null]
+      );
+    } else {
+      const { rows: [created] } = await pool.query(
+        `INSERT INTO clients (name, phone, street, neighborhood, rate_per_class, notes)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [name, entry.phone || null, (entry.address || '').trim() || null,
+         entry.neighborhood || null, entry.client_rate || null,
+         entry.class_notes || null]
+      );
+      clientId = created.id;
+    }
+  }
+
+  const instructorId = instructor_id || entry.instructor_id || null;
+  const mins = duration_minutes || 60;
+  const created = { schedule_id: null, session_ids: [] };
+
+  if (mode === 'recurring') {
+    const wd = typeof weekday === 'number' ? weekday : WEEKDAY_INDEX[String(weekday || '').toLowerCase()];
+    if (wd === undefined || wd === null) return res.status(400).json({ error: 'Pick which day of the week it repeats on.' });
+    const { rows: [sch] } = await pool.query(
+      `INSERT INTO class_schedules
+         (client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount,
+          instructor_pay, payment_method, style, status, start_date, participant_count, participant_ages)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$12) RETURNING id`,
+      [clientId, instructorId, wd, start_time, mins, charge_amount ?? null, instructor_pay ?? null,
+       payment_method || null, style || entry.style || null,
+       Array.isArray(dates) && dates[0] ? dates[0] : null,
+       participant_count ?? null, participant_ages || entry.participants || null]
+    );
+    created.schedule_id = sch.id;
+    // Fill the calendar straight away rather than waiting on the nightly run, same as
+    // creating a schedule from the Schedule page does.
+    await generateUpcomingSessions(defaultHorizon(), { scheduleId: sch.id });
+  } else {
+    if (!Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'Pick at least one date.' });
+    for (const d of dates) {
+      const { rows: [row] } = await pool.query(
+        `INSERT INTO class_sessions
+           (client_id, instructor_id, session_date, start_time, duration_minutes, charge_amount,
+            instructor_pay, payment_method, style, status, participant_count, participant_ages)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'scheduled',$10,$11) RETURNING id`,
+        [clientId, instructorId, d, start_time, mins, charge_amount ?? null, instructor_pay ?? null,
+         payment_method || null, style || entry.style || null,
+         participant_count ?? null, participant_ages || entry.participants || null]
+      );
+      created.session_ids.push(row.id);
+    }
+  }
+
+  // Point the entry at whatever client it ended up on, so the link isn't lost.
+  await pool.query('UPDATE recruiting_entries SET client_id = $1 WHERE id = $2', [clientId, req.params.id]);
+  if (archive) await pool.query('UPDATE recruiting_entries SET archived = 1 WHERE id = $1', [req.params.id]);
+
+  res.status(201).json({ ...created, client_id: clientId, archived: !!archive });
 });
 
 router.get('/styles', async (req, res) => {
