@@ -383,8 +383,42 @@ router.put('/sessions/:id', async (req, res) => {
      m.participant_count === '' ? null : m.participant_count ?? null, m.participant_ages || null,
      req.params.id]
   );
+  // apply_to_series: the edit was meant for the whole weekly class, not just this date.
+  // Updates the recurring schedule (so future generated classes inherit it) and every
+  // not-yet-happened class already on the calendar for it. Deliberately excludes
+  // session_date — a date only ever means this one occurrence — and leaves past classes
+  // alone so billing and payroll history stay as they actually happened.
+  let series = null;
+  if (req.body.apply_to_series && existing.schedule_id) {
+    await pool.query(
+      `UPDATE class_schedules SET
+         instructor_id=$1, start_time=$2, duration_minutes=$3, charge_amount=$4, charge_note=$5,
+         instructor_pay=$6, payment_method=$7, style=$8,
+         participant_count=$9, participant_ages=$10, updated_at=now()
+       WHERE id=$11`,
+      [newInstructorId, m.start_time || null, m.duration_minutes || 60, m.charge_amount ?? null,
+       m.charge_note || null, m.instructor_pay ?? null, m.payment_method || null, m.style || null,
+       m.participant_count === '' ? null : m.participant_count ?? null, m.participant_ages || null,
+       existing.schedule_id]
+    );
+    const { rowCount } = await pool.query(
+      `UPDATE class_sessions SET
+         instructor_id=$1, start_time=$2, duration_minutes=$3, charge_amount=$4, charge_note=$5,
+         instructor_pay=$6, payment_method=$7, style=$8,
+         participant_count=$9, participant_ages=$10,
+         ${instructorChanged ? 'confirmation_sent_at=NULL, confirmation_sent_to=NULL,' : ''}
+         updated_at=now()
+       WHERE schedule_id=$11 AND session_date >= CURRENT_DATE AND status <> 'cancelled'`,
+      [newInstructorId, m.start_time || null, m.duration_minutes || 60, m.charge_amount ?? null,
+       m.charge_note || null, m.instructor_pay ?? null, m.payment_method || null, m.style || null,
+       m.participant_count === '' ? null : m.participant_count ?? null, m.participant_ages || null,
+       existing.schedule_id]
+    );
+    series = { schedule_id: existing.schedule_id, sessions_updated: rowCount };
+  }
+
   const { rows: [row] } = await pool.query('SELECT * FROM class_sessions WHERE id=$1', [req.params.id]);
-  res.json(row);
+  res.json({ ...row, series });
 });
 
 router.delete('/sessions/:id', async (req, res) => {
