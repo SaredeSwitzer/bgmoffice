@@ -82,9 +82,13 @@ function NoteThread({ itemId, mentionableUsers }) {
   )
 }
 
-function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeedBy, showLink, autoOpen }) {
+function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeedBy, onSave, showLink, autoOpen }) {
   const [open, setOpen] = useState(!!autoOpen)
   const [editingDate, setEditingDate] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ name: item.name, what: item.what })
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const resolved = item.status === 'resolved'
   const linkedName = item.client_name || item.instructor_name
   const linkTo = item.client_id ? `/clients/${item.client_id}` : item.instructor_id ? `/instructors/${item.instructor_id}` : null
@@ -95,12 +99,35 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
     if (v !== item.need_by) await onSetNeedBy(item.id, v || null)
   }
 
+  function startEdit() {
+    setDraft({ name: item.name, what: item.what })
+    setSaveError('')
+    setEditing(true)
+  }
+
+  async function saveEdit() {
+    if (!draft.name.trim() || !draft.what.trim()) {
+      setSaveError('Both the name and what you\u2019re waiting on are needed.')
+      return
+    }
+    setSaving(true); setSaveError('')
+    try {
+      await onSave(item.id, { name: draft.name.trim(), what: draft.what.trim() })
+      setEditing(false)
+    } catch (e) {
+      setSaveError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className={`bg-white border rounded-xl px-4 py-3 ${resolved ? 'border-gray-100 opacity-70' : 'border-gray-200'}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-900">
-            {showLink && linkTo ? <Link to={linkTo} className="hover:underline">{item.name}</Link> : item.name}
+            {editing ? <span className="text-gray-400">Editing…</span>
+              : showLink && linkTo ? <Link to={linkTo} className="hover:underline">{item.name}</Link> : item.name}
             {linkedName && linkedName.trim() !== item.name.trim() && <span className="text-gray-400 font-normal"> ({linkedName.trim()})</span>}
             {item.synthetic && (
               <span className="ml-2 text-[10px] font-semibold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full align-middle">
@@ -113,7 +140,26 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
               </span>
             )}
           </p>
-          <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{item.what}</p>
+          {editing ? (
+            <div className="mt-1.5 space-y-1.5" onClick={e => e.stopPropagation()}>
+              <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm" placeholder="Name" />
+              <textarea value={draft.what} onChange={e => setDraft(d => ({ ...d, what: e.target.value }))}
+                rows={2} placeholder="What are we waiting on?"
+                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs resize-none" />
+              {saveError && <p className="text-[11px] text-red-600">{saveError}</p>}
+              <div className="flex gap-2">
+                <button type="button" onClick={saveEdit} disabled={saving}
+                  className="px-2.5 py-1 bg-gray-900 text-white text-[11px] rounded-lg disabled:opacity-50">
+                  {saving ? 'Saving\u2026' : 'Save'}
+                </button>
+                <button type="button" onClick={() => setEditing(false)}
+                  className="px-2.5 py-1 border border-gray-300 text-gray-600 text-[11px] rounded-lg">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{item.what}</p>
+          )}
           <p className="text-[10px] text-gray-400 mt-1">
             {resolved
               ? `Resolved ${fmtDate(item.resolved_at)}${item.resolved_by ? ` — ${item.resolved_by}` : ''}`
@@ -154,7 +200,12 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
               className={`text-xs font-medium rounded-lg px-2 py-1 ${resolved ? 'text-gray-500 hover:bg-gray-50' : 'text-green-700 hover:bg-green-50'}`}>
               {resolved ? 'Reopen' : 'Mark Resolved'}
             </button>
-            <button onClick={() => onDelete(item.id)} className="text-[11px] text-gray-300 hover:text-red-500">Delete</button>
+            <div className="flex items-center gap-2">
+              {!editing && (
+                <button onClick={startEdit} className="text-[11px] text-gray-400 hover:text-gray-700">Edit</button>
+              )}
+              <button onClick={() => onDelete(item.id)} className="text-[11px] text-gray-300 hover:text-red-500">Delete</button>
+            </div>
           </div>
         )}
       </div>
@@ -238,6 +289,20 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
     await api.deleteWaitingOn(id)
     setData(d => ({ open: d.open.filter(x => x.id !== id), resolved: d.resolved.filter(x => x.id !== id) }))
   }
+  async function handleSaveItem(id, fields) {
+    const current = [...data.open, ...data.resolved].find(x => x.id === id)
+    if (!current) return
+    const updated = await api.updateWaitingOn(id, {
+      name: fields.name, what: fields.what,
+      client_id: current.client_id, instructor_id: current.instructor_id,
+      need_by: current.need_by,
+    })
+    setData(d => ({
+      open: d.open.map(x => x.id === id ? updated : x),
+      resolved: d.resolved.map(x => x.id === id ? updated : x),
+    }))
+  }
+
   async function handleSetNeedBy(id, need_by) {
     const current = [...data.open, ...data.resolved].find(x => x.id === id)
     if (!current) return
@@ -321,7 +386,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
         <div className="space-y-2">
           {data.open.map(item => (
             <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
-              onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} showLink={showLink}
+              onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} onSave={handleSaveItem} showLink={showLink}
               autoOpen={String(item.id) === targetItemId} />
           ))}
         </div>
@@ -336,7 +401,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
             <div className="space-y-2 mt-2">
               {data.resolved.map(item => (
                 <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
-                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} showLink={showLink}
+                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} onSave={handleSaveItem} showLink={showLink}
                   autoOpen={String(item.id) === targetItemId} />
               ))}
             </div>
