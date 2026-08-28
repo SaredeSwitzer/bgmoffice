@@ -174,6 +174,24 @@ export default function InstructorMyClassesPage() {
                           {s.special_instructions}
                         </div>
                       ) : null}
+                      {(s.participant_count || s.participant_ages) ? (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {[s.participant_count && `${s.participant_count} participant${Number(s.participant_count) === 1 ? '' : 's'}`,
+                            s.participant_ages && `ages ${s.participant_ages}`].filter(Boolean).join(' · ')}
+                        </div>
+                      ) : null}
+                      {Array.isArray(s.notes) && s.notes.length > 0 ? (
+                        <div className="mt-2 rounded-lg border border-sky-100 bg-sky-50 px-2 py-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">Notes from the office</p>
+                          <ul className="mt-0.5 space-y-0.5">
+                            {s.notes.map(n => (
+                              <li key={n.id} className={`text-xs ${n.is_done ? 'text-gray-400 line-through' : 'text-sky-900'}`}>
+                                {n.is_task ? (n.is_done ? '☑ ' : '☐ ') : '• '}{n.text}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                       {s.status && s.status !== 'scheduled' ? (
                         <div className="text-xs text-gray-400 mt-1 capitalize">{String(s.status).replace('_', ' ')}</div>
                       ) : null}

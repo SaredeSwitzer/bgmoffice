@@ -41,9 +41,12 @@ export default function ClassNotes({ kind, id, onCountChange }) {
   }
 
   return (
-    <div className="bg-gray-50 border-t border-gray-100 px-4 py-3 space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-        Staff notes — not visible to the instructor
+    <div className="bg-sky-50/60 border-t border-sky-100 px-4 py-3 space-y-2">
+      {/* Deliberately styled apart from AdminNotes (amber, lock icon): these two sat
+          side by side looking identical, which is a bad way to find out which one the
+          instructor can read. */}
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-sky-700">
+        👁 Class notes — the instructor can see these
       </p>
       {loading ? (
         <p className="text-xs text-gray-400">Loading notes…</p>

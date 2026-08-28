@@ -31,8 +31,20 @@ router.get('/my-sessions', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT s.id, s.session_date, s.start_time, s.duration_minutes, s.style, s.status,
             s.instructor_pay,
+            s.participant_count, s.participant_ages,
             c.name AS client_name,
-            sch.location, sch.special_instructions
+            sch.location, sch.special_instructions,
+            -- class_notes only. admin_notes is deliberately absent and must stay that
+            -- way: it's the one place staff can write something about a class that the
+            -- instructor is not meant to read.
+            COALESCE((
+              SELECT json_agg(json_build_object(
+                       'id', n.id, 'text', n.text, 'is_task', n.is_task,
+                       'is_done', n.is_done, 'created_at', n.created_at)
+                     ORDER BY n.created_at)
+                FROM class_notes n
+               WHERE n.session_id = s.id OR (s.schedule_id IS NOT NULL AND n.schedule_id = s.schedule_id)
+            ), '[]'::json) AS notes
        FROM class_sessions s
        JOIN clients c                ON c.id  = s.client_id
        LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
