@@ -205,7 +205,7 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
 
 // ── Individual note with inline edit ─────────────────────────────────────────
 
-function NoteItem({ note, onEdited, onDeleted, mentionableUsers = [] }) {
+function NoteItem({ note, onEdited, onDeleted, mentionableUsers = [], context }) {
   const { user } = useAuth()
   const [editing,  setEditing]  = useState(false)
   const [text,     setText]     = useState(note.text)
@@ -263,7 +263,7 @@ function NoteItem({ note, onEdited, onDeleted, mentionableUsers = [] }) {
               className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none"
             />
           ) : (
-            <p className="text-sm text-gray-800 leading-snug whitespace-pre-wrap">{renderWithMentions(note.text, mentionableUsers)}</p>
+            <p className="text-sm text-gray-800 leading-snug whitespace-pre-wrap">{renderWithMentions(note.text, mentionableUsers, context)}</p>
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 px-1">
@@ -318,12 +318,12 @@ function NoteItem({ note, onEdited, onDeleted, mentionableUsers = [] }) {
 
 // ── Follow-up thread ──────────────────────────────────────────────────────────
 
-function NoteThread({ notes, onNoteEdited, onNoteDeleted, mentionableUsers = [] }) {
+function NoteThread({ notes, onNoteEdited, onNoteDeleted, mentionableUsers = [], context }) {
   if (!notes.length) return null
   return (
     <div className="space-y-3 mt-3">
       {notes.map(n => (
-        <NoteItem key={n.id} note={n} onEdited={onNoteEdited} onDeleted={onNoteDeleted} mentionableUsers={mentionableUsers} />
+        <NoteItem key={n.id} note={n} onEdited={onNoteEdited} onDeleted={onNoteDeleted} mentionableUsers={mentionableUsers} context={context} />
       ))}
     </div>
   )
@@ -743,7 +743,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
               {item.initial_note && (
                 <div id={`note-action_items-${item.id}`} className="mt-2">
                   <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 whitespace-pre-wrap leading-relaxed">
-                    {renderWithMentions(item.initial_note, mentionableUsers)}
+                    {renderWithMentions(item.initial_note, mentionableUsers, { clientId: caseContext?.client_id, instructorId: caseContext?.instructor_id })}
                   </p>
                   {wasEdited && (
                     <p className="text-[10px] text-gray-400 mt-1 px-1 italic">edited {fmt(item.updated_at)}</p>
@@ -804,7 +804,8 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                 </div>
               )}
 
-              <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} onNoteDeleted={handleNoteDeleted} mentionableUsers={mentionableUsers} />
+              <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} onNoteDeleted={handleNoteDeleted} mentionableUsers={mentionableUsers}
+                context={{ clientId: caseContext?.client_id, instructorId: caseContext?.instructor_id }} />
               {!isResolved && (
                 <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} onReminderAdded={handleReminderAdded} mentionableUsers={mentionableUsers} />
               )}

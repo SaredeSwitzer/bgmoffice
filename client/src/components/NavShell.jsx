@@ -1,13 +1,18 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import PasskeyPrompt from './PasskeyPrompt'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { RemindersProvider, useRemindersContext } from '../context/RemindersContext'
 import AmberChat from './AmberChat'
 import { isSaredeUser } from '../utils/saredeAccess'
+import { loadDirectory } from '../utils/directory'
 
 function Shell() {
   const { user, logout } = useAuth()
+  // Fetched once behind the whole signed-in app: note text renders client/instructor
+  // links from it (utils/mentions.jsx), and every screen showing a note would otherwise
+  // need its own copy.
+  useEffect(() => { if (user) loadDirectory() }, [user])
   const { overdueCount } = useRemindersContext()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)

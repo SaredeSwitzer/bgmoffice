@@ -224,6 +224,18 @@ router.get('/my-tasks', async (req, res) => {
   res.json({ tasks: sortItems([...processedAI, ...standaloneTasks, ...mentionTasks, ...reminderTasks]), delegate_name: delegate.name });
 });
 
+// Compact name→id directory for clients and instructors. Used client-side to turn a
+// phrase like "waiting to hear back from Stephanie" in a note into a link to the right
+// person, so it's small on purpose — id, name, kind, nothing else.
+router.get('/directory', async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT id, name, 'client' AS kind FROM clients WHERE COALESCE(TRIM(name),'') <> ''
+    UNION ALL
+    SELECT id, name, 'instructor' AS kind FROM instructors WHERE COALESCE(TRIM(name),'') <> ''
+  `);
+  res.json(rows);
+});
+
 router.patch('/mentions/:id/resolve', async (req, res) => {
   const { rows: [row] } = await pool.query(
     'UPDATE mentions SET resolved_at = now() WHERE id = $1 AND mentioned_user_id = $2 RETURNING id',

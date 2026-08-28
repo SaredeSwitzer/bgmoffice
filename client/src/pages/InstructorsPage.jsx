@@ -113,7 +113,7 @@ export default function InstructorsPage() {
   const [welcomeEmailFor, setWelcomeEmailFor] = useState(null) // newly-created instructor, or null
   const [signups, setSignups] = useState([])
   const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState(searchParams.get('waiting') ? 'waiting' : 'instructors')
+  const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'waiting' : 'instructors')
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [neighborhoods, setNeighborhoods] = useState([])
   const [regions, setRegions] = useState([])

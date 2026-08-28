@@ -25,7 +25,7 @@ export default function ClientsPage() {
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [contractInviteOpen, setContractInviteOpen] = useState(false)
   const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState(searchParams.get('waiting') ? 'waiting' : 'clients')
+  const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'waiting' : 'clients')
 
   useEffect(() => {
     const t = setTimeout(() => {
