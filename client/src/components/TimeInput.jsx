@@ -36,7 +36,11 @@ export default function TimeInput({ value = '', onChange, required = false, clas
   function onHour(e) {
     let h = e.target.value.replace(/\D/g, '')
     if (h !== '') h = Math.min(12, Math.max(1, Number(h)))
-    update(h, internal.minute, internal.meridiem)
+    // Classes almost always start on the hour, so entering one fills in :00 rather than
+    // leaving the time incomplete (and the field invalid) until minutes are typed too.
+    // Only when minutes are still blank — an existing :30 is never overwritten.
+    const minute = h !== '' && internal.minute === '' ? 0 : internal.minute
+    update(h, minute, internal.meridiem)
   }
 
   function onMinute(e) {
@@ -50,6 +54,7 @@ export default function TimeInput({ value = '', onChange, required = false, clas
       <input
         type="text" inputMode="numeric" placeholder="HH" required={required}
         value={internal.hour} onChange={onHour}
+        onFocus={e => e.target.select()}
         className={BOX}
       />
       <span className="text-gray-400 font-semibold">:</span>
@@ -57,6 +62,7 @@ export default function TimeInput({ value = '', onChange, required = false, clas
         type="text" inputMode="numeric" placeholder="MM" required={required}
         value={internal.minute === '' ? '' : String(internal.minute).padStart(2, '0')}
         onChange={onMinute}
+        onFocus={e => e.target.select()}
         className={BOX}
       />
       <div className="flex rounded-lg border border-gray-300 overflow-hidden text-xs font-medium">
