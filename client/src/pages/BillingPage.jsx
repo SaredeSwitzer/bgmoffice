@@ -5,6 +5,7 @@ import { fmtTime } from '../utils/time'
 import DateInput from '../components/DateInput'
 import { loadSavedWeekAnchor, saveWeekAnchor } from '../utils/weekAnchor'
 import { ClientLink, InstructorLink } from '../components/NameLink'
+import InvoicesPage from './InvoicesPage'
 
 // Weekly recurring CC billing — review then charge. The amounts are computed live
 // from the schedule (class_sessions), so updating the schedule updates this. Nothing
@@ -707,7 +708,7 @@ function InvoicePreviewModal({ detail, onApply, onClose, applying }) {
 }
 
 export default function BillingPage() {
-  const [tab, setTab] = useState('charge') // 'charge' | 'report' | 'stripe'
+  const [tab, setTab] = useState('charge') // 'charge' | 'report' | 'stripe' | 'invoices'
   const [anchor, setAnchor] = useState(() => loadSavedWeekAnchor(startOfWeek))
   const weekStart = startOfWeek(anchor)
   const weekEnd = addDays(weekStart, 6)
@@ -808,7 +809,7 @@ export default function BillingPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">Billing</h1>
         <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-          {[['charge', 'Charge Clients'], ['report', 'Weekly Report'], ['stripe', 'Card Charges']].map(([key, text]) => (
+          {[['charge', 'Charge Clients'], ['report', 'Weekly Report'], ['stripe', 'Card Charges'], ['invoices', 'Invoices']].map(([key, text]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-3 py-1.5 font-medium ${tab === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
               {text}
@@ -817,7 +818,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {tab !== 'stripe' && (
+      {tab !== 'stripe' && tab !== 'invoices' && (
         <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
             <button onClick={() => setAnchor(addDays(weekStart, -7))} className="px-2 py-1 rounded text-gray-500 hover:bg-gray-100">‹</button>
@@ -831,7 +832,11 @@ export default function BillingPage() {
         </div>
       )}
 
-      {tab === 'stripe' ? (
+      {tab === 'invoices' ? (
+        // The full Invoices screen, rendered inside Billing rather than as its own nav
+        // item — it's billing work, and the sidebar was getting long.
+        <InvoicesPage embedded />
+      ) : tab === 'stripe' ? (
         <StripeChargesTab />
       ) : tab === 'report' ? (
         <ReportTab weekStart={weekStart} weekEnd={weekEnd} label={label} />

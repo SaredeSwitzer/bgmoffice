@@ -467,6 +467,95 @@ router.get('/stripe-charges', async (req, res) => {
 // staff sometimes need it to run right now — e.g. after fixing a rate or backfilling
 // a missed day — without waiting for the next cron tick. Safe to run repeatedly:
 // syncDateRange is idempotent (dedup'd by class_session_id / line_item.session_id).
+// Everything a client has actually been charged/paid in a date range, from both places
+// money is recorded: Stripe (the weekly card run and pay-link charges, which are only
+// ever written to Stripe) and invoice_payments (checks, cash, Zelle — logged in the app).
+// Neither alone answers "was this client charged, and when".
+router.get('/payments', async (req, res) => {
+  const { start, end } = req.query;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '') || !/^\d{4}-\d{2}-\d{2}$/.test(end || '')) {
+    return res.status(400).json({ error: 'start and end (YYYY-MM-DD) are required' });
+  }
+
+  const { rows: manual } = await pool.query(
+    `SELECT p.paid_date::text AS date, p.amount::float AS amount,
+            COALESCE(p.method, 'Payment') AS method, c.id AS client_id, c.name AS client_name,
+            i.invoice_number, p.note
+       FROM invoice_payments p
+       JOIN invoices i ON i.id = p.invoice_id
+       JOIN clients  c ON c.id = i.client_id
+      WHERE p.paid_date BETWEEN $1 AND $2
+      ORDER BY p.paid_date DESC`,
+    [start, end]
+  );
+
+  // Stripe is best-effort: if it's unreachable or unconfigured the in-app payments still
+  // come back, with a flag so the UI can say the card side is missing rather than imply
+  // these are all the charges there were.
+  let card = [];
+  let cardError = null;
+  try {
+    const stripe = await getStripe();
+    if (!stripe) throw new Error('Payment processing is not configured.');
+    const created = {
+      gte: Math.floor(new Date(`${start}T00:00:00`).getTime() / 1000),
+      lte: Math.floor(new Date(`${end}T23:59:59`).getTime() / 1000),
+    };
+    const charges = [];
+    let startingAfter;
+    for (let i = 0; i < 20; i++) {
+      const page = await stripe.charges.list({ created, limit: 100, starting_after: startingAfter });
+      charges.push(...page.data);
+      if (!page.has_more) break;
+      startingAfter = page.data[page.data.length - 1].id;
+    }
+    const succeeded = charges.filter(c => c.status === 'succeeded' && !c.refunded);
+    const customerIds = [...new Set(succeeded.map(c => c.customer).filter(Boolean))];
+    const clientIds   = [...new Set(succeeded.map(c => c.metadata?.client_id).filter(Boolean))];
+    const [byCustomer, byClientId] = await Promise.all([
+      customerIds.length
+        ? pool.query('SELECT stripe_customer_id AS key, id, name FROM clients WHERE stripe_customer_id = ANY($1)', [customerIds])
+        : { rows: [] },
+      clientIds.length
+        ? pool.query('SELECT id::text AS key, id, name FROM clients WHERE id = ANY($1::int[])', [clientIds])
+        : { rows: [] },
+    ]);
+    const cust = Object.fromEntries(byCustomer.rows.map(r => [r.key, r]));
+    const byId = Object.fromEntries(byClientId.rows.map(r => [r.key, r]));
+    card = succeeded.map(c => {
+      const match = cust[c.customer] || byId[c.metadata?.client_id];
+      return {
+        date: new Date(c.created * 1000).toISOString().slice(0, 10),
+        amount: c.amount / 100,
+        method: 'Card',
+        client_id: match?.id ?? null,
+        client_name: match?.name || c.billing_details?.name || 'Unknown',
+        invoice_number: null,
+        note: c.description || null,
+      };
+    });
+  } catch (e) {
+    cardError = e.message;
+  }
+
+  const all = [...card, ...manual].sort((a, b) => b.date.localeCompare(a.date));
+  const byClient = {};
+  for (const r of all) {
+    const key = r.client_name;
+    if (!byClient[key]) byClient[key] = { client_id: r.client_id, client_name: key, total: 0, payments: [] };
+    byClient[key].total += r.amount;
+    byClient[key].payments.push(r);
+  }
+
+  res.json({
+    start, end,
+    total: all.reduce((s, r) => s + r.amount, 0),
+    count: all.length,
+    card_error: cardError,
+    clients: Object.values(byClient).sort((a, b) => b.total - a.total),
+  });
+});
+
 router.post('/sync-week', async (req, res) => {
   const { week_start, dry_run, client_id } = req.body;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {

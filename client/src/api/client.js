@@ -330,6 +330,7 @@ export const api = {
   unresolveMention: (id) => request(`/dashboard/mentions/${id}/unresolve`, { method: 'PATCH' }),
   getReadMentions: () => request('/dashboard/mentions/read'),
   getOpenMentionsFor: (person) => request(`/dashboard/mentions/open?person=${encodeURIComponent(person)}`),
+  getPaymentsReport: (start, end) => request(`/billing/payments?start=${start}&end=${end}`),
   getDirectory: () => request('/dashboard/directory'),
   scheduleFromRecruiting: (entryId, data) =>
     request(`/recruiting/${entryId}/schedule`, { method: 'POST', body: JSON.stringify(data) }),

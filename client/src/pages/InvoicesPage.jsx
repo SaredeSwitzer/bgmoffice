@@ -383,7 +383,9 @@ function SortTh({ col, label, sortCol, sortDir, onSort, className = '' }) {
   )
 }
 
-export default function InvoicesPage() {
+// `embedded` renders it inside Billing's Invoices tab: no page heading or width cap,
+// since Billing already provides both.
+export default function InvoicesPage({ embedded = false }) {
   const navigate = useNavigate()
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -433,9 +435,9 @@ export default function InvoicesPage() {
   )
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className={embedded ? 'space-y-5' : 'max-w-4xl mx-auto space-y-5'}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-gray-900">Invoices</h1>
+        {!embedded && <h1 className="text-xl font-bold text-gray-900">Invoices</h1>}
         <div className="flex gap-2 items-center flex-wrap">
           <select
             value={statusFilter}
