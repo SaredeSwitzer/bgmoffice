@@ -293,6 +293,19 @@ function defaultDueDate() {
 // Preview before sending — staff can edit subject/body/due-date here, same
 // preview-then-send pattern used for every other email in the app. due_date isn't
 // written yet; that only happens on the actual send, in case staff cancels out.
+// Splits a typed recipient list on commas/semicolons/whitespace and keeps what looks
+// like an address. Staff type these by hand ("mom@x.com, bookkeeper@y.com"), so the
+// separator can't be assumed.
+function parseRecipients(input) {
+  if (Array.isArray(input)) input = input.join(',');
+  return [...new Set(
+    String(input || '')
+      .split(/[,;\s]+/)
+      .map(s => s.trim())
+      .filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s))
+  )];
+}
+
 router.post('/:id/send-preview', async (req, res) => {
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Invoice not found' });
@@ -308,17 +321,32 @@ router.post('/:id/send-preview', async (req, res) => {
     + `Invoice: ${invoice.invoice_number}\nAmount Due: ${fmtMoney(invoice.total)}\nDue Date: ${fmtDate(due_date)}\n\n`
     + `Pay online here: ${payLink}\n\nThank you!`;
 
-  res.json({ to: invoice.client_email, subject, body, due_date });
+  // `to` stays a plain string for the existing single-recipient UI; `recipients` is the
+  // editable list the send step actually uses.
+  res.json({ to: invoice.client_email, recipients: [invoice.client_email], subject, body, due_date });
 });
 
 // Actually sends it: PDF attached, due date persisted (if it wasn't already set),
 // status flipped to sent.
 router.post('/:id/send', async (req, res) => {
-  const { subject, body, due_date } = req.body;
+  const { subject, body, due_date, recipients } = req.body;
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Invoice not found' });
   const invoice = enrichInvoice(row);
-  if (!invoice.client_email) return res.status(400).json({ error: 'This client has no invoice email on file. Add one first.' });
+
+  // One invoice often needs to reach several people — a parent and a bookkeeper, or two
+  // contacts at an organisation. Falls back to the client's own address when the caller
+  // doesn't specify, so existing behaviour is unchanged.
+  const to = recipients !== undefined
+    ? parseRecipients(recipients)
+    : parseRecipients(invoice.client_email);
+  if (to.length === 0) {
+    return res.status(400).json({
+      error: recipients !== undefined
+        ? 'Add at least one valid email address.'
+        : 'This client has no invoice email on file. Add one first.',
+    });
+  }
   if (!subject?.trim() || !body?.trim()) return res.status(400).json({ error: 'Subject and message are required' });
 
   const finalDueDate = invoice.due_date || due_date || defaultDueDate();
@@ -335,7 +363,7 @@ router.post('/:id/send', async (req, res) => {
 
   try {
     await sendMail({
-      to: invoice.client_email,
+      to: to.join(', '),
       cc: INVOICE_CC,
       subject: subject.trim(),
       text: body,

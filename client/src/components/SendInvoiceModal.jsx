@@ -27,10 +27,13 @@ export default function SendInvoiceModal({ invoice, onClose, onSent }) {
     return () => { cancelled = true }
   }, [invoice.id])
 
+  const validCount = (to.match(/[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+/g) || []).length
+
   async function send() {
+    if (validCount === 0) { setError('Add at least one email address.'); return }
     setSending(true); setError('')
     try {
-      const updated = await api.sendInvoiceEmail(invoice.id, { subject, body, due_date: dueDate })
+      const updated = await api.sendInvoiceEmail(invoice.id, { subject, body, due_date: dueDate, recipients: to })
       onSent?.(updated)
       onClose()
     } catch (e) {
@@ -53,8 +56,15 @@ export default function SendInvoiceModal({ invoice, onClose, onSent }) {
             <>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
-                <div className="text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">{to}</div>
-                <p className="text-[11px] text-gray-400 mt-1">Cc: sarede@bringthegymtome.com</p>
+                {/* Editable, and takes several addresses — one invoice often has to reach
+                    a parent and a bookkeeper, or two contacts at an organisation. */}
+                <input value={to} onChange={e => setTo(e.target.value)}
+                  placeholder="name@example.com, bookkeeper@example.com"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Separate several with commas. {validCount > 0 && `Sending to ${validCount} recipient${validCount === 1 ? '' : 's'}. `}
+                  Cc: sarede@bringthegymtome.com
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
