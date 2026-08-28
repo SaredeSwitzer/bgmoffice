@@ -12,6 +12,8 @@ import ClassNotes from './ClassNotes'
 import AdminNotes from './AdminNotes'
 import RescheduleAlertModal from './RescheduleAlertModal'
 
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
 // Add, edit, or duplicate a single dated class on the calendar.
@@ -52,9 +54,22 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
 
   // Notes attach to a saved class, so on a brand-new one they're held here and written
   // straight after it's created — otherwise you'd have to save, reopen, then add them.
+  // A class added from the calendar could only ever be a one-off — making it weekly
+  // meant leaving and using the Recurring tab. Same choice the recruiting flow offers.
+  const [repeatMode, setRepeatMode] = useState('once')   // 'once' | 'weekly'
+  const [weekdays, setWeekdays] = useState([])
   const canSeeAdminNotes = isOwnerUser(user)
   const [newClassNote, setNewClassNote] = useState('')
   const [newAdminNote, setNewAdminNote] = useState('')
+
+  // Default the repeat day to whatever date is picked, so switching to weekly doesn't
+  // start from an empty selection.
+  useEffect(() => {
+    if (repeatMode !== 'weekly' || !form.session_date) return
+    const [y, m, d] = form.session_date.split('-').map(Number)
+    const wd = new Date(y, m - 1, d).getDay()
+    setWeekdays(prev => (prev.length ? prev : [wd]))
+  }, [repeatMode, form.session_date])
 
   function setField(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -88,6 +103,39 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
       ...(applyToSeries ? { apply_to_series: true } : {}),
     }
     try {
+      // Weekly: create one recurring schedule per chosen day (that's how the app models a
+      // multi-day class) rather than a single dated class. The server fills the calendar.
+      if (!isEdit && repeatMode === 'weekly') {
+        if (weekdays.length === 0) { setError('Pick at least one day it repeats on.'); setSaving(false); return }
+        const made = []
+        for (const wd of weekdays) {
+          const sch = await api.createClassSchedule({
+            client_id: payload.client_id,
+            instructor_id: payload.instructor_id,
+            weekday: wd,
+            start_time: payload.start_time,
+            duration_minutes: payload.duration_minutes,
+            charge_amount: payload.charge_amount,
+            instructor_pay: payload.instructor_pay,
+            payment_method: payload.payment_method,
+            style: payload.style,
+            participant_count: payload.participant_count,
+            participant_ages: payload.participant_ages,
+            start_date: form.session_date || null,
+            status: 'active',
+          })
+          made.push(sch)
+          if (newClassNote.trim()) {
+            await api.addClassNote('schedule', sch.id, { text: newClassNote.trim() }).catch(() => {})
+          }
+          if (canSeeAdminNotes && newAdminNote.trim()) {
+            await api.addAdminNote('schedule', sch.id, { text: newAdminNote.trim() }).catch(() => {})
+          }
+        }
+        onSaved(made[0])
+        return
+      }
+
       const saved = isEdit
         ? await api.updateClassSession(session.id, payload)
         : await api.createClassSession(payload)
@@ -164,9 +212,48 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
                 onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
               />
             )}
+            {!isEdit && (
+              <div className="space-y-2">
+                <div className="inline-flex rounded-lg border border-gray-300 p-0.5 text-xs">
+                  {[['once', 'Just this date'], ['weekly', 'Every week']].map(([key, text]) => (
+                    <button key={key} type="button" onClick={() => setRepeatMode(key)}
+                      className={`rounded-md px-3 py-1 font-medium ${repeatMode === key ? 'bg-gray-900 text-white' : 'text-gray-600'}`}>
+                      {text}
+                    </button>
+                  ))}
+                </div>
+                {repeatMode === 'weekly' && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Repeats on <span className="font-normal text-gray-400">— pick every day it runs</span>
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {WEEKDAY_LABELS.map((d, i) => {
+                        const on = weekdays.includes(i)
+                        return (
+                          <button key={d} type="button"
+                            onClick={() => setWeekdays(w => on ? w.filter(x => x !== i) : [...w, i])}
+                            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                              on ? 'border-purple-400 bg-purple-100 text-purple-800'
+                                 : 'border-gray-300 bg-gray-50 text-gray-600 hover:border-gray-400'
+                            }`}>
+                            {on && <span className="mr-1">✓</span>}{d}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      The date below is when it starts. Each day becomes its own weekly class.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {!isEdit && repeatMode === 'weekly' ? 'Starting' : 'Date'}
+                </label>
                 <DateInput value={form.session_date} onChange={v => setField('session_date', v)} required />
               </div>
               <div>
@@ -236,7 +323,10 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               ) : (
                 <button type="submit" disabled={saving}
                   className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700">
-                  {saving ? 'Saving…' : (isEdit ? 'Save Changes' : 'Add Class')}
+                  {saving ? 'Saving…' : isEdit ? 'Save Changes'
+                    : repeatMode === 'weekly'
+                      ? `Add Weekly Class${weekdays.length > 1 ? `es (${weekdays.length})` : ''}`
+                      : 'Add Class'}
                 </button>
               )}
               <button type="button" onClick={onClose}
