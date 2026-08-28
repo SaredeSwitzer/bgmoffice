@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, Fragment } from 'react'
+import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { isOwnerUser } from '../utils/ownerAccess'
@@ -366,6 +366,10 @@ export default function SchedulePage() {
     }
   }
 
+  // The edit form renders at the top of the page, above the list. Clicking Edit on a
+  // row further down opened it off-screen, which read as the button doing nothing.
+  const scheduleFormRef = useRef(null)
+
   function editSchedule(s) {
     setForm({
       client: s.client_id ? {
@@ -388,6 +392,10 @@ export default function SchedulePage() {
     })
     setEditingId(s.id)
     setShowNew(true)
+    // After the form has actually rendered, bring it into view and focus it.
+    requestAnimationFrame(() => {
+      scheduleFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 
   async function removeSchedule(id) {
@@ -611,8 +619,19 @@ export default function SchedulePage() {
           </div>
 
           {showNew && (
-            <form onSubmit={createSchedule} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">
-              <h3 className="font-semibold text-gray-800 text-sm">{editingId ? 'Edit Recurring Class' : 'New Recurring Class'}</h3>
+            <form ref={scheduleFormRef} onSubmit={createSchedule}
+              className={`bg-white border rounded-xl p-5 shadow-sm space-y-3 scroll-mt-4 ${
+                editingId ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200'
+              }`}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-800 text-sm">
+                  {editingId ? `Edit Recurring Class${form.client?.name ? ` · ${form.client.name}` : ''}` : 'New Recurring Class'}
+                </h3>
+                {editingId && (
+                  <button type="button" onClick={() => { setEditingId(null); setForm(BLANK_SCHEDULE); setShowNew(false) }}
+                    className="text-xs text-gray-400 hover:text-gray-700">Cancel edit</button>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <SearchSelect label="Client" required options={clients} value={form.client}
                   onChange={c => setForm(f => ({
