@@ -49,7 +49,7 @@ function QuickAddOther({ onAdd }) {
         {DELEGATES.map(d => <option key={d} value={d}>{d}</option>)}
       </select>
       <button type="submit" disabled={saving || !title.trim()}
-        className="text-xs font-semibold bg-gray-900 text-white px-3 py-1 rounded disabled:opacity-40">
+        className="text-xs font-semibold bg-gray-900 text-white px-3 py-1 rounded disabled:opacity-50 hover:bg-gray-700 transition-colors">
         {saving ? '…' : 'Save'}
       </button>
       <button type="button" onClick={() => { setOpen(false); setTitle(''); setAssignedTo('') }}

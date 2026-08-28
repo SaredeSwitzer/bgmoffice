@@ -129,7 +129,7 @@ function AddPrefForm({ clientId, instructors, onAdded }) {
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Instructor</label>
           <select required value={form.instructor_id} onChange={e => setForm(f => ({ ...f, instructor_id: e.target.value }))}
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
             <option value="">Select…</option>
             {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
@@ -137,7 +137,7 @@ function AddPrefForm({ clientId, instructors, onAdded }) {
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Preference</label>
           <select value={form.preference} onChange={e => setForm(f => ({ ...f, preference: e.target.value }))}
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
             <option value="liked">Liked</option>
             <option value="disliked">Disliked</option>
           </select>
@@ -149,13 +149,13 @@ function AddPrefForm({ clientId, instructors, onAdded }) {
             onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
             rows={3}
             placeholder="e.g. Too intense, felt rushed…"
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-y"
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-gray-300"
           />
         </div>
       </div>
       <div className="flex gap-2">
         <button type="submit" disabled={saving}
-          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
           {saving ? 'Saving…' : 'Add'}
         </button>
         <button type="button" onClick={() => setShow(false)}
@@ -269,13 +269,13 @@ function PackageCard({
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="e.g. Great session"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
 
           <div className="flex gap-2">
             <button onClick={() => onSave(notes)} disabled={isSaving}
-              className="flex-1 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+              className="flex-1 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {isSaving ? 'Saving…' : 'Save Session'}
             </button>
             <button onClick={onCancelLog}
@@ -468,12 +468,12 @@ function PackagesSection({ clientId, instructors }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Total Classes *</label>
               <input required type="number" min="1" value={addForm.total_classes}
                 onChange={e => setAddForm(f => ({ ...f, total_classes: e.target.value }))}
-                placeholder="10" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                placeholder="10" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Instructor</label>
               <select value={addForm.instructor_id} onChange={e => setAddForm(f => ({ ...f, instructor_id: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                 <option value="">None / TBD</option>
                 {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
               </select>
@@ -486,7 +486,7 @@ function PackagesSection({ clientId, instructors }) {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <input value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="e.g. Yoga 2x/week" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                placeholder="e.g. Yoga 2x/week" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
           </div>
           <div className="flex gap-2">
@@ -659,7 +659,7 @@ function CardKeyForm({ clientId, onDone, onCancel }) {
       <PaymentElement />
       {err && <p className="text-xs text-red-600">{err}</p>}
       <div className="flex gap-2">
-        <button type="submit" disabled={!stripe || submitting} className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+        <button type="submit" disabled={!stripe || submitting} className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
           {submitting ? 'Saving…' : 'Save Card'}
         </button>
         <button type="button" onClick={onCancel} className="px-4 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">Cancel</button>
@@ -712,7 +712,7 @@ function CardOnFileSection({ clientId, client, onChange }) {
       {!keying && (
         <>
           <div className="flex flex-wrap gap-2 mt-3">
-            <button onClick={startKey} disabled={busy} className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+            <button onClick={startKey} disabled={busy} className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {busy ? '…' : client.card_last4 ? 'Replace card — e.g. from a photo' : 'Key in a card — e.g. from a photo'}
             </button>
             <button onClick={copyLink} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
@@ -856,28 +856,28 @@ export default function ClientProfilePage() {
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
                 <input required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
                 <input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                 <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Email <span className="text-gray-400 font-normal">(if different)</span></label>
                 <input value={editForm.invoice_email} onChange={e => setEditForm(f => ({ ...f, invoice_email: e.target.value }))}
                   placeholder="billing@example.com"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Preferred Contact</label>
                 <select value={editForm.preferred_contact} onChange={e => setEditForm(f => ({ ...f, preferred_contact: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                   <option value="">—</option>
                   <option value="text">Text</option>
                   <option value="email">Email</option>
@@ -888,7 +888,7 @@ export default function ClientProfilePage() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Rate Per Class</label>
                 <input value={editForm.rate_per_class} onChange={e => setEditForm(f => ({ ...f, rate_per_class: e.target.value }))}
-                  placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               {/* Client type */}
               <div className="col-span-2">
@@ -916,25 +916,25 @@ export default function ClientProfilePage() {
                       <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
                       <input value={editForm.contact_person_name}
                         onChange={e => setEditForm(f => ({ ...f, contact_person_name: e.target.value }))}
-                        placeholder="Jane Doe" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                        placeholder="Jane Doe" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
                       <input value={editForm.contact_person_phone}
                         onChange={e => setEditForm(f => ({ ...f, contact_person_phone: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                       <input value={editForm.contact_person_email}
                         onChange={e => setEditForm(f => ({ ...f, contact_person_email: e.target.value }))}
-                        placeholder="jane@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                        placeholder="jane@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
                       <input value={editForm.contact_person_role}
                         onChange={e => setEditForm(f => ({ ...f, contact_person_role: e.target.value }))}
-                        placeholder="e.g. Director" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                        placeholder="e.g. Director" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                     </div>
                   </div>
                 </div>
@@ -998,18 +998,18 @@ export default function ClientProfilePage() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Style of Class</label>
                 <input value={editForm.default_style} onChange={e => setEditForm(f => ({ ...f, default_style: e.target.value }))}
-                  placeholder="e.g. Zumba" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="e.g. Zumba" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1"># of Participants</label>
                 <input type="number" min="0" value={editForm.default_participants}
                   onChange={e => setEditForm(f => ({ ...f, default_participants: e.target.value }))}
-                  placeholder="e.g. 12" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="e.g. 12" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Age of Participants</label>
                 <input value={editForm.default_age} onChange={e => setEditForm(f => ({ ...f, default_age: e.target.value }))}
-                  placeholder="e.g. 5-8 years" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="e.g. 5-8 years" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               {/* Address */}
               <div className="col-span-2 pt-1">
@@ -1018,34 +1018,34 @@ export default function ClientProfilePage() {
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Street</label>
                 <input value={editForm.street} onChange={e => setEditForm(f => ({ ...f, street: e.target.value }))}
-                  placeholder="123 Main St" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="123 Main St" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div className="col-span-2 grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
                   <input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
-                    placeholder="Brooklyn" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    placeholder="Brooklyn" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
                   <input value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
-                    placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Zip</label>
                   <input value={editForm.zip} onChange={e => setEditForm(f => ({ ...f, zip: e.target.value }))}
-                    placeholder="11201" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    placeholder="11201" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
                 <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
-                  placeholder="Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={saving}
-                className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+                className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button type="button" onClick={() => setEditing(false)}

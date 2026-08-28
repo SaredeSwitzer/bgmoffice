@@ -52,7 +52,7 @@ export default function NewCaseModal({ clientId, clientName, instructorId, instr
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
               placeholder="e.g. Whitney scheduling conflict"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
 
@@ -68,7 +68,7 @@ export default function NewCaseModal({ clientId, clientName, instructorId, instr
               <select
                 value={form.client_id}
                 onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
                 <option value="">None</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -88,7 +88,7 @@ export default function NewCaseModal({ clientId, clientName, instructorId, instr
               <select
                 value={form.instructor_id}
                 onChange={e => setForm(f => ({ ...f, instructor_id: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
                 <option value="">None</option>
                 {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}

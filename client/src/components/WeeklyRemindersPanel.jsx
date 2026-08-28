@@ -95,12 +95,12 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
           <div>
             <label className="mb-1 block text-[11px] font-medium text-gray-600">Week starts</label>
             <input type="date" value={range.start} onChange={e => setRange(r => ({ ...r, start: e.target.value }))}
-              className="rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+              className="rounded-lg border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-medium text-gray-600">through</label>
             <input type="date" value={range.end} onChange={e => setRange(r => ({ ...r, end: e.target.value }))}
-              className="rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+              className="rounded-lg border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <button onClick={() => load(range)}
             className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -138,7 +138,7 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
                     <div key={key} className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <input type="checkbox" checked={!excluded.has(key)} onChange={() => toggle(key)}
-                          className="h-4 w-4 rounded border-gray-300" />
+                          className="h-4 w-4 rounded border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300" />
                         <button type="button" onClick={() => setOpenKey(isOpen ? null : key)}
                           className="flex-1 text-left text-sm text-gray-800 hover:underline">
                           {r.name}
@@ -152,7 +152,7 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
                           value={edits[key] ?? r.message}
                           onChange={e => setEdits(prev => ({ ...prev, [key]: e.target.value }))}
                           rows={6}
-                          className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs leading-relaxed"
+                          className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-gray-300"
                         />
                       )}
                     </div>
@@ -168,7 +168,7 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
 
       <footer className="border-t border-gray-200 p-3">
         <button onClick={handleSend} disabled={sending || included.length === 0}
-          className="w-full rounded-lg bg-gray-900 py-2 text-sm font-semibold text-white disabled:opacity-50">
+          className="w-full rounded-lg bg-gray-900 py-2 text-sm font-semibold text-white disabled:opacity-50 hover:bg-gray-700 transition-colors">
           {sending ? 'Sending…' : `Send ${included.length} reminder${included.length === 1 ? '' : 's'}`}
         </button>
       </footer>

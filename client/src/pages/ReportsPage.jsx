@@ -180,7 +180,7 @@ export default function ReportsPage({ embedded = false }) {
     <div className={embedded ? 'space-y-6' : 'max-w-4xl mx-auto space-y-6'}>
       {!embedded && (
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Class Reports</h1>
+          <h1 className="text-xl font-bold text-gray-900">Class Reports</h1>
           <p className="text-sm text-gray-500">Look up classes by client, instructor, style, status, or date range.</p>
         </div>
       )}
@@ -195,7 +195,7 @@ export default function ReportsPage({ embedded = false }) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Style</label>
             <select value={style} onChange={e => setStyle(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               <option value="">Any style</option>
               {styleOptions.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -203,7 +203,7 @@ export default function ReportsPage({ embedded = false }) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
             <select value={status} onChange={e => setStatus(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               <option value="">Any status</option>
               <option value="scheduled">Scheduled</option>
               <option value="completed">Completed</option>
@@ -271,7 +271,7 @@ export default function ReportsPage({ embedded = false }) {
                 <thead>
                   <tr className="text-left text-xs font-semibold text-gray-500">
                     <th className="px-4 py-2 w-8">
-                      <input type="checkbox" className="rounded border-gray-300"
+                      <input type="checkbox" className="rounded border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
                         checked={results.length > 0 && selected.size === results.length}
                         onChange={toggleAllSelected} />
                     </th>
@@ -287,7 +287,7 @@ export default function ReportsPage({ embedded = false }) {
                   {results.map(s => (
                     <tr key={s.id} className={`hover:bg-gray-50 ${selected.has(s.id) ? 'bg-gray-50' : ''}`}>
                       <td className="px-4 py-2">
-                        <input type="checkbox" className="rounded border-gray-300"
+                        <input type="checkbox" className="rounded border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
                           checked={selected.has(s.id)} onChange={() => toggleSelected(s.id)} />
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap">{fmtDate(s.session_date)}</td>

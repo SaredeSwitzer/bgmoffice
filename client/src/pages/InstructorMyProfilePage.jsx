@@ -196,13 +196,13 @@ function MyAvailabilitySection({ instructorId }) {
                   editingId === slot.id ? (
                     <div key={slot.id} className="flex flex-wrap gap-2 items-center bg-gray-50 border border-gray-300 rounded-xl px-3 py-2">
                       <select value={editSlot.day_of_week} onChange={e => setEditSlot(s => ({ ...s, day_of_week: e.target.value }))}
-                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
                         {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
                       <input value={editSlot.time_slot} onChange={e => setEditSlot(s => ({ ...s, time_slot: e.target.value }))}
-                        placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28" />
+                        placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28 focus:outline-none focus:ring-2 focus:ring-gray-300" />
                       <button type="button" onClick={() => handleSaveEdit(slot.id)}
-                        className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg">Save</button>
+                        className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors">Save</button>
                       <button type="button" onClick={() => setEditingId(null)}
                         className="px-3 py-1 border border-gray-300 text-gray-500 text-xs rounded-lg">Cancel</button>
                     </div>
@@ -230,7 +230,7 @@ function MyAvailabilitySection({ instructorId }) {
         <div>
           <label className="block text-[10px] font-medium text-gray-500 mb-1">Day</label>
           <select value={addForm.day_of_week} onChange={e => setAddForm(f => ({ ...f, day_of_week: e.target.value }))}
-            className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white">
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
             <option value="">Choose a day…</option>
             {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -238,10 +238,10 @@ function MyAvailabilitySection({ instructorId }) {
         <div>
           <label className="block text-[10px] font-medium text-gray-500 mb-1">Time (optional)</label>
           <input value={addForm.time_slot} onChange={e => setAddForm(f => ({ ...f, time_slot: e.target.value }))}
-            placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs w-32" />
+            placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs w-32 focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>
         <button type="submit" disabled={saving || !addForm.day_of_week}
-          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
           {saving ? 'Adding…' : '+ Add'}
         </button>
       </form>
@@ -336,27 +336,27 @@ export default function InstructorMyProfilePage() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
             <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
             <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
             <input value={form.mailing_address} onChange={e => setForm(f => ({ ...f, mailing_address: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
             <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
             <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
-              placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div className={isNY ? 'sm:col-span-2' : undefined}>
             <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -378,7 +378,7 @@ export default function InstructorMyProfilePage() {
               </>
             ) : (
               <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             )}
           </div>
           <div className="sm:col-span-2">
@@ -397,13 +397,13 @@ export default function InstructorMyProfilePage() {
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Specialties / Notes</label>
             <input value={form.specialties} onChange={e => setForm(f => ({ ...f, specialties: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
         <div className="flex items-center gap-3 pt-1">
           <button type="submit" disabled={saving}
-            className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+            className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
           {saved && <span className="text-xs text-green-600">Saved ✓</span>}

@@ -391,7 +391,7 @@ export default function InvoiceDetailPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Title (optional)</label>
               <input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="e.g. June Sessions — Smith Family"
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -419,7 +419,7 @@ export default function InvoiceDetailPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
                 <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                   <option value="draft">Draft</option>
                   <option value="sent">Sent</option>
                   <option value="partial">Partial</option>
@@ -471,15 +471,15 @@ export default function InvoiceDetailPage() {
                     </div>
                     <input value={li.description} onChange={e => setLine(idx, 'description', e.target.value)}
                       placeholder="Description…"
-                      className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                      className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                     <div className="flex gap-2 items-center">
                       <input type="date" value={li.class_date || ''}
                         onChange={e => setLine(idx, 'class_date', e.target.value)}
-                        className="w-36 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                        className="w-36 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                       <input type="number" step="0.01" value={li.unit_price}
                         onChange={e => setLine(idx, 'unit_price', e.target.value)}
                         placeholder="0.00"
-                        className="w-24 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right" />
+                        className="w-24 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-gray-300" />
                       {editForm.line_items.length > 1 && (
                         <button type="button"
                           onClick={() => setEditForm(f => ({ ...f, line_items: f.line_items.filter((_, i) => i !== idx) }))}
@@ -496,7 +496,7 @@ export default function InvoiceDetailPage() {
                     <span>Tax</span>
                     <input type="number" min="0" max="100" step="0.1" value={editForm.tax_rate}
                       onChange={e => setEditForm(f => ({ ...f, tax_rate: e.target.value }))}
-                      className="w-16 border border-gray-300 rounded px-2 py-0.5 text-sm text-right" />
+                      className="w-16 border border-gray-300 rounded px-2 py-0.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-gray-300" />
                     <span className="text-gray-400">%</span>
                   </div>
                   <span>{fmtMoney(taxAmt)}</span>
@@ -518,7 +518,7 @@ export default function InvoiceDetailPage() {
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex gap-2">
               <button type="submit" disabled={saving}
-                className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+                className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button type="button" onClick={() => setEditing(false)}
@@ -756,20 +756,20 @@ export default function InvoiceDetailPage() {
                 <input type="number" min="0.01" step="0.01" required autoFocus
                   value={paymentForm.amount}
                   onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Date Paid</label>
                 <input type="date" required
                   value={paymentForm.paid_date}
                   onChange={e => setPaymentForm(f => ({ ...f, paid_date: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Method</label>
                 <select value={paymentForm.method}
                   onChange={e => setPaymentForm(f => ({ ...f, method: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                   <option value="cash">Cash</option>
                   <option value="check">Check</option>
                   <option value="zelle">Zelle</option>
@@ -783,7 +783,7 @@ export default function InvoiceDetailPage() {
                 <input value={paymentForm.note}
                   onChange={e => setPaymentForm(f => ({ ...f, note: e.target.value }))}
                   placeholder="e.g. check #1042"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               {error && <p className="text-xs text-red-600">{error}</p>}
               <div className="flex gap-2 pt-1">

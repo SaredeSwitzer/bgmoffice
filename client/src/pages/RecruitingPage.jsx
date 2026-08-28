@@ -66,7 +66,7 @@ function NoteCard({ note: n, currentUserInitials, users, onDelete, onEdit, onRep
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white" />
         <div className="flex items-center gap-2">
           <button type="submit" disabled={saving || !editText.trim()}
-            className="px-3 py-1 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40">
+            className="px-3 py-1 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
             {saving ? 'Saving…' : 'Save'}
           </button>
           <button type="button" onClick={handleCancel}
@@ -181,7 +181,7 @@ function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = fa
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }} />
             <div className="flex flex-col gap-1 self-end">
               <button type="submit" disabled={saving || !text.trim()}
-                className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40">
+                className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
                 {saving ? '…' : 'Add'}
               </button>
               <button type="button" onClick={cancel}
@@ -424,7 +424,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
           <label className="block text-xs font-medium text-gray-600 mb-1">Class Notes</label>
           <textarea value={form.class_notes} onChange={e => setField('class_notes', e.target.value)}
             rows={2} placeholder="Additional class details…"
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>
 
         {/* Client */}
@@ -440,7 +440,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
               <div className="flex gap-2">
                 <button type="button" onClick={handleQuickAddClient}
                   disabled={saving || !newClientName.trim()}
-                  className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg disabled:opacity-40">
+                  className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg disabled:opacity-50">
                   Create & Link
                 </button>
                 <button type="button" onClick={() => setShowNewClient(false)}
@@ -512,7 +512,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
 
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving}
-          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
           {saving ? 'Saving…' : entry ? 'Save Changes' : 'Add Entry'}
         </button>
         <button type="button" onClick={onCancel}
@@ -1178,7 +1178,7 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
           <div>
             <label className="block text-[10px] font-medium text-gray-500 mb-1">Instructor</label>
             <select value={form.instructor_id} onChange={e => setForm(f => ({ ...f, instructor_id: e.target.value }))}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm min-w-[160px] bg-white">
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm min-w-[160px] bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
               <option value="">Select instructor…</option>
               {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
@@ -1186,7 +1186,7 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
           <div>
             <label className="block text-[10px] font-medium text-gray-500 mb-1">Day</label>
             <select value={form.day_of_week} onChange={e => setForm(f => ({ ...f, day_of_week: e.target.value }))}
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
               <option value="">Select day…</option>
               {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
@@ -1195,10 +1195,10 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
             <label className="block text-[10px] font-medium text-gray-500 mb-1">Time (optional)</label>
             <input value={form.time_slot} onChange={e => setForm(f => ({ ...f, time_slot: e.target.value }))}
               placeholder="e.g. 10am–noon"
-              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36" />
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <button type="submit" disabled={saving || !form.instructor_id || !form.day_of_week}
-            className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-gray-700">
+            className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700">
             {saving ? 'Adding…' : '+ Add'}
           </button>
         </form>
@@ -1246,13 +1246,13 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
                               return (
                                 <div key={slot.id} className="bg-white border border-purple-300 rounded-xl px-3 py-2 flex flex-wrap gap-2 items-center">
                                   <select value={editSlot.day_of_week} onChange={e => setEditSlot(s => ({ ...s, day_of_week: e.target.value }))}
-                                    className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                                    className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
                                     {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
                                   </select>
                                   <input value={editSlot.time_slot} onChange={e => setEditSlot(s => ({ ...s, time_slot: e.target.value }))}
-                                    placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28" />
+                                    placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28 focus:outline-none focus:ring-2 focus:ring-gray-300" />
                                   <button onClick={() => handleSaveEdit(slot.id)}
-                                    className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg">Save</button>
+                                    className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors">Save</button>
                                   <button onClick={() => setEditingSlotId(null)}
                                     className="px-3 py-1 border border-gray-300 text-gray-500 text-xs rounded-lg">Cancel</button>
                                 </div>

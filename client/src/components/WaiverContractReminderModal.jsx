@@ -191,7 +191,7 @@ export default function WaiverContractReminderModal({ onClose }) {
             <button
               type="submit"
               disabled={saving || !canSave}
-              className="flex-1 py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-xl disabled:opacity-40 hover:bg-amber-600 transition-colors"
+              className="flex-1 py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-xl disabled:opacity-50 hover:bg-amber-600 transition-colors"
             >
               {saving ? 'Saving…' : people.length > 1 ? `Add ${people.length} Reminders` : '📝 Add Reminder'}
             </button>

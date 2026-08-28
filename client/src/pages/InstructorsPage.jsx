@@ -318,17 +318,17 @@ export default function InstructorsPage() {
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
               <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="Full name" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="Full name" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
               <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div className="col-span-2">
               <DuplicateWarning dupes={formDupes}
@@ -366,12 +366,12 @@ export default function InstructorsPage() {
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+                rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Pay Rate</label>
               <input value={form.pay_rate} onChange={e => setForm(f => ({ ...f, pay_rate: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="$85/hr" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="$85/hr" />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood(s)</label>
@@ -387,7 +387,7 @@ export default function InstructorsPage() {
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={saving}
-              className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+              className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {saving ? 'Saving…' : 'Save Instructor'}
             </button>
             <button type="button" onClick={() => setNewInstructor(false)}
@@ -412,17 +412,17 @@ export default function InstructorsPage() {
           />
         </div>
         <select value={styleFilter} onChange={e => setStyleFilter(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44">
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
           <option value="">All styles</option>
           {styleNames.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44">
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
           <option value="">All locations</option>
           {locations.map(l => <option key={l} value={l}>{l}</option>)}
         </select>
         <select value={loginFilter} onChange={e => setLoginFilter(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44">
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
           <option value="">Any login status</option>
           {Object.entries(LOGIN_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
         </select>
@@ -473,7 +473,7 @@ export default function InstructorsPage() {
                     type="checkbox"
                     checked={selected.has(inst.id)}
                     onChange={() => toggleSelected(inst.id)}
-                    className="w-4 h-4 rounded border-gray-300 flex-shrink-0"
+                    className="w-4 h-4 rounded border-gray-300 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-gray-300"
                   />
                   <Link to={`/instructors/${inst.id}`} className="flex items-center justify-between gap-3 flex-1 min-w-0">
                     <div className="min-w-0">
@@ -578,12 +578,12 @@ function WelcomeEmailModal({ instructor, onClose }) {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
                 <input value={subject} onChange={e => setSubject(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
                 <textarea value={body} onChange={e => setBody(e.target.value)} rows={12}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <p className="text-[11px] text-gray-400">
                 Filled in from the welcome email template — edit anything before sending, or close this without sending.
@@ -599,7 +599,7 @@ function WelcomeEmailModal({ instructor, onClose }) {
           </button>
           {preview?.to && !sent && (
             <button onClick={send} disabled={sending}
-              className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+              className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {sending ? 'Sending…' : 'Send email'}
             </button>
           )}
@@ -654,7 +654,7 @@ function EmailBlastModal({ instructors, onClose }) {
                 <p className="text-red-600">Failed for {result.failed.length}: {result.failed.map(f => f.name).join(', ')}</p>
               )}
             </div>
-            <button onClick={onClose} className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg">
+            <button onClick={onClose} className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
               Done
             </button>
           </>
@@ -672,13 +672,13 @@ function EmailBlastModal({ instructors, onClose }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
               <input required value={subject} onChange={e => setSubject(e.target.value)}
                 placeholder="e.g. Reminder: log into BGM Office, {name}"
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
               <textarea required value={body} onChange={e => setBody(e.target.value)}
                 rows={8} placeholder={'Hi {name},\n\n…'}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
               <p className="text-[11px] text-gray-400 mt-1">Use {'{name}'} anywhere to insert each instructor's name.</p>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -687,7 +687,7 @@ function EmailBlastModal({ instructors, onClose }) {
                 Cancel
               </button>
               <button type="submit" disabled={sending || withEmail.length === 0}
-                className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+                className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
                 {sending ? 'Sending…' : `Send to ${withEmail.length}`}
               </button>
             </div>

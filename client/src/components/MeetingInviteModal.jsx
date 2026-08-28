@@ -104,12 +104,12 @@ export default function MeetingInviteModal({ onClose }) {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
               <input value={subject} onChange={e => setSubject(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
               <textarea value={body} onChange={e => setBody(e.target.value)} rows={8}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <p className="text-[11px] text-gray-400">The app filled this in from the template — edit anything before sending.</p>
             {error && <p className="text-xs text-red-600">{error}</p>}

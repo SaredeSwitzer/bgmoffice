@@ -45,22 +45,22 @@ export default function ClientAddressEditor({ client, onUpdated, className = '' 
       <div className={`text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 space-y-1.5 ${className}`}>
         <div className="grid grid-cols-2 gap-1.5">
           <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
-            placeholder="Neighborhood" className="border border-gray-300 rounded px-2 py-1 text-xs" />
+            placeholder="Neighborhood" className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
           <input value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))}
-            placeholder="Zip" className="border border-gray-300 rounded px-2 py-1 text-xs" />
+            placeholder="Zip" className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>
         <input value={form.street} onChange={e => setForm(f => ({ ...f, street: e.target.value }))}
-          placeholder="Street" className="w-full border border-gray-300 rounded px-2 py-1 text-xs" />
+          placeholder="Street" className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
         <div className="grid grid-cols-2 gap-1.5">
           <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-            placeholder="City" className="border border-gray-300 rounded px-2 py-1 text-xs" />
+            placeholder="City" className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
           <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
-            placeholder="State" className="border border-gray-300 rounded px-2 py-1 text-xs" />
+            placeholder="State" className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>
         {error && <p className="text-red-600">{error}</p>}
         <div className="flex gap-1.5 pt-0.5">
           <button type="button" onClick={handleSave} disabled={saving}
-            className="px-2.5 py-1 bg-gray-900 text-white rounded text-xs font-medium disabled:opacity-40">
+            className="px-2.5 py-1 bg-gray-900 text-white rounded text-xs font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors">
             {saving ? 'Saving…' : 'Save'}
           </button>
           <button type="button" onClick={() => setEditing(false)}

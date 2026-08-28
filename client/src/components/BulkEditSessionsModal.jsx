@@ -89,22 +89,22 @@ export default function BulkEditSessionsModal({ sessionIds, onClose, onSaved }) 
             </FieldRow>
             <FieldRow label="Charge to client" checked={!!enabled.charge_amount} onToggle={() => toggle('charge_amount')}>
               <input type="number" step="0.01" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)}
-                placeholder="35" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                placeholder="35" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </FieldRow>
             <FieldRow label="Instructor pay" checked={!!enabled.instructor_pay} onToggle={() => toggle('instructor_pay')}>
               <input type="number" step="1" value={instructorPay} onChange={e => setInstructorPay(e.target.value)}
-                placeholder="60" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                placeholder="60" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </FieldRow>
             <FieldRow label="Payment method" checked={!!enabled.payment_method} onToggle={() => toggle('payment_method')}>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
                 <option value="">—</option>
                 {PAYMENT_METHODS.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </FieldRow>
             <FieldRow label="Style" checked={!!enabled.style} onToggle={() => toggle('style')}>
               <input value={style} onChange={e => setStyle(e.target.value)}
-                placeholder="Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                placeholder="Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </FieldRow>
             {error && <p className="text-xs text-red-600">{error}</p>}
           </div>
@@ -128,7 +128,7 @@ function FieldRow({ label, checked, onToggle, children }) {
   return (
     <div className={`flex items-start gap-3 ${checked ? '' : 'opacity-50'}`}>
       <label className="flex items-center gap-2 pt-2 w-36 flex-shrink-0 cursor-pointer select-none">
-        <input type="checkbox" checked={checked} onChange={onToggle} className="rounded border-gray-300" />
+        <input type="checkbox" checked={checked} onChange={onToggle} className="rounded border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300" />
         <span className="text-xs font-medium text-gray-600">{label}</span>
       </label>
       <div className={`flex-1 ${checked ? '' : 'pointer-events-none'}`}>

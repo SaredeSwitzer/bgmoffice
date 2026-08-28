@@ -108,22 +108,22 @@ export default function ClientsPage() {
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
               <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="Full name" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="Full name" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
               <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="718-555-0000" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="718-555-0000" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="client@example.com" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="client@example.com" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Preferred Contact</label>
               <select value={form.preferred_contact} onChange={e => setForm(f => ({ ...f, preferred_contact: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                 <option value="">—</option>
                 <option value="text">Text</option>
                 <option value="email">Email</option>
@@ -134,34 +134,34 @@ export default function ClientsPage() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Rate Per Class</label>
               <input value={form.rate_per_class} onChange={e => setForm(f => ({ ...f, rate_per_class: e.target.value }))}
-                placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Street</label>
               <input value={form.street} onChange={e => setForm(f => ({ ...f, street: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="123 Main St" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="123 Main St" />
             </div>
             <div className="col-span-2 grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
                 <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
                 <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
-                  placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Zip</label>
                 <input value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
               <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" placeholder="e.g. Park Slope" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="e.g. Park Slope" />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Client Type</label>
@@ -188,25 +188,25 @@ export default function ClientsPage() {
                     <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
                     <input value={form.contact_person_name}
                       onChange={e => setForm(f => ({ ...f, contact_person_name: e.target.value }))}
-                      placeholder="Jane Doe" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                      placeholder="Jane Doe" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
                     <input value={form.contact_person_phone}
                       onChange={e => setForm(f => ({ ...f, contact_person_phone: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                     <input value={form.contact_person_email}
                       onChange={e => setForm(f => ({ ...f, contact_person_email: e.target.value }))}
-                      placeholder="jane@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                      placeholder="jane@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
                     <input value={form.contact_person_role}
                       onChange={e => setForm(f => ({ ...f, contact_person_role: e.target.value }))}
-                      placeholder="e.g. Director" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                      placeholder="e.g. Director" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                   </div>
                 </div>
               </div>
@@ -221,7 +221,7 @@ export default function ClientsPage() {
           {createError && <p className="text-xs text-red-600">{createError}</p>}
           <div className="flex gap-2">
             <button type="submit" disabled={saving}
-              className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+              className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {saving ? 'Saving…' : 'Save Client'}
             </button>
             <button type="button" onClick={() => setNewClient(false)}

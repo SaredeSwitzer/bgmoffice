@@ -154,7 +154,7 @@ function ActionTypesSection() {
                     <button
                       onClick={() => handleSaveEdit(item.id)}
                       disabled={saving}
-                      className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg font-medium disabled:opacity-50"
+                      className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors"
                     >
                       Save
                     </button>
@@ -206,7 +206,7 @@ function ActionTypesSection() {
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={saving || !newForm.name.trim()}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {saving ? 'Adding…' : 'Add'}
             </button>
             <button type="button" onClick={() => setShowNew(false)}
@@ -298,7 +298,7 @@ function DelegatesSection() {
                 <button
                   onClick={() => handleSaveEdit(d.id)}
                   disabled={saving}
-                  className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50"
+                  className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors"
                 >
                   Save
                 </button>
@@ -342,7 +342,7 @@ function DelegatesSection() {
             className="flex-1"
           />
           <button type="submit" disabled={saving || !newName.trim()}
-            className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+            className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
             Add
           </button>
           <button type="button" onClick={() => { setShowNew(false); setNewName('') }}
@@ -463,7 +463,7 @@ function UsersSection() {
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
                     <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                       <option value="staff">Staff</option>
                       <option value="admin">Admin</option>
                     </select>
@@ -476,7 +476,7 @@ function UsersSection() {
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => handleSaveEdit(user.id)} disabled={saving}
-                    className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+                    className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
                     {saving ? 'Saving…' : 'Save'}
                   </button>
                   <button onClick={() => setEditingId(null)}
@@ -557,7 +557,7 @@ function UsersSection() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
               <select value={newForm.role} onChange={e => setNewForm(f => ({ ...f, role: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                 <option value="staff">Staff</option>
                 <option value="admin">Admin</option>
               </select>
@@ -569,7 +569,7 @@ function UsersSection() {
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={saving || !newForm.name.trim() || !newForm.email.trim() || !newForm.password.trim()}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {saving ? 'Creating…' : 'Create User'}
             </button>
             <button type="button" onClick={() => { setShowNew(false); setNewForm({ name: '', initials: '', email: '', password: '', role: 'staff' }) }}
@@ -674,7 +674,7 @@ function StripeSection() {
           </p>
         </div>
         <button type="submit" disabled={saving}
-          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
           {saving ? 'Saving…' : saved ? '✓ Saved!' : 'Save Stripe Settings'}
         </button>
       </form>
@@ -721,7 +721,7 @@ function VenmoSection() {
           />
         </div>
         <button type="submit" disabled={saving}
-          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
           {saving ? 'Saving…' : saved ? '✓ Saved!' : 'Save Venmo Handle'}
         </button>
       </form>

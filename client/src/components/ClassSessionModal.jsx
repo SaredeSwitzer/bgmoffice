@@ -273,12 +273,12 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Instructor pay</label>
                 <input type="number" step="1" value={form.instructor_pay} onChange={e => setField('instructor_pay', e.target.value)}
-                  placeholder="60" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  placeholder="60" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Payment method</label>
                 <select value={form.payment_method} onChange={e => setField('payment_method', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
                   <option value="">—</option>
                   {PAYMENT_METHODS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
@@ -286,17 +286,17 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Style</label>
                 <input value={form.style} onChange={e => setField('style', e.target.value)}
-                  placeholder="Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  placeholder="Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1"># of participants</label>
                 <input type="text" value={form.participant_count} onChange={e => setField('participant_count', e.target.value)}
-                  placeholder="e.g. 12, or Around 15 kids, or 5-10" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  placeholder="e.g. 12, or Around 15 kids, or 5-10" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Ages</label>
                 <input value={form.participant_ages} onChange={e => setField('participant_ages', e.target.value)}
-                  placeholder="e.g. 6, 8" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  placeholder="e.g. 6, 8" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}

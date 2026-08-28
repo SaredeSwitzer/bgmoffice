@@ -94,7 +94,7 @@ export default function SmsPage() {
   return (
     <div className="mx-auto max-w-6xl px-3 py-4">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Texts</h1>
+        <h1 className="text-xl font-bold text-gray-900">Texts</h1>
         <button
           onClick={() => { setComposeOpen(true); setActive(null) }}
           className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
@@ -191,7 +191,7 @@ export default function SmsPage() {
                     className="max-h-32 flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                   <button type="submit" disabled={sending || !draft.trim()}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
                     {sending ? 'Sending…' : 'Send'}
                   </button>
                 </form>
@@ -328,7 +328,7 @@ function ComposePanel({ onClose, onOpenThread, onSent }) {
       <footer className="border-t border-gray-200 p-3">
         {mode === 'one' ? (
           <button onClick={sendOne} disabled={busy}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             {busy ? 'Sending…' : 'Send'}
           </button>
         ) : confirming ? (
@@ -336,14 +336,14 @@ function ComposePanel({ onClose, onOpenThread, onSent }) {
             <button onClick={() => setConfirming(false)} disabled={busy}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button>
             <button onClick={sendBlast} disabled={busy}
-              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
               {busy ? 'Sending…' : `Yes, send to ${audienceList.length}`}
             </button>
           </div>
         ) : (
           <button onClick={() => { setError(''); if (!body.trim()) { setError('Type a message.'); return } setConfirming(true) }}
             disabled={busy || audienceList.length === 0}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             Send to {audienceList.length} {audienceList.length === 1 ? 'person' : 'people'}
           </button>
         )}

@@ -104,30 +104,30 @@ export default function InstructorSignupPage() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
             <input required value={form.name} onChange={e => set('name', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
               <input value={form.phone} onChange={e => set('phone', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
               <input value={form.city} onChange={e => set('city', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
               <input value={form.state} onChange={e => set('state', e.target.value)}
-                placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
           </div>
           <div>
@@ -150,7 +150,7 @@ export default function InstructorSignupPage() {
               </>
             ) : (
               <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             )}
           </div>
           <div>
@@ -169,12 +169,12 @@ export default function InstructorSignupPage() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Specialties</label>
             <input value={form.specialties} onChange={e => set('specialties', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Anything else we should know?</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <button type="submit" disabled={saving}

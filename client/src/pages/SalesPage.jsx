@@ -99,7 +99,7 @@ function LeadNoteThread({ leadId, initialCount, mentionableUsers, autoOpen }) {
               placeholder={`Note as ${user?.initials}… (type @ to tag someone)`} rows={1}
               className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
             <button type="submit" disabled={sending || !text.trim()}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40 flex-shrink-0">
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 flex-shrink-0 hover:bg-gray-700 transition-colors">
               {sending ? '…' : 'Send'}
             </button>
           </form>
@@ -150,7 +150,7 @@ function AddLeadForm({ clients, onAdded }) {
             onChange={e => { setManualName(e.target.value); if (e.target.value) setSelectedClient(null) }}
             disabled={!!selectedClient}
             placeholder="e.g. a lead you haven't added to the app"
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
           />
         </div>
       </div>

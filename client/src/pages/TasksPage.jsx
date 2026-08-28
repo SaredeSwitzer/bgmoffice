@@ -51,7 +51,7 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
           <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
           <input required value={form.title} onChange={e => set('title', e.target.value)}
             placeholder="What needs to be done?" autoFocus
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
@@ -66,7 +66,7 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Assigned To</label>
           <select value={form.assigned_to} onChange={e => set('assigned_to', e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
             <option value="">Unassigned</option>
             {DELEGATES.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -79,7 +79,7 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
           <select value={form.priority} onChange={e => set('priority', e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
             <option value="normal">Normal</option>
             <option value="urgent">🔴 Urgent</option>
           </select>
@@ -87,7 +87,7 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
           <select value={form.task_type || 'task'} onChange={e => set('task_type', e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
             <option value="task">Task</option>
             <option value="other">Other</option>
           </select>
@@ -96,7 +96,7 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
           <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
           <input value={form.notes} onChange={e => set('notes', e.target.value)}
             placeholder="Optional notes"
-            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>
       </div>
       <div className="flex gap-2">
@@ -283,7 +283,7 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleReply(e) } }}
               className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
             <button type="submit" disabled={saving || !replyText.trim()}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40">
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               Send
             </button>
             <button type="button" onClick={() => { setShowReply(false); setReplyText(''); setReplyAssign(''); setReplyActionType('') }}
@@ -523,7 +523,7 @@ export default function TasksPage() {
         <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
         {assignees.length > 0 && (
           <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
             <option value="">All assignees</option>
             {DELEGATES.filter(d => assignees.includes(d)).map(d => (
               <option key={d} value={d}>{d}</option>

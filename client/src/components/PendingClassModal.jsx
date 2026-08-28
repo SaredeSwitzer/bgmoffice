@@ -56,7 +56,7 @@ export default function PendingClassModal({ session, onClose, onSaved }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Why is this pending?</label>
               <textarea autoFocus value={reason} onChange={e => setReason(e.target.value)} rows={3}
                 placeholder="e.g. Instructor can't make it — waiting to hear if client wants a sub or to skip"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div className="space-y-1.5">
               <label className="flex items-center gap-2 text-xs text-gray-700">
