@@ -9,9 +9,18 @@ app.set('trust proxy', 1);
 
 const rawOrigins = process.env.ALLOWED_ORIGIN || 'https://bgmoffice.com';
 const allowedOrigins = rawOrigins.split(',').map(o => o.trim());
+
+// Preview deployments get a fresh hostname on every push (bgmoffice-<hash>.vercel.app),
+// so no static allowlist can cover them and the API rejected its own frontend. Allow
+// vercel.app origins ONLY when Vercel says this is a preview build — production keeps
+// the strict allowlist, and previews are themselves behind Vercel's login.
+const isPreview = process.env.VERCEL_ENV === 'preview';
+const PREVIEW_ORIGIN = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
+
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    if (isPreview && PREVIEW_ORIGIN.test(origin)) return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
   credentials: true,
