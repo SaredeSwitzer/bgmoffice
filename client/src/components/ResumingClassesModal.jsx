@@ -158,7 +158,7 @@ export default function ResumingClassesModal({ onClose }) {
             <button
               type="submit"
               disabled={saving || !canSave}
-              className="flex-1 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 hover:bg-violet-700 transition-colors"
+              className="flex-1 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 hover:bg-violet-700 transition-colors"
             >
               {saving ? 'Saving…' : '🔄 Add Follow-Up Reminder'}
             </button>

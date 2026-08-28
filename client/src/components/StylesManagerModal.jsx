@@ -49,9 +49,9 @@ export default function StylesManagerModal({ styles, onChanged, onClose }) {
           {styles.map(s => editingId === s.id ? (
             <div key={s.id} className="flex gap-2">
               <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus
-                className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               <button onClick={() => handleSaveEdit(s.id)}
-                className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg">Save</button>
+                className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors">Save</button>
               <button onClick={() => setEditingId(null)}
                 className="px-2 py-1 border border-gray-300 text-gray-500 text-xs rounded-lg">✕</button>
             </div>
@@ -69,9 +69,9 @@ export default function StylesManagerModal({ styles, onChanged, onClose }) {
         </div>
         <form onSubmit={handleAdd} className="flex gap-2">
           <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New style…"
-            className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+            className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           <button type="submit" disabled={saving || !newName.trim()}
-            className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40">
+            className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
             {saving ? '…' : '+ Add'}
           </button>
         </form>

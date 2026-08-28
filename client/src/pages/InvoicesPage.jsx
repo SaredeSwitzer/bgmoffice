@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
-import { ClientLink } from '../components/NameLink'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 import { navClick, auxNavClick } from '../utils/nav'
 
 const STATUS_COLORS = {
@@ -140,7 +140,7 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Title (optional)</label>
               <input value={form.title} onChange={e => setField('title', e.target.value)}
                 placeholder="e.g. June Sessions — Smith Family"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             {/* Client + Instructor */}
             <div className="grid grid-cols-2 gap-4">
@@ -202,7 +202,11 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <span className="text-xs font-semibold text-gray-700">
                           {pkg.total_classes}-class package
-                          {pkg.instructor_name && <span className="font-normal text-gray-400"> · {pkg.instructor_name}</span>}
+                          {pkg.instructor_name && (
+                            <span className="font-normal text-gray-400">
+                              {' · '}<InstructorLink id={pkg.instructor_id} name={pkg.instructor_name} stopPropagation={false} />
+                            </span>
+                          )}
                           <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${pkg.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                             {pkg.status}
                           </span>
@@ -269,21 +273,21 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
                       value={li.description}
                       onChange={e => setLine(idx, 'description', e.target.value)}
                       placeholder="Description…"
-                      className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                      className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
                     />
                     <div className="flex gap-2 items-center">
                       <input
                         type="date"
                         value={li.class_date || ''}
                         onChange={e => setLine(idx, 'class_date', e.target.value)}
-                        className="w-36 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                        className="w-36 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
                       />
                       <input
                         type="number" min="0" step="0.01"
                         value={li.unit_price}
                         onChange={e => setLine(idx, 'unit_price', e.target.value)}
                         placeholder="0.00"
-                        className="w-24 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right"
+                        className="w-24 shrink-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-gray-300"
                       />
                       {form.line_items.length > 1 && (
                         <button type="button" onClick={() => removeLine(idx)} className="text-gray-300 hover:text-red-500 text-xs">✕</button>
@@ -306,7 +310,7 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
                       value={form.tax_rate}
                       onChange={e => setField('tax_rate', e.target.value)}
                       placeholder="0"
-                      className="w-16 border border-gray-300 rounded px-2 py-0.5 text-sm text-right"
+                      className="w-16 border border-gray-300 rounded px-2 py-0.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-gray-300"
                     />
                     <span className="text-gray-400">%</span>
                   </div>
@@ -442,7 +446,7 @@ export default function InvoicesPage({ embedded = false }) {
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
           >
             <option value="">All Statuses</option>
             <option value="draft">Draft</option>

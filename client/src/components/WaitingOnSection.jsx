@@ -74,7 +74,7 @@ function NoteThread({ itemId, mentionableUsers }) {
           placeholder="Log a follow-up… type @ to tag someone"
           className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-gray-300" />
         <button type="submit" disabled={saving || !text.trim()}
-          className="px-2 py-1 bg-gray-900 text-white text-[11px] rounded-lg disabled:opacity-40 hover:bg-gray-700">
+          className="px-2 py-1 bg-gray-900 text-white text-[11px] rounded-lg disabled:opacity-50 hover:bg-gray-700">
           Add
         </button>
       </form>
@@ -143,14 +143,14 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
           {editing ? (
             <div className="mt-1.5 space-y-1.5" onClick={e => e.stopPropagation()}>
               <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm" placeholder="Name" />
+                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="Name" />
               <textarea value={draft.what} onChange={e => setDraft(d => ({ ...d, what: e.target.value }))}
                 rows={2} placeholder="What are we waiting on?"
-                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs resize-none" />
+                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
               {saveError && <p className="text-[11px] text-red-600">{saveError}</p>}
               <div className="flex gap-2">
                 <button type="button" onClick={saveEdit} disabled={saving}
-                  className="px-2.5 py-1 bg-gray-900 text-white text-[11px] rounded-lg disabled:opacity-50">
+                  className="px-2.5 py-1 bg-gray-900 text-white text-[11px] rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
                   {saving ? 'Saving\u2026' : 'Save'}
                 </button>
                 <button type="button" onClick={() => setEditing(false)}
@@ -350,7 +350,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
               <input list="waiting-on-people" value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder={`Pick an existing ${kind}, or type a name`}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               <datalist id="waiting-on-people">
                 {people.map(p => <option key={p.id} value={p.name} />)}
               </datalist>
@@ -360,7 +360,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
             <label className="block text-xs font-medium text-gray-600 mb-1">What are we waiting on?</label>
             <textarea value={form.what} onChange={e => setForm(f => ({ ...f, what: e.target.value }))}
               rows={2} placeholder="e.g. waiver signature, callback about class times…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Need to hear back by (optional)</label>
@@ -369,7 +369,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button type="submit" disabled={saving}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {saving ? 'Saving…' : 'Save'}
             </button>
             <button type="button" onClick={() => { setAdding(false); setError('') }}

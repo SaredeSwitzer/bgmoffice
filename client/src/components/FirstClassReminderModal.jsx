@@ -149,7 +149,7 @@ export default function FirstClassReminderModal({ onClose }) {
             <button
               type="submit"
               disabled={saving || !canSave}
-              className="flex-1 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 hover:bg-teal-700 transition-colors"
+              className="flex-1 py-2.5 bg-teal-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 hover:bg-teal-700 transition-colors"
             >
               {saving ? 'Saving…' : '🎓 Add Follow-Up Reminder'}
             </button>

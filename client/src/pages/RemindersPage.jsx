@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { navClick } from '../utils/nav'
 import { useAuth } from '../context/AuthContext'
 import { useRemindersContext } from '../context/RemindersContext'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 import AddReminderModal from '../components/AddReminderModal'
 import FirstClassReminderModal from '../components/FirstClassReminderModal'
 import ResumingClassesModal from '../components/ResumingClassesModal'
@@ -98,7 +99,7 @@ function FollowUpModal({ reminder, onClose, onAddReminder, navigate }) {
           <button
             onClick={handleGo}
             disabled={!selected}
-            className="flex-1 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg disabled:opacity-40 hover:bg-gray-700 transition-colors"
+            className="flex-1 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors"
           >
             Go
           </button>
@@ -201,7 +202,7 @@ function ReminderNoteThread({ reminderId, initialCount, mentionableUsers, autoOp
               placeholder={`Note as ${user?.initials}… (type @ to tag someone)`} rows={1}
               className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
             <button type="submit" disabled={sending || !text.trim()}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40 flex-shrink-0">
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 flex-shrink-0 hover:bg-gray-700 transition-colors">
               {sending ? '…' : 'Send'}
             </button>
           </form>
@@ -339,7 +340,7 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button type="submit" disabled={saving || !form.title.trim() || !form.remind_on}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {saving ? 'Saving…' : 'Save'}
             </button>
             <button type="button" onClick={() => { setEditing(false); setError('') }}
@@ -380,12 +381,12 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
           {/* Client/instructor context — prefer case-derived name for action-item reminders */}
           {(reminder.case_client_name || reminder.client_name) && (
             <span className="text-xs text-gray-500">
-              Client: {reminder.case_client_name || reminder.client_name}
+              Client: <ClientLink id={clientId} name={reminder.case_client_name || reminder.client_name} />
             </span>
           )}
           {(reminder.case_instructor_name || reminder.instructor_name) && (
             <span className="text-xs text-gray-500">
-              Instructor: {reminder.case_instructor_name || reminder.instructor_name}
+              Instructor: <InstructorLink id={instructorId} name={reminder.case_instructor_name || reminder.instructor_name} />
             </span>
           )}
           {reminder.action_item_id && (

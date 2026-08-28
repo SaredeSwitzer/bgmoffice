@@ -79,13 +79,13 @@ export default function ClassNotes({ kind, id, onCountChange }) {
       <form onSubmit={add} className="flex items-center gap-2 pt-1">
         <input value={text} onChange={e => setText(e.target.value)}
           placeholder={isTask ? 'New task…' : 'New note…'}
-          className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1 text-xs bg-white" />
+          className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300" />
         <label className="flex items-center gap-1 text-[11px] text-gray-500 select-none cursor-pointer">
           <input type="checkbox" checked={isTask} onChange={e => setIsTask(e.target.checked)} className="accent-gray-700" />
           task
         </label>
         <button type="submit" disabled={saving || !text.trim()}
-          className="px-2.5 py-1 bg-gray-900 text-white text-[11px] font-medium rounded-lg disabled:opacity-40">
+          className="px-2.5 py-1 bg-gray-900 text-white text-[11px] font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
           Add
         </button>
       </form>

@@ -105,12 +105,12 @@ export default function ConfirmClassModal({ schedule, scheduleIds, kind = 'sched
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
                 <input value={subject} onChange={e => setSubject(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
                 <textarea value={body} onChange={e => setBody(e.target.value)} rows={12}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <p className="text-[11px] text-gray-400">The app filled this in from the class — edit anything before sending.</p>
             </>
@@ -122,7 +122,7 @@ export default function ConfirmClassModal({ schedule, scheduleIds, kind = 'sched
           <button onClick={onClose} className="px-4 py-1.5 border border-gray-300 text-gray-600 text-sm rounded-lg">Cancel</button>
           {preview?.to && (
             <button onClick={send} disabled={sending}
-              className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+              className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {sending ? 'Sending…' : (preview.already_sent_at ? 'Send again' : 'Send email')}
             </button>
           )}

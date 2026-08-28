@@ -106,10 +106,10 @@ export default function GmailComposeLink({ to, subject, body, children, classNam
               placeholder="Add Gmail account…"
               type="email"
               autoFocus={accounts.length === 0}
-              className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-xs min-w-0"
+              className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-xs min-w-0 focus:outline-none focus:ring-2 focus:ring-gray-300"
             />
             <button type="submit" disabled={!newAddr.trim()}
-              className="px-2 py-1 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-40 flex-shrink-0">
+              className="px-2 py-1 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 flex-shrink-0 hover:bg-gray-700 transition-colors">
               +
             </button>
           </form>

@@ -143,12 +143,12 @@ function LoginReminderModal({ instructorId, instructorName, onClose, onSent }) {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Subject</label>
                 <input value={subject} onChange={e => setSubject(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
                 <textarea value={body} onChange={e => setBody(e.target.value)} rows={10}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <p className="text-[11px] text-gray-400">Edit anything before sending, or close this without sending.</p>
             </>
@@ -162,7 +162,7 @@ function LoginReminderModal({ instructorId, instructorName, onClose, onSent }) {
           </button>
           {preview?.to && !justSent && (
             <button onClick={send} disabled={sending}
-              className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+              className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {sending ? 'Sending…' : 'Send email'}
             </button>
           )}
@@ -455,13 +455,13 @@ function InstructorAvailabilitySection({ instructorId }) {
                     return (
                       <div key={slot.id} className="flex flex-wrap gap-2 items-center bg-white border border-purple-300 rounded-xl px-3 py-2">
                         <select value={editSlot.day_of_week} onChange={e => setEditSlot(s => ({ ...s, day_of_week: e.target.value }))}
-                          className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white">
+                          className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
                           {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
                         <input value={editSlot.time_slot} onChange={e => setEditSlot(s => ({ ...s, time_slot: e.target.value }))}
-                          placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28" />
+                          placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28 focus:outline-none focus:ring-2 focus:ring-gray-300" />
                         <button onClick={() => handleSaveEdit(slot.id)}
-                          className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg">Save</button>
+                          className="px-3 py-1 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors">Save</button>
                         <button onClick={() => setEditingId(null)}
                           className="px-3 py-1 border border-gray-300 text-gray-500 text-xs rounded-lg">Cancel</button>
                       </div>
@@ -491,7 +491,7 @@ function InstructorAvailabilitySection({ instructorId }) {
         <div>
           <label className="block text-[10px] font-medium text-gray-500 mb-1">Day</label>
           <select value={addForm.day_of_week} onChange={e => setAddForm(f => ({ ...f, day_of_week: e.target.value }))}
-            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white">
+            className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
             <option value="">Select day…</option>
             {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -499,10 +499,10 @@ function InstructorAvailabilitySection({ instructorId }) {
         <div>
           <label className="block text-[10px] font-medium text-gray-500 mb-1">Time (optional)</label>
           <input value={addForm.time_slot} onChange={e => setAddForm(f => ({ ...f, time_slot: e.target.value }))}
-            placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36" />
+            placeholder="e.g. 10am–noon" className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>
         <button type="submit" disabled={saving || !addForm.day_of_week}
-          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-gray-700">
+          className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700">
           {saving ? 'Adding…' : '+ Add'}
         </button>
       </form>
@@ -566,7 +566,7 @@ function FeedbackNotesSection({ instructorId, initialNotes }) {
             className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
           />
           <button type="submit" disabled={saving || !text.trim()}
-            className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40 hover:bg-gray-700 whitespace-nowrap">
+            className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 whitespace-nowrap">
             {saving ? 'Saving…' : '+ Add'}
           </button>
         </form>
@@ -731,17 +731,17 @@ export default function InstructorProfilePage() {
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
                 <input required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
                 <input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                 <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div className="col-span-2">
                 <div className="flex items-center justify-between mb-2">
@@ -774,17 +774,17 @@ export default function InstructorProfilePage() {
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
                 <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
-                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Pay Rate</label>
                 <input value={editForm.pay_rate} onChange={e => setEditForm(f => ({ ...f, pay_rate: e.target.value }))}
-                  placeholder="e.g. $60/class" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="e.g. $60/class" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Paid Via</label>
                 <select value={editForm.payout_method} onChange={e => setEditForm(f => ({ ...f, payout_method: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
                   <option value="">— select —</option>
                   {['Zelle', 'Venmo', 'PayPal', 'Check', 'Cash', 'Other'].map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -793,7 +793,7 @@ export default function InstructorProfilePage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Payout Handle</label>
                 <input value={editForm.payout_handle} onChange={e => setEditForm(f => ({ ...f, payout_handle: e.target.value }))}
                   placeholder="@venmo-handle, phone/email for Zelle, paypal.me link…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -810,37 +810,37 @@ export default function InstructorProfilePage() {
                   />
                 ) : (
                   <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
-                    placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 )}
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>
                 <textarea value={editForm.mailing_address} onChange={e => setEditForm(f => ({ ...f, mailing_address: e.target.value }))}
-                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">City</label>
                 <input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">State</label>
                 <input value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
-                  placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                  placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Tax ID
                   <select value={editForm.tax_id_type || 'ssn'}
                     onChange={e => setEditForm(f => ({ ...f, tax_id_type: e.target.value }))}
-                    className="ml-2 border border-gray-300 rounded px-1 py-0.5 text-xs font-normal">
+                    className="ml-2 border border-gray-300 rounded px-1 py-0.5 text-xs font-normal focus:outline-none focus:ring-2 focus:ring-gray-300">
                     <option value="ssn">SSN</option>
                     <option value="ein">EIN</option>
                   </select>
                 </label>
                 <input value={editForm.ssn} onChange={e => setEditForm(f => ({ ...f, ssn: e.target.value }))}
                   placeholder={editForm.tax_id_type === 'ein' ? 'XX-XXXXXXX' : 'XXX-XX-XXXX'}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div className={isAdmin ? '' : 'col-span-2'}>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Contract</label>
@@ -861,7 +861,7 @@ export default function InstructorProfilePage() {
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={saving}
-                className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+                className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button type="button" onClick={() => setEditing(false)}

@@ -66,7 +66,7 @@ export default function AdminNotes({ kind, id, onCountChange }) {
           placeholder="New admin note…"
           className="flex-1 border border-amber-200 rounded-lg px-2.5 py-1 text-xs bg-white" />
         <button type="submit" disabled={saving || !text.trim()}
-          className="px-2.5 py-1 bg-amber-600 text-white text-[11px] font-medium rounded-lg disabled:opacity-40">
+          className="px-2.5 py-1 bg-amber-600 text-white text-[11px] font-medium rounded-lg disabled:opacity-50">
           Add
         </button>
       </form>

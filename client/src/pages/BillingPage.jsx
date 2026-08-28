@@ -755,7 +755,7 @@ export default function BillingPage() {
                         <span className="text-gray-400 text-sm">$</span>
                         <input type="number" step="1" value={r.amount} disabled={done}
                           onChange={e => patch(r.client_id, { amount: e.target.value })}
-                          className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm text-right disabled:bg-gray-50 disabled:text-gray-400" />
+                          className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm text-right disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300" />
                       </div>
                     </div>
                   )
@@ -768,7 +768,7 @@ export default function BillingPage() {
                   <span className="font-semibold text-gray-900"> {money(selectedTotal)}</span>
                 </div>
                 <button onClick={charge} disabled={charging || !selected.length}
-                  className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-40">
+                  className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50">
                   {charging ? 'Charging…' : `Charge ${selected.length || ''} card${selected.length === 1 ? '' : 's'}`}
                 </button>
               </div>
@@ -818,7 +818,7 @@ export default function BillingPage() {
                               )}
                               {d.status === 'updated' && !justApplied && (
                                 <button onClick={() => setPreviewModalClientId(d.client_id)} disabled={busy}
-                                  className="px-2 py-1 bg-gray-900 text-white rounded-md font-medium hover:bg-gray-700 disabled:opacity-40 whitespace-nowrap">
+                                  className="px-2 py-1 bg-gray-900 text-white rounded-md font-medium hover:bg-gray-700 disabled:opacity-50 whitespace-nowrap">
                                   {busy ? 'Applying…' : 'Preview →'}
                                 </button>
                               )}
@@ -855,7 +855,7 @@ export default function BillingPage() {
                               {justApplied && <span className="text-green-600">✓ applied</span>}
                               {hasPending && (
                                 <button onClick={() => applyClient('pkg', group.client_id)} disabled={busy}
-                                  className="px-2 py-1 bg-gray-900 text-white rounded-md font-medium hover:bg-gray-700 disabled:opacity-40 whitespace-nowrap">
+                                  className="px-2 py-1 bg-gray-900 text-white rounded-md font-medium hover:bg-gray-700 disabled:opacity-50 whitespace-nowrap">
                                   {busy ? 'Applying…' : 'Apply'}
                                 </button>
                               )}
@@ -883,7 +883,7 @@ export default function BillingPage() {
               </>
             ) : (
               <button onClick={previewSync} disabled={previewing}
-                className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-40">
+                className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50">
                 {previewing ? 'Checking…' : `Review updates for ${label}`}
               </button>
             )}

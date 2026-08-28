@@ -395,7 +395,9 @@ export default function DashboardPage() {
             {completedPackages.map(pkg => (
               <div key={pkg.id} className="flex items-center justify-between gap-3 bg-white border border-green-100 rounded-xl px-4 py-2.5">
                 <div>
-                  <span className="text-sm font-semibold text-gray-800">{pkg.client_name}</span>
+                  <span className="text-sm font-semibold text-gray-800">
+                    <ClientLink id={pkg.client_id} name={pkg.client_name} stopPropagation={false} />
+                  </span>
                   <span className="text-xs text-gray-500 ml-2">{pkg.total_classes}-class package</span>
                   {pkg.instructor_name && (
                     <span className="text-xs text-gray-400 ml-2">

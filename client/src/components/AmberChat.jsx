@@ -210,7 +210,7 @@ export default function AmberChat() {
                   key={a.label}
                   onClick={() => sendMessage(a.prompt)}
                   disabled={streaming}
-                  className="px-2 py-1 rounded-lg bg-[#1e1c38] border border-[#2a2845] text-[10px] text-[#c0bde0] hover:border-[#6B5CF5] hover:text-white transition-all disabled:opacity-40"
+                  className="px-2 py-1 rounded-lg bg-[#1e1c38] border border-[#2a2845] text-[10px] text-[#c0bde0] hover:border-[#6B5CF5] hover:text-white transition-all disabled:opacity-50"
                 >
                   {a.label}
                 </button>
@@ -238,7 +238,7 @@ export default function AmberChat() {
                 <button
                   onClick={() => sendMessage(input)}
                   disabled={!input.trim() || streaming}
-                  className="bg-[#6B5CF5] hover:bg-[#5a4de0] disabled:opacity-40 text-white rounded-xl px-3 py-2 text-xs font-medium transition-colors shrink-0"
+                  className="bg-[#6B5CF5] hover:bg-[#5a4de0] disabled:opacity-50 text-white rounded-xl px-3 py-2 text-xs font-medium transition-colors shrink-0"
                 >
                   Send
                 </button>

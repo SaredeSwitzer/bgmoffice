@@ -664,7 +664,7 @@ export default function SchedulePage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Day of week</label>
                   <select value={form.weekday} onChange={e => setForm(f => ({ ...f, weekday: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
                     <option value="">Flexible / unset</option>
                     {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
                   </select>
@@ -687,12 +687,12 @@ export default function SchedulePage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Instructor pay</label>
                   <input type="number" step="1" value={form.instructor_pay} onChange={e => setForm(f => ({ ...f, instructor_pay: e.target.value }))}
-                    placeholder="60" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    placeholder="60" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Payment method</label>
                   <select value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
                     <option value="">—</option>
                     {PAYMENT_METHODS.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
@@ -700,22 +700,22 @@ export default function SchedulePage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Style</label>
                   <input value={form.style} onChange={e => setForm(f => ({ ...f, style: e.target.value }))}
-                    placeholder="Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    placeholder="Pilates" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1"># of participants</label>
                   <input type="text" value={form.participant_count} onChange={e => setForm(f => ({ ...f, participant_count: e.target.value }))}
-                    placeholder="e.g. 12, or Around 15 kids, or 5-10" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    placeholder="e.g. 12, or Around 15 kids, or 5-10" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Ages</label>
                   <input value={form.participant_ages} onChange={e => setForm(f => ({ ...f, participant_ages: e.target.value }))}
-                    placeholder="e.g. 6, 8" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    placeholder="e.g. 6, 8" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
               </div>
               <div className="flex gap-2">
                 <button type="submit" disabled={saving || !form.client}
-                  className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50">
+                  className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
                   {saving ? 'Saving…' : (editingId ? 'Save Changes' : 'Save Recurring Class')}
                 </button>
                 <button type="button" onClick={() => { setShowNew(false); setForm(BLANK_SCHEDULE); setEditingId(null) }}

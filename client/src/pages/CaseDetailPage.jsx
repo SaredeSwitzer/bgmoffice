@@ -168,7 +168,7 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
               <button
                 onClick={() => handleDelete(at.id)}
                 disabled={busy}
-                className="text-[10px] text-gray-300 group-hover:text-red-400 hover:text-red-600 transition-colors disabled:opacity-40"
+                className="text-[10px] text-gray-300 group-hover:text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
                 title="Delete"
               >🗑</button>
             </>
@@ -196,7 +196,7 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
           type="button"
           onClick={handleAdd}
           disabled={busy || !newName.trim()}
-          className="px-2.5 py-1 bg-gray-900 text-white text-xs rounded font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
+          className="px-2.5 py-1 bg-gray-900 text-white text-xs rounded font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors"
         >Add</button>
       </div>
     </div>
@@ -397,7 +397,7 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
         <button
           type="submit"
           disabled={saving || !text.trim()}
-          className="flex-shrink-0 px-4 py-2 bg-gray-900 text-white text-sm rounded-full font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
+          className="flex-shrink-0 px-4 py-2 bg-gray-900 text-white text-sm rounded-full font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors"
         >
           Send
         </button>
@@ -705,7 +705,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
                 <select
                   value={editForm.delegate_id}
                   onChange={e => setEditForm(f => ({ ...f, delegate_id: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
                 >
                   <option value="">Anyone</option>
                   {delegates.map(d => (
@@ -726,7 +726,7 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
               </div>
               <div className="flex gap-2">
                 <button type="submit" disabled={saving || editForm.action_type_ids.length === 0}
-                  className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg font-medium disabled:opacity-50">
+                  className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors">
                   Save
                 </button>
                 <button type="button" onClick={() => setEditing(false)}
@@ -901,7 +901,7 @@ function AddActionItemModal({ caseId, actionTypes, delegates, onClose, onAdded, 
             <select
               value={form.delegate_id}
               onChange={e => setForm(f => ({ ...f, delegate_id: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
             >
               <option value="">Unassigned</option>
               {delegates.map(d => (

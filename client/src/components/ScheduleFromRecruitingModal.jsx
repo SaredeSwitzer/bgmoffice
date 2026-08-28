@@ -121,7 +121,7 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Instructor</label>
             <select value={form.instructor_id} onChange={e => set('instructor_id', e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+              className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               <option value="">— none yet —</option>
               {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
@@ -184,27 +184,27 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Start time</label>
               <input type="time" value={form.start_time} onChange={e => set('start_time', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Minutes</label>
               <input type="number" value={form.duration_minutes} onChange={e => set('duration_minutes', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Charge client</label>
               <input type="number" value={form.charge_amount} onChange={e => set('charge_amount', e.target.value)}
-                placeholder="$" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+                placeholder="$" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Pay instructor</label>
               <input type="number" value={form.instructor_pay} onChange={e => set('instructor_pay', e.target.value)}
-                placeholder="$" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+                placeholder="$" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Payment method</label>
               <select value={form.payment_method} onChange={e => set('payment_method', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                 <option value="">—</option>
                 {['Credit Card', 'Invoice', 'Package', 'Cash', 'Check'].map(m => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -212,18 +212,18 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Style</label>
               <input value={form.style} onChange={e => set('style', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600"># of participants</label>
               <input type="number" min="1" value={form.participant_count}
                 onChange={e => set('participant_count', e.target.value)}
-                placeholder="e.g. 1" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+                placeholder="e.g. 1" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Age(s)</label>
               <input value={form.participant_ages} onChange={e => set('participant_ages', e.target.value)}
-                placeholder="e.g. 24, or 3-5y/o" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+                placeholder="e.g. 24, or 3-5y/o" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
           </div>
 
@@ -237,7 +237,7 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
             {saving ? 'Adding…' : 'Add to calendar'}
           </button>
           <button onClick={() => handleSave(true)} disabled={saving}
-            className="rounded-lg bg-gray-900 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50">
+            className="rounded-lg bg-gray-900 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50 hover:bg-gray-700 transition-colors">
             Add &amp; archive entry
           </button>
         </div>

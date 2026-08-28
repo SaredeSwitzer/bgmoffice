@@ -40,15 +40,15 @@ export default function PaymentsReport() {
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">From</label>
             <input type="date" value={start} onChange={e => setStart(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">To</label>
             <input type="date" value={end} onChange={e => setEnd(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
           <button type="submit" disabled={loading}
-            className="rounded-lg bg-gray-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+            className="rounded-lg bg-gray-900 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50 hover:bg-gray-700 transition-colors">
             {loading ? 'Loading…' : 'Run'}
           </button>
         </div>
