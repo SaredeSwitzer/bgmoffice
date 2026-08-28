@@ -7,6 +7,7 @@ import DashboardFilterBar, { FILTER_ALL, FILTER_ANYONE, FILTER_STARRED, CATEGORY
 import { navClick } from '../utils/nav'
 import { TaskForm } from './TasksPage'
 import { ClientLink, InstructorLink } from '../components/NameLink'
+import WaitingOnOverview from '../components/WaitingOnOverview'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -448,6 +449,8 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <WaitingOnOverview />
 
       <OpenTasksTable
         items={data.open_tasks}

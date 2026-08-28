@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import { useSeenTasks } from '../hooks/useSeenTasks'
 import { ClientLink, InstructorLink } from '../components/NameLink'
+import WaitingOnOverview from '../components/WaitingOnOverview'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -75,6 +76,10 @@ const INSTRUCTOR_FACING_TYPES = [
 ]
 
 function getItemCategories(item) {
+  // Tasks left for "Anyone" show up in everyone's list. They get their own category so
+  // whoever is working can pull up the shared pile on its own, but they still appear
+  // under All alongside a person's own work rather than being tucked away.
+  if (item.is_anyone) return ['anyone']
   if (item.categories?.length) return item.categories
   // Standalone tasks (and recruiting-linked ones, which are standalone tasks under
   // the hood) don't have a Client/Instructor F/U distinction the way action items
@@ -92,6 +97,7 @@ function getItemCategories(item) {
 const CATEGORY_FILTERS = [
   { key: 'all',                 label: 'All' },
   { key: 'mention',             label: '@Mentions' },
+  { key: 'anyone',              label: '🙋 Anyone' },
   { key: 'reminder',            label: 'Reminders' },
   { key: 'client_followup',     label: 'Client F/U' },
   { key: 'instructor_followup', label: 'Instructor F/U' },
@@ -157,7 +163,14 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
         {item.instructor_name ? <InstructorLink id={item.instructor_id} name={item.instructor_name} /> : <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        {isMention ? (
+        {item.is_anyone ? (
+          // Shown ahead of the normal type badge: the fact that this one is up for grabs
+          // matters more to whoever's looking than what kind of task it is.
+          <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide"
+            title="Left for whoever is free — Claire, Maria and Sarede all see this">
+            🙋 Anyone
+          </span>
+        ) : isMention ? (
           <span className="inline-block text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
             @Mentioned ↗
           </span>
@@ -324,7 +337,7 @@ export default function MyTasksPage() {
           <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {delegateName
-              ? `Open action items and due reminders assigned to ${delegateName}, plus anything you're @mentioned in`
+              ? `Open action items and due reminders assigned to ${delegateName}, anything you're @mentioned in, plus tasks left for "Anyone"`
               : `No delegate match found for ${user?.name?.split(' ')[0]} — showing anything you're @mentioned in`}
           </p>
         </div>
@@ -341,6 +354,7 @@ export default function MyTasksPage() {
             className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
               categoryFilter === key
                 ? key === 'mention'             ? 'bg-indigo-600 text-white'
+                : key === 'anyone'              ? 'bg-amber-600 text-white'
                 : key === 'client_followup'     ? 'bg-green-600 text-white'
                 : key === 'instructor_followup' ? 'bg-blue-600 text-white'
                 : 'bg-gray-900 text-white'
@@ -397,6 +411,10 @@ export default function MyTasksPage() {
           </div>
         </div>
       )}
+
+      {/* Collapsible here, unlike the Dashboard: this page is a focused work queue and
+          the waiting-on list is reference material you dip into, not the main event. */}
+      <WaitingOnOverview collapsible defaultOpen={false} />
 
       {readMentions.length > 0 && (
         <div>

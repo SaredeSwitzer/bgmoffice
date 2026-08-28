@@ -224,7 +224,7 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
 // kind: 'client' | 'instructor'
 // linkedId + linkedName: profile-page mode — scoped to one client/instructor, name locked
 // people: list mode (Clients/Instructors sub-tab) — [{id, name}] for the picker
-export default function WaitingOnSection({ kind, linkedId, linkedName, people = [], mentionableUsers = [], showLink = false }) {
+export default function WaitingOnSection({ kind, linkedId, linkedName, people = [], mentionableUsers = [], showLink = false, title = 'Waiting to Hear Back From' }) {
   const [searchParams] = useSearchParams()
   // Kept as a string — ids come back from Postgres as bigint strings, so comparing
   // against a Number() would silently never match.
@@ -325,7 +325,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
     <section>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-purple-400">
-          Waiting to Hear Back From
+          {title}
           {data.open.length > 0 && (
             <span className="ml-2 text-xs font-semibold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
               {data.open.length}

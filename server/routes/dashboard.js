@@ -194,7 +194,7 @@ router.get('/my-tasks', async (req, res) => {
     .map(t => ({ ...t, source: 'action_item' }));
 
   const { rows: standaloneRows } = await pool.query(
-    `SELECT st.id, st.title, st.status, st.created_at, st.starred,
+    `SELECT st.id, st.title, st.status, st.created_at, st.starred, st.assigned_to,
             st.client_id, cl.name AS client_name,
             st.instructor_id, i.name AS instructor_name,
             st.action_type_id, at.name AS action_type_name, at.color AS action_type_color,
@@ -205,7 +205,8 @@ router.get('/my-tasks', async (req, res) => {
      LEFT JOIN instructors       i ON i.id  = st.instructor_id
      LEFT JOIN action_types     at ON at.id = st.action_type_id
      LEFT JOIN recruiting_notes rn ON rn.id = st.recruiting_note_id
-     WHERE st.status = 'open' AND LOWER(st.assigned_to) = LOWER($1)`,
+     WHERE st.status = 'open'
+       AND (LOWER(st.assigned_to) = LOWER($1) OR LOWER(st.assigned_to) = 'anyone')`,
     [delegate.name]
   );
 
@@ -213,7 +214,12 @@ router.get('/my-tasks', async (req, res) => {
     ...t,
     source: t.recruiting_note_id ? 'recruiting' : 'standalone',
     case_id: null,
-    delegate_name: delegate.name,
+    // "Anyone" is an existing option in the Tasks page assignee dropdown, but nothing
+    // ever surfaced those tasks: /my-tasks only matched your own name, so a task left
+    // for whoever was free was visible to nobody. Flagged here so every delegate sees
+    // them in their own list, filterable on its own.
+    is_anyone: String(t.assigned_to || '').toLowerCase() === 'anyone',
+    delegate_name: String(t.assigned_to || '').toLowerCase() === 'anyone' ? 'Anyone' : delegate.name,
     action_types: t.action_type_id
       ? [{ id: t.action_type_id, name: t.action_type_name, color: t.action_type_color }]
       : [],
