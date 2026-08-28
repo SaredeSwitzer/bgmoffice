@@ -17,6 +17,7 @@ import DurationInput from '../components/DurationInput'
 import ChargeInput from '../components/ChargeInput'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import { fmtTime, fmtTimeRange } from '../utils/time'
+import ReportsPage from './ReportsPage'
 
 // The horizontal line + time label shown between classes while dragging, so it's clear
 // exactly where a class will land (and what time it'll get) before you let go.
@@ -131,7 +132,7 @@ function PaperworkFlag({ session, className = '' }) {
 }
 
 export default function SchedulePage() {
-  const [tab, setTab] = useState('week') // 'week' | 'recurring'
+  const [tab, setTab] = useState('week') // 'week' | 'recurring' | 'reports'
   const [anchor, setAnchor] = useState(() => loadSavedWeekAnchor(startOfWeek))
   const weekStart = startOfWeek(anchor)
   const weekEnd = addDays(weekStart, 6)
@@ -324,7 +325,10 @@ export default function SchedulePage() {
     api.getClassSchedules().then(setSchedules).catch(() => setSchedules([])).finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { if (tab === 'week') loadWeek(); else loadSchedules() }, [tab, loadWeek, loadSchedules])
+  useEffect(() => {
+    if (tab === 'reports') return
+    if (tab === 'week') loadWeek(); else loadSchedules()
+  }, [tab, loadWeek, loadSchedules])
 
   async function removeSession(id) {
     if (!confirm('Remove this class from the week?')) return
@@ -429,22 +433,26 @@ export default function SchedulePage() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">Schedule</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => setAddDatesOpen(true)}
-            className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
-            + Add Class Dates
-          </button>
+          {tab !== 'reports' && (
+            <button onClick={() => setAddDatesOpen(true)}
+              className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
+              + Add Class Dates
+            </button>
+          )}
           <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-            {['week', 'recurring'].map(t => (
-              <button key={t} onClick={() => setTab(t)}
-                className={`px-3 py-1.5 font-medium ${tab === t ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                {t === 'week' ? 'This Week' : 'Recurring'}
+            {[['week', 'This Week'], ['recurring', 'Recurring'], ['reports', 'Reports']].map(([key, text]) => (
+              <button key={key} onClick={() => setTab(key)}
+                className={`px-3 py-1.5 font-medium ${tab === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                {text}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {tab === 'week' ? (
+      {tab === 'reports' ? (
+        <ReportsPage embedded />
+      ) : tab === 'week' ? (
         <>
           <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
             <div className="flex items-center gap-2">

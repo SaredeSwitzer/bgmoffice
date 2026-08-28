@@ -6,7 +6,6 @@ import DateInput from '../components/DateInput'
 import BulkEditSessionsModal from '../components/BulkEditSessionsModal'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import { fmtTime, fmtTimeRange } from '../utils/time'
-import PaymentsReport from '../components/PaymentsReport'
 
 function fmtDate(iso) {
   const [y, m, d] = iso.split('-')
@@ -77,8 +76,9 @@ function downloadCsv(rows, clients, instructors) {
   URL.revokeObjectURL(url)
 }
 
-export default function ReportsPage() {
-  const [view, setView] = useState('classes')   // 'classes' | 'payments'
+// `embedded` renders it inside the Schedule page's Reports tab: no heading or width
+// cap, since Schedule already provides both.
+export default function ReportsPage({ embedded = false }) {
   const [searchParams] = useSearchParams()
 
   const [clients, setClients] = useState([])
@@ -177,30 +177,13 @@ export default function ReportsPage() {
   }, [clients])
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-3">
+    <div className={embedded ? 'space-y-6' : 'max-w-4xl mx-auto space-y-6'}>
+      {!embedded && (
         <div>
-          <h1 className="text-lg font-bold text-gray-900">
-            {view === 'classes' ? 'Class Reports' : 'Payments Received'}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {view === 'classes'
-              ? 'Look up classes by client, instructor, style, status, or date range.'
-              : 'Who was charged, when, and how — card charges and payments logged in the app.'}
-          </p>
+          <h1 className="text-lg font-bold text-gray-900">Class Reports</h1>
+          <p className="text-sm text-gray-500">Look up classes by client, instructor, style, status, or date range.</p>
         </div>
-        <div className="flex shrink-0 overflow-hidden rounded-lg border border-gray-300 text-sm">
-          {[['classes', 'Classes'], ['payments', 'Payments']].map(([key, text]) => (
-            <button key={key} type="button" onClick={() => setView(key)}
-              className={`px-3 py-1.5 font-medium ${view === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-              {text}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {view === 'payments' && <PaymentsReport />}
-      {view === 'classes' && (<>
+      )}
 
       <form onSubmit={runReport} className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
         <div className="grid sm:grid-cols-2 gap-4">
@@ -335,7 +318,6 @@ export default function ReportsPage() {
           onSaved={handleBulkSaved}
         />
       )}
-      </>)}
     </div>
   )
 }

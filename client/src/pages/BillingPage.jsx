@@ -6,6 +6,7 @@ import DateInput from '../components/DateInput'
 import { loadSavedWeekAnchor, saveWeekAnchor } from '../utils/weekAnchor'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import InvoicesPage from './InvoicesPage'
+import PaymentsReport from '../components/PaymentsReport'
 
 // Weekly recurring CC billing — review then charge. The amounts are computed live
 // from the schedule (class_sessions), so updating the schedule updates this. Nothing
@@ -60,146 +61,6 @@ function SortableTh({ col, label: text, sortCol, sortDir, onSort, className = ''
 
 const DAY_OPTIONS = [3, 7, 14, 30]
 
-function StripeChargesTab() {
-  const [days, setDays] = useState(7)
-  const [custom, setCustom] = useState(false)     // showing the custom-range pickers
-  const [range, setRange] = useState(null)         // { start, end } once "Apply" is clicked
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-  const [items, setItems] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  const load = useCallback(() => {
-    setLoading(true); setError('')
-    api.getStripeCharges(range || days)
-      .then(r => setItems(r.items))
-      .catch(e => setError(e.message || 'Failed to load charges'))
-      .finally(() => setLoading(false))
-  }, [days, range])
-
-  useEffect(() => { load() }, [load])
-
-  function pickDays(d) { setCustom(false); setRange(null); setDays(d) }
-  function applyCustomRange() {
-    if (!customStart || !customEnd) return
-    setRange({ start: customStart, end: customEnd })
-  }
-
-  const rangeLabel = range ? `${range.start}_to_${range.end}` : `last${days}d`
-  const total = (items || []).filter(c => c.status === 'succeeded').reduce((s, c) => s + c.amount, 0)
-
-  return (
-    <div className="space-y-3">
-      <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-1.5 text-sm">
-            <span className="text-gray-500 mr-1">Last</span>
-            {DAY_OPTIONS.map(d => (
-              <button key={d} onClick={() => pickDays(d)}
-                className={`px-2.5 py-1 rounded-lg border text-xs font-medium ${
-                  !custom && days === d ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}>
-                {d}d
-              </button>
-            ))}
-            <button onClick={() => setCustom(v => !v)}
-              className={`px-2.5 py-1 rounded-lg border text-xs font-medium ${
-                custom ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-              }`}>
-              Custom dates
-            </button>
-          </div>
-          <div className="flex items-center gap-3">
-            {items && (
-              <button
-                onClick={() => downloadCsv(`stripe_charges_${rangeLabel}.csv`,
-                  ['Date', 'Client', 'Amount', 'Card', 'Status'],
-                  items.map(c => [
-                    new Date(c.created * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                    c.client_name || (c.description || c.failure_message || 'Unknown'),
-                    c.amount.toFixed(2),
-                    c.card_brand ? `${c.card_brand} ${c.card_last4}` : '',
-                    c.status,
-                  ]))}
-                className="text-xs text-blue-600 hover:underline">Export CSV</button>
-            )}
-            <button onClick={load} className="text-xs text-gray-400 hover:text-gray-700">↻ Refresh</button>
-          </div>
-        </div>
-        {custom && (
-          <div className="flex items-end flex-wrap gap-3 pt-2 border-t border-gray-100">
-            <div className="w-44">
-              <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
-              <DateInput value={customStart} onChange={setCustomStart} />
-            </div>
-            <div className="w-44">
-              <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
-              <DateInput value={customEnd} onChange={setCustomEnd} />
-            </div>
-            <button onClick={applyCustomRange} disabled={!customStart || !customEnd}
-              className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-40 shrink-0">
-              Apply
-            </button>
-          </div>
-        )}
-      </div>
-
-      {loading ? (
-        <p className="text-gray-400 text-sm text-center py-8">Loading…</p>
-      ) : error ? (
-        <p className="text-red-600 text-sm text-center py-8">{error}</p>
-      ) : items.length === 0 ? (
-        <p className="text-gray-400 text-sm italic text-center py-10">No Stripe charges in that range.</p>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="flex justify-between text-xs text-gray-500 px-4 py-2 border-b border-gray-100">
-            <span>{items.length} charge{items.length === 1 ? '' : 's'}</span>
-            <span>Succeeded total: <span className="font-semibold text-gray-700">{money(total)}</span></span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] text-gray-400 uppercase tracking-wide">
-                  <th className="px-4 py-1.5 font-semibold">Date</th>
-                  <th className="px-2 py-1.5 font-semibold">Client</th>
-                  <th className="px-2 py-1.5 font-semibold">Card</th>
-                  <th className="px-2 py-1.5 font-semibold text-right">Amount</th>
-                  <th className="px-2 py-1.5 font-semibold pr-4">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((c, i) => (
-                  <tr key={c.id} className={i > 0 ? 'border-t border-gray-100' : ''} title={c.failure_message || c.description || ''}>
-                    <td className="px-4 py-1.5 text-gray-500 whitespace-nowrap">
-                      {new Date(c.created * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    </td>
-                    <td className="px-2 py-1.5 text-gray-800">
-                      <ClientLink id={c.client_id} name={c.client_name || '—'} />
-                    </td>
-                    <td className="px-2 py-1.5 text-gray-500 capitalize whitespace-nowrap">
-                      {c.card_brand ? `${c.card_brand} •${c.card_last4}` : '—'}
-                    </td>
-                    <td className="px-2 py-1.5 text-right text-gray-800">{money(c.amount)}</td>
-                    <td className="px-2 py-1.5 pr-4">
-                      <span className={`text-xs rounded-lg px-1.5 py-0.5 border ${
-                        c.status === 'succeeded' ? STATUS_COLORS.charged
-                          : c.status === 'failed' ? STATUS_COLORS.declined
-                          : STATUS_COLORS.pending
-                      }`}>
-                        {c.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 function ReportTab({ weekStart, weekEnd, label }) {
   const [report, setReport] = useState(null)
@@ -708,7 +569,7 @@ function InvoicePreviewModal({ detail, onApply, onClose, applying }) {
 }
 
 export default function BillingPage() {
-  const [tab, setTab] = useState('charge') // 'charge' | 'report' | 'stripe' | 'invoices'
+  const [tab, setTab] = useState('charge') // 'charge' | 'report' | 'payments' | 'invoices'
   const [anchor, setAnchor] = useState(() => loadSavedWeekAnchor(startOfWeek))
   const weekStart = startOfWeek(anchor)
   const weekEnd = addDays(weekStart, 6)
@@ -809,7 +670,7 @@ export default function BillingPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">Billing</h1>
         <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-          {[['charge', 'Charge Clients'], ['report', 'Weekly Report'], ['stripe', 'Card Charges'], ['invoices', 'Invoices']].map(([key, text]) => (
+          {[['charge', 'Charge Clients'], ['report', 'Weekly Report'], ['payments', 'Payments'], ['invoices', 'Invoices']].map(([key, text]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-3 py-1.5 font-medium ${tab === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
               {text}
@@ -818,7 +679,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {tab !== 'stripe' && tab !== 'invoices' && (
+      {tab !== 'payments' && tab !== 'invoices' && (
         <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
             <button onClick={() => setAnchor(addDays(weekStart, -7))} className="px-2 py-1 rounded text-gray-500 hover:bg-gray-100">‹</button>
@@ -836,8 +697,10 @@ export default function BillingPage() {
         // The full Invoices screen, rendered inside Billing rather than as its own nav
         // item — it's billing work, and the sidebar was getting long.
         <InvoicesPage embedded />
-      ) : tab === 'stripe' ? (
-        <StripeChargesTab />
+      ) : tab === 'payments' ? (
+        // Replaced the Stripe-only "Card Charges" tab: this shows the same charges plus
+        // checks/cash/Zelle logged in the app, grouped by client.
+        <PaymentsReport />
       ) : tab === 'report' ? (
         <ReportTab weekStart={weekStart} weekEnd={weekEnd} label={label} />
       ) : (
