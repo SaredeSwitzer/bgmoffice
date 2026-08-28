@@ -781,6 +781,7 @@ export default function ClientProfilePage() {
           zip: c.zip || '',
           neighborhood: c.neighborhood || '',
           track_last_class: c.track_last_class ? true : false,
+          skip_weekly_reminder: c.skip_weekly_reminder ? true : false,
           last_class_date: c.last_class_date || '',
           default_age: c.default_age || '',
           default_participants: c.default_participants ?? '',
@@ -992,6 +993,20 @@ export default function ClientProfilePage() {
                     </p>
                   </div>
                 )}
+              </div>
+              {/* Some clients have asked not to be texted at all. Until now this could only
+                  be set directly in the database, so it was invisible and easy to undo. */}
+              <div className="col-span-2 pt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Weekly Reminders</p>
+                <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="checkbox" checked={editForm.skip_weekly_reminder}
+                    onChange={e => setEditForm(f => ({ ...f, skip_weekly_reminder: e.target.checked }))}
+                    className="rounded" />
+                  Don't include this client in weekly reminder texts
+                </label>
+                <p className="text-[11px] text-gray-400 mt-1 ml-5">
+                  Use for anyone who's asked not to be texted. They'll be skipped every week.
+                </p>
               </div>
               {/* Class defaults — pre-fill new calendar entries + instructor confirmation emails for this client */}
               <div className="col-span-2 pt-1">
