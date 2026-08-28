@@ -145,6 +145,10 @@ export const api = {
   getInstructors: (q) => request(`/instructors${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getInstructor: (id) => request(`/instructors/${id}`),
   createInstructor: (data) => request('/instructors', { method: 'POST', body: JSON.stringify(data) }),
+  checkInstructorDuplicates: ({ name, email, phone } = {}) =>
+    request(`/instructors/check-duplicates?${new URLSearchParams({
+      name: name || '', email: email || '', phone: phone || '',
+    })}`),
   updateInstructor: (id, data) =>
     request(`/instructors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteInstructor: (id) => request(`/instructors/${id}`, { method: 'DELETE' }),

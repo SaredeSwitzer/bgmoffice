@@ -4,6 +4,7 @@ const bcrypt   = require('bcryptjs');
 const pool     = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { notifyCrew } = require('../lib/notifyCrew');
+const { findDuplicateInstructors, describeDuplicates } = require('../lib/findDuplicateInstructors');
 
 const router = express.Router();
 
@@ -119,11 +120,13 @@ router.post('/', async (req, res) => {
   // Ping the crew Telegram — a sign-up sits in Instructors → Sign-ups waiting to be
   // approved, and nothing else would surface it until someone happened to look.
   const where = [neighborhood, [city, state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+  const dupes = await findDuplicateInstructors({ name: name.trim(), email, phone });
   await notifyCrew(
     `🙋 New instructor sign-up: ${name.trim()}` +
     (email ? `\n${email}` : '') +
     (where ? `\n${where}` : '') +
     (styles_taught ? `\nTeaches: ${styles_taught}` : '') +
+    (dupes.length ? `\n\n⚠️ Might already be on file: ${describeDuplicates(dupes)}` : '') +
     `\n\nApprove or decline in Instructors → Sign-ups.`
   );
 
@@ -141,7 +144,16 @@ router.get('/', async (req, res) => {
   if (status) { params.push(status); sql += ` WHERE status = $${params.length}`; }
   sql += ' ORDER BY created_at DESC';
   const { rows } = await pool.query(sql, params);
-  res.json(rows);
+
+  // Flag sign-ups that look like someone we already have, so staff see it on the
+  // approval card rather than discovering the duplicate months later.
+  const withDupes = await Promise.all(rows.map(async row => ({
+    ...row,
+    possible_duplicates: row.status === 'pending'
+      ? await findDuplicateInstructors({ name: row.name, email: row.email, phone: row.phone })
+      : [],
+  })));
+  res.json(withDupes);
 });
 
 router.post('/:id/approve', async (req, res) => {

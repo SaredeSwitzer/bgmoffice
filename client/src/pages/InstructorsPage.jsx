@@ -17,6 +17,31 @@ function fmtSignupDate(iso) {
 // Pending submissions from the public /join page (client/src/pages/InstructorSignupPage.jsx)
 // — e.g. after a site-wide "are you staying on with us?" email. Approving creates the real
 // instructor (+ login, same as adding one manually) and offers the same welcome-email step.
+// Amber-coloured "we may already have this person" banner. Shown on a pending sign-up
+// card and under the Add Instructor form — it never blocks, it just makes the collision
+// visible at the one moment someone can still do something about it cheaply.
+function DuplicateWarning({ dupes, note }) {
+  if (!dupes?.length) return null
+  return (
+    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+      <p className="text-xs font-semibold text-amber-800">
+        ⚠️ Might already be on file
+      </p>
+      <ul className="mt-1 space-y-0.5">
+        {dupes.map(d => (
+          <li key={d.id} className="text-xs text-amber-900">
+            <Link to={`/instructors/${d.id}`} className="font-medium underline hover:no-underline">
+              {d.name}
+            </Link>
+            <span className="text-amber-700"> — {d.reason}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-amber-700 mt-1">{note}</p>
+    </div>
+  )
+}
+
 function PendingSignups({ signups, onApproved, onRejected }) {
   const [busyId, setBusyId] = useState(null)
 
@@ -63,6 +88,8 @@ function PendingSignups({ signups, onApproved, onRejected }) {
                 {s.styles_taught && <p className="text-xs text-gray-500 mt-0.5">Teaches: {s.styles_taught}</p>}
                 {s.specialties && <p className="text-xs text-gray-500 mt-0.5">Specialties: {s.specialties}</p>}
                 {s.notes && <p className="text-xs text-gray-600 italic mt-1 whitespace-pre-wrap">"{s.notes}"</p>}
+                <DuplicateWarning dupes={s.possible_duplicates}
+                  note="If it's the same person, approving this will create a second record for them." />
                 <p className="text-[10px] text-gray-400 mt-1">Submitted {fmtSignupDate(s.created_at)}</p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
@@ -106,6 +133,7 @@ export default function InstructorsPage() {
   const [newInstructor, setNewInstructor] = useState(false)
   const [form, setForm] = useState(BLANK_FORM)
   const [saving, setSaving] = useState(false)
+  const [formDupes, setFormDupes] = useState([])
   const [inviteOpen, setInviteOpen] = useState(false)
   const [contractInviteOpen, setContractInviteOpen] = useState(false)
   const [selected, setSelected] = useState(() => new Set())
@@ -198,8 +226,27 @@ export default function InstructorsPage() {
 
   const selectedInstructors = instructors.filter(i => selected.has(i.id))
 
+  // Look for an existing record matching what's been typed so far. Debounced, and only
+  // once there's enough to match on — checking after every keystroke of a name would
+  // flag half the roster while it's still being typed.
+  useEffect(() => {
+    if (!newInstructor) { setFormDupes([]); return }
+    const { name, email, phone } = form
+    if ((name || '').trim().length < 3 && !email && !phone) { setFormDupes([]); return }
+    const t = setTimeout(() => {
+      api.checkInstructorDuplicates({ name, email, phone })
+        .then(setFormDupes)
+        .catch(() => setFormDupes([]))
+    }, 400)
+    return () => clearTimeout(t)
+  }, [newInstructor, form.name, form.email, form.phone])
+
   async function handleCreate(e) {
     e.preventDefault()
+    if (formDupes.length && !confirm(
+      `We may already have this person:\n\n${formDupes.map(d => `• ${d.name} — ${d.reason}`).join('\n')}\n\n` +
+      `Add ${form.name} as a separate instructor anyway?`
+    )) return
     setSaving(true)
     try {
       const i = await api.createInstructor(form)
@@ -282,6 +329,10 @@ export default function InstructorsPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            </div>
+            <div className="col-span-2">
+              <DuplicateWarning dupes={formDupes}
+                note="If it's the same person, open their profile and edit it instead of adding a new one." />
             </div>
             <div className="col-span-2">
               <div className="flex items-center justify-between mb-2">

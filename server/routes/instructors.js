@@ -7,6 +7,7 @@ const { requireAuth, requireStaff } = require('../middleware/auth');
 const { decryptSSN } = require('../lib/ssnCrypto');
 const { sendMail } = require('../lib/mailer');
 const { notifyCrew } = require('../lib/notifyCrew');
+const { findDuplicateInstructors, describeDuplicates } = require('../lib/findDuplicateInstructors');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 
@@ -150,6 +151,14 @@ function ownRecordOrForbidden(req, res) {
   return false;
 }
 
+// Asked by the Add Instructor form before it saves, so a likely duplicate gets caught at
+// the moment of typing rather than after two records have both accumulated classes.
+// Must stay ABOVE /:id — otherwise Express reads "check-duplicates" as an instructor id.
+router.get('/check-duplicates', requireStaff, async (req, res) => {
+  const { name, email, phone, exclude_id } = req.query;
+  res.json(await findDuplicateInstructors({ name, email, phone, excludeId: exclude_id }));
+});
+
 router.get('/:id', async (req, res) => {
   if (!ownRecordOrForbidden(req, res)) return;
   const row = await getInstructorRow(req.params.id);
@@ -226,6 +235,11 @@ router.post('/', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Name required' });
   let taxIdType = tax_id_type === 'ein' ? 'ein' : 'ssn';
 
+  // Checked before the insert so the alert names who they collide with. The form warns
+  // first (GET /check-duplicates); this is the backstop for when it's saved anyway, or
+  // created by something that never saw the form.
+  const dupes = await findDuplicateInstructors({ name, email, phone });
+
   // If this person already signed the contract in-app before being added as an instructor
   // (see instructorContract.js), carry that signature over instead of starting blank.
   let signedFlag = contract_signed ? 1 : 0;
@@ -278,7 +292,19 @@ router.post('/', async (req, res) => {
   // The welcome email is no longer auto-sent — staff review/edit the preview and send
   // it themselves (see GET/POST .../intro-preview and .../send-intro below), so a typo
   // or a not-actually-ready instructor doesn't get emailed before anyone's looked at it.
-  res.status(201).json({ ...(await getInstructorRow(inst.id)), has_login: hasLogin });
+  if (dupes.length) {
+    await notifyCrew(
+      `👥 Possible duplicate instructor created: ${name}\n` +
+      `Looks like: ${describeDuplicates(dupes)}\n\n` +
+      `If it's the same person, merge them in Instructors.`
+    );
+  }
+
+  res.status(201).json({
+    ...(await getInstructorRow(inst.id)),
+    has_login: hasLogin,
+    possible_duplicates: dupes,
+  });
 });
 
 async function buildIntroPreview(id) {
