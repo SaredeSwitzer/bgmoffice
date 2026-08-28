@@ -249,7 +249,7 @@ function PhotoAvatar({ instructor, onPhotoChange }) {
 // typed in manually. `last4`/`instructorId` back SSNs collected through the contract-
 // signing flow, which are encrypted at rest — the full number is only ever fetched
 // (decrypted server-side, admin-only) when someone clicks Reveal.
-function SSNField({ value, last4, instructorId }) {
+function SSNField({ value, last4, instructorId, taxIdType }) {
   const [revealed, setRevealed] = useState(false)
   const [fetchedValue, setFetchedValue] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -273,7 +273,9 @@ function SSNField({ value, last4, instructorId }) {
   }
 
   const shown = value || fetchedValue
-  const masked = '•••-••-' + (value ? value.slice(-4) : last4)
+  const digits4 = value ? value.replace(/\D/g, '').slice(-4) : last4
+  // EINs are XX-XXXXXXX, SSNs XXX-XX-XXXX — mask to the shape of whichever they gave us.
+  const masked = (taxIdType === 'ein' ? '••-•••' : '•••-••-') + digits4
 
   return (
     <span className="font-mono text-sm flex items-center gap-2">
@@ -666,6 +668,7 @@ export default function InstructorProfilePage() {
           state: inst.state || '',
           neighborhood: inst.neighborhood || '',
           ssn: inst.ssn || '',
+          tax_id_type: inst.tax_id_type || 'ssn',
           contract_signed: inst.contract_signed ? true : false,
           contract_signed_date: inst.contract_signed_date || '',
           styles_taught: inst.styles_taught || '',
@@ -826,9 +829,18 @@ export default function InstructorProfilePage() {
                   placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">SSN</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Tax ID
+                  <select value={editForm.tax_id_type || 'ssn'}
+                    onChange={e => setEditForm(f => ({ ...f, tax_id_type: e.target.value }))}
+                    className="ml-2 border border-gray-300 rounded px-1 py-0.5 text-xs font-normal">
+                    <option value="ssn">SSN</option>
+                    <option value="ein">EIN</option>
+                  </select>
+                </label>
                 <input value={editForm.ssn} onChange={e => setEditForm(f => ({ ...f, ssn: e.target.value }))}
-                  placeholder="XXX-XX-XXXX" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono" />
+                  placeholder={editForm.tax_id_type === 'ein' ? 'XX-XXXXXXX' : 'XXX-XX-XXXX'}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono" />
               </div>
               <div className={isAdmin ? '' : 'col-span-2'}>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Contract</label>
@@ -955,8 +967,11 @@ export default function InstructorProfilePage() {
                 )}
               </div>
               <div className="flex gap-2 items-center">
-                <span className="text-gray-400 w-28 flex-shrink-0 text-xs">SSN</span>
-                <SSNField value={instructor.ssn} last4={instructor.ssn_last4} instructorId={instructor.id} />
+                <span className="text-gray-400 w-28 flex-shrink-0 text-xs">
+                  {instructor.tax_id_type === 'ein' ? 'EIN' : 'SSN'}
+                </span>
+                <SSNField value={instructor.ssn} last4={instructor.ssn_last4} instructorId={instructor.id}
+                  taxIdType={instructor.tax_id_type} />
               </div>
             </div>
           </>

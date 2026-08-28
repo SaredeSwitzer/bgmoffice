@@ -213,16 +213,18 @@ router.post('/:id/send-login-reminder', requireStaff, async (req, res) => {
 // routine GET /:id so the plaintext number only ever exists in a response when someone
 // deliberately asks for it.
 router.get('/:id/reveal-ssn', requireStaff, async (req, res) => {
-  const { rows: [row] } = await pool.query('SELECT ssn, ssn_encrypted FROM instructors WHERE id = $1', [req.params.id]);
+  const { rows: [row] } = await pool.query('SELECT ssn, ssn_encrypted, tax_id_type FROM instructors WHERE id = $1', [req.params.id]);
   if (!row) return res.status(404).json({ error: 'Instructor not found' });
-  if (row.ssn_encrypted) return res.json({ ssn: decryptSSN(row.ssn_encrypted) });
-  if (row.ssn) return res.json({ ssn: row.ssn });
-  return res.status(404).json({ error: 'No SSN on file' });
+  const tax_id_type = row.tax_id_type || 'ssn';
+  if (row.ssn_encrypted) return res.json({ ssn: decryptSSN(row.ssn_encrypted), tax_id_type });
+  if (row.ssn) return res.json({ ssn: row.ssn, tax_id_type });
+  return res.status(404).json({ error: 'No tax ID on file' });
 });
 
 router.post('/', async (req, res) => {
-  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
+  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, tax_id_type, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
+  let taxIdType = tax_id_type === 'ein' ? 'ein' : 'ssn';
 
   // If this person already signed the contract in-app before being added as an instructor
   // (see instructorContract.js), carry that signature over instead of starting blank.
@@ -233,7 +235,7 @@ router.post('/', async (req, res) => {
   let sigSsnLast4 = null;
   if (email) {
     const { rows: [sig] } = await pool.query(
-      `SELECT id, signed_at, ssn_encrypted, ssn_last4 FROM instructor_contract_signatures
+      `SELECT id, signed_at, ssn_encrypted, ssn_last4, tax_id_type FROM instructor_contract_signatures
         WHERE email = $1 AND signed_at IS NOT NULL AND instructor_id IS NULL
         ORDER BY signed_at DESC LIMIT 1`,
       [email]
@@ -241,13 +243,15 @@ router.post('/', async (req, res) => {
     if (sig) {
       signedFlag = 1; signedDate = sig.signed_at; signatureToLink = sig.id;
       sigSsnEncrypted = sig.ssn_encrypted; sigSsnLast4 = sig.ssn_last4;
+      // What they gave us when signing wins over the blank form default.
+      if (sig.ssn_encrypted) taxIdType = sig.tax_id_type || 'ssn';
     }
   }
 
   const { rows: [inst] } = await pool.query(
-    `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle, ssn_encrypted, ssn_last4)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, signedFlag, signedDate, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, sigSsnEncrypted, sigSsnLast4]
+    `INSERT INTO instructors (name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, tax_id_type, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle, ssn_encrypted, ssn_last4)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, taxIdType, signedFlag, signedDate, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, sigSsnEncrypted, sigSsnLast4]
   );
   if (signatureToLink) {
     await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [inst.id, signatureToLink]);
@@ -346,13 +350,13 @@ router.put('/:id', async (req, res) => {
     return res.json(safe);
   }
 
-  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
+  const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, tax_id_type, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   await pool.query(
     `UPDATE instructors SET name=$1, phone=$2, email=$3, specialties=$4, style=$5, notes=$6, pay_rate=$7,
-       mailing_address=$8, city=$9, state=$10, ssn=$11, contract_signed=$12, contract_signed_date=$13, neighborhood=$14, styles_taught=$15,
-       payout_method=$16, payout_handle=$17
-     WHERE id=$18`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id]
+       mailing_address=$8, city=$9, state=$10, ssn=$11, tax_id_type=$12, contract_signed=$13, contract_signed_date=$14, neighborhood=$15, styles_taught=$16,
+       payout_method=$17, payout_handle=$18
+     WHERE id=$19`,
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, tax_id_type === 'ein' ? 'ein' : 'ssn', contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id]
   );
   res.json(await getInstructorRow(req.params.id));
 });

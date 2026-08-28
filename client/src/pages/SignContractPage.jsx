@@ -11,6 +11,9 @@ export default function SignContractPage() {
   const [loading, setLoading] = useState(true)
   const [signedName, setSignedName] = useState('')
   const [ssn, setSsn] = useState('')
+  // Instructors who work through their own business file under an EIN instead of a
+  // personal SSN — it's the same field either way, just labelled for what they have.
+  const [taxIdType, setTaxIdType] = useState('ssn')
   const [agreed, setAgreed] = useState(false)
   const [signing, setSigning] = useState(false)
   const [signError, setSignError] = useState('')
@@ -30,7 +33,7 @@ export default function SignContractPage() {
     setSigning(true)
     setSignError('')
     try {
-      const r = await api.signContract(token, { signed_name: signedName.trim(), ssn: ssn.trim() })
+      const r = await api.signContract(token, { signed_name: signedName.trim(), ssn: ssn.trim(), tax_id_type: taxIdType })
       setJustSigned(r.signed_at)
     } catch (err) {
       setSignError(err.message || 'Failed to sign. Please try again.')
@@ -91,11 +94,27 @@ export default function SignContractPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
-                Social Security # <span className="text-gray-400 font-normal">(optional — for tax purposes; encrypted, or call (347) 915-5496 instead)</span>
+                Tax ID <span className="text-gray-400 font-normal">(optional — for tax purposes; encrypted, or call (347) 915-5496 instead)</span>
               </label>
+              <div className="flex rounded-lg border border-gray-300 overflow-hidden text-xs font-medium w-fit mb-2">
+                {[['ssn', 'Social Security #'], ['ein', 'EIN']].map(([val, label]) => (
+                  <button
+                    key={val} type="button"
+                    onClick={() => setTaxIdType(val)}
+                    className={`px-3 py-1.5 ${taxIdType === val ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <input value={ssn} onChange={e => setSsn(e.target.value)} type="text" inputMode="numeric" autoComplete="off"
-                placeholder="•••-••-••••"
+                placeholder={taxIdType === 'ein' ? '••-•••••••' : '•••-••-••••'}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              <p className="text-xs text-gray-400 mt-1">
+                {taxIdType === 'ein'
+                  ? 'Use this if you work through your own business or LLC.'
+                  : 'Use this if you work as an individual.'}
+              </p>
             </div>
             <label className="flex items-start gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}

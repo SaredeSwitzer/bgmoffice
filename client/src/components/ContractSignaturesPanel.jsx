@@ -59,7 +59,11 @@ export default function ContractSignaturesPanel({ instructors, refreshKey }) {
               <p className="font-medium text-gray-900 truncate">{sig.name || sig.email}</p>
             )}
             <p className="text-xs text-gray-400 truncate">
-              {sig.email}{sig.ssn_last4 ? ` · SSN •••-••-${sig.ssn_last4}` : ''}
+              {sig.email}{sig.ssn_last4
+                ? sig.tax_id_type === 'ein'
+                  ? ` · EIN ••-•••${sig.ssn_last4}`
+                  : ` · SSN •••-••-${sig.ssn_last4}`
+                : ''}
             </p>
           </div>
           <div className="text-xs text-right shrink-0">

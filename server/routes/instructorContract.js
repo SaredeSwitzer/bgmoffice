@@ -33,8 +33,12 @@ router.get('/public/:token', async (req, res) => {
 });
 
 router.post('/public/:token/sign', async (req, res) => {
-  const { signed_name, ssn } = req.body;
+  const { signed_name, ssn, tax_id_type } = req.body;
   if (!signed_name?.trim()) return res.status(400).json({ error: 'Please type your full name to sign.' });
+
+  // Incorporated instructors file under an EIN instead of a personal SSN. Same column,
+  // same encryption — taxIdType just records which one they gave us.
+  const taxIdType = tax_id_type === 'ein' ? 'ein' : 'ssn';
 
   const { rows: [row] } = await pool.query(
     'SELECT id, signed_at, instructor_id FROM instructor_contract_signatures WHERE token = $1',
@@ -51,10 +55,11 @@ router.post('/public/:token/sign', async (req, res) => {
   const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
   const { rows: [updated] } = await pool.query(
     `UPDATE instructor_contract_signatures
-       SET signed_name = $1, signed_at = now(), ip_address = $2, ssn_encrypted = $3, ssn_last4 = $4
-     WHERE id = $5
+       SET signed_name = $1, signed_at = now(), ip_address = $2, ssn_encrypted = $3, ssn_last4 = $4,
+           tax_id_type = $5
+     WHERE id = $6
      RETURNING signed_at`,
-    [signed_name.trim(), ip || null, ssnEncrypted, ssnLast4, row.id]
+    [signed_name.trim(), ip || null, ssnEncrypted, ssnLast4, taxIdType, row.id]
   );
 
   // If this invite was sent from an existing instructor's profile (instructor_id was
@@ -64,9 +69,10 @@ router.post('/public/:token/sign', async (req, res) => {
   if (row.instructor_id) {
     await pool.query(
       `UPDATE instructors SET contract_signed = 1, contract_signed_date = $1,
-         ssn_encrypted = COALESCE($2, ssn_encrypted), ssn_last4 = COALESCE($3, ssn_last4)
-       WHERE id = $4`,
-      [updated.signed_at, ssnEncrypted, ssnLast4, row.instructor_id]
+         ssn_encrypted = COALESCE($2, ssn_encrypted), ssn_last4 = COALESCE($3, ssn_last4),
+         tax_id_type = CASE WHEN $2::text IS NULL THEN tax_id_type ELSE $4 END
+       WHERE id = $5`,
+      [updated.signed_at, ssnEncrypted, ssnLast4, taxIdType, row.instructor_id]
     );
   }
 
@@ -136,7 +142,7 @@ router.post('/invite/:id/send', requireStaff, async (req, res) => {
 // Dismissed rows (staff has seen/handled them) are left out — see POST .../dismiss.
 router.get('/signatures', requireStaff, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT s.id, s.name, s.email, s.signed_name, s.signed_at, s.sent_at, s.instructor_id, s.ssn_last4, i.name AS instructor_name
+    `SELECT s.id, s.name, s.email, s.signed_name, s.signed_at, s.sent_at, s.instructor_id, s.ssn_last4, s.tax_id_type, i.name AS instructor_name
        FROM instructor_contract_signatures s
        LEFT JOIN instructors i ON i.id = s.instructor_id
       WHERE s.dismissed_at IS NULL
@@ -159,7 +165,7 @@ router.post('/signatures/:id/link', requireStaff, async (req, res) => {
   const { instructor_id } = req.body;
   if (!instructor_id) return res.status(400).json({ error: 'instructor_id required' });
   const { rows: [sig] } = await pool.query(
-    'SELECT id, signed_at, ssn_encrypted, ssn_last4 FROM instructor_contract_signatures WHERE id = $1', [req.params.id]
+    'SELECT id, signed_at, ssn_encrypted, ssn_last4, tax_id_type FROM instructor_contract_signatures WHERE id = $1', [req.params.id]
   );
   if (!sig) return res.status(404).json({ error: 'Signature not found' });
   if (!sig.signed_at) return res.status(400).json({ error: 'This contract has not been signed yet.' });
@@ -167,9 +173,10 @@ router.post('/signatures/:id/link', requireStaff, async (req, res) => {
   await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [instructor_id, req.params.id]);
   await pool.query(
     `UPDATE instructors SET contract_signed = 1, contract_signed_date = $1,
-       ssn_encrypted = COALESCE($2, ssn_encrypted), ssn_last4 = COALESCE($3, ssn_last4)
-     WHERE id = $4`,
-    [sig.signed_at, sig.ssn_encrypted, sig.ssn_last4, instructor_id]
+       ssn_encrypted = COALESCE($2, ssn_encrypted), ssn_last4 = COALESCE($3, ssn_last4),
+       tax_id_type = CASE WHEN $2::text IS NULL THEN tax_id_type ELSE $4 END
+     WHERE id = $5`,
+    [sig.signed_at, sig.ssn_encrypted, sig.ssn_last4, sig.tax_id_type || 'ssn', instructor_id]
   );
   res.json({ ok: true });
 });

@@ -152,9 +152,10 @@ router.post('/:id/approve', async (req, res) => {
   // Same shape as the manual "Add Instructor" flow in instructors.js POST / — carry over
   // an already-signed contract if this email matches one, same as that route does.
   let signedFlag = 0, signedDate = null, signatureToLink = null, sigSsnEncrypted = null, sigSsnLast4 = null;
+  let sigTaxIdType = 'ssn';
   if (signup.email) {
     const { rows: [sig] } = await pool.query(
-      `SELECT id, signed_at, ssn_encrypted, ssn_last4 FROM instructor_contract_signatures
+      `SELECT id, signed_at, ssn_encrypted, ssn_last4, tax_id_type FROM instructor_contract_signatures
         WHERE email = $1 AND signed_at IS NOT NULL AND instructor_id IS NULL
         ORDER BY signed_at DESC LIMIT 1`,
       [signup.email]
@@ -162,16 +163,17 @@ router.post('/:id/approve', async (req, res) => {
     if (sig) {
       signedFlag = 1; signedDate = sig.signed_at; signatureToLink = sig.id;
       sigSsnEncrypted = sig.ssn_encrypted; sigSsnLast4 = sig.ssn_last4;
+      sigTaxIdType = sig.tax_id_type || 'ssn';
     }
   }
 
   const { rows: [inst] } = await pool.query(
     `INSERT INTO instructors (name, phone, email, specialties, notes, neighborhood, city, state, styles_taught,
-       contract_signed, contract_signed_date, ssn_encrypted, ssn_last4)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+       contract_signed, contract_signed_date, ssn_encrypted, ssn_last4, tax_id_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
     [signup.name, signup.phone || null, signup.email || null, signup.specialties || null, signup.notes || null,
      signup.neighborhood || null, signup.city || null, signup.state || null, signup.styles_taught || null,
-     signedFlag, signedDate, sigSsnEncrypted, sigSsnLast4]
+     signedFlag, signedDate, sigSsnEncrypted, sigSsnLast4, sigTaxIdType]
   );
   if (signatureToLink) {
     await pool.query('UPDATE instructor_contract_signatures SET instructor_id = $1 WHERE id = $2', [inst.id, signatureToLink]);
