@@ -526,7 +526,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
 // ── Entry Card ────────────────────────────────────────────────────────────────
 
 function EntryCard({ entry, clients, instructors, actionTypes, users, mentionableUsers, styles, onUpdated, onDeleted, onArchived, targetEntryId }) {
-  const isTarget = targetEntryId != null && entry.id === targetEntryId
+  const isTarget = targetEntryId != null && String(entry.id) === targetEntryId
   const [expanded, setExpanded] = useState(isTarget)
   const [editing,  setEditing]  = useState(false)
   const [notes,    setNotes]    = useState(entry.notes || [])
@@ -858,7 +858,7 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, mentionabl
 // ── Day Section ───────────────────────────────────────────────────────────────
 
 function DaySection({ day, entries, clients, instructors, actionTypes, users, mentionableUsers, styles, onUpdated, onDeleted, onArchived, onCreated, defaultOpen, targetEntryId, forceOpen }) {
-  const hasTarget = targetEntryId != null && entries.some(e => e.id === targetEntryId)
+  const hasTarget = targetEntryId != null && entries.some(e => String(e.id) === targetEntryId)
   const [open,      setOpen]      = useState(defaultOpen || hasTarget)
 
   useEffect(() => { if (forceOpen) setOpen(true) }, [forceOpen])
@@ -1286,7 +1286,10 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
 export default function RecruitingPage() {
   const [searchParams] = useSearchParams()
   const location       = useLocation()
-  const targetEntryId  = searchParams.get('entry') ? Number(searchParams.get('entry')) : null
+  // Kept as a string: entry ids are Postgres bigints, which node-pg hands back as
+  // strings — Number() here made every comparison below silently false, so a mention
+  // link landed on /recruiting without ever opening or scrolling to the note.
+  const targetEntryId  = searchParams.get('entry') || null
 
   const [tab,           setTab]           = useState(location.state?.tab || 'entries')
   const [grouped,       setGrouped]       = useState({})

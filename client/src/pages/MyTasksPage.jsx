@@ -232,6 +232,8 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [readMentions, setReadMentions] = useState([])
+  const [showRead, setShowRead] = useState(false)
 
   function isNew(item) {
     return !seen.has(item.id) && item.created_by !== user?.initials
@@ -241,15 +243,21 @@ export default function MyTasksPage() {
     setTasks(prev => [{ ...newTask, source: 'standalone', categories: ['other'] }, ...prev])
   }
 
-  useEffect(() => {
-    api.myTasks()
+  function load() {
+    return api.myTasks()
       .then(({ tasks: t, delegate_name }) => {
         setTasks(t)
         setDelegateName(delegate_name)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  function loadReadMentions() {
+    return api.getReadMentions().then(setReadMentions).catch(() => {})
+  }
+
+  useEffect(() => { load(); loadReadMentions() }, [])
 
   const displayTasks = useMemo(() => {
     if (categoryFilter === 'all') return tasks
@@ -264,6 +272,10 @@ export default function MyTasksPage() {
   function handleClick(item) {
     markSeen(item.id)
     if (item.source === 'mention') {
+      // Opening it counts as reading it, so it drops off this list rather than sitting
+      // here after it's been dealt with. Recoverable via "read @mentions" below.
+      setTasks(prev => prev.filter(x => x.id !== item.id))
+      api.resolveMention(item.mention_id).then(loadReadMentions).catch(() => {})
       if (item.link_path) navigate(item.link_path)
     } else if (item.source === 'recruiting') {
       navigate(item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting')
@@ -283,6 +295,16 @@ export default function MyTasksPage() {
       await api.resolveMention(item.mention_id)
     } catch {
       setTasks(prev => [...prev, item])
+    }
+  }
+
+  async function handleUnreadMention(m) {
+    setReadMentions(prev => prev.filter(x => x.mention_id !== m.mention_id))
+    try {
+      await api.unresolveMention(m.mention_id)
+      load()
+    } catch {
+      setReadMentions(prev => [m, ...prev])
     }
   }
 
@@ -373,6 +395,34 @@ export default function MyTasksPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {readMentions.length > 0 && (
+        <div>
+          <button onClick={() => setShowRead(v => !v)}
+            className="text-xs text-gray-500 hover:text-gray-800 hover:underline">
+            {showRead ? 'Hide' : 'Show'} read @mentions ({readMentions.length})
+          </button>
+          {showRead && (
+            <div className="mt-2 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+              {readMentions.map(m => (
+                <div key={m.mention_id} className="flex items-start gap-3 px-4 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs text-gray-600">
+                      <span className="font-semibold text-gray-500">{m.author_initials}:</span> {m.snippet}
+                    </p>
+                  </div>
+                  {m.link_path && (
+                    <button onClick={() => navigate(m.link_path)}
+                      className="shrink-0 text-[11px] text-blue-600 hover:underline">Open</button>
+                  )}
+                  <button onClick={() => handleUnreadMention(m)}
+                    className="shrink-0 text-[11px] text-gray-400 hover:text-gray-700">Mark unread</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

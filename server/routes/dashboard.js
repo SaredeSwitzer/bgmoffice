@@ -233,6 +233,35 @@ router.patch('/mentions/:id/resolve', async (req, res) => {
   res.json({ success: true });
 });
 
+// Opening a mention marks it read, which drops it off My Tasks — so there has to be a way
+// back for one opened by accident or left half-dealt-with.
+router.patch('/mentions/:id/unresolve', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    'UPDATE mentions SET resolved_at = NULL WHERE id = $1 AND mentioned_user_id = $2 RETURNING id',
+    [req.params.id, req.user.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true });
+});
+
+// Recently-read mentions, newest first — backs the "read @mentions" list on My Tasks.
+router.get('/mentions/read', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, source_table, source_id, snippet, author_initials, link_path, resolved_at
+       FROM mentions
+      WHERE mentioned_user_id = $1 AND resolved_at IS NOT NULL
+      ORDER BY resolved_at DESC LIMIT 25`,
+    [req.user.id]
+  );
+  res.json(rows.map(m => ({
+    mention_id: m.id,
+    snippet: m.snippet,
+    author_initials: m.author_initials,
+    resolved_at: m.resolved_at,
+    link_path: m.link_path ? `${m.link_path}#note-${m.source_table}-${m.source_id}` : null,
+  })));
+});
+
 router.get('/', async (req, res) => {
   const { rows: aiRows } = await pool.query(`${BASE_SQL} ORDER BY ai.created_at ASC`);
   const actionItemTasks = sortItems(
