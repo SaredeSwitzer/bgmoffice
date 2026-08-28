@@ -256,6 +256,36 @@ router.patch('/mentions/:id/unresolve', async (req, res) => {
   res.json({ success: true });
 });
 
+// Open @mentions for someone else on the team.
+//
+// /my-tasks is scoped to the signed-in user, so a mention tagged to Maria was visible to
+// Maria alone — Sarede could tag her and then have no way to tell whether it had landed
+// or been dealt with. Staff-only and read-only: it shows what's outstanding, it doesn't
+// let one person clear another's list.
+router.get('/mentions/open', async (req, res) => {
+  const person = String(req.query.person || '').trim();
+  if (!person) return res.status(400).json({ error: 'person is required' });
+  const { rows } = await pool.query(
+    `SELECT m.id, m.source_table, m.source_id, m.snippet, m.author_initials, m.created_at,
+            m.link_path, u.name AS person_name
+       FROM mentions m
+       JOIN users u ON u.id = m.mentioned_user_id
+      WHERE m.resolved_at IS NULL
+        AND u.role = 'staff'
+        AND (LOWER(u.name) = LOWER($1) OR LOWER(split_part(u.name, ' ', 1)) = LOWER($1))
+      ORDER BY m.created_at DESC`,
+    [person]
+  );
+  res.json(rows.map(m => ({
+    mention_id: m.id,
+    person_name: m.person_name,
+    snippet: m.snippet,
+    author_initials: m.author_initials,
+    created_at: m.created_at,
+    link_path: m.link_path ? `${m.link_path}#note-${m.source_table}-${m.source_id}` : null,
+  })));
+});
+
 // Recently-read mentions, newest first — backs the "read @mentions" list on My Tasks.
 router.get('/mentions/read', async (req, res) => {
   const { rows } = await pool.query(

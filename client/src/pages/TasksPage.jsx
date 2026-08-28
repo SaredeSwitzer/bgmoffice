@@ -405,6 +405,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [showDone, setShowDone] = useState(false)
   const [filterAssignee, setFilterAssignee] = useState('')
+  const [theirMentions, setTheirMentions] = useState([])
 
   const myFirstName = user?.name?.split(' ')[0] || ''
   function isNew(task) {
@@ -424,6 +425,17 @@ export default function TasksPage() {
   useEffect(() => {
     if (focusId) markSeen(focusId)
   }, [focusId])
+
+  // Mentions live on the tagged person's own My Tasks, so tagging someone used to be a
+  // one-way street — no way to see whether it landed. Picking a name here shows theirs.
+  useEffect(() => {
+    if (!filterAssignee) { setTheirMentions([]); return }
+    let cancelled = false
+    api.getOpenMentionsFor(filterAssignee)
+      .then(rows => { if (!cancelled) setTheirMentions(rows) })
+      .catch(() => { if (!cancelled) setTheirMentions([]) })
+    return () => { cancelled = true }
+  }, [filterAssignee])
 
   useHashHighlight([focusId, tasks])
 
@@ -519,6 +531,31 @@ export default function TasksPage() {
           </select>
         )}
       </div>
+
+      {filterAssignee && theirMentions.length > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-blue-400">
+            @Mentions waiting on {filterAssignee}
+            <span className="ml-2 rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-semibold text-blue-700">
+              {theirMentions.length}
+            </span>
+          </p>
+          <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+            {theirMentions.map(m => (
+              <button key={m.mention_id} type="button"
+                onClick={() => m.link_path && navigate(m.link_path)}
+                className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-gray-50">
+                <span className="shrink-0 text-[11px] font-semibold text-gray-400">{m.author_initials}</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-gray-700">{m.snippet}</span>
+                {m.link_path && <span className="shrink-0 text-[11px] text-blue-600">Open →</span>}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-gray-400">
+            These are unread for {filterAssignee} — they clear when {filterAssignee} opens them.
+          </p>
+        </div>
+      )}
 
       <TaskSection label="Tasks" borderColor="border-gray-300" tasks={openTasks}
         onUpdate={handleSectionUpdate} onDelete={handleDelete} defaultType="task" isNewFn={isNew} actionTypes={actionTypes} clients={clients} instructors={instructors} mentionableUsers={mentionableUsers} />
