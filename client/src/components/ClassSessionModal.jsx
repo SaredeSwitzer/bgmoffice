@@ -50,25 +50,21 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
       .then(([c, i]) => { setClients(c); setInstructors(i) })
   }, [])
 
-  const [askScope, setAskScope] = useState(false)
-
   function setField(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
-  // A class generated from a recurring schedule can be edited for just this date or for
-  // the whole weekly class. Rather than guess, ask once — but only when it actually
-  // repeats, so one-off classes still save in a single click.
+  // A class generated from a recurring schedule can be saved for just this date or for
+  // the whole weekly class — offered as two buttons rather than a prompt after the fact,
+  // so the choice is visible before committing to anything.
   const repeats = isEdit && !!session?.schedule_id
 
   function handleSubmit(e) {
     e.preventDefault()
-    if (!form.client) { setError('Please select a client.'); return }
-    if (!form.session_date) { setError('Please pick a date.'); return }
-    if (repeats) { setError(''); setAskScope(true); return }
     save(false)
   }
 
   async function save(applyToSeries) {
-    setAskScope(false)
+    if (!form.client) { setError('Please select a client.'); return }
+    if (!form.session_date) { setError('Please pick a date.'); return }
     setSaving(true); setError('')
     const payload = {
       client_id: form.client.id,
@@ -201,45 +197,42 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
           </div>
-          {askScope && (
-            <div className="mx-5 mb-1 rounded-lg border border-blue-200 bg-blue-50 p-3">
-              <p className="text-xs font-semibold text-blue-900">This class repeats weekly.</p>
-              <p className="mt-0.5 text-[11px] text-blue-800">Apply these changes to…</p>
-              <div className="mt-2 flex flex-col gap-1.5">
-                <button type="button" onClick={() => save(false)} disabled={saving}
-                  className="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-left text-xs font-medium text-gray-800 hover:bg-blue-100 disabled:opacity-50">
-                  Just this class
-                  <span className="block text-[10px] font-normal text-gray-500">
-                    Only {form.session_date || 'this date'} changes.
-                  </span>
-                </button>
-                <button type="button" onClick={() => save(true)} disabled={saving}
-                  className="rounded-lg border border-blue-400 bg-blue-600 px-3 py-1.5 text-left text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-                  This and all future classes
-                  <span className="block text-[10px] font-normal text-blue-100">
-                    Updates the weekly class too. Past classes are left alone; the date only changes here.
-                  </span>
-                </button>
-                <button type="button" onClick={() => setAskScope(false)}
-                  className="self-start text-[11px] text-gray-500 hover:text-gray-800">Cancel</button>
-              </div>
-            </div>
-          )}
-          <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
-            <button type="submit" disabled={saving || askScope}
-              className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700">
-              {saving ? 'Saving…' : (isEdit ? 'Save Changes' : 'Add Class')}
-            </button>
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
-              Cancel
-            </button>
-            {isEdit && (
-              <button type="button" onClick={handleDelete}
-                className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50">
-                Delete
-              </button>
+          <div className="px-5 py-4 border-t border-gray-100 space-y-2">
+            {repeats && (
+              <p className="text-[11px] text-gray-500">
+                This class repeats weekly — saving all future classes updates the weekly class too.
+                Past classes are never changed, and the date only ever applies to this one.
+              </p>
             )}
+            <div className="flex gap-2">
+              {repeats ? (
+                <>
+                  <button type="button" onClick={() => save(false)} disabled={saving}
+                    className="flex-1 border border-gray-300 text-gray-800 py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-50">
+                    {saving ? 'Saving…' : 'Save This Class Only'}
+                  </button>
+                  <button type="button" onClick={() => save(true)} disabled={saving}
+                    className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700">
+                    {saving ? 'Saving…' : 'Save All Future Classes'}
+                  </button>
+                </>
+              ) : (
+                <button type="submit" disabled={saving}
+                  className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700">
+                  {saving ? 'Saving…' : (isEdit ? 'Save Changes' : 'Add Class')}
+                </button>
+              )}
+              <button type="button" onClick={onClose}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+                Cancel
+              </button>
+              {isEdit && (
+                <button type="button" onClick={handleDelete}
+                  className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50">
+                  Delete
+                </button>
+              )}
+            </div>
           </div>
           {isEdit && form.instructor && (
             <div className="px-5 pb-4">
