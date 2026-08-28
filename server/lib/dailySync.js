@@ -50,14 +50,19 @@ async function generateUpcomingSessions(horizonDate, { scheduleId = null } = {})
       if (sch.end_date && dateStr > sch.end_date) break;
       if (d.getDay() !== sch.weekday) continue;
 
+      // participant_count/ages are carried over too — they were missing here, so every
+      // generated class came out blank even when the schedule had them, and an instructor
+      // opening the class saw no idea who they were teaching.
       const { rowCount } = await pool.query(
         `INSERT INTO class_sessions
            (schedule_id, client_id, instructor_id, session_date, start_time, duration_minutes,
-            charge_amount, instructor_pay, payment_method, style, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'scheduled')
+            charge_amount, instructor_pay, payment_method, style, status,
+            participant_count, participant_ages)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'scheduled',$11,$12)
          ON CONFLICT (schedule_id, session_date) WHERE schedule_id IS NOT NULL DO NOTHING`,
         [sch.id, sch.client_id, sch.instructor_id, dateStr, sch.start_time, sch.duration_minutes || 60,
-         sch.charge_amount, sch.instructor_pay, sch.payment_method, sch.style]
+         sch.charge_amount, sch.instructor_pay, sch.payment_method, sch.style,
+         sch.participant_count ?? null, sch.participant_ages ?? null]
       );
       created += rowCount;
     }

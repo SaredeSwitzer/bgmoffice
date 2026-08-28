@@ -24,6 +24,11 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
     instructor_pay: '',
     payment_method: '',
     style: entry.style || '',
+    // The entry's "participants" is a phone note ("1 - going to be 24 in september",
+    // "5 groups as well (3-5y/o, 5-7y/o…)"), so only a leading count is safe to lift —
+    // the rest stays visible above for whoever's filling this in.
+    participant_count: (entry.participants || '').trim().match(/^(\d+)/)?.[1] || '',
+    participant_ages: '',
   })
   const [dates, setDates] = useState([''])
   const [saving, setSaving] = useState(false)
@@ -63,6 +68,8 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
         instructor_pay: form.instructor_pay === '' ? null : Number(form.instructor_pay),
         payment_method: form.payment_method || null,
         style: form.style || null,
+        participant_count: form.participant_count === '' ? null : Number(form.participant_count),
+        participant_ages: form.participant_ages || null,
         dates: mode === 'dates' ? cleanDates : (cleanDates[0] ? [cleanDates[0]] : []),
         archive,
       })
@@ -206,6 +213,17 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
               <label className="mb-1 block text-xs font-medium text-gray-600">Style</label>
               <input value={form.style} onChange={e => set('style', e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600"># of participants</label>
+              <input type="number" min="1" value={form.participant_count}
+                onChange={e => set('participant_count', e.target.value)}
+                placeholder="e.g. 1" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Age(s)</label>
+              <input value={form.participant_ages} onChange={e => set('participant_ages', e.target.value)}
+                placeholder="e.g. 24, or 3-5y/o" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
             </div>
           </div>
 
