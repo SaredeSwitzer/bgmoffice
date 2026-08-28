@@ -315,8 +315,9 @@ export default function MyTasksPage() {
 
   // Two piles: what's yours, and what's up for grabs. Splitting them is the whole point —
   // an unassigned item that sat in a mixed list was nobody's job and quietly aged.
-  const myTasks     = tasks.filter(t => !t.is_anyone)
-  const anyoneTasks = tasks.filter(t => t.is_anyone)
+  const reminderTasks = tasks.filter(t => t.source === 'reminder')
+  const myTasks       = tasks.filter(t => !t.is_anyone && t.source !== 'reminder')
+  const anyoneTasks   = tasks.filter(t => t.is_anyone && t.source !== 'reminder')
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -369,6 +370,21 @@ export default function MyTasksPage() {
       {/* Collapsible here, unlike the Dashboard: this page is a focused work queue and
           the waiting-on list is reference material you dip into, not the main event. */}
       <WaitingOnOverview id="mytasks_waiting" defaultOpen={false} />
+
+      <CollapsibleSection
+        id="mytasks_reminders" accent="blue" title="Reminders"
+        count={reminderTasks.length} defaultOpen={false}
+      >
+        {reminderTasks.length === 0 ? (
+          <p className="text-sm text-gray-400 italic px-2">No reminders due.</p>
+        ) : (
+          <TaskTable
+            items={reminderTasks} onClick={handleClick}
+            onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+            isNew={isNew}
+          />
+        )}
+      </CollapsibleSection>
 
       {readMentions.length > 0 && (
         <div>

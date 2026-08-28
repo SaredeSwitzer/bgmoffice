@@ -32,12 +32,14 @@ export default function CollapsibleSection({
     gray:   'border-gray-400',
     purple: 'border-purple-400',
     amber:  'border-amber-400',
+    blue:   'border-blue-400',
   }[accent] || 'border-gray-400'
 
   const PILL = {
     gray:   'bg-gray-100 text-gray-700',
     purple: 'bg-purple-100 text-purple-700',
     amber:  'bg-amber-100 text-amber-700',
+    blue:   'bg-blue-100 text-blue-700',
   }[accent] || 'bg-gray-100 text-gray-700'
 
   return (
