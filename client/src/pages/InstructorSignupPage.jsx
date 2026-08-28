@@ -8,9 +8,22 @@ import SignupOptionPicker from '../components/SignupOptionPicker'
 // each submission from Instructors → Sign-ups; approving creates the real instructor
 // record + login, same as adding one manually. Mirrors SignContractPage's shape/style.
 
+// Common answers, offered as one-tap buttons. Kept short on purpose — a long list is
+// slower to read than typing, and "Other" is already covered by the free-text field.
+const HEARD_ABOUT_OPTIONS = [
+  'Another instructor',
+  'A friend',
+  'Google',
+  'Facebook',
+  'Instagram',
+  'WhatsApp group',
+  'Shiftboard',
+]
+
 export default function InstructorSignupPage() {
   const [form, setForm] = useState({
     name: '', email: '', phone: '', neighborhood: '', city: '', state: '', styles_taught: '', specialties: '', notes: '',
+    heard_about_us: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -170,6 +183,35 @@ export default function InstructorSignupPage() {
             <label className="block text-xs font-medium text-gray-600 mb-1">Specialties</label>
             <input value={form.specialties} onChange={e => set('specialties', e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              How did you find out about Bring the Gym to Me?
+            </label>
+            {/* Buttons for the common answers so it's one tap on a phone, but the field
+                stays free text underneath — the genuinely useful answers here tend to be
+                the ones nobody thought to list. */}
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {HEARD_ABOUT_OPTIONS.map(opt => (
+                <button
+                  key={opt} type="button"
+                  onClick={() => set('heard_about_us', form.heard_about_us === opt ? '' : opt)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    form.heard_about_us === opt
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            <input
+              value={form.heard_about_us}
+              onChange={e => set('heard_about_us', e.target.value)}
+              placeholder="Or tell us in your own words — who referred you?"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Anything else we should know?</label>

@@ -87,6 +87,11 @@ function PendingSignups({ signups, onApproved, onRejected }) {
                 </p>
                 {s.styles_taught && <p className="text-xs text-gray-500 mt-0.5">Teaches: {s.styles_taught}</p>}
                 {s.specialties && <p className="text-xs text-gray-500 mt-0.5">Specialties: {s.specialties}</p>}
+                {s.heard_about_us && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Heard about us: <span className="font-medium text-gray-700">{s.heard_about_us}</span>
+                  </p>
+                )}
                 {s.notes && <p className="text-xs text-gray-600 italic mt-1 whitespace-pre-wrap">"{s.notes}"</p>}
                 <DuplicateWarning dupes={s.possible_duplicates}
                   note="If it's the same person, approving this will create a second record for them." />

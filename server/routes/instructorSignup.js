@@ -92,7 +92,7 @@ router.post('/class-styles', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, email, phone, neighborhood, city, state, styles_taught, specialties, notes } = req.body;
+  const { name, email, phone, neighborhood, city, state, styles_taught, specialties, notes, heard_about_us } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
 
   // Someone who already has a login is trying to sign up again — a form submission
@@ -111,10 +111,10 @@ router.post('/', async (req, res) => {
   }
 
   const { rows: [signup] } = await pool.query(
-    `INSERT INTO instructor_signups (name, email, phone, neighborhood, city, state, styles_taught, specialties, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    `INSERT INTO instructor_signups (name, email, phone, neighborhood, city, state, styles_taught, specialties, notes, heard_about_us)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
     [name.trim(), email || null, phone || null, neighborhood || null, city || null, state || null,
-     styles_taught || null, specialties || null, notes || null]
+     styles_taught || null, specialties || null, notes || null, heard_about_us?.trim() || null]
   );
 
   // Ping the crew Telegram — a sign-up sits in Instructors → Sign-ups waiting to be
@@ -126,6 +126,7 @@ router.post('/', async (req, res) => {
     (email ? `\n${email}` : '') +
     (where ? `\n${where}` : '') +
     (styles_taught ? `\nTeaches: ${styles_taught}` : '') +
+    (heard_about_us?.trim() ? `\nHeard about us: ${heard_about_us.trim()}` : '') +
     (dupes.length ? `\n\n⚠️ Might already be on file: ${describeDuplicates(dupes)}` : '') +
     `\n\nApprove or decline in Instructors → Sign-ups.`
   );
@@ -183,7 +184,11 @@ router.post('/:id/approve', async (req, res) => {
     `INSERT INTO instructors (name, phone, email, specialties, notes, neighborhood, city, state, styles_taught,
        contract_signed, contract_signed_date, ssn_encrypted, ssn_last4, tax_id_type)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-    [signup.name, signup.phone || null, signup.email || null, signup.specialties || null, signup.notes || null,
+    // Approving clears the sign-up card, so carry how they found us into the instructor's
+    // notes — otherwise it's only visible in the signups table nobody looks at.
+    [signup.name, signup.phone || null, signup.email || null, signup.specialties || null,
+     [signup.notes, signup.heard_about_us ? `Heard about us: ${signup.heard_about_us}` : null]
+       .filter(Boolean).join('\n\n') || null,
      signup.neighborhood || null, signup.city || null, signup.state || null, signup.styles_taught || null,
      signedFlag, signedDate, sigSsnEncrypted, sigSsnLast4, sigTaxIdType]
   );
