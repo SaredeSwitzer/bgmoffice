@@ -17,7 +17,7 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
   const [makeClient, setMakeClient] = useState(!entry.client_id)
   const [form, setForm] = useState({
     instructor_id: entry.instructor_id || '',
-    weekday: WEEKDAYS.includes(entry.day_of_week) ? entry.day_of_week : '',
+    weekdays: WEEKDAYS.includes(entry.day_of_week) ? [entry.day_of_week] : [],
     start_time: '',
     duration_minutes: 60,
     charge_amount: '',
@@ -45,7 +45,7 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
   async function handleSave(archive) {
     setError('')
     if (!form.start_time) return setError('Add a start time.')
-    if (mode === 'recurring' && !form.weekday) return setError('Pick which day it repeats on.')
+    if (mode === 'recurring' && form.weekdays.length === 0) return setError('Pick at least one day it repeats on.')
     if (mode === 'dates' && cleanDates.length === 0) return setError('Pick at least one date.')
     if (!client && !makeClient) return setError('Pick a client, or tick "create a client".')
 
@@ -56,7 +56,7 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
         client_id: client?.id || null,
         create_client: !client && makeClient,
         instructor_id: form.instructor_id || null,
-        weekday: form.weekday,
+        weekdays: form.weekdays,
         start_time: form.start_time,
         duration_minutes: Number(form.duration_minutes) || 60,
         charge_amount: form.charge_amount === '' ? null : Number(form.charge_amount),
@@ -129,13 +129,25 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
 
           {mode === 'recurring' ? (
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Repeats on</label>
-                <select value={form.weekday} onChange={e => set('weekday', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
-                  <option value="">— pick a day —</option>
-                  {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
+              <div className="col-span-2">
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  Repeats on <span className="font-normal text-gray-400">— pick every day it runs</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEKDAYS.map(d => {
+                    const on = form.weekdays.includes(d)
+                    return (
+                      <button key={d} type="button"
+                        onClick={() => set('weekdays', on ? form.weekdays.filter(x => x !== d) : [...form.weekdays, d])}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          on ? 'border-purple-400 bg-purple-100 text-purple-800'
+                             : 'border-gray-300 bg-gray-50 text-gray-600 hover:border-gray-400'
+                        }`}>
+                        {on && <span className="mr-1">✓</span>}{d.slice(0, 3)}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">Starting (optional)</label>

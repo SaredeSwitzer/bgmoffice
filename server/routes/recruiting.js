@@ -347,7 +347,7 @@ router.post('/:id/schedule', async (req, res) => {
   if (!entry) return res.status(404).json({ error: 'Recruiting entry not found' });
 
   const {
-    mode, client_id, create_client, instructor_id, weekday, start_time,
+    mode, client_id, create_client, instructor_id, weekday, weekdays, start_time,
     duration_minutes, charge_amount, instructor_pay, payment_method, style,
     participant_count, participant_ages, dates, archive,
   } = req.body || {};
@@ -393,25 +393,34 @@ router.post('/:id/schedule', async (req, res) => {
 
   const instructorId = instructor_id || entry.instructor_id || null;
   const mins = duration_minutes || 60;
-  const created = { schedule_id: null, session_ids: [] };
+  const created = { schedule_ids: [], session_ids: [] };
 
   if (mode === 'recurring') {
-    const wd = typeof weekday === 'number' ? weekday : WEEKDAY_INDEX[String(weekday || '').toLowerCase()];
-    if (wd === undefined || wd === null) return res.status(400).json({ error: 'Pick which day of the week it repeats on.' });
-    const { rows: [sch] } = await pool.query(
-      `INSERT INTO class_schedules
-         (client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount,
-          instructor_pay, payment_method, style, status, start_date, participant_count, participant_ages)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$12) RETURNING id`,
-      [clientId, instructorId, wd, start_time, mins, charge_amount ?? null, instructor_pay ?? null,
-       payment_method || null, style || entry.style || null,
-       Array.isArray(dates) && dates[0] ? dates[0] : null,
-       participant_count ?? null, participant_ages || entry.participants || null]
-    );
-    created.schedule_id = sch.id;
-    // Fill the calendar straight away rather than waiting on the nightly run, same as
-    // creating a schedule from the Schedule page does.
-    await generateUpcomingSessions(defaultHorizon(), { scheduleId: sch.id });
+    // A class often runs several days a week ("mon wed and fri"). class_schedules holds
+    // one weekday per row, which is how the rest of the app already models it, so each
+    // chosen day becomes its own schedule.
+    const chosen = Array.isArray(weekdays) && weekdays.length ? weekdays : (weekday != null ? [weekday] : []);
+    const indexes = [...new Set(chosen
+      .map(w => (typeof w === 'number' ? w : WEEKDAY_INDEX[String(w || '').toLowerCase()]))
+      .filter(w => w !== undefined && w !== null))];
+    if (indexes.length === 0) return res.status(400).json({ error: 'Pick at least one day of the week.' });
+
+    for (const wd of indexes) {
+      const { rows: [sch] } = await pool.query(
+        `INSERT INTO class_schedules
+           (client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount,
+            instructor_pay, payment_method, style, status, start_date, participant_count, participant_ages)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$12) RETURNING id`,
+        [clientId, instructorId, wd, start_time, mins, charge_amount ?? null, instructor_pay ?? null,
+         payment_method || null, style || entry.style || null,
+         Array.isArray(dates) && dates[0] ? dates[0] : null,
+         participant_count ?? null, participant_ages || entry.participants || null]
+      );
+      created.schedule_ids.push(sch.id);
+      // Fill the calendar straight away rather than waiting on the nightly run, same as
+      // creating a schedule from the Schedule page does.
+      await generateUpcomingSessions(defaultHorizon(), { scheduleId: sch.id });
+    }
   } else {
     if (!Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'Pick at least one date.' });
     for (const d of dates) {
