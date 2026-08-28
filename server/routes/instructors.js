@@ -233,6 +233,8 @@ router.get('/:id/reveal-ssn', requireStaff, async (req, res) => {
 router.post('/', async (req, res) => {
   const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, tax_id_type, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
+  // Unlike PUT, defaulting to 'ssn' is correct here — a brand-new record has no stored
+  // value to preserve, and an SSN is what an unspecified tax ID has always meant.
   let taxIdType = tax_id_type === 'ein' ? 'ein' : 'ssn';
 
   // Checked before the insert so the alert names who they collide with. The form warns
@@ -377,12 +379,21 @@ router.put('/:id', async (req, res) => {
   }
 
   const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, tax_id_type, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
+
+  // An omitted tax_id_type must NOT fall through to 'ssn' — this is a full-record replace,
+  // so a caller that doesn't echo the field (a sync script, a partial update) would
+  // silently relabel a business EIN as a personal SSN. The number itself is unchanged, so
+  // nothing would surface the mistake until 1099 time. Absent means "leave it alone".
+  const nextTaxIdType = tax_id_type === undefined || tax_id_type === null
+    ? (existing.tax_id_type || 'ssn')
+    : (tax_id_type === 'ein' ? 'ein' : 'ssn');
+
   await pool.query(
     `UPDATE instructors SET name=$1, phone=$2, email=$3, specialties=$4, style=$5, notes=$6, pay_rate=$7,
        mailing_address=$8, city=$9, state=$10, ssn=$11, tax_id_type=$12, contract_signed=$13, contract_signed_date=$14, neighborhood=$15, styles_taught=$16,
        payout_method=$17, payout_handle=$18
      WHERE id=$19`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, tax_id_type === 'ein' ? 'ein' : 'ssn', contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id]
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, nextTaxIdType, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id]
   );
   res.json(await getInstructorRow(req.params.id));
 });
