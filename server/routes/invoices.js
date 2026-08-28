@@ -321,9 +321,15 @@ router.post('/:id/send-preview', async (req, res) => {
     + `Invoice: ${invoice.invoice_number}\nAmount Due: ${fmtMoney(invoice.total)}\nDue Date: ${fmtDate(due_date)}\n\n`
     + `Pay online here: ${payLink}\n\nThank you!`;
 
-  // `to` stays a plain string for the existing single-recipient UI; `recipients` is the
-  // editable list the send step actually uses.
-  res.json({ to: invoice.client_email, recipients: [invoice.client_email], subject, body, due_date });
+  // A client's invoice email can hold several addresses ("a@x.com, b@y.com") when their
+  // invoices should always go to more than one person — a parent and a bookkeeper, or two
+  // contacts at an organisation. Split them into separate recipients rather than one
+  // malformed address, which is what `[invoice.client_email]` used to produce.
+  res.json({
+    to: invoice.client_email,
+    recipients: parseRecipients(invoice.client_email),
+    subject, body, due_date,
+  });
 });
 
 // Actually sends it: PDF attached, due date persisted (if it wasn't already set),
@@ -363,7 +369,7 @@ router.post('/:id/send', async (req, res) => {
 
   try {
     await sendMail({
-      to: to.join(', '),
+      to,
       cc: INVOICE_CC,
       subject: subject.trim(),
       text: body,

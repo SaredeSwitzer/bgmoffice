@@ -869,10 +869,15 @@ export default function ClientProfilePage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Invoice Email <span className="text-gray-400 font-normal">(if different)</span></label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Invoice Email <span className="text-gray-400 font-normal">(if different)</span>
+                </label>
                 <input value={editForm.invoice_email} onChange={e => setEditForm(f => ({ ...f, invoice_email: e.target.value }))}
-                  placeholder="billing@example.com"
+                  placeholder="billing@example.com, bookkeeper@example.com"
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Separate several with commas — every invoice for this client goes to all of them.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Preferred Contact</label>
@@ -1085,11 +1090,18 @@ export default function ClientProfilePage() {
               </div>
             </div>
             <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
-            {client.invoice_email && (
-              <p className="text-xs text-gray-500 mt-1">
-                Invoice email: <span className="font-medium text-gray-700">{client.invoice_email}</span>
-              </p>
-            )}
+            {client.invoice_email && (() => {
+              const addresses = client.invoice_email.split(/[,;]+/).map(s => s.trim()).filter(Boolean)
+              return (
+                <p className="text-xs text-gray-500 mt-1">
+                  {addresses.length > 1 ? 'Invoices go to:' : 'Invoice email:'}{' '}
+                  <span className="font-medium text-gray-700">{addresses.join(', ')}</span>
+                  {addresses.length > 1 && (
+                    <span className="text-gray-400"> ({addresses.length} recipients)</span>
+                  )}
+                </p>
+              )
+            })()}
 
             {/* Waiver status */}
             <div className="mt-3 flex items-center gap-2">

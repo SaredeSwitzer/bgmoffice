@@ -71,13 +71,23 @@ async function sendLoginCode(to, code) {
 // in dev it logs instead of silently dropping.
 // attachments: [{ filename, content: Buffer }] — Resend wants base64 content, so callers
 // pass a raw Buffer and this base64-encodes it rather than making every caller remember to.
+// Resend wants `to` as an array of individual addresses. Callers pass either an array or
+// a single string, and some pass a comma-joined list of several people — which used to be
+// wrapped as `[to]` and sent as ONE malformed address, so sending an invoice to more than
+// one person silently failed. Split and normalise here, once, for every email in the app.
+function toAddressList(value) {
+  const parts = Array.isArray(value) ? value : String(value ?? '').split(/[,;]+/);
+  return [...new Set(parts.map(s => String(s).trim()).filter(Boolean))];
+}
+
 async function sendMail({ to, subject, text, html, replyTo, from, cc, attachments }) {
-  if (!to) throw new Error('No recipient email');
+  const toList = toAddressList(to);
+  if (toList.length === 0) throw new Error('No recipient email');
   if (!isConfigured()) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Email is not configured (RESEND_API_KEY / MAIL_FROM missing)');
     }
-    console.log(`\n[dev] email to ${to}: ${subject}\n${text || ''}\n${attachments ? `[${attachments.length} attachment(s)]\n` : ''}`);
+    console.log(`\n[dev] email to ${toList.join(', ')}: ${subject}\n${text || ''}\n${attachments ? `[${attachments.length} attachment(s)]\n` : ''}`);
     return;
   }
   const res = await fetch(RESEND_ENDPOINT, {
@@ -85,12 +95,12 @@ async function sendMail({ to, subject, text, html, replyTo, from, cc, attachment
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from: from || OFFICE_FROM,
-      to: [to],
+      to: toList,
       subject,
       ...(text ? { text } : {}),
       ...(html ? { html } : {}),
       ...(replyTo || !from ? { reply_to: replyTo || OFFICE_REPLY } : {}),
-      ...(cc ? { cc: Array.isArray(cc) ? cc : [cc] } : {}),
+      ...(cc ? { cc: toAddressList(cc) } : {}),
       ...(attachments?.length
         ? { attachments: attachments.map(a => ({ filename: a.filename, content: a.content.toString('base64') })) }
         : {}),
