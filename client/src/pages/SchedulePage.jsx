@@ -109,6 +109,27 @@ const BLANK_SCHEDULE = {
   participant_count: '', participant_ages: '',
 }
 
+// Missing paperwork on a class — the client has no waiver on file, or the instructor
+// hasn't signed their contract. Surfaced right on the calendar because it's only ever
+// noticed at the point someone is about to teach, which is too late to fix quietly.
+function paperworkGaps(s) {
+  const gaps = []
+  if (s.client_waiver_signed === false) gaps.push('No waiver')
+  if (s.instructor_id && s.instructor_contract_signed === false) gaps.push('No contract')
+  return gaps
+}
+
+function PaperworkFlag({ session, className = '' }) {
+  const gaps = paperworkGaps(session)
+  if (gaps.length === 0) return null
+  return (
+    <p className={`text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-1 py-0.5 truncate ${className}`}
+      title={gaps.map(g => g === 'No waiver' ? 'This client has not signed a waiver' : 'This instructor has not signed their contract').join(' · ')}>
+      ⚠ {gaps.join(' · ')}
+    </p>
+  )
+}
+
 export default function SchedulePage() {
   const [tab, setTab] = useState('week') // 'week' | 'recurring'
   const [anchor, setAnchor] = useState(() => loadSavedWeekAnchor(startOfWeek))
@@ -504,6 +525,7 @@ export default function SchedulePage() {
                                 <p className="text-gray-500 truncate">
                                   {s.instructor_name ? <InstructorLink id={s.instructor_id} name={s.instructor_name} /> : 'No instructor'}{s.style ? ` · ${s.style}` : ''}
                                 </p>
+                                <PaperworkFlag session={s} className="mt-0.5" />
                                 {s.neighborhood && (
                                   <p className="text-gray-400 truncate">📍 {s.neighborhood}</p>
                                 )}
@@ -709,6 +731,7 @@ export default function SchedulePage() {
                       {fmtParticipants(s) && (
                         <p className="text-[11px] text-gray-400 truncate">{fmtParticipants(s)}</p>
                       )}
+                      <PaperworkFlag session={s} className="mt-1 inline-block" />
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold text-gray-800">{chargeDisplay(s)}</p>

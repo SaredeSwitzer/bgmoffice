@@ -96,6 +96,8 @@ async function getScheduleRow(id) {
   const { rows: [row] } = await pool.query(
     `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
             c.neighborhood, c.street, c.city, c.zip,
+            COALESCE(c.waiver_signed, 0) = 1     AS client_waiver_signed,
+            COALESCE(i.contract_signed, 0) = 1   AS instructor_contract_signed,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id)::int AS note_count,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_schedules cs
@@ -118,6 +120,8 @@ router.get('/schedules', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
             c.neighborhood, c.street, c.city, c.zip,
+            COALESCE(c.waiver_signed, 0) = 1     AS client_waiver_signed,
+            COALESCE(i.contract_signed, 0) = 1   AS instructor_contract_signed,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id)::int AS note_count,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_schedules cs
@@ -240,6 +244,10 @@ router.get('/sessions', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
             c.neighborhood, c.street, c.city, c.zip,
+            -- Paperwork state, so the calendar can flag a class whose client has no
+            -- waiver on file or whose instructor hasn't signed their contract.
+            COALESCE(c.waiver_signed, 0) = 1     AS client_waiver_signed,
+            COALESCE(i.contract_signed, 0) = 1   AS instructor_contract_signed,
             (SELECT COUNT(*) FROM class_notes n WHERE n.session_id = s.id)::int AS note_count,
             (SELECT COUNT(*) FROM class_notes n WHERE n.session_id = s.id AND n.is_task AND NOT n.is_done)::int AS open_task_count
        FROM class_sessions s

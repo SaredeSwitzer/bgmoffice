@@ -98,6 +98,20 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
         </div>
         <form onSubmit={handleSubmit}>
           <div className="px-5 py-4 space-y-3">
+            {/* Paperwork gap on the class being edited. Shown at the top rather than
+                buried, since it's the kind of thing only noticed once someone is
+                already standing in a client's living room. */}
+            {session && (session.client_waiver_signed === false ||
+                        (session.instructor_id && session.instructor_contract_signed === false)) && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                <span className="font-semibold">⚠ Missing paperwork:</span>{' '}
+                {[
+                  session.client_waiver_signed === false && `${session.client_name || 'This client'} hasn’t signed a waiver`,
+                  session.instructor_id && session.instructor_contract_signed === false &&
+                    `${session.instructor_name || 'This instructor'} hasn’t signed their contract`,
+                ].filter(Boolean).join(' · ')}
+              </div>
+            )}
             <SearchSelect label="Client" required options={clients} value={form.client}
               onChange={v => setForm(f => ({
                 ...f,
