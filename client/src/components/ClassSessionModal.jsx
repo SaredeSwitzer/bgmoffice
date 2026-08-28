@@ -50,6 +50,12 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
       .then(([c, i]) => { setClients(c); setInstructors(i) })
   }, [])
 
+  // Notes attach to a saved class, so on a brand-new one they're held here and written
+  // straight after it's created — otherwise you'd have to save, reopen, then add them.
+  const canSeeAdminNotes = isOwnerUser(user)
+  const [newClassNote, setNewClassNote] = useState('')
+  const [newAdminNote, setNewAdminNote] = useState('')
+
   function setField(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   // A class generated from a recurring schedule can be saved for just this date or for
@@ -85,6 +91,17 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
       const saved = isEdit
         ? await api.updateClassSession(session.id, payload)
         : await api.createClassSession(payload)
+
+      if (!isEdit && saved?.id) {
+        // Best-effort: the class itself is already saved, so a note failing here must not
+        // read as the whole save failing.
+        if (newClassNote.trim()) {
+          await api.addClassNote('session', saved.id, { text: newClassNote.trim() }).catch(() => {})
+        }
+        if (canSeeAdminNotes && newAdminNote.trim()) {
+          await api.addAdminNote('session', saved.id, { text: newAdminNote.trim() }).catch(() => {})
+        }
+      }
       onSaved(saved)
     } catch (err) {
       setError(err.message)
@@ -249,10 +266,31 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
           )}
         </form>
         {/* Outside the <form> above — these have their own add-note forms, and forms can't nest. */}
-        {isEdit && (
+        {isEdit ? (
           <>
             <ClassNotes kind="session" id={session.id} />
-            {isOwnerUser(user) && <AdminNotes kind="session" id={session.id} />}
+            {canSeeAdminNotes && <AdminNotes kind="session" id={session.id} />}
+          </>
+        ) : (
+          <>
+            <div className="bg-sky-50/60 border-t border-sky-100 px-4 py-3 space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-sky-700">
+                👁 Class note — the instructor can see this
+              </p>
+              <textarea value={newClassNote} onChange={e => setNewClassNote(e.target.value)} rows={2}
+                placeholder="e.g. buzzer is broken, call on arrival"
+                className="w-full rounded-lg border border-sky-200 px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-sky-300" />
+            </div>
+            {canSeeAdminNotes && (
+              <div className="bg-amber-50/60 border-t border-amber-100 px-4 py-3 space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+                  🔒 Admin note — Sarede, Claire &amp; Maria only
+                </p>
+                <textarea value={newAdminNote} onChange={e => setNewAdminNote(e.target.value)} rows={2}
+                  placeholder="Not visible to the instructor"
+                  className="w-full rounded-lg border border-amber-200 px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-amber-300" />
+              </div>
+            )}
           </>
         )}
       </div>
