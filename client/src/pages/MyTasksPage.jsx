@@ -329,7 +329,7 @@ export default function MyTasksPage() {
         </p>
       </div>
 
-      <CollapsibleSection id="mytasks_mine" title="Assigned to me" count={myTasks.length} defaultOpen>
+      <CollapsibleSection id="mytasks_mine" title="Assigned to me" count={myTasks.length} defaultOpen={false}>
         {myTasks.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-12 text-center">
             <p className="text-2xl mb-2">✓</p>
@@ -347,7 +347,7 @@ export default function MyTasksPage() {
 
       <CollapsibleSection
         id="mytasks_anyone" accent="amber" title="🙋 Anyone — up for grabs"
-        count={anyoneTasks.length} defaultOpen
+        count={anyoneTasks.length} defaultOpen={false}
         right={<QuickAddOther onAdd={handleAddOther} />}
       >
         {anyoneTasks.length === 0 ? (

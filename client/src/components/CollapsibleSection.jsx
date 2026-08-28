@@ -13,7 +13,10 @@ export default function CollapsibleSection({
   right = null,       // extra controls on the header row (e.g. an "open full list" link)
   children,
 }) {
-  const storageKey = `bgm_section_${id}`
+  // Bump when a section's default changes, so the new default actually reaches people who
+  // already have an old open/closed choice saved — otherwise the remembered value wins and
+  // the change looks like it did nothing.
+  const storageKey = `bgm_section_v2_${id}`
   const [open, setOpen] = useState(() => {
     try {
       const saved = localStorage.getItem(storageKey)
