@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -6,6 +6,7 @@ import ActionTypeBadge from '../components/ActionTypeBadge'
 import { useSeenTasks } from '../hooks/useSeenTasks'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import WaitingOnOverview from '../components/WaitingOnOverview'
+import CollapsibleSection from '../components/CollapsibleSection'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -62,47 +63,6 @@ function QuickAddOther({ onAdd }) {
 function daysOpen(createdAt) {
   return Math.floor((Date.now() - new Date(createdAt)) / 86400000)
 }
-
-// Mirror of server constants for client-side category derivation
-const CLIENT_FACING_TYPES = [
-  'FOLLOW UP WITH CLIENT',
-  'SET UP CLASS ON CALENDAR AND SEND CONFIRMATION EMAIL',
-  'FOLLOW UP ON BLAST RESPONSES',
-  'ADD TO RECRUITING / SEND BLAST',
-]
-const INSTRUCTOR_FACING_TYPES = [
-  'FOLLOW UP WITH INSTRUCTOR',
-  'INSTRUCTOR AWAY - INFORM ALL CLIENTS',
-]
-
-function getItemCategories(item) {
-  // Tasks left for "Anyone" show up in everyone's list. They get their own category so
-  // whoever is working can pull up the shared pile on its own, but they still appear
-  // under All alongside a person's own work rather than being tucked away.
-  if (item.is_anyone) return ['anyone']
-  if (item.categories?.length) return item.categories
-  // Standalone tasks (and recruiting-linked ones, which are standalone tasks under
-  // the hood) don't have a Client/Instructor F/U distinction the way action items
-  // do — they all land in Other. A task with no explicit type at all reads as "no
-  // category" to whoever's looking at it, so it belongs here too, not off in a
-  // limbo that only shows up under "All".
-  if (item.source === 'recruiting' || item.source === 'standalone') return ['other']
-  const typeNames = (item.action_types || []).map(at => at.name)
-  const cats = []
-  if (typeNames.some(n => CLIENT_FACING_TYPES.includes(n))) cats.push('client_followup')
-  if (typeNames.some(n => INSTRUCTOR_FACING_TYPES.includes(n))) cats.push('instructor_followup')
-  return cats.length ? cats : ['other']
-}
-
-const CATEGORY_FILTERS = [
-  { key: 'all',                 label: 'All' },
-  { key: 'mention',             label: '@Mentions' },
-  { key: 'anyone',              label: '🙋 Anyone' },
-  { key: 'reminder',            label: 'Reminders' },
-  { key: 'client_followup',     label: 'Client F/U' },
-  { key: 'instructor_followup', label: 'Instructor F/U' },
-  { key: 'other',               label: 'Other' },
-]
 
 function getItemUrl(item) {
   if (item.source === 'mention') return item.link_path || null
@@ -163,14 +123,7 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
         {item.instructor_name ? <InstructorLink id={item.instructor_id} name={item.instructor_name} /> : <span className="text-gray-400">—</span>}
       </td>
       <td className="px-3 py-2.5">
-        {item.is_anyone ? (
-          // Shown ahead of the normal type badge: the fact that this one is up for grabs
-          // matters more to whoever's looking than what kind of task it is.
-          <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide"
-            title="Left for whoever is free — Claire, Maria and Sarede all see this">
-            🙋 Anyone
-          </span>
-        ) : isMention ? (
+        {isMention ? (
           <span className="inline-block text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
             @Mentioned ↗
           </span>
@@ -236,6 +189,41 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
   )
 }
 
+// One table shared by both sections so the two piles look and behave identically —
+// the only difference between them is which items go in.
+function TaskTable({ items, onClick, onResolveMention, onResolveReminder, isNew }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px]">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type / Action</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Age</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Last note</th>
+              <th className="px-2 py-2 w-14" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.map(item => (
+              <MyTaskRow
+                key={`${item.source}-${item.id}`}
+                item={item}
+                onClick={() => onClick(item)}
+                onResolveMention={onResolveMention}
+                onResolveReminder={onResolveReminder}
+                isNew={isNew(item)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function MyTasksPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -244,7 +232,6 @@ export default function MyTasksPage() {
   const [delegateName, setDelegateName] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('all')
   const [readMentions, setReadMentions] = useState([])
   const [showRead, setShowRead] = useState(false)
 
@@ -272,10 +259,6 @@ export default function MyTasksPage() {
 
   useEffect(() => { load(); loadReadMentions() }, [])
 
-  const displayTasks = useMemo(() => {
-    if (categoryFilter === 'all') return tasks
-    return tasks.filter(t => getItemCategories(t).includes(categoryFilter))
-  }, [tasks, categoryFilter])
 
   if (error) return <p className="text-red-600 text-sm">{error}</p>
   if (loading) return (
@@ -330,91 +313,62 @@ export default function MyTasksPage() {
     }
   }
 
+  // Two piles: what's yours, and what's up for grabs. Splitting them is the whole point —
+  // an unassigned item that sat in a mixed list was nobody's job and quietly aged.
+  const myTasks     = tasks.filter(t => !t.is_anyone)
+  const anyoneTasks = tasks.filter(t => t.is_anyone)
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {delegateName
-              ? `Open action items and due reminders assigned to ${delegateName}, anything you're @mentioned in, plus tasks left for "Anyone"`
-              : `No delegate match found for ${user?.name?.split(' ')[0]} — showing anything you're @mentioned in`}
-          </p>
-        </div>
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
-          {displayTasks.length}{displayTasks.length !== tasks.length ? ` of ${tasks.length}` : ''} total
-        </span>
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {delegateName
+            ? `Open action items and due reminders assigned to ${delegateName}, plus anything you're @mentioned in`
+            : `No delegate match found for ${user?.name?.split(' ')[0]} — showing anything you're @mentioned in`}
+        </p>
       </div>
 
-      {/* Type filter */}
-      <div className="flex flex-wrap gap-1.5 items-center">
-        <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mr-1">Type:</span>
-        {CATEGORY_FILTERS.map(({ key, label }) => (
-          <button key={key} onClick={() => setCategoryFilter(key)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-              categoryFilter === key
-                ? key === 'mention'             ? 'bg-indigo-600 text-white'
-                : key === 'anyone'              ? 'bg-amber-600 text-white'
-                : key === 'client_followup'     ? 'bg-green-600 text-white'
-                : key === 'instructor_followup' ? 'bg-blue-600 text-white'
-                : 'bg-gray-900 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}>
-            {label}
-          </button>
-        ))}
-        {categoryFilter !== 'all' && (
-          <button onClick={() => setCategoryFilter('all')} className="text-xs text-gray-400 hover:text-gray-700 ml-1">
-            ✕ clear
-          </button>
-        )}
-        {categoryFilter === 'other' && (
-          <QuickAddOther onAdd={handleAddOther} />
-        )}
-      </div>
-
-      {tasks.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-16 text-center">
-          <p className="text-2xl mb-2">✓</p>
-          <p className="text-sm font-medium text-gray-700">All caught up!</p>
-          <p className="text-xs text-gray-400 mt-1">No open tasks assigned to you.</p>
-        </div>
-      ) : displayTasks.length === 0 ? (
-        <p className="text-sm text-gray-400 italic px-2">No items match the current filter.</p>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px]">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type / Action</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Age</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Last note</th>
-                  <th className="px-2 py-2 w-14" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {displayTasks.map(item => (
-                  <MyTaskRow
-                    key={`${item.source}-${item.id}`}
-                    item={item}
-                    onClick={() => handleClick(item)}
-                    onResolveMention={handleResolveMention}
-                    onResolveReminder={handleResolveReminder}
-                    isNew={isNew(item)}
-                  />
-                ))}
-              </tbody>
-            </table>
+      <CollapsibleSection id="mytasks_mine" title="Assigned to me" count={myTasks.length} defaultOpen>
+        {myTasks.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-12 text-center">
+            <p className="text-2xl mb-2">✓</p>
+            <p className="text-sm font-medium text-gray-700">All caught up!</p>
+            <p className="text-xs text-gray-400 mt-1">Nothing assigned to you right now.</p>
           </div>
-        </div>
-      )}
+        ) : (
+          <TaskTable
+            items={myTasks} onClick={handleClick}
+            onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+            isNew={isNew}
+          />
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        id="mytasks_anyone" accent="amber" title="🙋 Anyone — up for grabs"
+        count={anyoneTasks.length} defaultOpen
+        right={<QuickAddOther onAdd={handleAddOther} />}
+      >
+        {anyoneTasks.length === 0 ? (
+          <p className="text-sm text-gray-400 italic px-2">Nothing unassigned right now.</p>
+        ) : (
+          <>
+            <p className="text-xs text-gray-400 mb-2 px-1">
+              Not assigned to anyone — Claire, Maria and Sarede all see these.
+            </p>
+            <TaskTable
+              items={anyoneTasks} onClick={handleClick}
+              onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+              isNew={isNew}
+            />
+          </>
+        )}
+      </CollapsibleSection>
 
       {/* Collapsible here, unlike the Dashboard: this page is a focused work queue and
           the waiting-on list is reference material you dip into, not the main event. */}
-      <WaitingOnOverview collapsible defaultOpen={false} />
+      <WaitingOnOverview id="mytasks_waiting" defaultOpen={false} />
 
       {readMentions.length > 0 && (
         <div>

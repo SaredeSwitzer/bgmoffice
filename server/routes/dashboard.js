@@ -193,6 +193,16 @@ router.get('/my-tasks', async (req, res) => {
   const processedAI = sortItems(await attachLastNote(await attachActionTypes(aiRows)))
     .map(t => ({ ...t, source: 'action_item' }));
 
+  // Unassigned action items are the real "up for grabs" pile — nobody's name is on them,
+  // so nobody saw them in My Tasks and they quietly aged. Same treatment as a task
+  // explicitly assigned to "Anyone": shown to every delegate, flagged so the UI can
+  // group them separately.
+  const { rows: anyoneAiRows } = await pool.query(
+    `${BASE_SQL} AND ai.delegate_id IS NULL ORDER BY ai.created_at ASC`
+  );
+  const anyoneAI = sortItems(await attachLastNote(await attachActionTypes(anyoneAiRows)))
+    .map(t => ({ ...t, source: 'action_item', is_anyone: true, delegate_name: 'Anyone' }));
+
   const { rows: standaloneRows } = await pool.query(
     `SELECT st.id, st.title, st.status, st.created_at, st.starred, st.assigned_to,
             st.client_id, cl.name AS client_name,
@@ -206,7 +216,9 @@ router.get('/my-tasks', async (req, res) => {
      LEFT JOIN action_types     at ON at.id = st.action_type_id
      LEFT JOIN recruiting_notes rn ON rn.id = st.recruiting_note_id
      WHERE st.status = 'open'
-       AND (LOWER(st.assigned_to) = LOWER($1) OR LOWER(st.assigned_to) = 'anyone')`,
+       AND (LOWER(st.assigned_to) = LOWER($1)
+            OR LOWER(COALESCE(st.assigned_to, '')) = 'anyone'
+            OR COALESCE(st.assigned_to, '') = '')`,
     [delegate.name]
   );
 
@@ -214,12 +226,13 @@ router.get('/my-tasks', async (req, res) => {
     ...t,
     source: t.recruiting_note_id ? 'recruiting' : 'standalone',
     case_id: null,
-    // "Anyone" is an existing option in the Tasks page assignee dropdown, but nothing
-    // ever surfaced those tasks: /my-tasks only matched your own name, so a task left
-    // for whoever was free was visible to nobody. Flagged here so every delegate sees
-    // them in their own list, filterable on its own.
-    is_anyone: String(t.assigned_to || '').toLowerCase() === 'anyone',
-    delegate_name: String(t.assigned_to || '').toLowerCase() === 'anyone' ? 'Anyone' : delegate.name,
+    // Up for grabs means BOTH the explicit "Anyone" option in the assignee dropdown and
+    // anything left unassigned — in practice they mean the same thing to whoever's
+    // working, and neither was visible to anybody before.
+    is_anyone: !String(t.assigned_to || '').trim()
+            || String(t.assigned_to).toLowerCase() === 'anyone',
+    delegate_name: String(t.assigned_to || '').trim() && String(t.assigned_to).toLowerCase() !== 'anyone'
+      ? delegate.name : 'Anyone',
     action_types: t.action_type_id
       ? [{ id: t.action_type_id, name: t.action_type_name, color: t.action_type_color }]
       : [],
@@ -227,7 +240,10 @@ router.get('/my-tasks', async (req, res) => {
     recruiting_entry_id: t.recruiting_entry_id || null,
   }));
 
-  res.json({ tasks: sortItems([...processedAI, ...standaloneTasks, ...mentionTasks, ...reminderTasks]), delegate_name: delegate.name });
+  res.json({
+    tasks: sortItems([...processedAI, ...anyoneAI, ...standaloneTasks, ...mentionTasks, ...reminderTasks]),
+    delegate_name: delegate.name,
+  });
 });
 
 // Compact name→id directory for clients and instructors. Used client-side to turn a

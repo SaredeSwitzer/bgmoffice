@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import WaitingOnSection from './WaitingOnSection'
+import CollapsibleSection from './CollapsibleSection'
 
 // The same "Waiting to Hear Back From" list that lives on the Clients and Instructors
 // tabs, surfaced where people actually start their day — the Dashboard and My Tasks —
@@ -11,11 +12,10 @@ import WaitingOnSection from './WaitingOnSection'
 // point of putting it here is to work the list, not just look at it. Adding, resolving
 // and note-taking behave identically wherever it appears, and there's one implementation
 // to keep correct.
-export default function WaitingOnOverview({ collapsible = false, defaultOpen = true }) {
+export default function WaitingOnOverview({ id = 'waiting_overview', defaultOpen = false }) {
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [mentionableUsers, setMentionableUsers] = useState([])
-  const [open, setOpen] = useState(defaultOpen)
 
   useEffect(() => {
     // Failures are swallowed on purpose — these only populate the "who are you waiting
@@ -26,36 +26,27 @@ export default function WaitingOnOverview({ collapsible = false, defaultOpen = t
   }, [])
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-purple-400">
-          Waiting to Hear Back From
-        </h2>
-        <div className="flex items-center gap-3">
-          <Link to="/clients?tab=waiting" className="text-xs text-gray-400 hover:text-gray-700 hover:underline">
-            Open full list →
-          </Link>
-          {collapsible && (
-            <button onClick={() => setOpen(o => !o)}
-              className="text-xs text-gray-400 hover:text-gray-700 font-medium">
-              {open ? 'Hide' : 'Show'}
-            </button>
-          )}
-        </div>
+    <CollapsibleSection
+      id={id}
+      title="Waiting to Hear Back From"
+      accent="purple"
+      defaultOpen={defaultOpen}
+      right={
+        <Link to="/clients?tab=waiting" className="text-xs text-gray-400 hover:text-gray-700 hover:underline flex-shrink-0">
+          Open full list →
+        </Link>
+      }
+    >
+      <div className="grid gap-6 lg:grid-cols-2 items-start">
+        <WaitingOnSection
+          kind="client" title="Clients"
+          people={clients} mentionableUsers={mentionableUsers} showLink
+        />
+        <WaitingOnSection
+          kind="instructor" title="Instructors"
+          people={instructors} mentionableUsers={mentionableUsers} showLink
+        />
       </div>
-
-      {open && (
-        <div className="grid gap-6 lg:grid-cols-2 items-start">
-          <WaitingOnSection
-            kind="client" title="Clients"
-            people={clients} mentionableUsers={mentionableUsers} showLink
-          />
-          <WaitingOnSection
-            kind="instructor" title="Instructors"
-            people={instructors} mentionableUsers={mentionableUsers} showLink
-          />
-        </div>
-      )}
-    </div>
+    </CollapsibleSection>
   )
 }

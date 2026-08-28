@@ -450,7 +450,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <WaitingOnOverview />
+      {/* Collapsed by default — it was swallowing the Dashboard. Your choice is
+          remembered, so opening it once keeps it open. */}
+      <WaitingOnOverview id="dash_waiting" defaultOpen={false} />
 
       <OpenTasksTable
         items={data.open_tasks}
