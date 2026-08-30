@@ -12,3 +12,5 @@ server/db/uploads/
 .netlify
 .vercel
 .env*
+node_modules
+freshbooks-invoices/

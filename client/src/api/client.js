@@ -164,6 +164,8 @@ export const api = {
   getInstructorSignups: (status) => request(`/instructor-signup${status ? `?status=${status}` : ''}`),
   approveInstructorSignup: (id) => request(`/instructor-signup/${id}/approve`, { method: 'POST' }),
   rejectInstructorSignup: (id) => request(`/instructor-signup/${id}/reject`, { method: 'POST' }),
+  mergeInstructorSignup: (id, instructorId) =>
+    request(`/instructor-signup/${id}/merge`, { method: 'POST', body: JSON.stringify({ instructor_id: instructorId }) }),
   // Public option lists for the /join page — separate from the authenticated
   // /recruiting/styles equivalents, since that whole router requires a login.
   getSignupNeighborhoods: () => request('/instructor-signup/neighborhoods'),

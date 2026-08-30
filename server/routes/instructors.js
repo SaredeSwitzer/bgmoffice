@@ -8,6 +8,7 @@ const { decryptSSN } = require('../lib/ssnCrypto');
 const { sendMail } = require('../lib/mailer');
 const { notifyCrew } = require('../lib/notifyCrew');
 const { findDuplicateInstructors, describeDuplicates } = require('../lib/findDuplicateInstructors');
+const { mergeInstructors } = require('../lib/mergeInstructors');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 
@@ -403,6 +404,21 @@ router.delete('/:id', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Instructor not found' });
   await pool.query('DELETE FROM instructors WHERE id = $1', [req.params.id]);
   res.json({ success: true });
+});
+
+// Fold a duplicate record into this one. `:id` is the record that survives — it should be
+// the older one, since that's where the classes, payments and signed contract live. Staff
+// only: this deletes a row and moves history between people.
+router.post('/:id/merge', requireStaff, async (req, res) => {
+  const { duplicate_id } = req.body;
+  if (!duplicate_id) return res.status(400).json({ error: 'duplicate_id required' });
+  try {
+    const result = await mergeInstructors(req.params.id, duplicate_id);
+    await notifyCrew(`🔗 Merged duplicate instructor "${result.removed.name}" into ${result.kept.name} (${req.user.initials}).`);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.post('/:id/photo', upload.single('photo'), async (req, res) => {

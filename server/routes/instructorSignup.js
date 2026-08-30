@@ -92,14 +92,14 @@ router.post('/class-styles', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, email, phone, neighborhood, city, state, styles_taught, specialties, notes, heard_about_us } = req.body;
+  const { name, email, phone, neighborhood, city, state, styles_taught, specialties, notes,
+          heard_about_us, confirm_new } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
 
   // Someone who already has a login is trying to sign up again — a form submission
   // with no client-side memory of prior visits can't know that on its own. Tell them to
   // sign in instead of quietly filing another pending signup nobody will notice needs
-  // rejecting. Anything without an actual login yet (approved-but-no-account,
-  // already-pending) still just gets treated as a normal resubmission below.
+  // rejecting.
   if (email?.trim()) {
     const { rows: [existingUser] } = await pool.query(
       `SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND role = 'instructor'`,
@@ -108,6 +108,22 @@ router.post('/', async (req, res) => {
     if (existingUser) {
       return res.status(200).json({ already_registered: true });
     }
+  }
+
+  // Same email but no login yet — they ARE on file, someone just never gave them a
+  // sign-in. Certain enough to say so outright, and telling them to log in is right:
+  // the login page emails them a code, which is exactly what they need.
+  const dupes = await findDuplicateInstructors({ name: name.trim(), email, phone });
+  if (!confirm_new && dupes.some(d => d.reason === 'same email')) {
+    return res.status(200).json({ already_registered: true });
+  }
+
+  // Matched on phone or name instead — that's how the three duplicates on 2026-08-29 got
+  // in (one signed up from a second address, one had a typo in the email we had on file).
+  // Not certain enough to turn anyone away, so this is a question, not a wall: they can
+  // say "no, I'm new" and the same submission goes straight through.
+  if (!confirm_new && dupes.length) {
+    return res.status(200).json({ maybe_registered: true });
   }
 
   const { rows: [signup] } = await pool.query(
@@ -120,7 +136,6 @@ router.post('/', async (req, res) => {
   // Ping the crew Telegram — a sign-up sits in Instructors → Sign-ups waiting to be
   // approved, and nothing else would surface it until someone happened to look.
   const where = [neighborhood, [city, state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
-  const dupes = await findDuplicateInstructors({ name: name.trim(), email, phone });
   await notifyCrew(
     `🙋 New instructor sign-up: ${name.trim()}` +
     (email ? `\n${email}` : '') +
@@ -218,6 +233,77 @@ router.post('/:id/approve', async (req, res) => {
   );
 
   res.json({ instructor_id: inst.id, has_login: hasLogin });
+});
+
+// The third option next to Approve and Not now: this person is already on file. Rather than
+// creating a second record (approve) or throwing away what they just told us (reject), fold
+// the sign-up into the instructor they already are — filling in anything we didn't have, and
+// giving them a login if they never had one, which is usually why they signed up again.
+router.post('/:id/merge', async (req, res) => {
+  const { instructor_id } = req.body;
+  if (!instructor_id) return res.status(400).json({ error: 'instructor_id required' });
+
+  const { rows: [signup] } = await pool.query('SELECT * FROM instructor_signups WHERE id = $1', [req.params.id]);
+  if (!signup) return res.status(404).json({ error: 'Signup not found' });
+  if (signup.status !== 'pending') return res.status(400).json({ error: 'Already reviewed' });
+
+  const { rows: [inst] } = await pool.query('SELECT * FROM instructors WHERE id = $1', [instructor_id]);
+  if (!inst) return res.status(404).json({ error: 'Instructor not found' });
+
+  // Fill blanks only — a sign-up is what they typed today, but the existing record may hold
+  // details staff corrected by hand, and those win.
+  const blank = v => v === null || v === undefined || String(v).trim() === '';
+  const sets = [];
+  const params = [];
+  const filled = [];
+  for (const col of ['phone', 'email', 'neighborhood', 'city', 'state', 'styles_taught', 'specialties']) {
+    if (blank(inst[col]) && !blank(signup[col])) {
+      params.push(String(signup[col]).trim());
+      sets.push(`${col} = $${params.length}`);
+      filled.push(col);
+    }
+  }
+
+  // Notes and "how they found us" are additive — never replace what's already written there.
+  const extra = [
+    signup.notes,
+    signup.heard_about_us ? `Heard about us: ${signup.heard_about_us}` : null,
+  ].filter(v => !blank(v)).join('\n\n');
+  if (extra && !String(inst.notes || '').includes(extra)) {
+    params.push([inst.notes, `From their ${new Date().toLocaleDateString('en-US')} sign-up:\n${extra}`]
+      .filter(v => !blank(v)).join('\n\n'));
+    sets.push(`notes = $${params.length}`);
+    filled.push('notes');
+  }
+
+  if (sets.length) {
+    params.push(instructor_id);
+    await pool.query(`UPDATE instructors SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+  }
+
+  // users.instructor_id is unique, so there is at most one login to find or create.
+  const { rows: [existingUser] } = await pool.query('SELECT id FROM users WHERE instructor_id = $1', [instructor_id]);
+  let hasLogin = false;
+  const loginEmail = inst.email || signup.email;
+  if (!existingUser && loginEmail) {
+    const { rows: [emailTaken] } = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [loginEmail]);
+    if (!emailTaken) {
+      const randomPassword = crypto.randomBytes(24).toString('hex');
+      await pool.query(
+        `INSERT INTO users (name, initials, email, password_hash, role, instructor_id)
+         VALUES ($1,$2,$3,$4,'instructor',$5)`,
+        [inst.name, deriveInitials(inst.name), loginEmail, bcrypt.hashSync(randomPassword, 10), instructor_id]
+      );
+      hasLogin = true;
+    }
+  }
+
+  await pool.query(
+    `UPDATE instructor_signups SET status = 'merged', instructor_id = $1, reviewed_by = $2, reviewed_at = now() WHERE id = $3`,
+    [instructor_id, req.user.initials, req.params.id]
+  );
+
+  res.json({ instructor_id: Number(instructor_id), instructor_name: inst.name, filled, has_login: hasLogin });
 });
 
 router.post('/:id/reject', async (req, res) => {

@@ -20,20 +20,31 @@ function fmtSignupDate(iso) {
 // Amber-coloured "we may already have this person" banner. Shown on a pending sign-up
 // card and under the Add Instructor form — it never blocks, it just makes the collision
 // visible at the one moment someone can still do something about it cheaply.
-function DuplicateWarning({ dupes, note }) {
+// `onMerge` is passed only on a pending sign-up card, where "this is the same person" is an
+// action and not just a warning — it folds the new details into the record we already have
+// instead of creating a second one.
+function DuplicateWarning({ dupes, note, onMerge, busy }) {
   if (!dupes?.length) return null
   return (
     <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
       <p className="text-xs font-semibold text-amber-800">
         ⚠️ Might already be on file
       </p>
-      <ul className="mt-1 space-y-0.5">
+      <ul className="mt-1 space-y-1">
         {dupes.map(d => (
-          <li key={d.id} className="text-xs text-amber-900">
-            <Link to={`/instructors/${d.id}`} className="font-medium underline hover:no-underline">
-              {d.name}
-            </Link>
-            <span className="text-amber-700"> — {d.reason}</span>
+          <li key={d.id} className="text-xs text-amber-900 flex items-center gap-2 flex-wrap">
+            <span>
+              <Link to={`/instructors/${d.id}`} className="font-medium underline hover:no-underline">
+                {d.name}
+              </Link>
+              <span className="text-amber-700"> — {d.reason}</span>
+            </span>
+            {onMerge && (
+              <button type="button" onClick={() => onMerge(d)} disabled={busy}
+                className="px-2 py-0.5 bg-amber-600 text-white text-[11px] font-semibold rounded-md hover:bg-amber-700 disabled:opacity-50">
+                Same person → merge
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -42,8 +53,24 @@ function DuplicateWarning({ dupes, note }) {
   )
 }
 
-function PendingSignups({ signups, onApproved, onRejected }) {
+function PendingSignups({ signups, onApproved, onRejected, onMerged }) {
   const [busyId, setBusyId] = useState(null)
+
+  async function handleMerge(signup, dupe) {
+    if (!confirm(
+      `Merge this sign-up into ${dupe.name}?\n\n` +
+      `No second record gets created. Anything ${dupe.name}'s profile is missing — phone, ` +
+      `city, neighborhood, what they teach — gets filled in from what they just submitted, ` +
+      `and they get a login if they didn't have one.`
+    )) return
+    setBusyId(signup.id)
+    try {
+      const result = await api.mergeInstructorSignup(signup.id, dupe.id)
+      onMerged(signup, result)
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   async function handleApprove(signup) {
     setBusyId(signup.id)
@@ -94,7 +121,8 @@ function PendingSignups({ signups, onApproved, onRejected }) {
                 )}
                 {s.notes && <p className="text-xs text-gray-600 italic mt-1 whitespace-pre-wrap">"{s.notes}"</p>}
                 <DuplicateWarning dupes={s.possible_duplicates}
-                  note="If it's the same person, approving this will create a second record for them." />
+                  onMerge={d => handleMerge(s, d)} busy={busyId === s.id}
+                  note="Approving makes a second record. Merging keeps the one you already have and fills in what's new." />
                 <p className="text-[10px] text-gray-400 mt-1">Submitted {fmtSignupDate(s.created_at)}</p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
@@ -195,6 +223,17 @@ export default function InstructorsPage() {
 
   function handleSignupRejected(signupId) {
     setSignups(prev => prev.filter(s => s.id !== signupId))
+  }
+
+  // Merging updates an instructor already in the list rather than adding one, so refresh
+  // that row in place — the card is gone but the roster shouldn't need a reload to show
+  // the phone number or neighborhood the sign-up just filled in.
+  function handleSignupMerged(signup, { instructor_id, instructor_name }) {
+    setSignups(prev => prev.filter(s => s.id !== signup.id))
+    api.getInstructor(instructor_id)
+      .then(i => setInstructors(prev => prev.map(p => (p.id === i.id ? { ...p, ...i } : p))))
+      .catch(() => {})
+    alert(`Merged into ${instructor_name}. No second record was created.`)
   }
 
   const has = (hay, needle) => (hay || '').toLowerCase().includes(needle.toLowerCase())
@@ -312,7 +351,8 @@ export default function InstructorsPage() {
       )}
 
       {tab === 'instructors' && (
-        <PendingSignups signups={signups} onApproved={handleSignupApproved} onRejected={handleSignupRejected} />
+        <PendingSignups signups={signups} onApproved={handleSignupApproved} onRejected={handleSignupRejected}
+          onMerged={handleSignupMerged} />
       )}
 
 

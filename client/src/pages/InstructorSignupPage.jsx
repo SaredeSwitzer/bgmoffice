@@ -29,6 +29,7 @@ export default function InstructorSignupPage() {
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
+  const [maybeRegistered, setMaybeRegistered] = useState(false)
   const [neighborhoods, setNeighborhoods] = useState([])
   const [regions, setRegions] = useState([])
   const [classStyles, setClassStyles] = useState([])
@@ -59,20 +60,28 @@ export default function InstructorSignupPage() {
     return row
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!form.name.trim()) { setError('Please enter your name.'); return }
+  // `confirmNew` is set only when they've been shown the "we may already have you" screen
+  // and said they're new anyway — the server takes that as permission to file the sign-up
+  // even though it looks like someone we know.
+  async function submit(confirmNew) {
     setSaving(true)
     setError('')
     try {
-      const result = await api.submitInstructorSignup(form)
+      const result = await api.submitInstructorSignup({ ...form, confirm_new: confirmNew })
       if (result.already_registered) setAlreadyRegistered(true)
+      else if (result.maybe_registered) setMaybeRegistered(true)
       else setSubmitted(true)
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.name.trim()) { setError('Please enter your name.'); return }
+    submit(false)
   }
 
   if (alreadyRegistered) return (
@@ -86,6 +95,32 @@ export default function InstructorSignupPage() {
         <Link to="/login" className="inline-block px-5 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors">
           Go to Login
         </Link>
+      </div>
+    </div>
+  )
+
+  // Not certain — matched on phone or on a close-enough name. Ask rather than turn them
+  // away: an instructor who really is new and gets blocked here has no way through, while
+  // one who's already on file just needs pointing at the login page.
+  if (maybeRegistered) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 max-w-md w-full p-8 text-center">
+        <div className="text-5xl mb-4">🤔</div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Have we met before?</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          It looks like you may already be set up with us — maybe under a different email address.
+          If that's you, log in instead and we'll email you a code. No password needed.
+        </p>
+        <div className="flex flex-col gap-2">
+          <Link to="/login" className="px-5 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-colors">
+            Go to Login
+          </Link>
+          <button type="button" onClick={() => submit(true)} disabled={saving}
+            className="px-5 py-2.5 border border-gray-300 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50">
+            {saving ? 'Sending…' : "No, I'm new here — send my sign-up"}
+          </button>
+        </div>
+        {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
       </div>
     </div>
   )
