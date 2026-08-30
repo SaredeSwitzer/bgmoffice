@@ -41,8 +41,9 @@ Security done:
 - `JWT_SECRET` was rotated on 2026-07-12 (the old one had leaked into git history).
 
 Still open (see ROADMAP.md for detail):
-- **DNS**: `bgmoffice.com` may still point at the old Netlify host. The live app is on Vercel.
-  Changing this needs the owner's Porkbun login — a human task.
+- ~~**DNS**: `bgmoffice.com` may still point at the old Netlify host.~~ Confirmed resolved as of
+  2026-08-18 — `bgmoffice.com` resolves to Vercel's IP and serves the same build as
+  bgmoffice.vercel.app (checked via `dig` and matching `curl -I` headers/etag). No action needed.
 - **Default admin password** `admin@bgmoffice.com` / `admin123` is still live. Should be
   changed, but only with the owner present so she isn't locked out.
 - **Stripe webhook** skips signature verification when no secret is set — should be made to
@@ -173,8 +174,9 @@ without a push and leaves git behind — prefer pushing so version control stays
 - `client/src/api/client.js` is the only place that calls `fetch` — add new endpoints there,
   never inline in a component
 - Forms use controlled state with individual `useState` hooks (no form libraries)
-- Date inputs use the custom `<DateInput>` component (three dropdowns: month/day/year) — do not
-  use `<input type="date">` directly
+- Date inputs use the custom `<DateInput>` component (click-to-open calendar popover, anchored
+  under the field so it doesn't cover the rest of the form) — do not use `<input type="date">`
+  directly
 - Tailwind v4 — utility classes only, no `tailwind.config.js`
 
 ## Backups
