@@ -258,6 +258,11 @@ export const api = {
   resolveWaitingOn: (id) => request(`/waiting-on/${id}/resolve`, { method: 'PATCH' }),
   reopenWaitingOn: (id) => request(`/waiting-on/${id}/reopen`, { method: 'PATCH' }),
   deleteWaitingOn: (id) => request(`/waiting-on/${id}`, { method: 'DELETE' }),
+  getWaitingOnSuggestions: () => request('/waiting-on/suggestions'),
+  acceptWaitingOnSuggestion: (id, kind) =>
+    request(`/waiting-on/suggestions/${id}/accept`, { method: 'POST', body: JSON.stringify({ kind }) }),
+  dismissWaitingOnSuggestion: (id) =>
+    request(`/waiting-on/suggestions/${id}/dismiss`, { method: 'POST' }),
   getWaitingOnNotes: (id) => request(`/waiting-on/${id}/notes`),
   addWaitingOnNote: (id, text) =>
     request(`/waiting-on/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),

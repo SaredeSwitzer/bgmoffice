@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import WaitingOnSection from './WaitingOnSection'
 import CollapsibleSection from './CollapsibleSection'
+import WaitingOnSuggestions from './WaitingOnSuggestions'
 
 // The same "Waiting to Hear Back From" list that lives on the Clients and Instructors
 // tabs, surfaced where people actually start their day — the Dashboard and My Tasks —
@@ -16,6 +17,10 @@ export default function WaitingOnOverview({ id = 'waiting_overview', defaultOpen
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [mentionableUsers, setMentionableUsers] = useState([])
+  // Bumped when a suggestion is accepted, to remount both lists so the newly-added item
+  // shows straight away. WaitingOnSection loads on mount and owns its own state, so a
+  // changed key is the cheapest honest way to refresh it without threading a reload prop.
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     // Failures are swallowed on purpose — these only populate the "who are you waiting
@@ -37,12 +42,16 @@ export default function WaitingOnOverview({ id = 'waiting_overview', defaultOpen
         </Link>
       }
     >
+      <WaitingOnSuggestions onAccepted={() => setRefreshKey(k => k + 1)} />
+
       <div className="grid gap-6 lg:grid-cols-2 items-start">
         <WaitingOnSection
+          key={`client-${refreshKey}`}
           kind="client" title="Clients"
           people={clients} mentionableUsers={mentionableUsers} showLink
         />
         <WaitingOnSection
+          key={`instructor-${refreshKey}`}
           kind="instructor" title="Instructors"
           people={instructors} mentionableUsers={mentionableUsers} showLink
         />

@@ -8,6 +8,7 @@
   },
   "type": "commonjs",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
     "@simplewebauthn/server": "^13.3.2",
     "@supabase/supabase-js": "^2.50.3",
     "bcryptjs": "^3.0.3",

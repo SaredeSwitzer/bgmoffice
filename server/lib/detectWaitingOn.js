@@ -1,0 +1,292 @@
+// Reads the notes staff write as they work and proposes entries for "Waiting to Hear
+// Back From" — plus, when a later note says someone got back to us, proposes taking an
+// open entry off the list.
+//
+// Why a model and not keywords: the phrasing is regular enough to spot ("waiting to hear",
+// "no reply from X") but working out WHO is not. A real note from the app reads
+// "waiting for confirmation from Monica if she is ok with 9am with Leah" — three names,
+// one of them the person we're waiting on. Word matching picks the wrong one often enough
+// to make the list untrustworthy, and an untrustworthy list is worse than no list.
+//
+// Nothing here writes to waiting_on_items. Every result lands in waiting_on_suggestions as
+// `pending` and waits for a human to accept it — see server/routes/waitingOn.js.
+
+const Anthropic = require('@anthropic-ai/sdk');
+const pool = require('../db/pg');
+
+// How far back a scan will look for notes it has never read. Generous enough to catch up
+// after the cron has been down for a few days, bounded so a first run on a long-dormant
+// install doesn't read years of history in one go.
+const LOOKBACK_DAYS = 14;
+const MAX_NOTES_PER_RUN = 60;
+
+const MODEL = 'claude-opus-5';
+
+// One row per note the scanner can read, with enough context for the model to tell who is
+// being discussed and for the UI to link back. Mirrors the joins in dashboard.js's mention
+// query — when a new note type gains @mentions, it belongs here too.
+//
+// created_at is NOT the same type across these tables: follow_up_notes, recruiting_notes and
+// instructor_notes still store TEXT local-time strings (the SQLite leftover CLAUDE.md warns
+// about), while reminder_notes and sales_lead_notes are proper timestamptz in UTC. A plain
+// UNION of the two fails outright, and casting the TEXT ones without naming the zone would
+// read 9am Eastern as 9am UTC and silently mis-order every batch. LOCAL_TS does both.
+// The three TEXT columns hold a local-time string; anchor them to the office's zone so they
+// compare correctly against the tables that already store real timestamps.
+const LOCAL_TS = col => `(${col}::timestamp AT TIME ZONE 'America/New_York')`;
+
+const RECENT_NOTES_SQL = `
+  WITH notes AS (
+    SELECT 'follow_up_notes' AS source_table, n.id, n.text, ${LOCAL_TS('n.created_at')} AS created_at,
+           c.name AS client_name, i.name AS instructor_name,
+           '/cases/' || c2.id AS link_path
+      FROM follow_up_notes n
+      JOIN action_items ai ON ai.id = n.action_item_id
+      JOIN cases c2 ON c2.id = ai.case_id
+      LEFT JOIN clients c     ON c.id  = c2.client_id
+      LEFT JOIN instructors i ON i.id  = c2.instructor_id
+
+    UNION ALL
+    SELECT 'recruiting_notes', n.id, n.text, ${LOCAL_TS('n.created_at')},
+           re.client_name, NULL, '/recruiting?entry=' || re.id
+      FROM recruiting_notes n
+      JOIN recruiting_entries re ON re.id = n.entry_id
+
+    UNION ALL
+    SELECT 'reminder_notes', n.id, n.text, n.created_at,
+           c.name, i.name, '/reminders'
+      FROM reminder_notes n
+      JOIN reminders r ON r.id = n.reminder_id
+      LEFT JOIN clients c     ON c.id = r.client_id
+      LEFT JOIN instructors i ON i.id = r.instructor_id
+
+    UNION ALL
+    SELECT 'sales_lead_notes', n.id, n.text, n.created_at,
+           COALESCE(c.name, sl.name), NULL, '/sales'
+      FROM sales_lead_notes n
+      JOIN sales_leads sl ON sl.id = n.sales_lead_id
+      LEFT JOIN clients c ON c.id = sl.client_id
+
+    UNION ALL
+    SELECT 'instructor_notes', n.id, n.text, ${LOCAL_TS('n.created_at')},
+           NULL, i.name, '/instructors/' || i.id
+      FROM instructor_notes n
+      JOIN instructors i ON i.id = n.instructor_id
+  )
+  SELECT n.* FROM notes n
+   WHERE n.created_at > now() - ($1 || ' days')::interval
+     AND n.text IS NOT NULL AND length(trim(n.text)) > 0
+     AND NOT EXISTS (
+       SELECT 1 FROM waiting_on_suggestions s
+        WHERE s.source_table = n.source_table AND s.source_id = n.id
+     )
+   ORDER BY n.created_at DESC
+   LIMIT $2
+`;
+
+const SUGGESTION_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['results'],
+  properties: {
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['note_ref', 'verdict'],
+        properties: {
+          note_ref: { type: 'string', description: 'The exact ref string of the note, e.g. "follow_up_notes:412"' },
+          verdict: {
+            type: 'string',
+            enum: ['waiting', 'heard_back', 'nothing'],
+            description: '"waiting" if this note shows we are waiting on someone to come back to us; "heard_back" if it shows someone we were waiting on has now replied; "nothing" otherwise.',
+          },
+          name: { type: 'string', description: 'Who we are waiting on / who replied, exactly as written in the note. Omit when verdict is "nothing".' },
+          what: { type: 'string', description: 'Short phrase for what we are waiting for, e.g. "confirm 9am slot with Leah". Omit when verdict is "nothing".' },
+          evidence: { type: 'string', description: 'The clause from the note this was read out of, quoted verbatim.' },
+          resolves_waiting_on_id: { type: 'integer', description: 'For "heard_back" only: the id of the open waiting item this closes, from the list given. Omit if none of them match.' },
+        },
+      },
+    },
+  },
+};
+
+const SYSTEM = `You read the internal notes of a small fitness-business office and pick out who the staff are still waiting to hear back from.
+
+The office runs classes for client organisations (schools, community centres) staffed by freelance instructors. Notes are written quickly, in shorthand, by whoever handled the thing.
+
+For each note you are given, return exactly one result with one of three verdicts:
+
+- "waiting" — the note shows the office is waiting on a reply, decision, signature or callback from a specific person or organisation, AND there is no sign in that same note that it already arrived.
+- "heard_back" — the note shows someone the office had been waiting on has now responded or confirmed. If one of the currently-open waiting items is clearly that same person and that same thing, put its id in resolves_waiting_on_id.
+- "nothing" — anything else.
+
+Judging who:
+- Name the party the office is WAITING ON, not the person who wrote the note and not people merely mentioned. In "informed Eliana about the dates advised by Serina, waiting to hear", the answer is Eliana — she is the one who owes a reply.
+- Prefer the exact name as written. Do not correct spelling or expand it.
+- If a note describes waiting on more than one party, pick the single clearest one.
+
+Be conservative. These become items on a real to-do list a person has to read, so a wrong entry costs more than a missed one. If you are unsure whether a note means someone still owes a reply, answer "nothing".
+
+Notes that only record something the office did ("sent the invoice", "called and left VM") count as "waiting" ONLY if the note itself frames a reply as still outstanding. A bare log of an action is "nothing".`;
+
+// Kept out of the request when unset so the app still boots and every other feature works;
+// the scanner just reports that it is switched off.
+function getClient() {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  return new Anthropic();
+}
+
+const ref = n => `${n.source_table}:${n.id}`;
+
+/**
+ * Read every note we haven't read yet and file the results in waiting_on_suggestions.
+ * Safe to run repeatedly — a note is only ever sent once, because both the "yes" and the
+ * "no" answers are recorded.
+ *
+ * @returns {Promise<{scanned:number, waiting:number, heard_back:number, skipped?:string}>}
+ */
+async function scanForWaitingOn({ lookbackDays = LOOKBACK_DAYS, limit = MAX_NOTES_PER_RUN } = {}) {
+  const client = getClient();
+  if (!client) return { scanned: 0, waiting: 0, heard_back: 0, skipped: 'ANTHROPIC_API_KEY not set' };
+
+  const { rows: notes } = await pool.query(RECENT_NOTES_SQL, [String(lookbackDays), limit]);
+  if (!notes.length) return { scanned: 0, waiting: 0, heard_back: 0 };
+
+  // The currently-open list, so "heard_back" can point at the item it closes.
+  const { rows: openItems } = await pool.query(
+    `SELECT id, name, what FROM waiting_on_items WHERE status = 'open' ORDER BY id`
+  );
+
+  const noteBlock = notes.map(n => [
+    `<note ref="${ref(n)}">`,
+    n.client_name     ? `client: ${n.client_name}` : null,
+    n.instructor_name ? `instructor: ${n.instructor_name}` : null,
+    `text: ${n.text}`,
+    `</note>`,
+  ].filter(Boolean).join('\n')).join('\n\n');
+
+  const openBlock = openItems.length
+    ? openItems.map(o => `- id ${o.id}: waiting on ${o.name}${o.what ? ` — ${o.what}` : ''}`).join('\n')
+    : '(none)';
+
+  // Streamed so a long batch can't trip an HTTP timeout on the way back; we only want the
+  // finished message, not the individual events.
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 16000,
+    system: SYSTEM,
+    thinking: { type: 'adaptive' },
+    output_config: { format: { type: 'json_schema', schema: SUGGESTION_SCHEMA } },
+    messages: [{
+      role: 'user',
+      content:
+        `Currently open "waiting to hear back from" items:\n${openBlock}\n\n` +
+        `Notes to judge — return exactly one result per note, using its ref:\n\n${noteBlock}`,
+    }],
+  });
+  const response = await stream.finalMessage();
+
+  // A safety refusal here means no suggestions this run, not a crash — the cron should
+  // keep its schedule and try the next batch.
+  if (response.stop_reason === 'refusal') {
+    console.error('[waiting-on] model declined to answer:', response.stop_details?.explanation);
+    return { scanned: 0, waiting: 0, heard_back: 0, skipped: 'model declined' };
+  }
+
+  const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  let results;
+  try {
+    ({ results } = JSON.parse(text));
+  } catch {
+    console.error('[waiting-on] could not parse model output');
+    return { scanned: 0, waiting: 0, heard_back: 0, skipped: 'unparseable response' };
+  }
+
+  const byRef = new Map(notes.map(n => [ref(n), n]));
+  const roster = await loadRoster();
+  let waiting = 0, heardBack = 0;
+
+  for (const r of results || []) {
+    const note = byRef.get(r.note_ref);
+    if (!note) continue;                 // hallucinated ref — ignore rather than guess
+    byRef.delete(r.note_ref);            // so the leftovers below can be marked read
+
+    if (r.verdict === 'waiting') {
+      const match = matchRoster(roster, r.name);
+      await recordSuggestion({
+        note, type: 'add', status: 'pending',
+        kind: match?.kind || 'other',
+        name: r.name || match?.name || null,
+        client_id: match?.kind === 'client' ? match.id : null,
+        instructor_id: match?.kind === 'instructor' ? match.id : null,
+        what: r.what || null, evidence: r.evidence || null,
+      });
+      waiting++;
+    } else if (r.verdict === 'heard_back' && r.resolves_waiting_on_id) {
+      await recordSuggestion({
+        note, type: 'resolve', status: 'pending',
+        name: r.name || null, what: r.what || null, evidence: r.evidence || null,
+        waiting_on_id: r.resolves_waiting_on_id,
+      });
+      heardBack++;
+    } else {
+      await recordSuggestion({ note, type: 'add', status: 'none' });
+    }
+  }
+
+  // Anything the model didn't return a line for still counts as read — otherwise it comes
+  // back in every future batch and we pay for it again and again.
+  for (const note of byRef.values()) {
+    await recordSuggestion({ note, type: 'add', status: 'none' });
+  }
+
+  return { scanned: notes.length, waiting, heard_back: heardBack };
+}
+
+async function recordSuggestion({ note, type, status, kind, name, client_id, instructor_id, what, evidence, waiting_on_id }) {
+  await pool.query(
+    `INSERT INTO waiting_on_suggestions
+       (source_table, source_id, suggestion_type, status, kind, name, client_id, instructor_id,
+        what, evidence, link_path, waiting_on_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     ON CONFLICT (source_table, source_id, suggestion_type) DO NOTHING`,
+    [note.source_table, note.id, type, status, kind || null, name || null,
+     client_id || null, instructor_id || null, what || null, evidence || null,
+     note.link_path || null, waiting_on_id || null]
+  );
+}
+
+// Tie the name the model read out of the note to a real record where we can, so the
+// accepted entry links to the client/instructor page instead of being loose text. Exact
+// and "one name contains the other" only — anything fuzzier and we'd be guessing, which is
+// the failure mode this whole feature is trying to avoid.
+async function loadRoster() {
+  const { rows: clients }     = await pool.query('SELECT id, name FROM clients');
+  const { rows: instructors } = await pool.query('SELECT id, name FROM instructors');
+  return [
+    ...clients.map(c => ({ ...c, kind: 'client' })),
+    ...instructors.map(i => ({ ...i, kind: 'instructor' })),
+  ];
+}
+
+const norm = s => String(s || '').toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+
+function matchRoster(roster, name) {
+  const n = norm(name);
+  if (!n) return null;
+  const exact = roster.find(r => norm(r.name) === n);
+  if (exact) return exact;
+  // "Ruth" matching "Ruth Feldman", or the note writing the full name of a record stored
+  // by first name only. Require the shorter side to be a whole word, not a fragment.
+  const contains = roster.filter(r => {
+    const rn = norm(r.name);
+    if (!rn) return false;
+    const [short, long] = rn.length < n.length ? [rn, n] : [n, rn];
+    return short.length >= 3 && new RegExp(`\\b${short}\\b`).test(long);
+  });
+  return contains.length === 1 ? contains[0] : null;  // ambiguous means no link, not a guess
+}
+
+module.exports = { scanForWaitingOn };

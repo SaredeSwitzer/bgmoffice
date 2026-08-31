@@ -91,6 +91,87 @@ router.get('/', async (req, res) => {
   });
 });
 
+// ── Suggestions ────────────────────────────────────────────────────────────────────────
+// Read out of the notes staff write as they work (server/lib/detectWaitingOn.js). These
+// are proposals only — nothing reaches the real list until someone accepts one here.
+// Registered above the `/:id` routes so "suggestions" is never read as an item id.
+
+router.get('/suggestions', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
+            w.name AS waiting_on_name, w.what AS waiting_on_what
+       FROM waiting_on_suggestions s
+       LEFT JOIN clients          c ON c.id = s.client_id
+       LEFT JOIN instructors      i ON i.id = s.instructor_id
+       LEFT JOIN waiting_on_items w ON w.id = s.waiting_on_id
+      WHERE s.status = 'pending'
+        -- A "they got back to us" suggestion is pointless once the item is off the list
+        -- some other way; drop it rather than ask about something already handled.
+        AND (s.suggestion_type = 'add' OR w.status = 'open')
+      ORDER BY s.created_at DESC`
+  );
+  res.json(rows);
+});
+
+router.post('/suggestions/:id/accept', async (req, res) => {
+  const { rows: [s] } = await pool.query(
+    `SELECT * FROM waiting_on_suggestions WHERE id = $1 AND status = 'pending'`, [req.params.id]
+  );
+  if (!s) return res.status(404).json({ error: 'Suggestion not found or already reviewed' });
+
+  let item = null;
+  if (s.suggestion_type === 'resolve') {
+    await pool.query(
+      `UPDATE waiting_on_items SET status = 'resolved', resolved_by = $1, resolved_at = now()
+        WHERE id = $2 AND status = 'open'`,
+      [req.user.initials, s.waiting_on_id]
+    );
+    await pool.query(
+      `UPDATE reminders SET status = 'done' WHERE waiting_on_id = $1 AND status = 'pending'`,
+      [s.waiting_on_id]
+    );
+    ({ rows: [item] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [s.waiting_on_id]));
+  } else {
+    // `kind` steers which sub-tab the item shows under, so the card lets staff say which
+    // when the name couldn't be tied to a record. Falls back to client, the commoner case.
+    const kind = ['client', 'instructor'].includes(req.body.kind) ? req.body.kind
+      : ['client', 'instructor'].includes(s.kind) ? s.kind : 'client';
+    const { rows: [created] } = await pool.query(
+      `INSERT INTO waiting_on_items (kind, name, client_id, instructor_id, what, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [kind, s.name || 'Unknown', s.client_id, s.instructor_id,
+       s.what || 'Waiting to hear back', req.user.initials]
+    );
+    // Keep the sentence it was read out of as the first entry in the item's own thread —
+    // otherwise "why is this on my list?" has no answer once the card is gone. Written
+    // before the row is read back, so the returned note_count includes it.
+    if (s.evidence) {
+      await pool.query(
+        `INSERT INTO waiting_on_notes (waiting_on_id, text, author_initials) VALUES ($1,$2,'auto')`,
+        [created.id, `Picked up from a note: "${s.evidence.trim()}"`]
+      );
+    }
+    ({ rows: [item] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [created.id]));
+    await pool.query('UPDATE waiting_on_suggestions SET waiting_on_id = $1 WHERE id = $2', [created.id, s.id]);
+  }
+
+  await pool.query(
+    `UPDATE waiting_on_suggestions SET status = 'accepted', reviewed_by = $1, reviewed_at = now() WHERE id = $2`,
+    [req.user.initials, s.id]
+  );
+  res.json({ item, suggestion_type: s.suggestion_type });
+});
+
+router.post('/suggestions/:id/dismiss', async (req, res) => {
+  const result = await pool.query(
+    `UPDATE waiting_on_suggestions SET status = 'dismissed', reviewed_by = $1, reviewed_at = now()
+      WHERE id = $2 AND status = 'pending'`,
+    [req.user.initials, req.params.id]
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'Suggestion not found or already reviewed' });
+  res.json({ success: true });
+});
+
 router.post('/', async (req, res) => {
   const { kind, name, client_id, instructor_id, what, need_by } = req.body;
   if (!kind || !['client', 'instructor'].includes(kind)) return res.status(400).json({ error: 'kind must be client or instructor' });
