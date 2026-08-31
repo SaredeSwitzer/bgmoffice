@@ -267,6 +267,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
   const [data, setData] = useState({ open: [], resolved: [] })
   const [loading, setLoading] = useState(true)
   const [showResolved, setShowResolved] = useState(false)
+  const [showSignatures, setShowSignatures] = useState(false)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: linkedName || '', what: '', need_by: '' })
   const [saving, setSaving] = useState(false)
@@ -280,6 +281,9 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
       // A mention notification links here with "?waiting=<id>" — if that item only
       // shows up under resolved ones, reveal that section so it's actually on screen.
       if (targetItemId && d.resolved.some(i => String(i.id) === targetItemId)) setShowResolved(true)
+      // Same courtesy for a link that points at an unsigned contract — otherwise it
+      // scrolls to a collapsed group and looks like the item has vanished.
+      if (targetItemId && d.open.some(i => i.synthetic && String(i.id) === targetItemId)) setShowSignatures(true)
     }).finally(() => setLoading(false))
   }
 
@@ -366,6 +370,11 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
     }))
   }
 
+  // Two kinds of open item: someone we're chasing (needs a person to do something) and
+  // a document sitting unsigned (clears itself). They're listed separately.
+  const signatureItems  = data.open.filter(i => i.synthetic)
+  const waitingOnPeople = data.open.filter(i => !i.synthetic)
+
   const total = data.open.length + data.resolved.length
   if (loading) return <p className="text-gray-400 text-sm text-center py-4">Loading…</p>
   if (linkedId && total === 0 && !adding) return null
@@ -375,9 +384,9 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-purple-400">
           {title}
-          {data.open.length > 0 && (
+          {waitingOnPeople.length > 0 && (
             <span className="ml-2 text-xs font-semibold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
-              {data.open.length}
+              {waitingOnPeople.length}
             </span>
           )}
         </h2>
@@ -433,11 +442,46 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
         !adding && <p className="text-sm text-gray-400 italic">Nothing open.</p>
       ) : (
         <div className="space-y-2">
-          {data.open.map(item => (
+          {waitingOnPeople.map(item => (
             <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
               onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} onSave={handleSaveItem} onToggleUrgent={handleToggleUrgent} showLink={showLink}
               autoOpen={String(item.id) === targetItemId} />
           ))}
+          {waitingOnPeople.length === 0 && !adding && (
+            <p className="text-sm text-gray-400 italic">Nothing open.</p>
+          )}
+        </div>
+      )}
+
+      {/* Unsigned contracts and waivers are a different kind of waiting — they chase
+          themselves (a signature closes them, nobody has to write a note), and there can
+          be a lot of them. Kept in their own collapsed group so they stop burying the
+          items someone actually has to act on. */}
+      {signatureItems.length > 0 && (
+        <div className="mt-3">
+          <button
+            onClick={() => setShowSignatures(v => !v)}
+            aria-expanded={showSignatures}
+            className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-gray-700 transition-colors"
+          >
+            <span className={`transition-transform ${showSignatures ? 'rotate-90' : ''}`}>▶</span>
+            Contracts &amp; waivers
+            <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">
+              {signatureItems.length}
+            </span>
+          </button>
+          {showSignatures && (
+            <div className="space-y-2 mt-2">
+              {signatureItems.map(item => (
+                <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
+                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} onSave={handleSaveItem} onToggleUrgent={handleToggleUrgent} showLink={showLink}
+                  autoOpen={String(item.id) === targetItemId} />
+              ))}
+              <p className="text-[11px] text-gray-400">
+                These clear themselves once the document is signed.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
