@@ -1,2 +1,55 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   Brand theme — the Bring the Gym to Me logo, applied app-wide.
+   ============================================================================
+   The logo is two colours: blue #4699C3 and red #ED1B24.
+
+   Rather than touch hundreds of files, this retints Tailwind's own `blue`
+   scale so every existing `bg-blue-600` / `text-blue-700` / `bg-blue-50`
+   already in the app becomes the logo blue. Red is left alone on purpose —
+   it stays reserved for overdue / urgent, which is what makes it readable as
+   a warning instead of decoration.
+
+   If any of this ever needs undoing, delete the @theme block and the app
+   returns to stock Tailwind colours with nothing else changed.
+   -------------------------------------------------------------------------- */
+@theme {
+  /* Body text. Archivo is a plain, wide-ish UI face that sits under the slab
+     headings without competing with them. */
+  --font-sans: Archivo, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+               Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Headings. Zilla Slab has the same blocky shapes and flat "feet" as the
+     lettering in the logo. */
+  --font-display: "Zilla Slab", Georgia, "Times New Roman", serif;
+
+  /* The logo blue, rebuilt as a full scale. 500 is the logo colour exactly;
+     600 and up are darkened so white text on them stays legible (600 clears
+     WCAG AA at 5:1 — the stock Tailwind blue it replaces was similar). */
+  --color-blue-50:  #EFF7FB;
+  --color-blue-100: #DBEDF6;
+  --color-blue-200: #BBDCEC;
+  --color-blue-300: #8FC3DC;
+  --color-blue-400: #62A8CC;
+  --color-blue-500: #4699C3;
+  --color-blue-600: #2A7699;
+  --color-blue-700: #215E7C;
+  --color-blue-800: #1D4E66;
+  --color-blue-900: #1B4155;
+  --color-blue-950: #112A38;
+
+  /* The top bar. The logo blue one notch deeper, so white nav text clears
+     WCAG AA (4.6:1) — at the exact logo blue it lands at 3.2:1, which is hard
+     work to read for a full day. */
+  --color-brand: #4699C3;
+  --color-brand-bar: #2F7DA2;
+  --color-brand-bar-edge: #276A8B;
+}
+
+/* Page titles only. Section headers are small uppercase labels and stay in the
+   body face — a slab at that size and letter-spacing turns to mush. */
+h1 {
+  font-family: var(--font-display);
+  letter-spacing: -0.005em;
+}

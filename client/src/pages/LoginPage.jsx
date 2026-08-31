@@ -99,15 +99,19 @@ export default function LoginPage() {
   }
 
   const inputClass =
-    'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400'
+    'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
   const buttonClass =
-    'w-full bg-gray-900 hover:bg-gray-700 text-white text-sm font-medium py-2 rounded-lg transition-colors disabled:opacity-50'
+    'w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded-lg transition-colors disabled:opacity-50'
   const linkClass = 'text-xs text-gray-500 hover:text-gray-800 underline'
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
+          {/* The real logo, not a text stand-in — this is the one screen where
+              there's room for it, and it's the first thing anyone sees. */}
+          <img src="/logo.jpg" alt="Bring the Gym to Me"
+               className="w-44 h-auto mx-auto mb-4 mix-blend-multiply" />
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">BGM Office</h1>
           <p className="text-sm text-gray-500 mt-1">Sign in to your account</p>
         </div>

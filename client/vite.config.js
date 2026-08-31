@@ -18,7 +18,7 @@ export default defineConfig({
         name: 'BGM Office',
         short_name: 'BGMOffice',
         description: 'BGM internal operations management',
-        theme_color: '#1e40af',
+        theme_color: '#2F7DA2',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
