@@ -215,10 +215,64 @@ router.put('/schedules/:id', async (req, res) => {
      participant_count === '' ? null : participant_count ?? null, participant_ages || null,
      req.params.id]
   );
+  // Editing the recurring class has to reach the classes already sitting on the
+  // calendar, or the change silently applies to nothing you can see: generateUpcoming-
+  // Sessions only ever INSERTs missing dates (ON CONFLICT DO NOTHING), so every
+  // already-generated future session kept the old time. Reported by Maria on
+  // 2026-08-31 — she changed the time on a recurring class and the future classes
+  // stayed put.
+  //
+  // Only fields that actually changed in this edit are pushed down, so a deliberate
+  // one-off on a single date (a substitute instructor, a different rate for one week)
+  // survives an unrelated edit to the series. Past classes are never touched — billing
+  // and payroll history stay as they actually happened — and neither are cancelled ones.
+  const PROPAGATED = [
+    'instructor_id', 'start_time', 'duration_minutes', 'charge_amount', 'charge_note',
+    'instructor_pay', 'payment_method', 'style', 'participant_count', 'participant_ages',
+  ];
+  const after = await getScheduleRow(req.params.id);
+  const changed = PROPAGATED.filter(f => String(existing[f] ?? '') !== String(after[f] ?? ''));
+
+  let sessionsUpdated = 0;
+  if (changed.length) {
+    const sets = changed.map((f, i) => `${f}=$${i + 1}`);
+    const args = changed.map(f => after[f] ?? null);
+    // A new instructor invalidates any confirmation already sent to the old one.
+    if (changed.includes('instructor_id')) {
+      sets.push('confirmation_sent_at=NULL', 'confirmation_sent_to=NULL');
+    }
+    sets.push('updated_at=now()');
+    args.push(req.params.id);
+    const { rowCount } = await pool.query(
+      `UPDATE class_sessions SET ${sets.join(', ')}
+        WHERE schedule_id=$${args.length}
+          AND session_date >= CURRENT_DATE
+          AND status <> 'cancelled'`,
+      args
+    );
+    sessionsUpdated = rowCount;
+  }
+
+  // A moved weekday is the one change that can't be patched in place — the existing
+  // future classes are on the wrong day entirely. Clear them and let the generator lay
+  // the series down again on the new day.
+  const weekdayMoved = String(existing.weekday ?? '') !== String(after.weekday ?? '');
+  if (weekdayMoved) {
+    await pool.query(
+      `DELETE FROM class_sessions
+        WHERE schedule_id=$1 AND session_date >= CURRENT_DATE AND status <> 'cancelled'`,
+      [req.params.id]
+    );
+  }
+
   // Same reasoning as POST /schedules — pick up a new weekday/reactivation/date change
   // immediately instead of waiting for the nightly cron.
   await generateUpcomingSessions(defaultHorizon(), { scheduleId: Number(req.params.id) });
-  res.json(await getScheduleRow(req.params.id));
+  res.json({
+    ...(await getScheduleRow(req.params.id)),
+    sessions_updated: sessionsUpdated,
+    sessions_regenerated: weekdayMoved,
+  });
 });
 
 router.delete('/schedules/:id', async (req, res) => {

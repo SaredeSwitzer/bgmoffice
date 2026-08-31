@@ -114,7 +114,7 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
-function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], instructors = [], mentionableUsers = [] }) {
+function TaskCard({ task, onUpdate, onDelete, onDone, isNew, actionTypes, clients = [], instructors = [], mentionableUsers = [] }) {
   const { user } = useAuth()
   const [editing,         setEditing]         = useState(false)
   const [saving,          setSaving]          = useState(false)
@@ -136,6 +136,9 @@ function TaskCard({ task, onUpdate, onDelete, isNew, actionTypes, clients = [], 
     try {
       const updated = await api.updateTask(task.id, { ...task, status: isDone ? 'open' : 'done' })
       onUpdate(updated)
+      // Finishing a task shouldn't leave you staring at the thing you just finished.
+      // The page decides where to go next; reopening one never moves you.
+      if (!isDone) onDone?.(task)
     } finally { setSaving(false) }
   }
 
@@ -403,7 +406,9 @@ export default function TasksPage() {
   const [instructors, setInstructors] = useState([])
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showDone, setShowDone] = useState(false)
+  // /tasks?done=1 lands with the Completed list already open — that's the link on
+  // My Tasks for "what did I finish?", and it shouldn't need a second click.
+  const [showDone, setShowDone] = useState(searchParams.get('done') === '1')
   const [filterAssignee, setFilterAssignee] = useState('')
   const [theirMentions, setTheirMentions] = useState([])
 
@@ -477,6 +482,30 @@ export default function TasksPage() {
     const typeKey = focusedTask?.task_type || 'task'
     const meta = TYPE_META[typeKey] || TYPE_META.task
 
+    // The queue you're working through, in the order the list shows it: yours first,
+    // then the up-for-grabs pile. Marking one done walks to the next one in here rather
+    // than dumping you back on the list to find your place again.
+    const mine = t => {
+      const who = (t.assigned_to || '').trim().toLowerCase()
+      return !who || who === 'anyone' || who === myFirstName.toLowerCase()
+    }
+    const queue = open
+      .filter(mine)
+      .sort((a, b) => (b.starred - a.starred)
+                   || (a.due_date || '9999').localeCompare(b.due_date || '9999')
+                   || String(a.id).localeCompare(String(b.id)))
+
+    // Where to go after finishing this one. Falls forward to the next task in the
+    // queue, wrapping to the start if this was the last, and back to My Tasks when
+    // the queue is empty — never a dead end.
+    function goToNext(justDone) {
+      const rest = queue.filter(t => String(t.id) !== String(justDone.id))
+      if (!rest.length) { navigate('/my-tasks'); return }
+      const at = queue.findIndex(t => String(t.id) === String(justDone.id))
+      const next = rest.find((_, i) => i >= at) || rest[0]
+      navigate(`/tasks?id=${next.id}`)
+    }
+
     return (
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="space-y-3">
@@ -504,6 +533,7 @@ export default function TasksPage() {
             task={focusedTask}
             onUpdate={t => handleSectionUpdate(t, 'update')}
             onDelete={handleDelete}
+            onDone={goToNext}
             actionTypes={actionTypes}
             clients={clients}
             instructors={instructors}

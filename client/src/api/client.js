@@ -233,6 +233,15 @@ export const api = {
   // Reminders
   getReminders: () => request('/reminders'),
   getRemindersByClient: (clientId) => request(`/reminders?client_id=${clientId}`),
+  // Options an instructor typed in that staff still need to eyeball — see
+  // server/routes/approvals.js.
+  getPendingApprovals: () => request('/approvals'),
+  getDecidedApprovals: () => request('/approvals/decided'),
+  approveOption: (id, body) =>
+    request(`/approvals/${id}/approve`, { method: 'PATCH', body: JSON.stringify(body || {}) }),
+  rejectOption: (id) =>
+    request(`/approvals/${id}/reject`, { method: 'PATCH' }),
+
   getRemindersByInstructor: (instructorId) => request(`/reminders?instructor_id=${instructorId}`),
   createReminder: (data) =>
     request('/reminders', { method: 'POST', body: JSON.stringify(data) }),

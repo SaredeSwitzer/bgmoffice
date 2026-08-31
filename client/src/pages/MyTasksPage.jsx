@@ -7,6 +7,7 @@ import { useSeenTasks } from '../hooks/useSeenTasks'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import WaitingOnOverview from '../components/WaitingOnOverview'
 import CollapsibleSection from '../components/CollapsibleSection'
+import NeedsApproval from '../components/NeedsApproval'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -329,14 +330,27 @@ export default function MyTasksPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
         <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           {delegateName
             ? `Open action items assigned to ${delegateName}, plus anything you're @mentioned in and every reminder that's due`
             : `No delegate match found for ${user?.name?.split(' ')[0]} — showing anything you're @mentioned in and every reminder that's due`}
         </p>
+        </div>
+        {/* Finished work files itself away; this is the way back to it. Deliberately
+            small and off to the side — it's a lookup, not part of the queue. */}
+        <button
+          type="button"
+          onClick={() => navigate('/tasks?done=1')}
+          className="shrink-0 text-xs text-gray-400 hover:text-gray-700 hover:underline whitespace-nowrap mt-1"
+        >
+          Completed tasks →
+        </button>
       </div>
+
+      <NeedsApproval />
 
       <CollapsibleSection id="mytasks_mine" title="Assigned to me" count={myTasks.length} defaultOpen={false}>
         {myTasks.length === 0 ? (

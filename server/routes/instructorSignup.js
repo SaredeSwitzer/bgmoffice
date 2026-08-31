@@ -22,19 +22,18 @@ function deriveInitials(name) {
 // public token routes. Placed before router.use(requireAuth) below, which is what
 // actually makes it public (Express middleware only applies to routes registered after it).
 
-// Drops a task on Sarede's My Tasks (assigned_to matches her `delegates` row, same
-// lookup dashboard.js's /my-tasks uses) whenever an instructor adds a brand new
-// neighborhood or class style to the shared list — from the public /join page or from
-// their own profile once they're in. She wasn't the one who typed it, so this is how she
-// finds out a new option now exists site-wide.
-async function notifySaredeNewOption(kind, name) {
-  // created_at is TEXT here (a SQLite-era leftover) and its default writes UTC, which the
-  // dashboard's age math then reads as local — enough to render a fresh task as "-1d".
-  // Write the local-time string the rest of the app's rows use instead.
+// Files a new instructor-typed option (a neighborhood or a class style, from the public
+// /join page or from their own profile) into the Needs Approval queue on My Tasks.
+//
+// This used to drop a plain task on Sarede's list, which told her a new option existed
+// but gave her nothing to do about it — no way to fix "prospect heights" to "Prospect
+// Heights" short of hunting down the Reference screen. An approval row carries the
+// decision with it: approve as-is, approve under a corrected name, or reject.
+async function queueOptionForApproval(kind, name, { targetId = null, region = null, instructorName = null, source = 'signup' } = {}) {
   await pool.query(
-    `INSERT INTO standalone_tasks (title, notes, assigned_to, task_type, created_by, created_at)
-     VALUES ($1,$2,'Sarede','other','signup', to_char(now() AT TIME ZONE 'America/New_York', 'YYYY-MM-DD HH24:MI:SS'))`,
-    [`New ${kind} added by an instructor: "${name}"`, 'Typed in by an instructor (sign-up form or their own profile) — just flagging it so you know it\'s now an option everywhere.']
+    `INSERT INTO option_approvals (kind, target_id, submitted_name, region, source, instructor_name)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [kind, targetId, name, region, source, instructorName]
   );
 }
 
@@ -67,7 +66,7 @@ router.post('/neighborhoods', async (req, res) => {
   const { rows: [row] } = await pool.query(
     'INSERT INTO neighborhoods (name, region) VALUES ($1,$2) RETURNING *', [trimmed, safeRegion]
   );
-  await notifySaredeNewOption('neighborhood', `${trimmed} (${safeRegion})`);
+  await queueOptionForApproval('neighborhood', trimmed, { targetId: row.id, region: safeRegion, instructorName: req.body.instructor_name || null });
   res.status(201).json(row);
 });
 
@@ -87,7 +86,7 @@ router.post('/class-styles', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT * FROM class_styles WHERE LOWER(name) = LOWER($1)', [trimmed]);
   if (existing) return res.json(existing);
   const { rows: [row] } = await pool.query('INSERT INTO class_styles (name) VALUES ($1) RETURNING *', [trimmed]);
-  await notifySaredeNewOption('class style', trimmed);
+  await queueOptionForApproval('class_style', trimmed, { targetId: row.id, instructorName: req.body.instructor_name || null });
   res.status(201).json(row);
 });
 
