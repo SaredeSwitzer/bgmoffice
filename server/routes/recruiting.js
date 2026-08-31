@@ -6,6 +6,26 @@ const { sendMail } = require('../lib/mailer');
 const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync');
 
 const router = express.Router();
+
+// Mirrors usualPaymentMethod() in routes/schedule.js — duplicated rather than exported
+// across routers for one small lookup, same as propagateStyleRename below.
+async function usualPaymentMethodFor(client_id) {
+  if (!client_id) return null;
+  const { rows: [sch] } = await pool.query(
+    `SELECT payment_method FROM class_schedules
+      WHERE client_id = $1 AND status = 'active' AND COALESCE(payment_method,'') <> ''
+      ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+    [client_id]
+  );
+  if (sch?.payment_method) return sch.payment_method;
+  const { rows: [ses] } = await pool.query(
+    `SELECT payment_method FROM class_sessions
+      WHERE client_id = $1 AND COALESCE(payment_method,'') <> ''
+      ORDER BY session_date DESC LIMIT 1`,
+    [client_id]
+  );
+  return ses?.payment_method || null;
+}
 router.use(requireAuth);
 
 const DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -424,13 +444,16 @@ router.post('/:id/schedule', async (req, res) => {
   } else {
     if (!Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'Pick at least one date.' });
     for (const d of dates) {
+      // A blank payment method means the class never comes off a package and never
+      // reaches an invoice, so fall back to how this client's other classes bill.
+      const method = payment_method || await usualPaymentMethodFor(clientId);
       const { rows: [row] } = await pool.query(
         `INSERT INTO class_sessions
            (client_id, instructor_id, session_date, start_time, duration_minutes, charge_amount,
             instructor_pay, payment_method, style, status, participant_count, participant_ages)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'scheduled',$10,$11) RETURNING id`,
         [clientId, instructorId, d, start_time, mins, charge_amount ?? null, instructor_pay ?? null,
-         payment_method || null, style || entry.style || null,
+         method || null, style || entry.style || null,
          participant_count ?? null, participant_ages || entry.participants || null]
       );
       created.session_ids.push(row.id);

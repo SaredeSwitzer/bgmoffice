@@ -18,6 +18,7 @@ import ChargeInput from '../components/ChargeInput'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import { fmtTime, fmtTimeRange } from '../utils/time'
 import ReportsPage from './ReportsPage'
+import ScheduleDrift from '../components/ScheduleDrift'
 
 // The horizontal line + time label shown between classes while dragging, so it's clear
 // exactly where a class will land (and what time it'll get) before you let go.
@@ -449,6 +450,10 @@ export default function SchedulePage() {
           </div>
         </div>
       </div>
+
+      {/* Sits above the tabs' content on purpose: a class whose calendar has drifted
+          bills wrong every week until someone notices, and nobody goes looking. */}
+      <ScheduleDrift />
 
       {tab === 'reports' ? (
         <ReportsPage embedded />

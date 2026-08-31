@@ -249,6 +249,12 @@ export const api = {
   rejectOption: (id) =>
     request(`/approvals/${id}/reject`, { method: 'PATCH' }),
 
+  // Where the calendar and the recurring classes disagree — see
+  // server/lib/scheduleDrift.js.
+  getScheduleDrift: () => request('/schedule/drift'),
+  reconcileSchedule: (scheduleId, body) =>
+    request(`/schedule/drift/${scheduleId}/reconcile`, { method: 'POST', body: JSON.stringify(body) }),
+
   getRemindersByInstructor: (instructorId) => request(`/reminders?instructor_id=${instructorId}`),
   createReminder: (data) =>
     request('/reminders', { method: 'POST', body: JSON.stringify(data) }),

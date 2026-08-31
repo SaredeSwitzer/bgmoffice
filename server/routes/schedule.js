@@ -9,6 +9,8 @@ const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync')
 // server's timezone. DATE (oid 1082) is used only by this module's tables.
 require('pg').types.setTypeParser(1082, (v) => v);
 
+const { findDrift, reconcile } = require('../lib/scheduleDrift');
+
 const router = express.Router();
 router.use(requireAuth);
 
@@ -101,6 +103,27 @@ async function fillClientDefaults(client_id, { style, participant_count, partici
       ? c.default_participants : participant_count,
     participant_ages: participant_ages || c.default_age || null,
   };
+}
+
+// How this client's classes are normally billed, for one-off dates that aren't attached
+// to a recurring class. Their active recurring class wins; otherwise whatever their most
+// recent class used. Only ever consulted when the caller left the field blank.
+async function usualPaymentMethod(client_id) {
+  if (!client_id) return null;
+  const { rows: [sch] } = await pool.query(
+    `SELECT payment_method FROM class_schedules
+      WHERE client_id = $1 AND status = 'active' AND COALESCE(payment_method,'') <> ''
+      ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+    [client_id]
+  );
+  if (sch?.payment_method) return sch.payment_method;
+  const { rows: [ses] } = await pool.query(
+    `SELECT payment_method FROM class_sessions
+      WHERE client_id = $1 AND COALESCE(payment_method,'') <> ''
+      ORDER BY session_date DESC LIMIT 1`,
+    [client_id]
+  );
+  return ses?.payment_method || null;
 }
 
 // A class added to an existing recurring series should bill the way that series bills.
@@ -306,6 +329,22 @@ router.delete('/schedules/:id', async (req, res) => {
 
 // Permanently removes every not-yet-happened session for this schedule (keeps the
 // recurring schedule itself, and keeps past sessions so billing/payroll history stays intact).
+// ── Calendar vs recurring classes ─────────────────────────────────────────────
+// Where the two disagree, and a way to make the calendar match. See
+// server/lib/scheduleDrift.js for why this exists rather than an automatic sync.
+router.get('/drift', async (req, res) => {
+  res.json(await findDrift());
+});
+
+router.post('/drift/:scheduleId/reconcile', async (req, res) => {
+  const { fields = [], fix_weekday = false, dry_run = true } = req.body || {};
+  const out = await reconcile(req.params.scheduleId, {
+    fields, fixWeekday: !!fix_weekday, dryRun: dry_run !== false,
+  });
+  if (out.error) return res.status(404).json(out);
+  res.json(out);
+});
+
 router.delete('/schedules/:id/future-sessions', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT id FROM class_schedules WHERE id=$1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Schedule not found' });
@@ -398,6 +437,10 @@ router.post('/sessions/bulk', async (req, res) => {
   if (dates.some(d => !isDate(d))) return res.status(400).json({ error: 'Every date must be YYYY-MM-DD' });
 
   const filled = await fillClientDefaults(client_id, { style, participant_count, participant_ages });
+  // These aren't tied to a recurring class, so there's no schedule to inherit from.
+  // Fall back to how this client's other classes are billed — a blank payment method
+  // means the class never comes off a package and never lands on an invoice.
+  const method = payment_method || await usualPaymentMethod(client_id);
 
   const created = [];
   for (const session_date of dates) {
@@ -408,7 +451,7 @@ router.post('/sessions/bulk', async (req, res) => {
           participant_count, participant_ages)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'scheduled',$11,$12,$13) RETURNING *`,
       [client_id, instructor_id || null, session_date, start_time || null, duration_minutes || 60,
-       charge_amount ?? null, charge_note || null, instructor_pay ?? null, payment_method || null, filled.style || null, notes || null,
+       charge_amount ?? null, charge_note || null, instructor_pay ?? null, method || null, filled.style || null, notes || null,
        filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
     );
     created.push(row);
