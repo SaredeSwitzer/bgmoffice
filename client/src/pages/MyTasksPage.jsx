@@ -313,11 +313,14 @@ export default function MyTasksPage() {
     }
   }
 
-  // Two piles: what's yours, and what's up for grabs. Splitting them is the whole point —
-  // an unassigned item that sat in a mixed list was nobody's job and quietly aged.
+  // Each pile gets its own section. Splitting them is the whole point — an unassigned item
+  // that sat in a mixed list was nobody's job and quietly aged, and an @mention is somebody
+  // pulling you into a conversation, not a job that was delegated to you.
   const reminderTasks = tasks.filter(t => t.source === 'reminder')
-  const myTasks       = tasks.filter(t => !t.is_anyone && t.source !== 'reminder')
-  const anyoneTasks   = tasks.filter(t => t.is_anyone && t.source !== 'reminder')
+  const mentionTasks  = tasks.filter(t => t.source === 'mention')
+  const other         = t => t.source !== 'reminder' && t.source !== 'mention'
+  const myTasks       = tasks.filter(t => !t.is_anyone && other(t))
+  const anyoneTasks   = tasks.filter(t => t.is_anyone && other(t))
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -343,6 +346,52 @@ export default function MyTasksPage() {
             onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
             isNew={isNew}
           />
+        )}
+      </CollapsibleSection>
+
+      {/* Its own pile rather than mixed into "Assigned to me": a mention is someone pulling
+          you into a conversation, which reads and clears differently from a delegated task.
+          The read-@mentions list lives here too, since that's the only thing it undoes. */}
+      <CollapsibleSection
+        id="mytasks_mentions" accent="purple" title="💬 @Mentions"
+        count={mentionTasks.length} defaultOpen={false}
+      >
+        {mentionTasks.length === 0 ? (
+          <p className="text-sm text-gray-400 italic px-2">Nobody's tagged you in anything.</p>
+        ) : (
+          <TaskTable
+            items={mentionTasks} onClick={handleClick}
+            onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+            isNew={isNew}
+          />
+        )}
+
+        {readMentions.length > 0 && (
+          <div className="mt-3">
+            <button onClick={() => setShowRead(v => !v)}
+              className="text-xs text-gray-500 hover:text-gray-800 hover:underline">
+              {showRead ? 'Hide' : 'Show'} read @mentions ({readMentions.length})
+            </button>
+            {showRead && (
+              <div className="mt-2 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+                {readMentions.map(m => (
+                  <div key={m.mention_id} className="flex items-start gap-3 px-4 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs text-gray-600">
+                        <span className="font-semibold text-gray-500">{m.author_initials}:</span> {m.snippet}
+                      </p>
+                    </div>
+                    {m.link_path && (
+                      <button onClick={() => navigate(m.link_path)}
+                        className="shrink-0 text-[11px] text-blue-600 hover:underline">Open</button>
+                    )}
+                    <button onClick={() => handleUnreadMention(m)}
+                      className="shrink-0 text-[11px] text-gray-400 hover:text-gray-700">Mark unread</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </CollapsibleSection>
 
@@ -386,33 +435,6 @@ export default function MyTasksPage() {
         )}
       </CollapsibleSection>
 
-      {readMentions.length > 0 && (
-        <div>
-          <button onClick={() => setShowRead(v => !v)}
-            className="text-xs text-gray-500 hover:text-gray-800 hover:underline">
-            {showRead ? 'Hide' : 'Show'} read @mentions ({readMentions.length})
-          </button>
-          {showRead && (
-            <div className="mt-2 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
-              {readMentions.map(m => (
-                <div key={m.mention_id} className="flex items-start gap-3 px-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs text-gray-600">
-                      <span className="font-semibold text-gray-500">{m.author_initials}:</span> {m.snippet}
-                    </p>
-                  </div>
-                  {m.link_path && (
-                    <button onClick={() => navigate(m.link_path)}
-                      className="shrink-0 text-[11px] text-blue-600 hover:underline">Open</button>
-                  )}
-                  <button onClick={() => handleUnreadMention(m)}
-                    className="shrink-0 text-[11px] text-gray-400 hover:text-gray-700">Mark unread</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
