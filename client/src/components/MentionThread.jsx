@@ -67,13 +67,18 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
   const openPath = mention.link_path
 
   return (
-    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 px-4 py-3">
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">
-          {mention.author_initials || data?.note?.author} tagged you
-        </p>
-        <button onClick={onClose} title="Collapse"
-          className="text-xs text-gray-400 hover:text-gray-700 leading-none">✕</button>
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-xl px-5 py-4">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-0.5">
+            {mention.author_initials || data?.note?.author} tagged you
+          </p>
+          <h2 id="mention-thread-title" className="text-base font-bold text-gray-900 leading-snug">
+            {mention.client_name || mention.instructor_name || 'In a note'}
+          </h2>
+        </div>
+        <button onClick={onClose} title="Close"
+          className="text-lg text-gray-300 hover:text-gray-700 leading-none shrink-0 -mt-1">✕</button>
       </div>
 
       {loading ? (
@@ -88,7 +93,7 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
               return (
                 <div key={n.id}
                   className={`rounded-lg px-3 py-2 text-xs ${
-                    isTheOne ? 'bg-white border border-indigo-300' : 'bg-white/70 border border-gray-100'
+                    isTheOne ? 'bg-indigo-50 border border-indigo-300' : 'bg-gray-50 border border-gray-100'
                   }`}>
                   <div className="flex items-baseline gap-2 mb-0.5">
                     <span className="font-semibold text-gray-600">{n.author || '—'}</span>

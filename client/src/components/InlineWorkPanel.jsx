@@ -134,14 +134,25 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
     : ''
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50/40 px-4 py-3">
-      <div className="flex items-start justify-between gap-3 mb-2">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-xl px-5 py-4">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">{source.label}</p>
-          <p className="text-sm font-semibold text-gray-900 truncate">{item.title || item.what}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600 mb-0.5">{source.label}</p>
+          {/* Wraps rather than truncates — the whole point of opening it is to read it. */}
+          <h2 id="inline-work-title" className="text-base font-bold text-gray-900 leading-snug">
+            {item.title || item.what}
+          </h2>
+          <p className="text-[11px] text-gray-400 mt-1">
+            {[
+              item.client_name,
+              item.instructor_name,
+              item.remind_on ? `Due ${item.remind_on}` : null,
+              item.delegate_name || item.assigned_to || null,
+            ].filter(Boolean).join(' · ')}
+          </p>
         </div>
-        <button onClick={onClose} title="Collapse"
-          className="text-xs text-gray-400 hover:text-gray-700 leading-none shrink-0">✕</button>
+        <button onClick={onClose} title="Close"
+          className="text-lg text-gray-300 hover:text-gray-700 leading-none shrink-0 -mt-1">✕</button>
       </div>
 
       {loading ? (
@@ -149,7 +160,7 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
       ) : (
         <>
           {body && (
-            <p className="text-xs text-gray-700 whitespace-pre-wrap mb-2">
+            <p className="text-sm text-gray-700 whitespace-pre-wrap mb-3">
               {renderWithMentions(body, mentionableUsers)}
             </p>
           )}
@@ -157,7 +168,7 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
           {thread.length > 0 && (
             <div className="space-y-1.5 mb-3 max-h-64 overflow-y-auto pr-1">
               {thread.map(n => (
-                <div key={n.id} className="rounded-lg bg-white border border-gray-100 px-3 py-2 text-xs">
+                <div key={n.id} className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs">
                   <div className="flex items-baseline gap-2 mb-0.5">
                     <span className="font-semibold text-gray-600">{n.author || '—'}</span>
                     <span className="text-[10px] text-gray-400">{fmtWhen(n.created_at)}</span>
@@ -191,7 +202,7 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
               </button>
               <button type="button" onClick={onClose}
                 className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs rounded-lg hover:bg-white">
-                Leave it open
+                Close
               </button>
               {openPath && (
                 <button type="button" onClick={() => navigate(openPath)}

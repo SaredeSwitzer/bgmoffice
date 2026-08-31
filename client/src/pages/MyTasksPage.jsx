@@ -10,6 +10,7 @@ import CollapsibleSection from '../components/CollapsibleSection'
 import NeedsApproval from '../components/NeedsApproval'
 import MentionThread from '../components/MentionThread'
 import InlineWorkPanel from '../components/InlineWorkPanel'
+import Modal from '../components/Modal'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -337,6 +338,7 @@ export default function MyTasksPage() {
   const otherReminders = reminderTasks.filter(t => !t.is_mine)
   const mentionTasks  = tasks.filter(t => t.source === 'mention')
   const openMention   = mentionTasks.find(t => t.id === openMentionId) || null
+  const openItem      = tasks.find(t => rowKey(t) === openItemKey) || null
   const other         = t => t.source !== 'reminder' && t.source !== 'mention'
   const myTasks       = tasks.filter(t => !t.is_anyone && other(t))
   const anyoneTasks   = tasks.filter(t => t.is_anyone && other(t))
@@ -348,27 +350,16 @@ export default function MyTasksPage() {
     setTasks(prev => prev.filter(t => rowKey(t) !== rowKey(item)))
   }
 
-  // Every list renders its table, then the open panel underneath it — but only if the
-  // open row belongs to that list, so the panel appears under the thing you clicked.
+  // Opening a row used to expand a panel underneath its table, which meant scrolling to
+  // find the thing you just clicked — on a long list it looked like nothing happened.
+  // It's a dialog now, rendered once at the bottom of the page.
   function listWithPanel(items) {
-    const open = items.find(t => rowKey(t) === openItemKey)
     return (
-      <div className="space-y-2">
-        <TaskTable
-          items={items} onClick={handleClick}
-          onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-          isNew={isNew}
-        />
-        {open && (
-          <InlineWorkPanel
-            item={open}
-            mentionableUsers={mentionableUsers}
-            openPath={getItemUrl(open)}
-            onFinish={handleInlineFinish}
-            onClose={() => setOpenItemKey(null)}
-          />
-        )}
-      </div>
+      <TaskTable
+        items={items} onClick={handleClick}
+        onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+        isNew={isNew}
+      />
     )
   }
 
@@ -416,21 +407,11 @@ export default function MyTasksPage() {
         {mentionTasks.length === 0 ? (
           <p className="text-sm text-gray-400 italic px-2">Nobody's tagged you in anything.</p>
         ) : (
-          <div className="space-y-2">
-            <TaskTable
-              items={mentionTasks} onClick={handleClick}
-              onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-              isNew={isNew}
-            />
-            {openMention && (
-              <MentionThread
-                mention={openMention}
-                mentionableUsers={mentionableUsers}
-                onResolve={m => { setOpenMentionId(null); handleResolveMention(m) }}
-                onClose={() => setOpenMentionId(null)}
-              />
-            )}
-          </div>
+          <TaskTable
+            items={mentionTasks} onClick={handleClick}
+            onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+            isNew={isNew}
+          />
         )}
 
         {readMentions.length > 0 && (
@@ -482,6 +463,32 @@ export default function MyTasksPage() {
       {/* Collapsible here, unlike the Dashboard: this page is a focused work queue and
           the waiting-on list is reference material you dip into, not the main event. */}
       <WaitingOnOverview id="mytasks_waiting" defaultOpen={false} />
+
+      {/* One dialog for whatever's open — a task, a reminder, or an @mention. Rendered
+          once here rather than per-list so it always appears in the middle of the
+          screen instead of somewhere below the table you clicked. */}
+      {openItem && (
+        <Modal onClose={() => setOpenItemKey(null)} labelledBy="inline-work-title">
+          <InlineWorkPanel
+            item={openItem}
+            mentionableUsers={mentionableUsers}
+            openPath={getItemUrl(openItem)}
+            onFinish={handleInlineFinish}
+            onClose={() => setOpenItemKey(null)}
+          />
+        </Modal>
+      )}
+
+      {openMention && (
+        <Modal onClose={() => setOpenMentionId(null)} labelledBy="mention-thread-title">
+          <MentionThread
+            mention={openMention}
+            mentionableUsers={mentionableUsers}
+            onResolve={m => { setOpenMentionId(null); handleResolveMention(m) }}
+            onClose={() => setOpenMentionId(null)}
+          />
+        </Modal>
+      )}
 
       <CollapsibleSection
         id="mytasks_reminders" accent="blue" title="Overdue Reminders"
