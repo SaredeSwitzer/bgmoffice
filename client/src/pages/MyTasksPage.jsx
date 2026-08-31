@@ -317,6 +317,11 @@ export default function MyTasksPage() {
   // that sat in a mixed list was nobody's job and quietly aged, and an @mention is somebody
   // pulling you into a conversation, not a job that was delegated to you.
   const reminderTasks = tasks.filter(t => t.source === 'reminder')
+  // Reminders now cover the whole team, so they split again inside their own section:
+  // mine first, everyone else's underneath, so the list stays useful without hiding
+  // anything that's due.
+  const myReminders    = reminderTasks.filter(t => t.is_mine)
+  const otherReminders = reminderTasks.filter(t => !t.is_mine)
   const mentionTasks  = tasks.filter(t => t.source === 'mention')
   const other         = t => t.source !== 'reminder' && t.source !== 'mention'
   const myTasks       = tasks.filter(t => !t.is_anyone && other(t))
@@ -328,8 +333,8 @@ export default function MyTasksPage() {
         <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           {delegateName
-            ? `Open action items and due reminders assigned to ${delegateName}, plus anything you're @mentioned in`
-            : `No delegate match found for ${user?.name?.split(' ')[0]} — showing anything you're @mentioned in`}
+            ? `Open action items assigned to ${delegateName}, plus anything you're @mentioned in and every reminder that's due`
+            : `No delegate match found for ${user?.name?.split(' ')[0]} — showing anything you're @mentioned in and every reminder that's due`}
         </p>
       </div>
 
@@ -427,11 +432,35 @@ export default function MyTasksPage() {
         {reminderTasks.length === 0 ? (
           <p className="text-sm text-gray-400 italic px-2">No reminders due.</p>
         ) : (
-          <TaskTable
-            items={reminderTasks} onClick={handleClick}
-            onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-            isNew={isNew}
-          />
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 px-1">
+                Delegated to me{delegateName ? ` (${delegateName})` : ''} · {myReminders.length}
+              </p>
+              {myReminders.length === 0 ? (
+                <p className="text-sm text-gray-400 italic px-2">Nothing due for you.</p>
+              ) : (
+                <TaskTable
+                  items={myReminders} onClick={handleClick}
+                  onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+                  isNew={isNew}
+                />
+              )}
+            </div>
+
+            {otherReminders.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 px-1">
+                  Everyone else &amp; unassigned · {otherReminders.length}
+                </p>
+                <TaskTable
+                  items={otherReminders} onClick={handleClick}
+                  onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+                  isNew={isNew}
+                />
+              </div>
+            )}
+          </div>
         )}
       </CollapsibleSection>
 

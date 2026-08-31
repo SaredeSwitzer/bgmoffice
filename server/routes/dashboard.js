@@ -147,23 +147,24 @@ async function loadMentionTasks(userId) {
   }));
 }
 
-// Reminders delegated to this person that are due (today or overdue) — anything
-// scheduled further out stays on the Reminders page until its date arrives, so My
+// Every due reminder (today or overdue), not just this person's — the ones delegated to
+// the signed-in user are flagged is_mine so the UI can float them to the top, and the rest
+// are still visible so nothing sits unseen because it carries somebody else's name.
+// Anything scheduled further out stays on the Reminders page until its date arrives, so My
 // Tasks only shows what actually needs doing right now.
 async function loadReminderTasks(delegateName) {
   // remind_on is stored as TEXT ('YYYY-MM-DD', a SQLite-era leftover — see
   // reminders.js `today()`), so the due-date comparison happens in JS rather than
   // SQL to avoid a text/date operator mismatch.
   const { rows } = await pool.query(
-    `SELECT r.id, r.title, r.notes, r.remind_on, r.created_at, r.created_by,
+    `SELECT r.id, r.title, r.notes, r.remind_on, r.created_at, r.created_by, r.delegate_name,
             r.client_id, c.name AS client_name,
             r.instructor_id, i.name AS instructor_name
        FROM reminders r
        LEFT JOIN clients     c ON c.id = r.client_id
        LEFT JOIN instructors i ON i.id = r.instructor_id
-      WHERE r.status = 'pending' AND LOWER(r.delegate_name) = LOWER($1)
-      ORDER BY r.remind_on ASC`,
-    [delegateName]
+      WHERE r.status = 'pending'
+      ORDER BY r.remind_on ASC`
   );
   const today = new Date().toISOString().slice(0, 10);
   return rows.filter(r => r.remind_on <= today).map(r => ({
@@ -177,6 +178,9 @@ async function loadReminderTasks(delegateName) {
     last_note: { text: r.notes || r.title, author_initials: 'Reminder' },
     title: r.title,
     remind_on: r.remind_on,
+    delegate_name: r.delegate_name || null,
+    is_mine: !!delegateName
+          && String(r.delegate_name || '').toLowerCase() === String(delegateName).toLowerCase(),
   }));
 }
 
@@ -185,9 +189,11 @@ router.get('/my-tasks', async (req, res) => {
 
   const firstName = req.user.name.split(' ')[0];
   const { rows: [delegate] } = await pool.query('SELECT * FROM delegates WHERE LOWER(name) = LOWER($1) LIMIT 1', [firstName]);
-  if (!delegate) return res.json({ tasks: sortItems(mentionTasks), delegate_name: null });
 
-  const reminderTasks = await loadReminderTasks(delegate.name);
+  // Reminders aren't scoped to a delegate any more, so they load either way — somebody
+  // without a delegate record still sees the whole due list.
+  const reminderTasks = await loadReminderTasks(delegate ? delegate.name : null);
+  if (!delegate) return res.json({ tasks: sortItems([...mentionTasks, ...reminderTasks]), delegate_name: null });
 
   const { rows: aiRows } = await pool.query(`${BASE_SQL} AND d.id = $1 ORDER BY ai.created_at ASC`, [delegate.id]);
   const processedAI = sortItems(await attachLastNote(await attachActionTypes(aiRows)))
