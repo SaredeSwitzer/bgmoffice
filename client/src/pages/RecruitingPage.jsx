@@ -107,6 +107,9 @@ function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = fa
   const [adding, setAdding] = useState(defaultAdding)
   const [text,   setText]   = useState('')
   const [saving, setSaving] = useState(false)
+  // What you're replying to, shown as a line above the box instead of being pasted
+  // into it — you shouldn't have to delete the quoted note before you can type.
+  const [replyingTo, setReplyingTo] = useState(null)
 
   useEffect(() => {
     if (adding && textRef.current) textRef.current.focus()
@@ -114,12 +117,13 @@ function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = fa
 
   function openReply(noteText) {
     setAdding(true)
-    setText(`Re: "${noteText}"\n`)
+    setText('')
+    setReplyingTo(noteText)
     setTimeout(() => textRef.current?.focus(), 50)
   }
 
   function cancel() {
-    setAdding(false); setText('')
+    setAdding(false); setText(''); setReplyingTo(null)
   }
 
   async function handleAdd(e) {
@@ -127,7 +131,10 @@ function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = fa
     if (!text.trim()) return
     setSaving(true)
     try {
-      const note = await api.addRecruitingNote(entryId, { text })
+      const body = replyingTo
+        ? `Re: "${replyingTo.length > 80 ? `${replyingTo.slice(0, 80)}…` : replyingTo}"\n${text}`
+        : text
+      const note = await api.addRecruitingNote(entryId, { text: body })
       onNotesChanged([...notes, note])
       cancel()
     } finally { setSaving(false) }
@@ -174,6 +181,18 @@ function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = fa
 
       {adding && (
         <form onSubmit={handleAdd} className="space-y-2">
+          {replyingTo && (
+            <div className="flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-200 px-2.5 py-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 shrink-0 mt-0.5">
+                Replying to
+              </span>
+              <span className="flex-1 min-w-0 truncate text-xs text-gray-500 italic">{replyingTo}</span>
+              <button type="button" onClick={() => setReplyingTo(null)}
+                className="shrink-0 text-xs text-gray-300 hover:text-gray-600" title="Write a plain note instead">
+                ✕
+              </button>
+            </div>
+          )}
           <div className="flex gap-2">
             <MentionTextarea ref={textRef} value={text} onChange={setText} users={users} rows={2}
               placeholder={`Add a note… (as ${user?.initials}) — type @ to tag someone`}
@@ -1082,6 +1101,50 @@ function dbTimestamp(d) {
   return d.toISOString().slice(0, 19).replace('T', ' ')
 }
 
+// A row of toggle chips — click to add, click again to drop. Several can be on at
+// once, and each carries how many slots it would leave you looking at, so you can see
+// a dead end before you click it.
+function FilterChips({ label, options, selected, onToggle, onClear }) {
+  if (!options.length) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 w-16 shrink-0">{label}</span>
+      {options.map(({ value, count }) => {
+        const on = selected.includes(value)
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onToggle(value)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              on
+                ? 'bg-purple-600 border-purple-600 text-white font-semibold'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-purple-300 hover:text-purple-700'
+            }`}
+          >
+            {value}
+            <span className={`ml-1.5 text-[10px] ${on ? 'text-purple-100' : 'text-gray-400'}`}>{count}</span>
+          </button>
+        )
+      })}
+      {selected.length > 0 && (
+        <button type="button" onClick={onClear}
+          className="text-[11px] text-gray-400 hover:text-gray-700 hover:underline ml-1">
+          clear
+        </button>
+      )}
+    </div>
+  )
+}
+
+// The styles one instructor teaches, from whichever column actually has them.
+function slotStyles(slot) {
+  if (slot.instructor_styles_taught) {
+    return slot.instructor_styles_taught.split(',').map(s => s.trim()).filter(Boolean)
+  }
+  return [slot.instructor_style, slot.instructor_specialties].filter(Boolean)
+}
+
 function InstructorAvailabilityTab({ availability, instructors, grouped, styles, onChanged }) {
   const { user } = useAuth()
   const [form,          setForm]         = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
@@ -1089,6 +1152,59 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
   const [showOpenings,  setShowOpenings] = useState(false)
   const [editingSlotId, setEditingSlotId] = useState(null)
   const [editSlot,      setEditSlot]     = useState({ day_of_week: '', time_slot: '' })
+
+  // Filters. Several styles or several locations can be on at once: within a group
+  // it's "any of these" (pick Yoga and Pilates to see instructors who teach either),
+  // between groups it's "and" (Yoga AND in Brooklyn).
+  const [styleFilter, setStyleFilter] = useState([])
+  const [placeFilter, setPlaceFilter] = useState([])
+  const [nameQuery,   setNameQuery]   = useState('')
+
+  function toggleIn(setter) {
+    return value => setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
+  }
+
+  // Options come from the availability actually on file, with counts, so the list can
+  // never offer a filter that returns nothing.
+  function optionsFrom(pick) {
+    const counts = new Map()
+    for (const slot of availability) {
+      for (const v of pick(slot)) {
+        if (!v) continue
+        counts.set(v, (counts.get(v) || 0) + 1)
+      }
+    }
+    return [...counts.entries()]
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+  }
+
+  const styleOptions = optionsFrom(slotStyles)
+  const placeOptions = optionsFrom(slot => [slot.instructor_neighborhood])
+
+  const visible = availability.filter(slot => {
+    if (styleFilter.length) {
+      const mine = slotStyles(slot).map(v => v.toLowerCase())
+      if (!styleFilter.some(f => mine.includes(f.toLowerCase()))) return false
+    }
+    if (placeFilter.length && !placeFilter.includes(slot.instructor_neighborhood)) return false
+    if (nameQuery.trim() && !String(slot.instructor_name || '').toLowerCase().includes(nameQuery.trim().toLowerCase())) return false
+    return true
+  })
+  const filtering = styleFilter.length > 0 || placeFilter.length > 0 || !!nameQuery.trim()
+
+  // Which days are open. Collapsed days are remembered per person, so the ones you
+  // never staff stay out of the way between visits.
+  const collapseKey = `bgm_availability_collapsed_${user?.initials || 'anon'}`
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(collapseKey) || '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(collapseKey, JSON.stringify(collapsed)) } catch { /* private mode */ }
+  }, [collapseKey, collapsed])
+  function toggleDay(day) {
+    setCollapsed(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+  }
 
   // Highlight slots added since the last time this staffer opened this tab — a fresh
   // "since you last checked" marker, not a persistent read/unread state. Captured once on
@@ -1138,7 +1254,7 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
 
   // Group by day (in DAYS order), then by time slot within each day
   const byDay = {}
-  for (const slot of availability) {
+  for (const slot of visible) {
     if (!byDay[slot.day_of_week]) byDay[slot.day_of_week] = {}
     const key = slot.time_slot || '__none__'
     if (!byDay[slot.day_of_week][key]) byDay[slot.day_of_week][key] = []
@@ -1153,7 +1269,9 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
       {/* Openings toggle */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600">
-          {availability.length} slot{availability.length !== 1 ? 's' : ''} across {daysWithSlots.length} day{daysWithSlots.length !== 1 ? 's' : ''}
+          {filtering
+            ? `${visible.length} of ${availability.length} slot${availability.length !== 1 ? 's' : ''} match`
+            : `${availability.length} slot${availability.length !== 1 ? 's' : ''} across ${daysWithSlots.length} day${daysWithSlots.length !== 1 ? 's' : ''}`}
         </p>
         <button
           onClick={() => setShowOpenings(s => !s)}
@@ -1170,6 +1288,43 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
       </div>
 
       {showOpenings && <OpeningsPanel grouped={grouped} availability={availability} />}
+
+      {/* Narrow the list down — "who teaches Yoga or Pilates, in Crown Heights or
+          Flatbush, and when are they free?" */}
+      {availability.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 space-y-2">
+          <FilterChips
+            label="Style" options={styleOptions} selected={styleFilter}
+            onToggle={toggleIn(setStyleFilter)} onClear={() => setStyleFilter([])}
+          />
+          <FilterChips
+            label="Location" options={placeOptions} selected={placeFilter}
+            onToggle={toggleIn(setPlaceFilter)} onClear={() => setPlaceFilter([])}
+          />
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 w-16 shrink-0">Name</span>
+            <input
+              value={nameQuery}
+              onChange={e => setNameQuery(e.target.value)}
+              placeholder="Search instructors…"
+              className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs w-48 bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+            />
+            {filtering && (
+              <button type="button"
+                onClick={() => { setStyleFilter([]); setPlaceFilter([]); setNameQuery('') }}
+                className="text-[11px] text-gray-500 hover:text-gray-800 hover:underline">
+                Clear all filters
+              </button>
+            )}
+            <span className="flex-1" />
+            <button type="button"
+              onClick={() => setCollapsed(collapsed.length ? [] : [...DAYS])}
+              className="text-[11px] text-gray-500 hover:text-gray-800 hover:underline">
+              {collapsed.length ? 'Expand all days' : 'Collapse all days'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add form */}
       <div>
@@ -1206,7 +1361,9 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
 
       {/* By-day availability grid */}
       {daysWithSlots.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">No availability recorded yet.</p>
+        <p className="text-sm text-gray-400 italic">
+          {filtering ? 'Nobody on file matches those filters.' : 'No availability recorded yet.'}
+        </p>
       ) : (
         <div className="space-y-5">
           {daysWithSlots.map(day => {
@@ -1226,10 +1383,25 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
               if (b === '__none__') return -1
               return parseTime(a) - parseTime(b)
             })
+            const dayCount = Object.values(timeGroups).reduce((n, list) => n + list.length, 0)
+            const isCollapsed = collapsed.includes(day)
             return (
               <section key={day}>
-                <h3 className="text-sm font-bold text-gray-800 border-l-4 border-purple-400 pl-2 mb-2">{day}</h3>
-                <div className="space-y-2 pl-1">
+                <button
+                  type="button"
+                  onClick={() => toggleDay(day)}
+                  aria-expanded={!isCollapsed}
+                  className="flex items-center gap-2 mb-2 group"
+                >
+                  <span className={`text-gray-400 text-xs transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>▶</span>
+                  <h3 className="text-sm font-bold text-gray-800 border-l-4 border-purple-400 pl-2 group-hover:text-purple-700 transition-colors">
+                    {day}
+                  </h3>
+                  <span className="text-[10px] font-semibold bg-purple-50 text-purple-700 rounded-full px-1.5 py-0.5">
+                    {dayCount}
+                  </span>
+                </button>
+                <div className={`space-y-2 pl-1 ${isCollapsed ? 'hidden' : ''}`}>
                   {timeKeys.map(timeKey => {
                     const slots = timeGroups[timeKey]
                     return (
@@ -1239,9 +1411,7 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
                         )}
                         <div className="space-y-1.5">
                           {slots.map(slot => {
-                            const stylesList = slot.instructor_styles_taught
-                              ? slot.instructor_styles_taught.split(',').map(s => s.trim()).filter(Boolean)
-                              : [slot.instructor_style, slot.instructor_specialties].filter(Boolean)
+                            const stylesList = slotStyles(slot)
                             if (editingSlotId === slot.id) {
                               return (
                                 <div key={slot.id} className="bg-white border border-purple-300 rounded-xl px-3 py-2 flex flex-wrap gap-2 items-center">
