@@ -235,6 +235,12 @@ export const api = {
   getRemindersByClient: (clientId) => request(`/reminders?client_id=${clientId}`),
   // Options an instructor typed in that staff still need to eyeball — see
   // server/routes/approvals.js.
+  // The note behind an @mention, plus its conversation, so it can be read and
+  // replied to without leaving My Tasks.
+  getMentionThread: (id) => request(`/dashboard/mentions/${id}/thread`),
+  replyToMention: (path, text) =>
+    request(path.replace(/^\/api/, ''), { method: 'POST', body: JSON.stringify({ text }) }),
+
   getPendingApprovals: () => request('/approvals'),
   getDecidedApprovals: () => request('/approvals/decided'),
   approveOption: (id, body) =>

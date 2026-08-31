@@ -8,6 +8,7 @@ import { ClientLink, InstructorLink } from '../components/NameLink'
 import WaitingOnOverview from '../components/WaitingOnOverview'
 import CollapsibleSection from '../components/CollapsibleSection'
 import NeedsApproval from '../components/NeedsApproval'
+import MentionThread from '../components/MentionThread'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -126,7 +127,7 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
       <td className="px-3 py-2.5">
         {isMention ? (
           <span className="inline-block text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
-            @Mentioned ↗
+            @Mentioned
           </span>
         ) : isRecruiting ? (
           <span className="inline-block text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
@@ -234,6 +235,10 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [readMentions, setReadMentions] = useState([])
+  // Which @mention is expanded inline. One at a time — this is a queue you work
+  // through, not a set of windows to keep open.
+  const [openMentionId, setOpenMentionId] = useState(null)
+  const [mentionableUsers, setMentionableUsers] = useState([])
   const [showRead, setShowRead] = useState(false)
 
   function isNew(item) {
@@ -260,6 +265,11 @@ export default function MyTasksPage() {
 
   useEffect(() => { load(); loadReadMentions() }, [])
 
+  // Needed so @names inside a note render as names rather than raw "@Sarede" text.
+  useEffect(() => {
+    api.getMentionableUsers().then(setMentionableUsers).catch(() => setMentionableUsers([]))
+  }, [])
+
 
   if (error) return <p className="text-red-600 text-sm">{error}</p>
   if (loading) return (
@@ -269,11 +279,10 @@ export default function MyTasksPage() {
   function handleClick(item) {
     markSeen(item.id)
     if (item.source === 'mention') {
-      // Opening it counts as reading it, so it drops off this list rather than sitting
-      // here after it's been dealt with. Recoverable via "read @mentions" below.
-      setTasks(prev => prev.filter(x => x.id !== item.id))
-      api.resolveMention(item.mention_id).then(loadReadMentions).catch(() => {})
-      if (item.link_path) navigate(item.link_path)
+      // Opens in place rather than navigating away. Reading it no longer marks it
+      // read on your behalf either — you say when you're done with it, so a mention
+      // you opened but haven't dealt with is still there when you come back.
+      setOpenMentionId(prev => (prev === item.id ? null : item.id))
     } else if (item.source === 'recruiting') {
       navigate(item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting')
     } else if (item.source === 'standalone') {
@@ -324,6 +333,7 @@ export default function MyTasksPage() {
   const myReminders    = reminderTasks.filter(t => t.is_mine)
   const otherReminders = reminderTasks.filter(t => !t.is_mine)
   const mentionTasks  = tasks.filter(t => t.source === 'mention')
+  const openMention   = mentionTasks.find(t => t.id === openMentionId) || null
   const other         = t => t.source !== 'reminder' && t.source !== 'mention'
   const myTasks       = tasks.filter(t => !t.is_anyone && other(t))
   const anyoneTasks   = tasks.filter(t => t.is_anyone && other(t))
@@ -378,11 +388,21 @@ export default function MyTasksPage() {
         {mentionTasks.length === 0 ? (
           <p className="text-sm text-gray-400 italic px-2">Nobody's tagged you in anything.</p>
         ) : (
-          <TaskTable
-            items={mentionTasks} onClick={handleClick}
-            onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-            isNew={isNew}
-          />
+          <div className="space-y-2">
+            <TaskTable
+              items={mentionTasks} onClick={handleClick}
+              onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+              isNew={isNew}
+            />
+            {openMention && (
+              <MentionThread
+                mention={openMention}
+                mentionableUsers={mentionableUsers}
+                onResolve={m => { setOpenMentionId(null); handleResolveMention(m) }}
+                onClose={() => setOpenMentionId(null)}
+              />
+            )}
+          </div>
         )}
 
         {readMentions.length > 0 && (

@@ -264,6 +264,57 @@ router.get('/directory', async (req, res) => {
   res.json(rows);
 });
 
+// Everything needed to read a mention without leaving My Tasks: the full note (the
+// stored snippet is truncated at 160 chars), the rest of that conversation, and the
+// ids a reply needs to land in the right thread.
+//
+// The five note tables don't share a shape — the parent column and the author column
+// are named differently in each — so this maps them once here rather than making the
+// front end know about any of it.
+const NOTE_SOURCES = {
+  follow_up_notes:  { parent: 'action_item_id',  author: 'author_initials', reply: id => `/api/action-items/${id}/notes` },
+  recruiting_notes: { parent: 'entry_id',        author: 'author_initials', reply: id => `/api/recruiting/entries/${id}/notes` },
+  reminder_notes:   { parent: 'reminder_id',     author: 'author_initials', reply: id => `/api/reminders/${id}/notes` },
+  sales_lead_notes: { parent: 'sales_lead_id',   author: 'author_initials', reply: id => `/api/sales/${id}/notes` },
+  instructor_notes: { parent: 'instructor_id',   author: 'author',          reply: id => `/api/instructors/${id}/notes` },
+};
+
+router.get('/mentions/:id/thread', async (req, res) => {
+  const { rows: [m] } = await pool.query(
+    'SELECT * FROM mentions WHERE id = $1 AND mentioned_user_id = $2',
+    [req.params.id, req.user.id]
+  );
+  if (!m) return res.status(404).json({ error: 'Not found' });
+
+  const src = NOTE_SOURCES[m.source_table];
+  // A mention on something without a note thread (a task title, say) still opens —
+  // it just shows the snippet and offers the link out instead of a reply box.
+  if (!src) return res.json({ mention: m, note: null, thread: [], reply_to: null });
+
+  const { rows: [note] } = await pool.query(
+    `SELECT id, text, ${src.author} AS author, created_at, ${src.parent} AS parent_id
+       FROM ${m.source_table} WHERE id = $1`,
+    [m.source_id]
+  );
+  if (!note) return res.json({ mention: m, note: null, thread: [], reply_to: null });
+
+  // The few notes either side of it, so a one-line "@Sarede thoughts?" has the
+  // conversation it belongs to attached instead of arriving with no context.
+  const { rows: thread } = await pool.query(
+    `SELECT id, text, ${src.author} AS author, created_at
+       FROM ${m.source_table} WHERE ${src.parent} = $1
+      ORDER BY created_at ASC LIMIT 40`,
+    [note.parent_id]
+  );
+
+  res.json({
+    mention: m,
+    note,
+    thread,
+    reply_to: { path: src.reply(note.parent_id), source_table: m.source_table },
+  });
+});
+
 router.patch('/mentions/:id/resolve', async (req, res) => {
   const { rows: [row] } = await pool.query(
     'UPDATE mentions SET resolved_at = now() WHERE id = $1 AND mentioned_user_id = $2 RETURNING id',
