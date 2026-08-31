@@ -139,6 +139,16 @@ router.put('/:id/notes/:noteId', async (req, res) => {
   res.json(updated);
 });
 
+// The note thread on its own, so My Tasks can show a case follow-up in place instead of
+// sending you to the case screen to read three lines.
+router.get('/:id/notes', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT id, text, author_initials AS author, created_at FROM follow_up_notes WHERE action_item_id = $1 ORDER BY created_at ASC',
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
 router.post('/:id/notes', async (req, res) => {
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'text required' });

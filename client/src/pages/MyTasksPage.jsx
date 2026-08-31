@@ -9,6 +9,7 @@ import WaitingOnOverview from '../components/WaitingOnOverview'
 import CollapsibleSection from '../components/CollapsibleSection'
 import NeedsApproval from '../components/NeedsApproval'
 import MentionThread from '../components/MentionThread'
+import InlineWorkPanel from '../components/InlineWorkPanel'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -79,6 +80,11 @@ function getItemUrl(item) {
   }
   if (item.case_id) return `/cases/${item.case_id}`
   return null
+}
+
+// Ids are only unique within their own table, so a row is identified by both.
+function rowKey(item) {
+  return `${item.source}-${item.id}`
 }
 
 function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }) {
@@ -235,9 +241,11 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [readMentions, setReadMentions] = useState([])
-  // Which @mention is expanded inline. One at a time — this is a queue you work
-  // through, not a set of windows to keep open.
+  // Which row is expanded inline. One at a time — this is a queue you work through,
+  // not a set of windows to keep open. Keyed by source+id because a task and a
+  // reminder can both be id 12.
   const [openMentionId, setOpenMentionId] = useState(null)
+  const [openItemKey, setOpenItemKey] = useState(null)
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [showRead, setShowRead] = useState(false)
 
@@ -283,15 +291,10 @@ export default function MyTasksPage() {
       // read on your behalf either — you say when you're done with it, so a mention
       // you opened but haven't dealt with is still there when you come back.
       setOpenMentionId(prev => (prev === item.id ? null : item.id))
-    } else if (item.source === 'recruiting') {
-      navigate(item.recruiting_entry_id ? `/recruiting?entry=${item.recruiting_entry_id}` : '/recruiting')
-    } else if (item.source === 'standalone') {
-      navigate(`/tasks?id=${item.id}`)
-    } else if (item.source === 'reminder') {
-      const url = getItemUrl(item)
-      if (url) navigate(url)
-    } else if (item.case_id) {
-      navigate(`/cases/${item.case_id}`)
+    } else {
+      // Everything else opens in place too. The full screen is still one click away
+      // from inside the panel, for the times you need the rest of the record.
+      setOpenItemKey(prev => (prev === rowKey(item) ? null : rowKey(item)))
     }
   }
 
@@ -338,6 +341,37 @@ export default function MyTasksPage() {
   const myTasks       = tasks.filter(t => !t.is_anyone && other(t))
   const anyoneTasks   = tasks.filter(t => t.is_anyone && other(t))
 
+  // Finishing something from the panel drops it off the list, same as the row's own
+  // tick would, and closes the panel.
+  function handleInlineFinish(item) {
+    setOpenItemKey(null)
+    setTasks(prev => prev.filter(t => rowKey(t) !== rowKey(item)))
+  }
+
+  // Every list renders its table, then the open panel underneath it — but only if the
+  // open row belongs to that list, so the panel appears under the thing you clicked.
+  function listWithPanel(items) {
+    const open = items.find(t => rowKey(t) === openItemKey)
+    return (
+      <div className="space-y-2">
+        <TaskTable
+          items={items} onClick={handleClick}
+          onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
+          isNew={isNew}
+        />
+        {open && (
+          <InlineWorkPanel
+            item={open}
+            mentionableUsers={mentionableUsers}
+            openPath={getItemUrl(open)}
+            onFinish={handleInlineFinish}
+            onClose={() => setOpenItemKey(null)}
+          />
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-3">
@@ -369,13 +403,7 @@ export default function MyTasksPage() {
             <p className="text-sm font-medium text-gray-700">All caught up!</p>
             <p className="text-xs text-gray-400 mt-1">Nothing assigned to you right now.</p>
           </div>
-        ) : (
-          <TaskTable
-            items={myTasks} onClick={handleClick}
-            onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-            isNew={isNew}
-          />
-        )}
+        ) : listWithPanel(myTasks)}
       </CollapsibleSection>
 
       {/* Its own pile rather than mixed into "Assigned to me": a mention is someone pulling
@@ -446,11 +474,7 @@ export default function MyTasksPage() {
             <p className="text-xs text-gray-400 mb-2 px-1">
               Not assigned to anyone — Claire, Maria and Sarede all see these.
             </p>
-            <TaskTable
-              items={anyoneTasks} onClick={handleClick}
-              onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-              isNew={isNew}
-            />
+            {listWithPanel(anyoneTasks)}
           </>
         )}
       </CollapsibleSection>
@@ -474,11 +498,7 @@ export default function MyTasksPage() {
               {myReminders.length === 0 ? (
                 <p className="text-sm text-gray-400 italic px-2">Nothing due for you.</p>
               ) : (
-                <TaskTable
-                  items={myReminders} onClick={handleClick}
-                  onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-                  isNew={isNew}
-                />
+                listWithPanel(myReminders)
               )}
             </div>
 
@@ -487,11 +507,7 @@ export default function MyTasksPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 px-1">
                   Everyone else &amp; unassigned · {otherReminders.length}
                 </p>
-                <TaskTable
-                  items={otherReminders} onClick={handleClick}
-                  onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-                  isNew={isNew}
-                />
+                {listWithPanel(otherReminders)}
               </div>
             )}
           </div>

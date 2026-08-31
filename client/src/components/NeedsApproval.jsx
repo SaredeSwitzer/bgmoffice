@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import CollapsibleSection from './CollapsibleSection'
 
@@ -150,15 +151,86 @@ function ApprovalRow({ item, onDecided }) {
   )
 }
 
+// An instructor who signed themselves up on /join. Same queue as the new styles and
+// neighborhoods — it's all "somebody outside the office added something, confirm it".
+// The merge case (this is really someone we already have) still goes to the Instructors
+// page, since picking which existing record to merge into needs the full list.
+function SignupRow({ item, onDecided }) {
+  const navigate = useNavigate()
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState('')
+  const dupes = item.possible_duplicates || []
+
+  async function approve() {
+    setSaving(true); setError('')
+    try {
+      await api.approveInstructorSignup(item.id)
+      onDecided(item.id, 'Approved — instructor added')
+    } catch (e) { setError(e.message || 'Could not approve that.'); setSaving(false) }
+  }
+
+  async function reject() {
+    setSaving(true); setError('')
+    try {
+      await api.rejectInstructorSignup(item.id)
+      onDecided(item.id, 'Rejected')
+    } catch (e) { setError(e.message || 'Could not reject that.'); setSaving(false) }
+  }
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wide bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+          New instructor
+        </span>
+        <span className="text-sm font-semibold text-gray-900">{item.name}</span>
+        {dupes.length > 0 && (
+          <span className="text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
+            looks like {dupes.length === 1 ? dupes[0].name : `${dupes.length} we already have`}
+          </span>
+        )}
+      </div>
+
+      <p className="text-xs text-gray-500 mb-2">
+        {[item.email, item.phone, item.neighborhood, item.styles_taught].filter(Boolean).join(' \u00B7 ') || 'No details given'}
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={approve} disabled={saving}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+          {saving ? '\u2026' : 'Approve & set up login'}
+        </button>
+        <button onClick={reject} disabled={saving}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-50">
+          Reject
+        </button>
+        {dupes.length > 0 && (
+          <button onClick={() => navigate('/instructors?tab=signups')}
+            className="text-[11px] text-amber-700 hover:underline">
+            Merge into the existing one &rarr;
+          </button>
+        )}
+        {error && <span className="text-[11px] text-red-600">{error}</span>}
+      </div>
+    </div>
+  )
+}
+
 export default function NeedsApproval({ id = 'mytasks_approvals', defaultOpen = true }) {
-  const [items, setItems]   = useState([])
-  const [done, setDone]     = useState([])   // decided in this sitting, kept visible
+  const [items, setItems]     = useState([])
+  const [signups, setSignups] = useState([])
+  const [done, setDone]       = useState([])   // decided in this sitting, kept visible
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.getPendingApprovals()
-      .then(setItems)
-      .catch(() => setItems([]))
+    Promise.all([
+      api.getPendingApprovals().catch(() => []),
+      // Instructors who signed themselves up. It's the same question being asked of you
+      // — confirm something someone outside the office added — so it belongs in this
+      // queue rather than on a tab of the Instructors page nobody thinks to open.
+      api.getInstructorSignups('pending').catch(() => []),
+    ])
+      .then(([opts, sus]) => { setItems(opts); setSignups(sus) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -172,19 +244,33 @@ export default function NeedsApproval({ id = 'mytasks_approvals', defaultOpen = 
     })
   }
 
+  function handleSignupDecided(itemId, outcome) {
+    setSignups(prev => {
+      const row = prev.find(i => i.id === itemId)
+      if (row) setDone(d => [...d, { ...row, submitted_name: row.name, outcome }])
+      return prev.filter(i => i.id !== itemId)
+    })
+  }
+
+  const pendingCount = items.length + signups.length
+
   if (loading) return null
-  if (!items.length && !done.length) return null
+  if (!pendingCount && !done.length) return null
 
   return (
     <CollapsibleSection
       id={id} accent="amber" title="✋ Needs Approval"
-      count={items.length} defaultOpen={defaultOpen}
+      count={pendingCount} defaultOpen={defaultOpen}
     >
       <p className="text-xs text-gray-400 mb-2 px-1">
-        New options instructors typed in themselves. They&rsquo;re already live — approving
-        just confirms the spelling, and you can fix it here before it spreads.
+        Things people outside the office added — new instructors who signed themselves up,
+        and new styles or locations they typed in. The options are already live, so approving
+        mostly means confirming the spelling before it spreads.
       </p>
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100 overflow-hidden">
+        {signups.map(item => (
+          <SignupRow key={`signup-${item.id}`} item={item} onDecided={handleSignupDecided} />
+        ))}
         {items.map(item => (
           <ApprovalRow key={item.id} item={item} onDecided={handleDecided} />
         ))}

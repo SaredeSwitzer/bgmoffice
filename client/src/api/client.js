@@ -223,6 +223,7 @@ export const api = {
   starActionItem: (id, starred) =>
     request(`/action-items/${id}/star`, { method: 'PATCH', body: JSON.stringify({ starred }) }),
   deleteActionItem: (id) => request(`/action-items/${id}`, { method: 'DELETE' }),
+  getActionItemNotes: (actionItemId) => request(`/action-items/${actionItemId}/notes`),
   addNote: (actionItemId, data) =>
     request(`/action-items/${actionItemId}/notes`, { method: 'POST', body: JSON.stringify(data) }),
   updateNote: (actionItemId, noteId, data) =>
