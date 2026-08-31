@@ -1145,6 +1145,16 @@ function slotStyles(slot) {
   return [slot.instructor_style, slot.instructor_specialties].filter(Boolean)
 }
 
+// Neighborhood is one free-text field holding a comma-separated list ("Bed-Stuy,
+// Crown Heights, Clinton Hill"), so it gets split the same way styles do — otherwise
+// each combination of places becomes its own useless filter chip.
+function slotPlaces(slot) {
+  return String(slot.instructor_neighborhood || '')
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean)
+}
+
 function InstructorAvailabilityTab({ availability, instructors, grouped, styles, onChanged }) {
   const { user } = useAuth()
   const [form,          setForm]         = useState({ instructor_id: '', day_of_week: '', time_slot: '' })
@@ -1180,14 +1190,17 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
   }
 
   const styleOptions = optionsFrom(slotStyles)
-  const placeOptions = optionsFrom(slot => [slot.instructor_neighborhood])
+  const placeOptions = optionsFrom(slotPlaces)
 
   const visible = availability.filter(slot => {
     if (styleFilter.length) {
       const mine = slotStyles(slot).map(v => v.toLowerCase())
       if (!styleFilter.some(f => mine.includes(f.toLowerCase()))) return false
     }
-    if (placeFilter.length && !placeFilter.includes(slot.instructor_neighborhood)) return false
+    if (placeFilter.length) {
+      const mine = slotPlaces(slot).map(v => v.toLowerCase())
+      if (!placeFilter.some(f => mine.includes(f.toLowerCase()))) return false
+    }
     if (nameQuery.trim() && !String(slot.instructor_name || '').toLowerCase().includes(nameQuery.trim().toLowerCase())) return false
     return true
   })
