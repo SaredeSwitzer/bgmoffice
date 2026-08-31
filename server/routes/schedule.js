@@ -103,6 +103,28 @@ async function fillClientDefaults(client_id, { style, participant_count, partici
   };
 }
 
+// A class added to an existing recurring series should bill the way that series bills.
+// Without this, a class created from the calendar with the payment method left blank
+// was never counted against the client's package — syncPackages only acts on sessions
+// explicitly marked "Package". Only fills what the caller actually left empty.
+async function fillFromSchedule(schedule_id, fields) {
+  if (!schedule_id) return fields;
+  const { rows: [sch] } = await pool.query(
+    'SELECT payment_method, charge_amount, instructor_pay, duration_minutes, style FROM class_schedules WHERE id = $1',
+    [schedule_id]
+  );
+  if (!sch) return fields;
+  const blank = v => v === undefined || v === null || v === '';
+  return {
+    ...fields,
+    payment_method:   blank(fields.payment_method)   ? sch.payment_method   : fields.payment_method,
+    charge_amount:    blank(fields.charge_amount)    ? sch.charge_amount    : fields.charge_amount,
+    instructor_pay:   blank(fields.instructor_pay)   ? sch.instructor_pay   : fields.instructor_pay,
+    duration_minutes: blank(fields.duration_minutes) ? sch.duration_minutes : fields.duration_minutes,
+    style:            blank(fields.style)            ? sch.style            : fields.style,
+  };
+}
+
 // A schedule with client + instructor names attached (for list/detail views).
 async function getScheduleRow(id) {
   const { rows: [row] } = await pool.query(
@@ -336,7 +358,12 @@ router.post('/sessions', async (req, res) => {
   if (!isDate(session_date)) return res.status(400).json({ error: 'session_date (YYYY-MM-DD) required' });
   if (!start_time)         return res.status(400).json({ error: 'start_time required' });
 
-  const filled = await fillClientDefaults(client_id, { style, participant_count, participant_ages });
+  const inherited = await fillFromSchedule(schedule_id, {
+    payment_method, charge_amount, instructor_pay, duration_minutes, style,
+  });
+  const filled = await fillClientDefaults(client_id, {
+    style: inherited.style, participant_count, participant_ages,
+  });
 
   const { rows: [row] } = await pool.query(
     `INSERT INTO class_sessions
@@ -344,8 +371,10 @@ router.post('/sessions', async (req, res) => {
         charge_amount, charge_note, instructor_pay, payment_method, style, status, notes,
         participant_count, participant_ages)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-    [schedule_id || null, client_id, instructor_id || null, session_date, start_time || null, duration_minutes || 60,
-     charge_amount ?? null, charge_note || null, instructor_pay ?? null, payment_method || null, filled.style || null,
+    [schedule_id || null, client_id, instructor_id || null, session_date, start_time || null,
+     inherited.duration_minutes || 60,
+     inherited.charge_amount ?? null, charge_note || null, inherited.instructor_pay ?? null,
+     inherited.payment_method || null, filled.style || null,
      status || 'scheduled', notes || null,
      filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
   );

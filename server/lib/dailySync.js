@@ -314,10 +314,18 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
 // clientId: restricts the whole sync to one client, so a single row from a preview can
 // be applied on its own instead of committing the entire week at once.
 async function syncDateRange(startDate, endDate, { dryRun = false, clientId = null } = {}) {
+  // payment_method falls back to the recurring class's when the session itself has none.
+  // A blank on the session means "nobody said otherwise", not "don't bill it" — but
+  // syncPackages skips anything that isn't marked Package, so a blank silently meant a
+  // class never came off the client's package. Sara Parnes' 24 Aug class, reported
+  // 2026-08-31, was one of 99 sitting in exactly that state.
   const { rows: sessions } = await pool.query(
     `SELECT s.id, s.client_id, c.name AS client_name, s.session_date::text AS session_date,
-            s.payment_method, s.style, s.charge_amount
-       FROM class_sessions s JOIN clients c ON c.id = s.client_id
+            COALESCE(NULLIF(s.payment_method, ''), sch.payment_method) AS payment_method,
+            s.style, s.charge_amount
+       FROM class_sessions s
+       JOIN clients c ON c.id = s.client_id
+       LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
       WHERE s.session_date BETWEEN $1 AND $2
         AND ($3::bigint IS NULL OR s.client_id = $3::bigint)`,
     [startDate, endDate, clientId]
