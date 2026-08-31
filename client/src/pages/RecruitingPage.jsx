@@ -1176,16 +1176,28 @@ function InstructorAvailabilityTab({ availability, instructors, grouped, styles,
 
   // Options come from the availability actually on file, with counts, so the list can
   // never offer a filter that returns nothing.
+  // Grouped case-insensitively: "Crown heights" and "Crown Heights" are one place,
+  // and showing them as two chips that each find half the instructors is worse than
+  // useless. The tidiest spelling on file wins the label.
   function optionsFrom(pick) {
-    const counts = new Map()
+    const groups = new Map()
     for (const slot of availability) {
       for (const v of pick(slot)) {
         if (!v) continue
-        counts.set(v, (counts.get(v) || 0) + 1)
+        const key = v.toLowerCase()
+        const g = groups.get(key) || { labels: [], count: 0 }
+        g.labels.push(v)
+        g.count += 1
+        groups.set(key, g)
       }
     }
-    return [...counts.entries()]
-      .map(([value, count]) => ({ value, count }))
+    const tidiest = labels => {
+      const capitalised = labels.filter(l => /^[A-Z]/.test(l))
+      const pool = capitalised.length ? capitalised : labels
+      return pool.sort((a, b) => a.localeCompare(b))[0]
+    }
+    return [...groups.values()]
+      .map(g => ({ value: tidiest(g.labels), count: g.count }))
       .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
   }
 
