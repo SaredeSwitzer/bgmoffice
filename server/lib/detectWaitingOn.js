@@ -289,4 +289,57 @@ function matchRoster(roster, name) {
   return contains.length === 1 ? contains[0] : null;  // ambiguous means no link, not a guess
 }
 
-module.exports = { scanForWaitingOn };
+// ── Usage-triggered scanning ───────────────────────────────────────────────────────────
+// Vercel's plan here only allows once-a-day cron schedules, and once a day isn't the "keeps
+// up as we work" this feature is for. So the real trigger is people using the app: every
+// time the suggestions strip loads, this considers kicking off a scan for next time.
+//
+// Two things make that safe to hang off a page load:
+//   * It never blocks the response. The scan runs after the reply is sent (see waitUntil
+//     below), so the strip renders at its usual speed and the results show on the next load.
+//   * Only one scan can be in flight. The "claim" below is a single conditional UPDATE, so
+//     if Sarede, Claire and Maria all open the app at once, exactly one of the three wins
+//     and the other two do nothing — otherwise every page load would be a model call.
+const SCAN_KEY = 'waiting_on_last_scan_ms';
+const MIN_GAP_MS = 20 * 60 * 1000;
+
+// Claiming = writing "now" only if the stored time is old enough. Postgres does this
+// atomically, so the row itself is the lock; whoever gets rowCount 1 owns this scan.
+// The clock is written BEFORE the work rather than after, so a scan that dies partway
+// can't leave the door open for every subsequent request to pile in behind it.
+async function claimScanSlot() {
+  const now = Date.now();
+  const { rowCount } = await pool.query(
+    `UPDATE app_settings SET value = $1,
+            updated_at = to_char(now() AT TIME ZONE 'America/New_York', 'YYYY-MM-DD HH24:MI:SS')
+      WHERE key = $2 AND value ~ '^[0-9]+$' AND value::bigint < $3`,
+    [String(now), SCAN_KEY, now - MIN_GAP_MS]
+  );
+  return rowCount === 1;
+}
+
+/**
+ * Called from the suggestions endpoint. Returns immediately; any scan it decides to run
+ * happens after the response has gone out.
+ */
+async function maybeScanInBackground() {
+  if (!process.env.ANTHROPIC_API_KEY) return;
+  if (!(await claimScanSlot())) return;
+
+  const work = scanForWaitingOn().catch(err => {
+    // Nothing is waiting on this promise, so an unhandled rejection here would take the
+    // whole function down with it. Swallow and log — the next page load tries again.
+    console.error('[waiting-on] background scan failed:', err.message);
+  });
+
+  try {
+    // On Vercel the function can be frozen the moment the response is sent, which would
+    // kill the scan halfway. waitUntil keeps it alive to completion.
+    require('@vercel/functions').waitUntil(work);
+  } catch {
+    // Not running on Vercel (local dev) — the process stays up on its own, so letting the
+    // promise run unattended is exactly right.
+  }
+}
+
+module.exports = { scanForWaitingOn, maybeScanInBackground };

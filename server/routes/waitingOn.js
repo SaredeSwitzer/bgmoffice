@@ -2,6 +2,7 @@ const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { maybeScanInBackground } = require('../lib/detectWaitingOn');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -111,6 +112,11 @@ router.get('/suggestions', async (req, res) => {
       ORDER BY s.created_at DESC`
   );
   res.json(rows);
+
+  // After the response, never before it: look for notes written since the last scan, so
+  // the next time someone opens this the strip is up to date. Rate-limited to one scan
+  // every 20 minutes across the whole team — see maybeScanInBackground.
+  maybeScanInBackground().catch(() => {});
 });
 
 router.post('/suggestions/:id/accept', async (req, res) => {
