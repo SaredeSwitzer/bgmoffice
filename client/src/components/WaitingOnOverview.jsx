@@ -37,7 +37,7 @@ export default function WaitingOnOverview({ id = 'waiting_overview', defaultOpen
       accent="purple"
       defaultOpen={defaultOpen}
       right={
-        <Link to="/clients?tab=waiting" className="text-xs text-gray-400 hover:text-gray-700 hover:underline flex-shrink-0">
+        <Link to="/waiting" className="text-xs text-gray-400 hover:text-gray-700 hover:underline flex-shrink-0">
           Open full list →
         </Link>
       }

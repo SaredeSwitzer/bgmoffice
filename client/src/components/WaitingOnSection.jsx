@@ -82,7 +82,16 @@ function NoteThread({ itemId, mentionableUsers }) {
   )
 }
 
-function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeedBy, onSave, showLink, autoOpen }) {
+// Urgent first, then newest. Used everywhere the open list is rebuilt locally so the
+// order matches what the server would return on the next load.
+function sortItems(list) {
+  return [...list].sort((a, b) =>
+    (Number(!!b.urgent) - Number(!!a.urgent)) ||
+    String(b.created_at || '').localeCompare(String(a.created_at || ''))
+  )
+}
+
+function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeedBy, onSave, onToggleUrgent, showLink, autoOpen }) {
   const [open, setOpen] = useState(!!autoOpen)
   const [editingDate, setEditingDate] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -93,6 +102,7 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
   const linkedName = item.client_name || item.instructor_name
   const linkTo = item.client_id ? `/clients/${item.client_id}` : item.instructor_id ? `/instructors/${item.instructor_id}` : null
   const isOverdue = item.need_by && !resolved && item.need_by < new Date().toISOString().slice(0, 10)
+  const urgent = !!item.urgent && !resolved
 
   async function saveDate(v) {
     setEditingDate(false)
@@ -122,10 +132,29 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
   }
 
   return (
-    <div className={`bg-white border rounded-xl px-4 py-3 ${resolved ? 'border-gray-100 opacity-70' : 'border-gray-200'}`}>
+    <div className={`border rounded-xl px-4 py-3 ${
+      resolved ? 'bg-white border-gray-100 opacity-70'
+      : urgent  ? 'bg-red-50/60 border-red-300'
+      :           'bg-white border-gray-200'
+    }`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900">
+          <p className="text-sm font-semibold text-gray-900 flex items-start gap-1.5">
+            {/* Red star = urgent. Starred items sort to the top of their column. */}
+            {!item.synthetic && !resolved && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onToggleUrgent(item.id, !item.urgent) }}
+                title={urgent ? 'Remove urgent' : 'Mark urgent'}
+                aria-pressed={urgent}
+                className={`text-base leading-none -mt-0.5 shrink-0 transition-colors ${
+                  urgent ? 'text-red-500 hover:text-red-600' : 'text-gray-200 hover:text-red-300'
+                }`}
+              >
+                ★
+              </button>
+            )}
+            <span className="min-w-0">
             {editing ? <span className="text-gray-400">Editing…</span>
               : showLink && linkTo ? <Link to={linkTo} className="hover:underline">{item.name}</Link> : item.name}
             {linkedName && linkedName.trim() !== item.name.trim() && <span className="text-gray-400 font-normal"> ({linkedName.trim()})</span>}
@@ -134,11 +163,17 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
                 Contract
               </span>
             )}
+            {urgent && (
+              <span className="ml-2 text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full align-middle uppercase tracking-wide">
+                Urgent
+              </span>
+            )}
             {resolved && (
               <span className="ml-2 text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full align-middle">
                 Resolved
               </span>
             )}
+            </span>
           </p>
           {editing ? (
             <div className="mt-1.5 space-y-1.5" onClick={e => e.stopPropagation()}>
@@ -303,6 +338,20 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
     }))
   }
 
+  // Optimistic: the star should feel instant. Sorting urgent-first is done here too so
+  // the item jumps to the top without waiting for a reload.
+  async function handleToggleUrgent(id, urgent) {
+    setData(d => ({
+      ...d,
+      open: sortItems(d.open.map(x => x.id === id ? { ...x, urgent } : x)),
+    }))
+    try {
+      await api.setWaitingOnUrgent(id, urgent)
+    } catch {
+      setData(d => ({ ...d, open: sortItems(d.open.map(x => x.id === id ? { ...x, urgent: !urgent } : x)) }))
+    }
+  }
+
   async function handleSetNeedBy(id, need_by) {
     const current = [...data.open, ...data.resolved].find(x => x.id === id)
     if (!current) return
@@ -386,7 +435,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
         <div className="space-y-2">
           {data.open.map(item => (
             <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
-              onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} onSave={handleSaveItem} showLink={showLink}
+              onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} onSave={handleSaveItem} onToggleUrgent={handleToggleUrgent} showLink={showLink}
               autoOpen={String(item.id) === targetItemId} />
           ))}
         </div>
@@ -401,7 +450,7 @@ export default function WaitingOnSection({ kind, linkedId, linkedName, people = 
             <div className="space-y-2 mt-2">
               {data.resolved.map(item => (
                 <Item key={item.id} item={item} mentionableUsers={mentionableUsers}
-                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} onSave={handleSaveItem} showLink={showLink}
+                  onResolve={handleResolve} onReopen={handleReopen} onDelete={handleDelete} onSetNeedBy={handleSetNeedBy} onSave={handleSaveItem} onToggleUrgent={handleToggleUrgent} showLink={showLink}
                   autoOpen={String(item.id) === targetItemId} />
               ))}
             </div>

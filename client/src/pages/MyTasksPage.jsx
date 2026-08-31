@@ -460,11 +460,11 @@ export default function MyTasksPage() {
       <WaitingOnOverview id="mytasks_waiting" defaultOpen={false} />
 
       <CollapsibleSection
-        id="mytasks_reminders" accent="blue" title="Reminders"
+        id="mytasks_reminders" accent="blue" title="Overdue Reminders"
         count={reminderTasks.length} defaultOpen={false}
       >
         {reminderTasks.length === 0 ? (
-          <p className="text-sm text-gray-400 italic px-2">No reminders due.</p>
+          <p className="text-sm text-gray-400 italic px-2">Nothing overdue.</p>
         ) : (
           <div className="space-y-4">
             <div>

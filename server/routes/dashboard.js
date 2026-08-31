@@ -147,11 +147,12 @@ async function loadMentionTasks(userId) {
   }));
 }
 
-// Every due reminder (today or overdue), not just this person's — the ones delegated to
-// the signed-in user are flagged is_mine so the UI can float them to the top, and the rest
-// are still visible so nothing sits unseen because it carries somebody else's name.
-// Anything scheduled further out stays on the Reminders page until its date arrives, so My
-// Tasks only shows what actually needs doing right now.
+// Overdue reminders only — anything whose date has already passed, from anyone's list.
+// Reminders due today (and later) live on the Reminders page; putting them here too made
+// My Tasks a second copy of that page instead of a list of what's actually late.
+// The ones delegated to the signed-in user are flagged is_mine so the UI floats them to
+// the top; the rest are still visible so nothing sits unseen because it carries somebody
+// else's name.
 async function loadReminderTasks(delegateName) {
   // remind_on is stored as TEXT ('YYYY-MM-DD', a SQLite-era leftover — see
   // reminders.js `today()`), so the due-date comparison happens in JS rather than
@@ -166,8 +167,10 @@ async function loadReminderTasks(delegateName) {
       WHERE r.status = 'pending'
       ORDER BY r.remind_on ASC`
   );
-  const today = new Date().toISOString().slice(0, 10);
-  return rows.filter(r => r.remind_on <= today).map(r => ({
+  // Local date, not UTC — toISOString() rolls over at 8pm Eastern, which made
+  // this evening's reminders look overdue for the last four hours of every day.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  return rows.filter(r => r.remind_on < today).map(r => ({
     id: r.id,
     source: 'reminder',
     categories: ['reminder'],

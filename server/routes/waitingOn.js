@@ -81,7 +81,7 @@ router.get('/', async (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const [{ rows }, pendingSignatures] = await Promise.all([
-    pool.query(`${ITEM_JOIN} ${where} ORDER BY w.status ASC, w.created_at DESC`, params),
+    pool.query(`${ITEM_JOIN} ${where} ORDER BY w.status ASC, w.urgent DESC, w.created_at DESC`, params),
     loadPendingContractSignatures({ kind, client_id, instructor_id }),
   ]);
   const open = [...rows.filter(r => r.status === 'open'), ...pendingSignatures]
@@ -214,6 +214,20 @@ router.put('/:id', async (req, res) => {
   }
   const { rows: [row] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [req.params.id]);
   res.json(row);
+});
+
+// Urgent is deliberately its own endpoint rather than a field on PUT /:id — that route
+// writes the whole record, so a star toggle sent through it would blank whatever the
+// caller didn't include (need_by has been lost that way before).
+router.patch('/:id/urgent', async (req, res) => {
+  const urgent = !!req.body.urgent;
+  const { rows: [row] } = await pool.query(
+    'UPDATE waiting_on_items SET urgent = $1 WHERE id = $2 RETURNING id',
+    [urgent, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  const { rows: [full] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [req.params.id]);
+  res.json(full);
 });
 
 router.patch('/:id/resolve', async (req, res) => {

@@ -271,6 +271,9 @@ export const api = {
   createWaitingOn: (data) => request('/waiting-on', { method: 'POST', body: JSON.stringify(data) }),
   updateWaitingOn: (id, data) => request(`/waiting-on/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   resolveWaitingOn: (id) => request(`/waiting-on/${id}/resolve`, { method: 'PATCH' }),
+  // Its own endpoint on purpose — see the note on the server route.
+  setWaitingOnUrgent: (id, urgent) =>
+    request(`/waiting-on/${id}/urgent`, { method: 'PATCH', body: JSON.stringify({ urgent }) }),
   reopenWaitingOn: (id) => request(`/waiting-on/${id}/reopen`, { method: 'PATCH' }),
   deleteWaitingOn: (id) => request(`/waiting-on/${id}`, { method: 'DELETE' }),
   getWaitingOnSuggestions: () => request('/waiting-on/suggestions'),
