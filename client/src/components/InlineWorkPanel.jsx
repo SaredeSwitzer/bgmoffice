@@ -127,6 +127,11 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
   }
 
   const thread = data?.thread || []
+  // A reminder with no notes of its own has a body identical to its title; printing
+  // both just reads as a stutter.
+  const body = data?.body && data.body.trim() !== String(item.title || item.what || '').trim()
+    ? data.body
+    : ''
 
   return (
     <div className="rounded-xl border border-blue-200 bg-blue-50/40 px-4 py-3">
@@ -143,9 +148,9 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
         <p className="text-xs text-gray-400 italic">Opening…</p>
       ) : (
         <>
-          {data?.body && (
+          {body && (
             <p className="text-xs text-gray-700 whitespace-pre-wrap mb-2">
-              {renderWithMentions(data.body, mentionableUsers)}
+              {renderWithMentions(body, mentionableUsers)}
             </p>
           )}
 
