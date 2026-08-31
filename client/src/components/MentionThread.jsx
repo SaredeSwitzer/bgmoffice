@@ -30,14 +30,18 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
   const [error,   setError]   = useState('')
   const boxRef = useRef(null)
 
+  // My Tasks gives every row a composite id ("mention-62") so ids from different
+  // sources can't collide; the mentions row's own id is mention_id.
+  const mentionId = mention.mention_id ?? mention.id
+
   useEffect(() => {
     let cancelled = false
-    api.getMentionThread(mention.id)
+    api.getMentionThread(mentionId)
       .then(d => { if (!cancelled) setData(d) })
       .catch(e => { if (!cancelled) setError(e.message || 'Could not load this one.') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [mention.id])
+  }, [mentionId])
 
   async function handleReply(e) {
     e?.preventDefault()
