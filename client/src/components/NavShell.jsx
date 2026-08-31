@@ -48,7 +48,7 @@ function Shell() {
   // On the blue bar the selected tab is a white chip — the one bright thing up
   // there, so where you are reads at a glance.
   const desktopLinkClass = ({ isActive }) =>
-    `px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+    `px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap transition-colors ${
       isActive
         ? 'bg-white text-blue-700 font-semibold shadow-sm'
         : 'text-blue-50 hover:text-white hover:bg-white/15'
@@ -64,7 +64,7 @@ function Shell() {
 
           {/* Logo — always visible */}
           <span className="font-display font-bold text-white text-base tracking-tight shrink-0 flex items-center gap-2">
-            <img src="/logo-mark.svg" alt="" aria-hidden="true" className="w-4 h-4" />
+            <img src="/logo-mark.svg" alt="" aria-hidden="true" className="w-[18px] h-[18px]" />
             BGM Office
           </span>
 
