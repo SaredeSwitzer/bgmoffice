@@ -172,19 +172,27 @@ async function reconcile(scheduleId, { fields = [], fixWeekday = false, dryRun =
     sets.push('updated_at = now()');
     args.push(scheduleId);
 
-    const where = `WHERE schedule_id = $${args.length} AND session_date >= CURRENT_DATE AND status <> 'cancelled'`;
+    // The two statements can't share a WHERE clause: the update's placeholders are
+    // offset by however many fields are being set, the count's are not.
+    const scope = "session_date >= CURRENT_DATE AND status <> 'cancelled'";
     if (dryRun) {
       const { rows: [{ count }] } = await pool.query(
-        `SELECT count(*)::int AS count FROM class_sessions ${where}`, [scheduleId]
+        `SELECT count(*)::int AS count FROM class_sessions WHERE schedule_id = $1 AND ${scope}`,
+        [scheduleId]
       );
       result.updated = count;
     } else {
-      const { rowCount } = await pool.query(`UPDATE class_sessions SET ${sets.join(', ')} ${where}`, args);
+      const { rowCount } = await pool.query(
+        `UPDATE class_sessions SET ${sets.join(', ')}
+          WHERE schedule_id = $${args.length} AND ${scope}`,
+        args
+      );
       result.updated = rowCount;
     }
   }
 
   if (fixWeekday && sch.weekday !== null) {
+    // Same placeholders either way here, so one clause serves both.
     const where = `WHERE schedule_id = $1 AND session_date >= CURRENT_DATE AND status <> 'cancelled'
                      AND EXTRACT(DOW FROM session_date::date)::int <> $2`;
     if (dryRun) {
