@@ -166,12 +166,13 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Send invoice to (email)</label>
                 <input
                   type="email"
+                  multiple
                   value={form.send_to_email}
                   onChange={e => setField('send_to_email', e.target.value)}
-                  placeholder="client@example.com"
+                  placeholder="client@example.com, office@example.com"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
                 />
-                <p className="text-[10px] text-gray-400 mt-0.5">Saved to client's invoice email. Used when sending this invoice.</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Saved to client's invoice email. Used when sending this invoice. Several addresses are fine — separate them with commas.</p>
               </div>
             </div>
 
