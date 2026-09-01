@@ -18,6 +18,7 @@ import { InstructorLink } from '../components/NameLink'
 import WaitingOnSection from '../components/WaitingOnSection'
 import { useHashHighlight } from '../utils/hashHighlight'
 import ClientAddresses from '../components/ClientAddresses'
+import { today } from '../utils/dates'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
@@ -404,7 +405,7 @@ function PackagesSection({ clientId, instructors }) {
   }
 
   function startLog(pkgId) {
-    setLogDates(prev => ({ ...prev, [pkgId]: new Date().toISOString().slice(0, 10) }))
+    setLogDates(prev => ({ ...prev, [pkgId]: today() }))
     setLogging(prev => ({ ...prev, [pkgId]: true }))
   }
 
@@ -969,7 +970,7 @@ export default function ClientProfilePage() {
                         ...f,
                         waiver_signed: e.target.checked,
                         waiver_signed_date: e.target.checked && !f.waiver_signed_date
-                          ? new Date().toISOString().slice(0, 10) : f.waiver_signed_date,
+                          ? today() : f.waiver_signed_date,
                       }))}
                       className="rounded" />
                     Signed
@@ -1261,7 +1262,7 @@ export default function ClientProfilePage() {
           </h2>
           <div className="space-y-2">
             {reminders.map(rem => {
-              const isOverdue = rem.remind_on < new Date().toISOString().slice(0, 10)
+              const isOverdue = rem.remind_on < today()
               return (
                 <div key={rem.id} className={`bg-white border rounded-xl px-4 py-3 ${isOverdue ? 'border-red-200' : 'border-gray-200'}`}>
                   <div className="flex items-start justify-between gap-3">

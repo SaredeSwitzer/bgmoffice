@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto  = require('crypto');
 const pool    = require('../db/pg');
+const { ymd } = require('../lib/dates');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
 
@@ -122,7 +123,7 @@ router.post('/public/:token/sign', async (req, res) => {
   // POST /signatures/:id/link sets, just without staff having to do that matching
   // step by hand.
   if (row.client_id) {
-    const signedDate = new Date(updated.signed_at).toISOString().slice(0, 10);
+    const signedDate = ymd(updated.signed_at);
     await pool.query(
       `UPDATE clients SET
          waiver_signed = 1, waiver_signed_date = $1,
@@ -267,7 +268,7 @@ router.post('/signatures/:id/link', requireStaff, async (req, res) => {
 
   await pool.query('UPDATE client_contract_signatures SET client_id = $1 WHERE id = $2', [client_id, req.params.id]);
   // Fill in blanks only — never clobber an already-populated client record.
-  const signedDate = new Date(sig.signed_at).toISOString().slice(0, 10);
+  const signedDate = ymd(sig.signed_at);
   await pool.query(
     `UPDATE clients SET
        waiver_signed = 1, waiver_signed_date = $1,

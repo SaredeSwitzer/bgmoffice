@@ -10,6 +10,7 @@ import SignupOptionPicker from '../components/SignupOptionPicker'
 import StylesManagerModal from '../components/StylesManagerModal'
 import { ClientLink } from '../components/NameLink'
 import WaitingOnSection from '../components/WaitingOnSection'
+import { today } from '../utils/dates'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -1053,7 +1054,7 @@ export default function InstructorProfilePage() {
           </h2>
           <div className="space-y-2">
             {reminders.map(rem => {
-              const isOverdue = rem.remind_on < new Date().toISOString().slice(0, 10)
+              const isOverdue = rem.remind_on < today()
               return (
                 <div key={rem.id} className={`bg-white border rounded-xl px-4 py-3 ${isOverdue ? 'border-red-200' : 'border-gray-200'}`}>
                   <div className="flex items-start justify-between gap-3">

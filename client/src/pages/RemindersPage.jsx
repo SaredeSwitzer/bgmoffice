@@ -14,8 +14,10 @@ import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
+import { ymd } from '../utils/dates'
 
-function today() { return new Date().toISOString().slice(0, 10) }
+// Local date, not UTC — see utils/dates.js.
+const today = ymd
 
 function fmtDate(iso) {
   if (!iso) return ''

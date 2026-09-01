@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import MentionTextarea from './MentionTextarea'
 import DateInput from './DateInput'
 import { useHashHighlight } from '../utils/hashHighlight'
+import { today } from '../utils/dates'
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -101,7 +102,7 @@ function Item({ item, mentionableUsers, onResolve, onReopen, onDelete, onSetNeed
   const resolved = item.status === 'resolved'
   const linkedName = item.client_name || item.instructor_name
   const linkTo = item.client_id ? `/clients/${item.client_id}` : item.instructor_id ? `/instructors/${item.instructor_id}` : null
-  const isOverdue = item.need_by && !resolved && item.need_by < new Date().toISOString().slice(0, 10)
+  const isOverdue = item.need_by && !resolved && item.need_by < today()
   const urgent = !!item.urgent && !resolved
 
   async function saveDate(v) {

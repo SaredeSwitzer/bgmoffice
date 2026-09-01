@@ -9,6 +9,7 @@ import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
+import { today } from '../utils/dates'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -25,7 +26,7 @@ function fmtTs(iso) {
 
 // ── Task form (inline create or edit) ────────────────────────────────────────
 export function TaskForm({ initial, onSave, onCancel, saving, clients = [], instructors = [] }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = today()
   const [form, setForm] = useState(initial || {
     title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: 'task',
     client: null, instructor: null,
@@ -129,7 +130,7 @@ function TaskCard({ task, onUpdate, onDelete, onDone, isNew, actionTypes, client
 
   const isDone    = task.status === 'done'
   const isUrgent  = task.priority === 'urgent'
-  const isOverdue = task.due_date && !isDone && task.due_date < new Date().toISOString().slice(0, 10)
+  const isOverdue = task.due_date && !isDone && task.due_date < today()
 
   async function toggle() {
     setSaving(true)

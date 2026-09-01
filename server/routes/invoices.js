@@ -2,6 +2,7 @@ const express = require('express');
 const crypto  = require('crypto');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { today, daysFromToday } = require('../lib/dates');
 const { nextInvoiceNumber, calcTotals } = require('../lib/invoiceHelpers');
 const { syncMentions, deleteMentions, stripMentionsForPublic } = require('../lib/mentions');
 const { sendMail } = require('../lib/mailer');
@@ -170,7 +171,7 @@ router.post('/', async (req, res) => {
     `INSERT INTO invoices
        (invoice_number, title, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by, public_token)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-    [invoice_number, title || null, client_id || null, instructor_id || null, JSON.stringify(line_items), subtotal, tax_rate, tax_amount, total, notes || null, invoice_date || new Date().toISOString().slice(0, 10), due_date || null, req.user.initials, crypto.randomBytes(16).toString('hex')]
+    [invoice_number, title || null, client_id || null, instructor_id || null, JSON.stringify(line_items), subtotal, tax_rate, tax_amount, total, notes || null, invoice_date || today(), due_date || null, req.user.initials, crypto.randomBytes(16).toString('hex')]
   );
   await syncMentions({
     sourceTable: 'invoice_notes', sourceId: inv.id, text: notes || '',
@@ -242,7 +243,7 @@ router.post('/:id/payments', async (req, res) => {
   await pool.query(
     `INSERT INTO invoice_payments (invoice_id, amount, paid_date, method, note, created_by)
      VALUES ($1,$2,$3,$4,$5,$6)`,
-    [req.params.id, Number(amount), paid_date || new Date().toISOString().slice(0, 10), method || null, note || null, req.user.initials]
+    [req.params.id, Number(amount), paid_date || today(), method || null, note || null, req.user.initials]
   );
   await recalcPaid(req.params.id);
   const { rows: [row] } = await pool.query(`${INVOICE_JOIN} WHERE i.id = $1`, [req.params.id]);
@@ -285,9 +286,7 @@ function fmtDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function defaultDueDate() {
-  const d = new Date();
-  d.setDate(d.getDate() + DUE_DATE_LEAD_DAYS);
-  return d.toISOString().slice(0, 10);
+  return daysFromToday(DUE_DATE_LEAD_DAYS);
 }
 
 // Preview before sending — staff can edit subject/body/due-date here, same
@@ -412,7 +411,7 @@ router.post('/:id/duplicate', async (req, res) => {
     `INSERT INTO invoices
        (invoice_number, title, client_id, instructor_id, line_items, subtotal, tax_rate, tax_amount, total, notes, invoice_date, due_date, created_by, public_token)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-    [invoice_number, src.title, src.client_id, src.instructor_id, src.line_items, src.subtotal, src.tax_rate, src.tax_amount, src.total, src.notes, new Date().toISOString().slice(0, 10), null, req.user.initials, crypto.randomBytes(16).toString('hex')]
+    [invoice_number, src.title, src.client_id, src.instructor_id, src.line_items, src.subtotal, src.tax_rate, src.tax_amount, src.total, src.notes, today(), null, req.user.initials, crypto.randomBytes(16).toString('hex')]
   );
   await syncMentions({
     sourceTable: 'invoice_notes', sourceId: inv.id, text: src.notes || '',

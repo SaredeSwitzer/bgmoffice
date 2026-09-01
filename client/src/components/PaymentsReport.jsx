@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import { today, daysFromToday } from '../utils/dates'
 
 const money = n => `$${Number(n || 0).toFixed(2)}`
 const fmtDate = ymd => {
@@ -12,10 +13,8 @@ const fmtDate = ymd => {
 // recorded: Stripe (the weekly card run, pay-link charges) and invoice_payments (checks,
 // cash, Zelle logged in the app). Answering "did this client pay" needed both.
 export default function PaymentsReport() {
-  const today = new Date().toISOString().slice(0, 10)
-  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
-  const [start, setStart] = useState(monthAgo)
-  const [end, setEnd] = useState(today)
+  const [start, setStart] = useState(() => daysFromToday(-30))
+  const [end, setEnd] = useState(() => today())
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

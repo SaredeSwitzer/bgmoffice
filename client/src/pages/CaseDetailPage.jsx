@@ -7,6 +7,7 @@ import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
+import { today } from '../utils/dates'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -448,7 +449,7 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
 
 function LinkedReminderItem({ reminder, onDone }) {
   const [loading, setLoading] = useState(false)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = today()
   const isOverdue = reminder.remind_on < today
 
   async function handleDone() {

@@ -5,6 +5,7 @@ import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import { navClick, auxNavClick } from '../utils/nav'
+import { today } from '../utils/dates'
 
 const STATUS_COLORS = {
   draft:   'bg-gray-100 text-gray-600',
@@ -33,7 +34,7 @@ export function NewInvoiceModal({ onClose, onCreated, initialClient = null }) {
     title: '',
     client: initialClient,
     instructor: null,
-    invoice_date: new Date().toISOString().slice(0, 10),
+    invoice_date: today(),
     due_date: '',
     tax_rate: '',
     notes: '',

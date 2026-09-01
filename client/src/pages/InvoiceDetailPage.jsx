@@ -10,6 +10,7 @@ import { renderWithMentions, stripMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { today } from '../utils/dates'
 
 const STATUS_COLORS = {
   draft:   'bg-gray-100 text-gray-600',
@@ -73,7 +74,7 @@ export default function InvoiceDetailPage() {
   const balanceDue = invoice ? Math.max(invoice.total - (invoice.amount_paid || 0), 0) : 0
 
   function startPaymentForm() {
-    setPaymentForm({ amount: balanceDue ? balanceDue.toFixed(2) : '', paid_date: new Date().toISOString().slice(0, 10), method: 'cash', note: '' })
+    setPaymentForm({ amount: balanceDue ? balanceDue.toFixed(2) : '', paid_date: today(), method: 'cash', note: '' })
     setShowPaymentForm(true)
   }
 

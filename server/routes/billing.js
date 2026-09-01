@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto  = require('crypto');
 const pool    = require('../db/pg');
+const { ymd } = require('../lib/dates');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { notifyCrew } = require('../lib/notifyCrew');
 const { sendChargeReceipt } = require('../lib/mailer');
@@ -525,7 +526,7 @@ router.get('/payments', async (req, res) => {
     card = succeeded.map(c => {
       const match = cust[c.customer] || byId[c.metadata?.client_id];
       return {
-        date: new Date(c.created * 1000).toISOString().slice(0, 10),
+        date: ymd(c.created * 1000),
         amount: c.amount / 100,
         method: 'Card',
         client_id: match?.id ?? null,

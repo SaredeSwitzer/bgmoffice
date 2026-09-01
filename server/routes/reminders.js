@@ -26,7 +26,8 @@ const REMINDER_JOIN = `
   LEFT JOIN invoices     inv ON inv.id = r.invoice_id
 `;
 
-function today() { return new Date().toISOString().slice(0, 10); }
+// Local date, not UTC — see server/lib/dates.js for why that matters here.
+const { today } = require('../lib/dates');
 
 router.get('/', async (req, res) => {
   const { client_id, instructor_id } = req.query;
