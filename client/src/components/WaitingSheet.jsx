@@ -87,12 +87,11 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
     try { await fn() } finally { setBusy(false); onChanged() }
   }
 
-  // Postgres bigints come back from node-pg as strings, while the ids inside the people
-  // JSON are numbers — comparing them directly is always false, which meant the flag never
-  // showed and clicking a name could only ever set it, never clear it.
-  const isWaitingOn = p => String(row.waiting_on_id ?? '') === String(p.id)
+  // The flag sits on each person, so any number of them can carry it — often we're waiting
+  // on the instructor for one thing and the client for another on the same line.
+  const isWaitingOn = p => !!p.waiting
   const toggleWaiting = p => act(() =>
-    api.setWaitingOnPerson(row.id, isWaitingOn(p) ? null : p.id))
+    api.setWaitingOnPerson(row.id, p.id, !isWaitingOn(p)))
 
   return (
     <tr className={row.urgent ? 'bg-red-50/60' : ''}>
@@ -367,7 +366,7 @@ export default function WaitingSheet() {
 
   if (rows === null) return null
 
-  const waitingCount = rows.filter(r => r.waiting_on_id).length
+  const waitingCount = rows.filter(r => (r.people || []).some(p => p.waiting)).length
 
   return (
     <div className="space-y-3">
@@ -458,7 +457,8 @@ export default function WaitingSheet() {
 
       <p className="text-[11px] text-gray-400 px-1 print:hidden">
         Click a name to flag that we&rsquo;re waiting on <em>them</em> right now. Click again once
-        they&rsquo;ve come back to you. There&rsquo;s one sheet and everyone sees it, so the next shift
+        they&rsquo;ve come back to you. You can flag more than one name on a line &mdash; the
+        instructor for one thing and the client for another. There&rsquo;s one sheet and everyone sees it, so the next shift
         picks up exactly where you left off.
       </p>
     </div>

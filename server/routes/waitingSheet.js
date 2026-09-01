@@ -19,7 +19,8 @@ const ROW_SQL = `
   SELECT r.*,
     COALESCE(
       (SELECT json_agg(json_build_object(
-                'id', p.id, 'kind', p.kind, 'person_id', p.person_id, 'name', p.name)
+                'id', p.id, 'kind', p.kind, 'person_id', p.person_id, 'name', p.name,
+                'waiting', p.waiting)
               ORDER BY p.created_at)
          FROM waiting_sheet_people p WHERE p.row_id = r.id),
       '[]'::json
@@ -39,15 +40,16 @@ async function getRow(id) {
   return row || null;
 }
 
-// Put the hourglass on a person if the row doesn't already have it on someone. Used when a
-// row is created and when a name is added to a row nobody's flagged on, so the common case
-// (one name, we're waiting on them) needs no extra click.
+// Put the hourglass on a person if nobody on the row has it yet. Used when a row is created
+// and when a name is added to a row nobody's flagged on, so the common case (one name, we're
+// waiting on them) needs no extra click.
 async function flagIfFirst(rowId, person) {
-  await pool.query(
-    `UPDATE waiting_sheet_rows SET waiting_on_id = $1, waiting_on_kind = $2, updated_at = now()
-      WHERE id = $3 AND waiting_on_id IS NULL`,
-    [person.id, person.kind, rowId]
+  const { rows: [any] } = await pool.query(
+    'SELECT 1 FROM waiting_sheet_people WHERE row_id = $1 AND waiting LIMIT 1', [rowId]
   );
+  if (any) return;
+  await pool.query('UPDATE waiting_sheet_people SET waiting = true WHERE id = $1', [person.id]);
+  await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [rowId]);
 }
 
 // Open rows, urgent first, then oldest — the order you'd work them in.
@@ -146,22 +148,15 @@ router.patch('/:id/need-by', async (req, res) => {
   res.json(await getRow(req.params.id));
 });
 
-router.patch('/:id/waiting-on', async (req, res) => {
-  const personId = req.body.person_id || null;
-  let kind = null;
-  if (personId) {
-    const { rows: [p] } = await pool.query(
-      'SELECT kind FROM waiting_sheet_people WHERE id = $1 AND row_id = $2', [personId, req.params.id]
-    );
-    if (!p) return res.status(404).json({ error: 'That person is not on this row' });
-    kind = p.kind;
-  }
-  const { rows: [row] } = await pool.query(
-    `UPDATE waiting_sheet_rows SET waiting_on_id = $1, waiting_on_kind = $2, updated_at = now()
-      WHERE id = $3 RETURNING id`,
-    [personId, kind, req.params.id]
+// The flag lives on each person, not on the row, so a line can be waiting on the instructor
+// for one thing and the client for another at the same time.
+router.patch('/:id/people/:personId/waiting', async (req, res) => {
+  const { rows: [p] } = await pool.query(
+    'UPDATE waiting_sheet_people SET waiting = $1 WHERE id = $2 AND row_id = $3 RETURNING id',
+    [!!req.body.waiting, req.params.personId, req.params.id]
   );
-  if (!row) return res.status(404).json({ error: 'Not found' });
+  if (!p) return res.status(404).json({ error: 'That person is not on this row' });
+  await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [req.params.id]);
   res.json(await getRow(req.params.id));
 });
 
@@ -178,12 +173,7 @@ router.post('/:id/people', async (req, res) => {
 });
 
 router.delete('/:id/people/:personId', async (req, res) => {
-  // If the ball was with the person being removed, it's nobody's until someone says.
-  await pool.query(
-    `UPDATE waiting_sheet_rows SET waiting_on_id = NULL, waiting_on_kind = NULL
-      WHERE id = $1 AND waiting_on_id = $2`,
-    [req.params.id, req.params.personId]
-  );
+  // The flag goes with them — it lived on their chip.
   await pool.query('DELETE FROM waiting_sheet_people WHERE id = $1 AND row_id = $2',
     [req.params.personId, req.params.id]);
   res.json(await getRow(req.params.id));
@@ -295,19 +285,18 @@ router.get('/handoff/draft', async (req, res) => {
     const notes = row.notes || [];
     return notes.length ? ` — ${notes[notes.length - 1].text}` : '';
   };
+  const flagged = row => (row.people || []).filter(p => p.waiting);
   const waitingLabel = row => {
-    // String compare: waiting_on_id is a bigint (string from node-pg), p.id inside the
-    // people JSON is a number.
-    const who = (row.people || []).find(p => String(p.id) === String(row.waiting_on_id));
-    return (who ? `${who.name} — ${row.what}` : label(row)) + lastNote(row);
+    const who = flagged(row).map(p => p.name);
+    return (who.length ? `${who.join(' & ')} — ${row.what}` : label(row)) + lastNote(row);
   };
 
   res.json({
     urgent:    rows.filter(r => r.urgent).map(r => label(r) + lastNote(r)).join('\n'),
     // Names only on purpose: the detail lives in the app, and a handoff that restates it
     // goes stale the moment someone updates the record.
-    follow_up: rows.filter(r => !r.urgent && !r.waiting_on_id).map(label).join('\n'),
-    waiting:   rows.filter(r => !r.urgent && r.waiting_on_id).map(waitingLabel).join('\n'),
+    follow_up: rows.filter(r => !r.urgent && !flagged(r).length).map(label).join('\n'),
+    waiting:   rows.filter(r => !r.urgent && flagged(r).length).map(waitingLabel).join('\n'),
   });
 });
 
