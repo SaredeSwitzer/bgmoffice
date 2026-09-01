@@ -288,6 +288,9 @@ export const api = {
   getHandoffDraft: () => request('/waiting-sheet/handoff/draft'),
   saveHandoff: (data) => request('/waiting-sheet/handoff', { method: 'POST', body: JSON.stringify(data) }),
   markHandoffRead: (id) => request(`/waiting-sheet/handoff/${id}/read`, { method: 'PATCH' }),
+  getMyLastHandoff: () => request('/waiting-sheet/handoff/mine'),
+  setHandoffRecipient: (id, handedTo) =>
+    request(`/waiting-sheet/handoff/${id}/handed-to`, { method: 'PATCH', body: JSON.stringify({ handed_to: handedTo }) }),
 
   getScheduleDrift: () => request('/schedule/drift'),
   reconcileSchedule: (scheduleId, body) =>

@@ -184,13 +184,41 @@ router.delete('/:id', async (req, res) => {
 
 // ── Handoffs ──────────────────────────────────────────────────────────────────
 
-// The one the current person should read. Not marked read automatically — that happens
-// when they say they've read it, so it can't be cleared by an accidental page load.
+// The one THIS person should read: the most recent handoff addressed to them, or left
+// for whoever's next. A handoff addressed to somebody else isn't yours and doesn't
+// appear — the app has no idea who's on shift, so it can only go on what was chosen.
+//
+// Not marked read automatically; that happens when they say so, so it can't be cleared
+// by an accidental page load.
 router.get('/handoff/latest', async (req, res) => {
+  const firstName = String(req.user.name || '').split(' ')[0];
   const { rows: [row] } = await pool.query(
-    'SELECT * FROM shift_handoffs ORDER BY created_at DESC LIMIT 1'
+    `SELECT * FROM shift_handoffs
+      WHERE handed_to IS NULL OR LOWER(handed_to) = LOWER($1)
+      ORDER BY created_at DESC LIMIT 1`,
+    [firstName]
   );
   res.json(row || null);
+});
+
+// The last handoff this person wrote, so they can still change who it went to after
+// saving it — the commonest correction there is.
+router.get('/handoff/mine', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    'SELECT * FROM shift_handoffs WHERE author = $1 ORDER BY created_at DESC LIMIT 1',
+    [req.user.initials]
+  );
+  res.json(row || null);
+});
+
+router.patch('/handoff/:id/handed-to', async (req, res) => {
+  const handedTo = String(req.body.handed_to || '').trim() || null;
+  const { rows: [row] } = await pool.query(
+    'UPDATE shift_handoffs SET handed_to = $1 WHERE id = $2 RETURNING *',
+    [handedTo, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
 });
 
 router.get('/handoff/history', async (req, res) => {
@@ -234,11 +262,12 @@ router.get('/handoff/draft', async (req, res) => {
 });
 
 router.post('/handoff', async (req, res) => {
-  const { urgent, follow_up, waiting, notes } = req.body;
+  const { urgent, follow_up, waiting, notes, handed_to } = req.body;
   const { rows: [row] } = await pool.query(
-    `INSERT INTO shift_handoffs (author, urgent, follow_up, waiting, notes)
-     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [req.user.initials, urgent || null, follow_up || null, waiting || null, notes || null]
+    `INSERT INTO shift_handoffs (author, urgent, follow_up, waiting, notes, handed_to)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [req.user.initials, urgent || null, follow_up || null, waiting || null, notes || null,
+     String(handed_to || '').trim() || null]
   );
   res.status(201).json(row);
 });

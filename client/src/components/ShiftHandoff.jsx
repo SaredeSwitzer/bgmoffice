@@ -19,6 +19,23 @@ function fmtWhen(ts) {
   return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+// Who a handoff is for. "Whoever's next" is the honest default — the app has no idea
+// who's on shift, so leaving it unaddressed means anyone can pick it up, and naming
+// somebody means only they see it.
+function RecipientPicker({ value, onChange, staff, disabled }) {
+  return (
+    <select
+      value={value || ''}
+      onChange={e => onChange(e.target.value || null)}
+      disabled={disabled}
+      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+    >
+      <option value="">Whoever&rsquo;s next</option>
+      {staff.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+    </select>
+  )
+}
+
 const SECTIONS = [
   {
     key: 'urgent',
@@ -72,6 +89,11 @@ export function LatestHandoff() {
             Handoff from {row.author}
           </span>
           <span className="text-xs text-gray-400 truncate">{fmtWhen(row.created_at)}</span>
+          {row.handed_to && (
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+              for {row.handed_to}
+            </span>
+          )}
         </span>
         {!row.read_at && (
           <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-blue-600 text-white px-2 py-0.5 rounded-full">
@@ -118,10 +140,25 @@ export function LatestHandoff() {
 
 // ── What the person ending a shift writes ─────────────────────────────────────
 export function WriteHandoff() {
+  const { user } = useAuth()
   const [form, setForm] = useState(null)
+  const [handedTo, setHandedTo] = useState(null)
+  const [staff, setStaff] = useState([])
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved] = useState(null)     // the saved row, so it can still be re-addressed
   const [error, setError] = useState('')
+
+  const [mine, setMine] = useState(null)   // the last handoff I wrote, if any
+
+  useEffect(() => {
+    api.getMentionableUsers()
+      // Handing a shift to yourself isn't a thing.
+      .then(rows => setStaff(rows.filter(r => r.name !== user?.name?.split(' ')[0])))
+      .catch(() => setStaff([]))
+    // So who it went to can still be changed on a later visit, not just straight after
+    // saving — plans change after a shift ends.
+    api.getMyLastHandoff().then(setMine).catch(() => setMine(null))
+  }, [user])
 
   async function start() {
     setError('')
@@ -139,31 +176,60 @@ export function WriteHandoff() {
     setSaving(true)
     setError('')
     try {
-      await api.saveHandoff(form)
-      setSaved(true)
+      const row = await api.saveHandoff({ ...form, handed_to: handedTo })
+      setSaved(row)
       setForm(null)
     } catch (e) {
       setError(e.message || 'That didn’t save.')
     } finally { setSaving(false) }
   }
 
+  async function rehand(name) {
+    setHandedTo(name)
+    const updated = await api.setHandoffRecipient(saved.id, name)
+    setSaved(updated)
+  }
+
   if (saved) {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-3">
+      <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-3 space-y-2">
         <p className="text-sm font-semibold text-green-800">✓ Handoff saved</p>
-        <p className="text-xs text-green-700 mt-0.5">
-          The next person sees it at the top of My Tasks when they start.
+        <p className="text-xs text-green-700">
+          {saved.handed_to
+            ? `${saved.handed_to} sees it at the top of My Tasks when they sign in.`
+            : 'Whoever signs in next sees it at the top of My Tasks.'}
         </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-green-800">Change who it&rsquo;s for:</span>
+          <RecipientPicker value={saved.handed_to} onChange={rehand} staff={staff} />
+        </div>
       </div>
     )
   }
 
   if (!form) {
     return (
-      <button onClick={start}
-        className="px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700">
-        Write the handoff for the next shift
-      </button>
+      <div className="space-y-2">
+        <button onClick={start}
+          className="px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700">
+          Write the handoff for the next shift
+        </button>
+
+        {mine && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <span>
+              Your last handoff &middot; {fmtWhen(mine.created_at)} &middot;{' '}
+              {mine.handed_to ? `for ${mine.handed_to}` : 'for whoever’s next'}
+              {mine.read_at ? ` · read by ${mine.read_by}` : ' · not read yet'}
+            </span>
+            <RecipientPicker
+              value={mine.handed_to}
+              staff={staff}
+              onChange={async name => setMine(await api.setHandoffRecipient(mine.id, name))}
+            />
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -175,6 +241,16 @@ export function WriteHandoff() {
           Filled in from your sheet. Edit it, add anything the sheet can&rsquo;t know, then save.
           Write it for somebody who has no idea what you did today.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+        <span className="text-xs font-semibold text-gray-600">Hand it to</span>
+        <RecipientPicker value={handedTo} onChange={setHandedTo} staff={staff} />
+        <span className="text-[11px] text-gray-400">
+          {handedTo
+            ? `Only ${handedTo} will see it.`
+            : 'Anyone can pick it up. You can change this after saving.'}
+        </span>
       </div>
 
       {SECTIONS.map(s => (
