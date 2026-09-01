@@ -31,12 +31,16 @@ export default function AddReminderModal({
         setClients(c)
         setInstructors(i)
         setDelegates(d)
+        // Ids are bigints, which arrive from the API as strings — comparing them to a
+        // Number was always false, so opening this from a client or instructor page
+        // silently failed to pre-select them and you had to search for the person you
+        // were already looking at.
         if (clientId) {
-          const found = c.find(x => x.id === Number(clientId))
+          const found = c.find(x => String(x.id) === String(clientId))
           if (found) setSelectedClients([found])
         }
         if (instructorId) {
-          const found = i.find(x => x.id === Number(instructorId))
+          const found = i.find(x => String(x.id) === String(instructorId))
           if (found) setSelectedInstructors([found])
         }
       })

@@ -383,7 +383,10 @@ function InstructorAvailabilitySection({ instructorId }) {
 
   useEffect(() => {
     api.getInstructorAvailability()
-      .then(all => setSlots(all.filter(s => s.instructor_id === Number(instructorId))))
+      // instructor_id is a bigint and arrives as a string, so comparing it to a Number
+      // matched nothing — this section was always empty no matter what the instructor
+      // had told us they were free for.
+      .then(all => setSlots(all.filter(s => String(s.instructor_id) === String(instructorId))))
       .catch(() => {})
   }, [instructorId])
 
