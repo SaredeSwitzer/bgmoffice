@@ -9,6 +9,17 @@ import App from './App'
 // build indefinitely after a deploy. Poll explicitly; registerType 'autoUpdate' takes
 // it from there (installs + activates + reloads the page once a new version is found).
 if ('serviceWorker' in navigator) {
+  // When a new service worker takes over, reload once so the tab actually runs the new
+  // code. Without this the worker updates underneath a page that carries on executing the
+  // old bundle from memory — which is why shipped fixes kept looking like they hadn't
+  // worked until the tab was closed entirely.
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return
+    reloading = true
+    window.location.reload()
+  })
+
   registerSW({
     immediate: true,
     onRegisteredSW(_url, registration) {
