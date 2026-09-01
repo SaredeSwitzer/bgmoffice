@@ -13,9 +13,14 @@ if ('serviceWorker' in navigator) {
   // code. Without this the worker updates underneath a page that carries on executing the
   // old bundle from memory — which is why shipped fixes kept looking like they hadn't
   // worked until the tab was closed entirely.
-  let reloading = false;
+  //
+  // Only when a worker is REPLACED, not on first install: on a first visit the page
+  // starts with no controller and gains one, which isn't a new version and doesn't need
+  // a reload — it just makes the first load flash.
+  const hadController = !!navigator.serviceWorker.controller
+  let reloading = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return
+    if (!hadController || reloading) return
     reloading = true
     window.location.reload()
   })
