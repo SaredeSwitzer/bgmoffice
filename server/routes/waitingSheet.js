@@ -187,7 +187,9 @@ router.get('/handoff/draft', async (req, res) => {
     return names.length ? `${names.join(' / ')} — ${row.what}` : row.what;
   };
   const waitingLabel = row => {
-    const who = (row.people || []).find(p => p.id === row.waiting_on_id);
+    // String compare: waiting_on_id is a bigint (string from node-pg), p.id inside the
+    // people JSON is a number.
+    const who = (row.people || []).find(p => String(p.id) === String(row.waiting_on_id));
     return who ? `${who.name} — ${row.what}` : label(row);
   };
 

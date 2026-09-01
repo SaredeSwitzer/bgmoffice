@@ -76,8 +76,12 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
     try { await fn() } finally { setBusy(false); onChanged() }
   }
 
+  // Postgres bigints come back from node-pg as strings, while the ids inside the people
+  // JSON are numbers — comparing them directly is always false, which meant the flag never
+  // showed and clicking a name could only ever set it, never clear it.
+  const isWaitingOn = p => String(row.waiting_on_id ?? '') === String(p.id)
   const toggleWaiting = p => act(() =>
-    api.setWaitingOnPerson(row.id, row.waiting_on_id === p.id ? null : p.id))
+    api.setWaitingOnPerson(row.id, isWaitingOn(p) ? null : p.id))
 
   return (
     <tr className={row.urgent ? 'bg-red-50/60' : ''}>
@@ -96,7 +100,7 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
       <td className="align-top px-3 py-2.5">
         <div className="flex flex-wrap gap-1.5 items-center">
           {instructorsOn.map(p => (
-            <PersonChip key={p.id} person={p} isWaiting={row.waiting_on_id === p.id}
+            <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
               onClick={() => toggleWaiting(p)} readOnly={readOnly}
               onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
           ))}
@@ -110,7 +114,7 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
       <td className="align-top px-3 py-2.5">
         <div className="flex flex-wrap gap-1.5 items-center">
           {clientsOn.map(p => (
-            <PersonChip key={p.id} person={p} isWaiting={row.waiting_on_id === p.id}
+            <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
               onClick={() => toggleWaiting(p)} readOnly={readOnly}
               onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
           ))}
