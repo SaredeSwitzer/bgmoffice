@@ -806,6 +806,7 @@ export default function BillingPage() {
                               {justApplied ? `applied, ${d.classes_added} class${d.classes_added === 1 ? '' : 'es'} added`
                                 : d.status === 'updated' ? `${d.new_invoice ? 'new invoice' : 'add to invoice'}, ${d.classes_added} class${d.classes_added === 1 ? '' : 'es'}`
                                 : d.status === 'up_to_date' ? 'already up to date'
+                                : d.status === 'possible_duplicate_client' ? 'skipped — this client looks like a duplicate'
                                 : 'skipped — has a manual invoice this month'}
                             </span>
                             <div className="flex items-center gap-2 shrink-0">
@@ -824,6 +825,12 @@ export default function BillingPage() {
                               )}
                             </div>
                           </div>
+                          {d.warning && (
+                            <p className="mt-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                              ⚠ {d.warning}
+                            </p>
+                          )}
+
                           {d.status === 'updated' && d.lines?.length > 0 && (
                             <div className="mt-1 ml-2 space-y-0.5">
                               {d.lines.map((l, j) => (

@@ -231,6 +231,35 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
         details.push({ client_id, client_name, period, status: 'skipped_manual', classes_added: 0, amount_added: 0, invoice_id: manual.id });
         continue;
       }
+
+      // The "already billed by hand" check above is per client record, so a client
+      // entered twice defeats it: the classes hang off one record and the invoice off
+      // the other, and this would raise a second invoice for work already billed.
+      // JCC Mid Westchester is on the books three times and July was billed under the
+      // wrong one — 1,125 dollars that would have gone out twice. Can't be resolved
+      // automatically (merging clients is a person's decision), so it's flagged on the
+      // preview instead of quietly happening.
+      const { rows: [twin] } = await pool.query(
+        `SELECT i.id, i.invoice_number, c2.name AS client_name
+           FROM clients c1
+           JOIN clients c2
+             ON c2.id <> c1.id
+            AND (regexp_replace(lower(c2.name),'[^a-z]','','g') LIKE regexp_replace(lower(c1.name),'[^a-z]','','g') || '%'
+              OR regexp_replace(lower(c1.name),'[^a-z]','','g') LIKE regexp_replace(lower(c2.name),'[^a-z]','','g') || '%')
+           JOIN invoices i ON i.client_id = c2.id
+          WHERE c1.id = $1
+            AND to_char(i.invoice_date::date, 'YYYY-MM') = $2
+          LIMIT 1`,
+        [client_id, period]
+      );
+      if (twin) {
+        details.push({
+          client_id, client_name, period, status: 'possible_duplicate_client',
+          classes_added: 0, amount_added: 0, invoice_id: twin.id,
+          warning: `"${twin.client_name}" looks like the same client and already has invoice ${twin.invoice_number} for this month. Merge them before billing, or this bills the same classes twice.`,
+        });
+        continue;
+      }
     }
 
     let invoiceId, lineItems;
@@ -371,7 +400,11 @@ async function syncDateRange(startDate, endDate, { dryRun = false, clientId = nu
   const { rows: sessions } = await pool.query(
     `SELECT s.id, s.client_id, c.name AS client_name, s.session_date::text AS session_date,
             COALESCE(NULLIF(s.payment_method, ''), sch.payment_method) AS payment_method,
-            s.style, s.charge_amount
+            -- Charge and style fall back the same way. A blank charge on a class whose
+            -- recurring class says $480 was being invoiced at zero — the class reached the
+            -- invoice, just with no money on it, which is worse than not reaching it.
+            COALESCE(s.charge_amount, sch.charge_amount) AS charge_amount,
+            COALESCE(NULLIF(s.style, ''), sch.style) AS style
        FROM class_sessions s
        JOIN clients c ON c.id = s.client_id
        LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
