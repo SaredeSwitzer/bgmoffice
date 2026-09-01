@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { today } from '../utils/dates'
 
@@ -80,12 +81,54 @@ export default function ShiftChecklist({ counts, onGo }) {
     try { localStorage.setItem(storageKey, JSON.stringify(done)) } catch { /* private mode */ }
   }, [storageKey, done])
 
+  const [note, setNote]     = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent]     = useState(null)
+  const [error, setError]   = useState('')
+
   function toggle(key) {
     setDone(d => (d.includes(key) ? d.filter(k => k !== key) : [...d, key]))
   }
 
   const doneCount = STEPS.filter(s => done.includes(s.key)).length
   const allDone = doneCount === STEPS.length
+
+  // Sending is what ends the shift: Sarede gets the summary and the list comes back
+  // clean for whoever is on next. Deliberately allowed with steps unticked — a shift
+  // that didn't get through everything is exactly what she needs to see.
+  async function send() {
+    setSending(true)
+    setError('')
+    try {
+      const row = await api.sendShiftReport({
+        steps: STEPS.map(s => ({ key: s.key, title: s.title, done: done.includes(s.key) })),
+        counts: {
+          tasks: counts.myTasks, mentions: counts.mentions,
+          overdue_reminders: counts.reminders, anyone: counts.anyone,
+        },
+        note,
+      })
+      setSent(row)
+      setDone([])          // renewed for the next shift
+      setNote('')
+    } catch (e) {
+      setError(e.message || 'That didn’t send.')
+    } finally { setSending(false) }
+  }
+
+  if (sent) {
+    return (
+      <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-4 space-y-2">
+        <p className="text-sm font-semibold text-green-800">✓ Summary sent to Sarede</p>
+        <p className="text-xs text-green-700">
+          {sent.steps.filter(s => s.done).length} of {sent.steps.length} steps done. The
+          checklist has been reset for the next shift.
+        </p>
+        <button onClick={() => setSent(null)}
+          className="text-xs text-green-800 hover:underline">Back to the checklist</button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
@@ -175,14 +218,38 @@ export default function ShiftChecklist({ counts, onGo }) {
         </p>
       </div>
 
-      {allDone && (
-        <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-3">
-          <p className="text-sm font-semibold text-green-800">That&rsquo;s the shift.</p>
-          <p className="text-xs text-green-700 mt-0.5">
-            If you haven&rsquo;t written the handoff yet, it&rsquo;s on the Waiting On tab.
-          </p>
+      <div className={`rounded-xl border px-4 py-3 space-y-2 print:hidden ${
+        allDone ? 'border-green-200 bg-green-50/60' : 'border-gray-200 bg-white'
+      }`}>
+        <p className="text-sm font-semibold text-gray-900">
+          {allDone ? 'That’s the shift — send it to Sarede' : 'Finishing early?'}
+        </p>
+        <p className="text-xs text-gray-500">
+          {allDone
+            ? 'She gets what you got through and what was still outstanding. The checklist resets for the next shift.'
+            : 'You can send with steps unticked — what didn’t get done is the useful part. The checklist resets after sending.'}
+        </p>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          rows={2}
+          placeholder="Anything Sarede should know? (optional)"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={send} disabled={sending}
+            className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 hover:bg-blue-700">
+            {sending ? 'Sending…' : 'Send summary to Sarede'}
+          </button>
+          {!allDone && (
+            <span className="text-[11px] text-gray-400">{doneCount} of {STEPS.length} ticked</span>
+          )}
+          {error && <span className="text-[11px] text-red-600">{error}</span>}
         </div>
-      )}
+        <p className="text-[11px] text-gray-400">
+          If you haven&rsquo;t written the handoff yet, it&rsquo;s on the Waiting On tab.
+        </p>
+      </div>
     </div>
   )
 }

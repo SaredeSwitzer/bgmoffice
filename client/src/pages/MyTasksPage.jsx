@@ -12,6 +12,8 @@ import InlineWorkPanel from '../components/InlineWorkPanel'
 import Modal from '../components/Modal'
 import WaitingSheet from '../components/WaitingSheet'
 import ShiftChecklist from '../components/ShiftChecklist'
+import ShiftSummaries from '../components/ShiftSummaries'
+import { isSaredeUser } from '../utils/saredeAccess'
 import { LatestHandoff, WriteHandoff } from '../components/ShiftHandoff'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
@@ -430,6 +432,10 @@ export default function MyTasksPage() {
 
       {/* Step 1 of the shift: read what the last person left. */}
       <LatestHandoff />
+
+      {/* Sarede only — what each shift sent her when they finished. The server checks
+          this independently; this just decides whether to ask for them. */}
+      {isSaredeUser(user) && <ShiftSummaries />}
 
       <CollapsibleSection id="mytasks_mine" title="Assigned to me" count={myTasks.length} defaultOpen={false}>
         {myTasks.length === 0 ? (

@@ -283,6 +283,12 @@ export const api = {
   reopenWaitingRow: (id) => request(`/waiting-sheet/${id}/reopen`, { method: 'PATCH' }),
   deleteWaitingRow: (id) => request(`/waiting-sheet/${id}`, { method: 'DELETE' }),
 
+  // End-of-shift summaries — see server/routes/shiftReports.js.
+  getShiftReports: () => request('/shift-reports'),
+  getMyShiftReports: () => request('/shift-reports/mine'),
+  sendShiftReport: (data) => request('/shift-reports', { method: 'POST', body: JSON.stringify(data) }),
+  markShiftReportRead: (id) => request(`/shift-reports/${id}/read`, { method: 'PATCH' }),
+
   getLatestHandoff: () => request('/waiting-sheet/handoff/latest'),
   getHandoffHistory: () => request('/waiting-sheet/handoff/history'),
   getHandoffDraft: () => request('/waiting-sheet/handoff/draft'),
