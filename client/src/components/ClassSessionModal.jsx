@@ -6,6 +6,7 @@ import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
 import TimeInput from './TimeInput'
 import ClientAddressEditor from './ClientAddressEditor'
+import { AddressPicker } from './ClientAddresses'
 import DurationInput from './DurationInput'
 import ChargeInput from './ChargeInput'
 import ClassNotes from './ClassNotes'
@@ -41,6 +42,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
     style: session?.style || '',
     participant_count: session?.participant_count ?? '',
     participant_ages: session?.participant_ages || '',
+    // Which of the client's addresses this class is at. Null means their main one.
+    address_id: session?.address_id ?? null,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -100,6 +103,7 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
       style: form.style || null,
       participant_count: form.participant_count === '' ? null : form.participant_count,
       participant_ages: form.participant_ages || null,
+      address_id: form.address_id || null,
       ...(applyToSeries ? { apply_to_series: true } : {}),
     }
     try {
@@ -121,6 +125,7 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
             style: payload.style,
             participant_count: payload.participant_count,
             participant_ages: payload.participant_ages,
+            address_id: payload.address_id,
             start_date: form.session_date || null,
             status: 'active',
           })
@@ -207,10 +212,19 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
                 instructor_pay: v?.pay_rate ?? f.instructor_pay,
               }))} placeholder="Search instructor…" />
             {form.client && (
-              <ClientAddressEditor
-                client={form.client}
-                onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
-              />
+              <>
+                <ClientAddressEditor
+                  client={form.client}
+                  onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
+                />
+                {/* Only appears when this client has more than one address on file. */}
+                <AddressPicker
+                  clientId={form.client?.id}
+                  value={form.address_id}
+                  onChange={v => setField('address_id', v)}
+                  label="Which address?"
+                />
+              </>
             )}
             {!isEdit && (
               <div className="space-y-2">

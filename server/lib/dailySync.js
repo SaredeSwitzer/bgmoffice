@@ -255,15 +255,45 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
       lineItems = [];
     }
 
-    const already = new Set(lineItems.filter(li => li.session_id).map(li => li.session_id));
+    // Which classes are already on this invoice.
+    //
+    // Matching on session_id alone was not enough: a line somebody typed by hand has no
+    // session_id, so the sync couldn't see it and added its own copy of the same class.
+    // Montessori's August invoice ended up with 17 lines for 8 classes — $2040 instead of
+    // $960 — because every class was on there twice, once typed and once synced.
+    //
+    // So a session also counts as present if there's a hand-typed line for the same date
+    // that nothing has claimed yet. Claiming is one-for-one, so a client with two classes
+    // on the same day still gets two lines. The claimed line has the session_id written
+    // onto it, which means the next run recognises it outright and this ages out.
+    const already = new Set(lineItems.filter(li => li.session_id).map(li => String(li.session_id)));
+    const unclaimed = lineItems.filter(li => !li.session_id && li.class_date);
+    function claimTypedLine(session) {
+      const sameDay = unclaimed.filter(li => li.class_date === session.session_date);
+      if (!sameDay.length) return null;
+      // Prefer a line whose description matches what this session would be called;
+      // otherwise any unclaimed line on that date is the same class by any sane reading.
+      const line = sameDay.find(li => li.description === session._description) || sameDay[0];
+      unclaimed.splice(unclaimed.indexOf(line), 1);
+      line.session_id = session.id;
+      return line;
+    }
+
     let added = false;
     let amountAdded = 0;
     let classesAdded = 0;
+    let adopted = 0;
     const newLines = [];
     for (const s of group) {
-      if (already.has(s.id)) continue;
+      if (already.has(String(s.id))) continue;
+      const description = await inferDescription(client_id, s.style, lineItems, s.charge_amount);
+      // Already on the invoice as a hand-typed line — adopt it rather than billing twice.
+      if (claimTypedLine({ ...s, _description: description })) {
+        adopted++;
+        continue;
+      }
       const line = {
-        description: await inferDescription(client_id, s.style, lineItems, s.charge_amount),
+        description,
         class_date: s.session_date,
         unit_price: Number(s.charge_amount) || 0,
         session_id: s.id,
@@ -275,11 +305,29 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
       added = true;
     }
 
-    if (!added) {
+    if (!added && !adopted) {
       // Every session this client had this week is already on the invoice — nothing new,
       // but still worth a row so a preview confirms this client WAS checked rather than
       // silently vanishing from the list.
       details.push({ client_id, client_name, period, status: 'up_to_date', classes_added: 0, amount_added: 0, invoice_id: existing.id });
+      continue;
+    }
+
+    if (!added && adopted) {
+      // Nothing new to bill — the classes were already there as hand-typed lines — but
+      // the session_ids just written onto them still need saving, or the next run does
+      // the same work again. The invoice total is deliberately untouched.
+      if (!dryRun) {
+        await pool.query(
+          `UPDATE invoices SET line_items=$1,
+             updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$2`,
+          [JSON.stringify(lineItems), invoiceId]
+        );
+      }
+      details.push({
+        client_id, client_name, period, status: 'up_to_date',
+        classes_added: 0, amount_added: 0, matched_typed_lines: adopted, invoice_id: invoiceId,
+      });
       continue;
     }
 
@@ -296,6 +344,7 @@ async function syncInvoices(sessions, { dryRun = false } = {}) {
       status: 'updated',
       new_invoice: !existing,
       classes_added: classesAdded,
+      matched_typed_lines: adopted,
       amount_added: Number(amountAdded.toFixed(2)),
       lines: newLines,
       // null on a dry-run preview of a brand-new invoice — it doesn't exist to link to yet.

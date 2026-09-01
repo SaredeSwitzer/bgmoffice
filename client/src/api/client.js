@@ -251,6 +251,17 @@ export const api = {
 
   // Where the calendar and the recurring classes disagree — see
   // server/lib/scheduleDrift.js.
+  // Clients taught in more than one place — a Brooklyn home and an upstate house.
+  getClientAddresses: (clientId) => request(`/clients/${clientId}/addresses`),
+  addClientAddress: (clientId, data) =>
+    request(`/clients/${clientId}/addresses`, { method: 'POST', body: JSON.stringify(data) }),
+  updateClientAddressRow: (clientId, addressId, data) =>
+    request(`/clients/${clientId}/addresses/${addressId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  setPrimaryClientAddress: (clientId, addressId) =>
+    request(`/clients/${clientId}/addresses/${addressId}/primary`, { method: 'PATCH' }),
+  deleteClientAddress: (clientId, addressId) =>
+    request(`/clients/${clientId}/addresses/${addressId}`, { method: 'DELETE' }),
+
   getScheduleDrift: () => request('/schedule/drift'),
   reconcileSchedule: (scheduleId, body) =>
     request(`/schedule/drift/${scheduleId}/reconcile`, { method: 'POST', body: JSON.stringify(body) }),

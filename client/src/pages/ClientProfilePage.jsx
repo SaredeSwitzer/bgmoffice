@@ -17,6 +17,7 @@ import ClientContractInviteModal from '../components/ClientContractInviteModal'
 import { InstructorLink } from '../components/NameLink'
 import WaitingOnSection from '../components/WaitingOnSection'
 import { useHashHighlight } from '../utils/hashHighlight'
+import ClientAddresses from '../components/ClientAddresses'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
@@ -752,6 +753,12 @@ export default function ClientProfilePage() {
 
   useHashHighlight([client])
 
+  // Making an address the main one copies it onto the client record, so the header
+  // needs re-reading afterwards.
+  function reloadClient() {
+    api.getClient(id).then(setClient).catch(() => {})
+  }
+
   useEffect(() => {
     Promise.all([
       api.getClient(id),
@@ -1173,21 +1180,12 @@ export default function ClientProfilePage() {
               </div>
             )}
 
-            {/* Address */}
-            {(client.street || client.city || client.state || client.zip || client.neighborhood) && (
-              <div className="mt-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Address</p>
-                {client.street && <p className="text-sm text-gray-800">{client.street}</p>}
-                {(client.city || client.state || client.zip) && (
-                  <p className="text-sm text-gray-800">
-                    {[[client.city, client.state].filter(Boolean).join(', '), client.zip].filter(Boolean).join(' ')}
-                  </p>
-                )}
-                {client.neighborhood && (
-                  <p className="text-xs text-gray-500 mt-0.5">{client.neighborhood}</p>
-                )}
-              </div>
-            )}
+            {/* Addresses. The list below replaces the old single read-only block — a
+                client can be taught in more than one place, and the main one is what
+                invoices and confirmation emails use. */}
+            <div className="mt-3">
+              <ClientAddresses clientId={client.id} onChanged={reloadClient} />
+            </div>
 
           </>
         )}

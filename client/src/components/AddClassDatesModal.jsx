@@ -4,6 +4,7 @@ import SearchSelect from './SearchSelect'
 import MultiDateInput from './MultiDateInput'
 import TimeInput from './TimeInput'
 import ClientAddressEditor from './ClientAddressEditor'
+import { AddressPicker } from './ClientAddresses'
 import DurationInput from './DurationInput'
 import ChargeInput from './ChargeInput'
 
@@ -19,6 +20,7 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
     client: null, instructor: null, dates: [],
     start_time: '', duration_minutes: 60,
     charge_amount: '', charge_note: '', instructor_pay: '', payment_method: '', style: '',
+    address_id: null,
     participant_count: '', participant_ages: '',
   })
   const [saving, setSaving] = useState(false)
@@ -46,6 +48,7 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
       charge_note: form.charge_note || null,
       instructor_pay: form.instructor_pay === '' ? null : form.instructor_pay,
       payment_method: form.payment_method || null,
+      address_id: form.address_id || null,
       style: form.style || null,
       participant_count: form.participant_count === '' ? null : form.participant_count,
       participant_ages: form.participant_ages || null,
@@ -87,10 +90,18 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
                 instructor_pay: v?.pay_rate ?? f.instructor_pay,
               }))} placeholder="Search instructor…" />
             {form.client && (
-              <ClientAddressEditor
-                client={form.client}
-                onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
-              />
+              <>
+                <ClientAddressEditor
+                  client={form.client}
+                  onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
+                />
+                <AddressPicker
+                  clientId={form.client?.id}
+                  value={form.address_id}
+                  onChange={v => setField('address_id', v)}
+                  label="Which address?"
+                />
+              </>
             )}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Dates</label>

@@ -185,6 +185,107 @@ router.put('/:id', async (req, res) => {
 // Partial update — only touches whichever of these fields are actually present in the
 // body, so an address-only save (e.g. from the Schedule page) can't accidentally blank
 // out invoice_email or vice versa. Full-record edits still go through PUT above.
+// ── Addresses ─────────────────────────────────────────────────────────────────
+// Some clients are taught in more than one place — a Brooklyn home and an upstate house.
+// The primary address is mirrored back onto the client row so invoices, confirmation
+// emails and every existing screen keep reading the single address they always have.
+
+async function syncPrimaryToClient(clientId) {
+  const { rows: [primary] } = await pool.query(
+    `SELECT street, city, state, zip, neighborhood FROM client_addresses
+      WHERE client_id = $1 AND is_primary LIMIT 1`,
+    [clientId]
+  );
+  if (!primary) return;
+  await pool.query(
+    `UPDATE clients SET street=$1, city=$2, state=$3, zip=$4, neighborhood=$5 WHERE id=$6`,
+    [primary.street, primary.city, primary.state, primary.zip, primary.neighborhood, clientId]
+  );
+}
+
+router.get('/:id/addresses', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT * FROM client_addresses WHERE client_id = $1 ORDER BY is_primary DESC, label`,
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
+router.post('/:id/addresses', async (req, res) => {
+  const { label, street, city, state, zip, neighborhood, notes, is_primary } = req.body;
+  if (!label?.trim()) return res.status(400).json({ error: 'Give the address a label, e.g. "Brooklyn"' });
+
+  // The first address a client gets is their primary whether or not anyone said so —
+  // otherwise a client can end up with addresses and no default for classes to use.
+  const { rows: [{ count }] } = await pool.query(
+    'SELECT count(*)::int AS count FROM client_addresses WHERE client_id = $1', [req.params.id]
+  );
+  const primary = !!is_primary || count === 0;
+  if (primary) {
+    await pool.query('UPDATE client_addresses SET is_primary = false WHERE client_id = $1', [req.params.id]);
+  }
+
+  const { rows: [row] } = await pool.query(
+    `INSERT INTO client_addresses (client_id, label, street, city, state, zip, neighborhood, notes, is_primary, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [req.params.id, label.trim(), street || null, city || null, state || null, zip || null,
+     neighborhood || null, notes || null, primary, req.user.initials]
+  );
+  if (primary) await syncPrimaryToClient(req.params.id);
+  res.status(201).json(row);
+});
+
+router.put('/:id/addresses/:addressId', async (req, res) => {
+  const { label, street, city, state, zip, neighborhood, notes } = req.body;
+  if (!label?.trim()) return res.status(400).json({ error: 'Give the address a label, e.g. "Brooklyn"' });
+  const { rows: [row] } = await pool.query(
+    `UPDATE client_addresses
+        SET label=$1, street=$2, city=$3, state=$4, zip=$5, neighborhood=$6, notes=$7
+      WHERE id=$8 AND client_id=$9 RETURNING *`,
+    [label.trim(), street || null, city || null, state || null, zip || null,
+     neighborhood || null, notes || null, req.params.addressId, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Address not found' });
+  if (row.is_primary) await syncPrimaryToClient(req.params.id);
+  res.json(row);
+});
+
+router.patch('/:id/addresses/:addressId/primary', async (req, res) => {
+  await pool.query('UPDATE client_addresses SET is_primary = false WHERE client_id = $1', [req.params.id]);
+  const { rows: [row] } = await pool.query(
+    'UPDATE client_addresses SET is_primary = true WHERE id = $1 AND client_id = $2 RETURNING *',
+    [req.params.addressId, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Address not found' });
+  await syncPrimaryToClient(req.params.id);
+  res.json(row);
+});
+
+router.delete('/:id/addresses/:addressId', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    'SELECT is_primary FROM client_addresses WHERE id = $1 AND client_id = $2',
+    [req.params.addressId, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Address not found' });
+
+  // Classes pointing at it fall back to the primary rather than losing their address
+  // entirely — that's what the null address_id means.
+  await pool.query('DELETE FROM client_addresses WHERE id = $1', [req.params.addressId]);
+
+  // Deleting the primary would leave the client with no default, so the oldest
+  // remaining address takes over.
+  if (row.is_primary) {
+    const { rows: [next] } = await pool.query(
+      'SELECT id FROM client_addresses WHERE client_id = $1 ORDER BY created_at LIMIT 1', [req.params.id]
+    );
+    if (next) {
+      await pool.query('UPDATE client_addresses SET is_primary = true WHERE id = $1', [next.id]);
+      await syncPrimaryToClient(req.params.id);
+    }
+  }
+  res.json({ success: true });
+});
+
 const PATCHABLE_FIELDS = ['invoice_email', 'street', 'city', 'state', 'zip', 'neighborhood'];
 
 router.patch('/:id', async (req, res) => {

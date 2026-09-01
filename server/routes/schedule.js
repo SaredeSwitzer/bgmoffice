@@ -152,7 +152,11 @@ async function fillFromSchedule(schedule_id, fields) {
 async function getScheduleRow(id) {
   const { rows: [row] } = await pool.query(
     `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
-            c.neighborhood, c.street, c.city, c.zip,
+            COALESCE(a.neighborhood, c.neighborhood) AS neighborhood,
+            COALESCE(a.street, c.street) AS street,
+            COALESCE(a.city, c.city) AS city,
+            COALESCE(a.zip, c.zip) AS zip,
+            a.label AS address_label, a.notes AS address_notes,
             COALESCE(c.waiver_signed, 0) = 1     AS client_waiver_signed,
             COALESCE(i.contract_signed, 0) = 1   AS instructor_contract_signed,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id)::int AS note_count,
@@ -160,6 +164,7 @@ async function getScheduleRow(id) {
        FROM class_schedules cs
        JOIN clients c      ON c.id = cs.client_id
        LEFT JOIN instructors i ON i.id = cs.instructor_id
+       LEFT JOIN client_addresses a ON a.id = cs.address_id
       WHERE cs.id = $1`,
     [id]
   );
@@ -176,7 +181,11 @@ router.get('/schedules', async (req, res) => {
   if (status)    { args.push(status);    where.push(`cs.status = $${args.length}`); }
   const { rows } = await pool.query(
     `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
-            c.neighborhood, c.street, c.city, c.zip,
+            COALESCE(a.neighborhood, c.neighborhood) AS neighborhood,
+            COALESCE(a.street, c.street) AS street,
+            COALESCE(a.city, c.city) AS city,
+            COALESCE(a.zip, c.zip) AS zip,
+            a.label AS address_label, a.notes AS address_notes,
             COALESCE(c.waiver_signed, 0) = 1     AS client_waiver_signed,
             COALESCE(i.contract_signed, 0) = 1   AS instructor_contract_signed,
             (SELECT COUNT(*) FROM class_notes n WHERE n.schedule_id = cs.id)::int AS note_count,
@@ -184,6 +193,7 @@ router.get('/schedules', async (req, res) => {
        FROM class_schedules cs
        JOIN clients c      ON c.id = cs.client_id
        LEFT JOIN instructors i ON i.id = cs.instructor_id
+       LEFT JOIN client_addresses a ON a.id = cs.address_id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
       ORDER BY c.name, cs.weekday NULLS LAST, cs.start_time NULLS LAST`,
     args
@@ -201,7 +211,7 @@ router.post('/schedules', async (req, res) => {
   const {
     client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount, charge_note, instructor_pay,
     payment_method, style, location, special_instructions, status, start_date, end_date,
-    participant_count, participant_ages,
+    participant_count, participant_ages, address_id,
   } = req.body;
 
   if (!client_id) return res.status(400).json({ error: 'client_id required' });
@@ -215,12 +225,13 @@ router.post('/schedules', async (req, res) => {
     `INSERT INTO class_schedules
        (client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount, charge_note, instructor_pay,
         payment_method, style, location, special_instructions, status, start_date, end_date,
-        participant_count, participant_ages)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+        participant_count, participant_ages, address_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
     [client_id, instructor_id || null, wd, start_time || null, duration_minutes || 60, charge_amount ?? null, charge_note || null,
      instructor_pay ?? null, payment_method || null, filled.style || null, location || null,
      special_instructions || null, status || 'active', start_date || null, end_date || null,
-     filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
+     filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null,
+     address_id || null]
   );
   // Fill the calendar for this schedule right away — otherwise it wouldn't show up
   // until the nightly cron runs, which can be up to 24h away.
@@ -235,7 +246,7 @@ router.put('/schedules/:id', async (req, res) => {
   const {
     client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount, charge_note, instructor_pay,
     payment_method, style, location, special_instructions, status, start_date, end_date,
-    participant_count, participant_ages,
+    participant_count, participant_ages, address_id,
   } = req.body;
   const wd = normalizeWeekday(weekday);
   if (wd === undefined) return res.status(400).json({ error: 'weekday must be 0–6 (0=Sun) or null' });
@@ -250,6 +261,7 @@ router.put('/schedules/:id', async (req, res) => {
        client_id=$1, instructor_id=$2, weekday=$3, start_time=$4, duration_minutes=$5, charge_amount=$6, charge_note=$7,
        instructor_pay=$8, payment_method=$9, style=$10, location=$11, special_instructions=$12,
        status=$13, start_date=$14, end_date=$15, participant_count=$16, participant_ages=$17,
+       address_id=$19,
        ${instructorChanged ? 'confirmation_sent_at=NULL, confirmation_sent_to=NULL,' : ''}
        updated_at=now()
      WHERE id=$18`,
@@ -258,7 +270,7 @@ router.put('/schedules/:id', async (req, res) => {
      location || null, special_instructions || null, status || 'active',
      start_date || null, end_date || null,
      participant_count === '' ? null : participant_count ?? null, participant_ages || null,
-     req.params.id]
+     req.params.id, address_id || null]
   );
   // Editing the recurring class has to reach the classes already sitting on the
   // calendar, or the change silently applies to nothing you can see: generateUpcoming-
@@ -370,7 +382,11 @@ router.get('/sessions', async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
-            c.neighborhood, c.street, c.city, c.zip,
+            COALESCE(a.neighborhood, c.neighborhood) AS neighborhood,
+            COALESCE(a.street, c.street) AS street,
+            COALESCE(a.city, c.city) AS city,
+            COALESCE(a.zip, c.zip) AS zip,
+            a.label AS address_label, a.notes AS address_notes,
             -- Paperwork state, so the calendar can flag a class whose client has no
             -- waiver on file or whose instructor hasn't signed their contract.
             COALESCE(c.waiver_signed, 0) = 1     AS client_waiver_signed,
@@ -380,6 +396,7 @@ router.get('/sessions', async (req, res) => {
        FROM class_sessions s
        JOIN clients c      ON c.id = s.client_id
        LEFT JOIN instructors i ON i.id = s.instructor_id
+       LEFT JOIN client_addresses a ON a.id = s.address_id
       WHERE ${where.join(' AND ')}
       ORDER BY s.session_date, s.start_time NULLS LAST, c.name`,
     args
@@ -391,7 +408,7 @@ router.post('/sessions', async (req, res) => {
   const {
     schedule_id, client_id, instructor_id, session_date, start_time, duration_minutes,
     charge_amount, charge_note, instructor_pay, payment_method, style, status, notes,
-    participant_count, participant_ages,
+    participant_count, participant_ages, address_id,
   } = req.body;
   if (!client_id)          return res.status(400).json({ error: 'client_id required' });
   if (!isDate(session_date)) return res.status(400).json({ error: 'session_date (YYYY-MM-DD) required' });
@@ -408,14 +425,15 @@ router.post('/sessions', async (req, res) => {
     `INSERT INTO class_sessions
        (schedule_id, client_id, instructor_id, session_date, start_time, duration_minutes,
         charge_amount, charge_note, instructor_pay, payment_method, style, status, notes,
-        participant_count, participant_ages)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+        participant_count, participant_ages, address_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
     [schedule_id || null, client_id, instructor_id || null, session_date, start_time || null,
      inherited.duration_minutes || 60,
      inherited.charge_amount ?? null, charge_note || null, inherited.instructor_pay ?? null,
      inherited.payment_method || null, filled.style || null,
      status || 'scheduled', notes || null,
-     filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
+     filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null,
+     address_id || null]
   );
   res.status(201).json(row);
 });
@@ -429,7 +447,7 @@ router.post('/sessions/bulk', async (req, res) => {
   const {
     client_id, instructor_id, dates, start_time, duration_minutes,
     charge_amount, charge_note, instructor_pay, payment_method, style, notes,
-    participant_count, participant_ages,
+    participant_count, participant_ages, address_id,
   } = req.body;
   if (!client_id) return res.status(400).json({ error: 'client_id required' });
   if (!start_time) return res.status(400).json({ error: 'start_time required' });
@@ -448,11 +466,12 @@ router.post('/sessions/bulk', async (req, res) => {
       `INSERT INTO class_sessions
          (client_id, instructor_id, session_date, start_time, duration_minutes,
           charge_amount, charge_note, instructor_pay, payment_method, style, status, notes,
-          participant_count, participant_ages)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'scheduled',$11,$12,$13) RETURNING *`,
+          participant_count, participant_ages, address_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'scheduled',$11,$12,$13,$14) RETURNING *`,
       [client_id, instructor_id || null, session_date, start_time || null, duration_minutes || 60,
        charge_amount ?? null, charge_note || null, instructor_pay ?? null, method || null, filled.style || null, notes || null,
-       filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null]
+       filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null,
+       address_id || null]
     );
     created.push(row);
   }
@@ -512,6 +531,7 @@ router.put('/sessions/:id', async (req, res) => {
     `UPDATE class_sessions SET
        instructor_id=$1, session_date=$2, start_time=$3, duration_minutes=$4, charge_amount=$5, charge_note=$6, instructor_pay=$7,
        payment_method=$8, style=$9, status=$10, notes=$11, participant_count=$12, participant_ages=$13,
+       address_id=$15,
        ${instructorChanged ? 'confirmation_sent_at=NULL, confirmation_sent_to=NULL,' : ''}
        updated_at=now()
      WHERE id=$14`,
@@ -519,7 +539,7 @@ router.put('/sessions/:id', async (req, res) => {
      m.instructor_pay ?? null, m.payment_method || null, m.style || null,
      m.status || 'scheduled', m.notes || null,
      m.participant_count === '' ? null : m.participant_count ?? null, m.participant_ages || null,
-     req.params.id]
+     req.params.id, m.address_id ?? null]
   );
   // apply_to_series: the edit was meant for the whole weekly class, not just this date.
   // Updates the recurring schedule (so future generated classes inherit it) and every

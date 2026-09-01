@@ -9,6 +9,7 @@ import MentionTextarea from '../components/MentionTextarea'
 import StylesManagerModal from '../components/StylesManagerModal'
 import ScheduleFromRecruitingModal from '../components/ScheduleFromRecruitingModal'
 import { renderWithMentions } from '../utils/mentions'
+import { AddressPicker } from '../components/ClientAddresses'
 
 const ALL_DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 const WEEK_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
@@ -242,6 +243,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
     client_name:         entry?.client_name         || '',
     client_id:           entry?.client_id           || null,
     address:             entry?.address             || '',
+    address_id:          entry?.address_id          || null,
     phone:               entry?.phone               || '',
     waiver_signed:       entry?.waiver_signed       ? true : false,
     instructor_info:     entry?.instructor_info     || '',
@@ -502,8 +504,16 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
 
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+          {/* Clients taught in more than one place get a picker; the free-text box below
+              stays for anyone not yet on the books. */}
+          <AddressPicker
+            clientId={form.client_id}
+            value={form.address_id}
+            onChange={v => setField('address_id', v)}
+            label="Which of their addresses?"
+          />
           <textarea value={form.address} onChange={e => setField('address', e.target.value)}
-            rows={2} className={`${inputCls} resize-none`} />
+            rows={2} className={`${inputCls} resize-none mt-1`} />
         </div>
 
         <div>
