@@ -204,6 +204,7 @@ app.use('/api/settings',     require('./routes/settings'));
 app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/reminders',    require('./routes/reminders'));
 app.use('/api/waiting-on',   require('./routes/waitingOn'));
+app.use('/api/waiting-sheet', require('./routes/waitingSheet'));
 app.use('/api/reference',    require('./routes/reference'));
 app.use('/api/recruiting',   require('./routes/recruitingIntake'));
 app.use('/api/recruiting',   require('./routes/recruiting'));

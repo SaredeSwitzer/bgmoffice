@@ -5,12 +5,13 @@ import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import { useSeenTasks } from '../hooks/useSeenTasks'
 import { ClientLink, InstructorLink } from '../components/NameLink'
-import WaitingOnOverview from '../components/WaitingOnOverview'
 import CollapsibleSection from '../components/CollapsibleSection'
 import NeedsApproval from '../components/NeedsApproval'
 import MentionThread from '../components/MentionThread'
 import InlineWorkPanel from '../components/InlineWorkPanel'
 import Modal from '../components/Modal'
+import WaitingSheet from '../components/WaitingSheet'
+import { LatestHandoff, WriteHandoff } from '../components/ShiftHandoff'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
@@ -247,6 +248,14 @@ export default function MyTasksPage() {
   // reminder can both be id 12.
   const [openMentionId, setOpenMentionId] = useState(null)
   const [openItemKey, setOpenItemKey] = useState(null)
+  // My Tasks is now two views: the shift queue, and the waiting-on working sheet.
+  // Remembered so somebody mid-shift doesn't land back on the wrong one every visit.
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('bgm_mytasks_view') || 'queue' } catch { return 'queue' }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('bgm_mytasks_view', view) } catch { /* private mode */ }
+  }, [view])
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [showRead, setShowRead] = useState(false)
 
@@ -385,7 +394,29 @@ export default function MyTasksPage() {
         </button>
       </div>
 
-      <NeedsApproval />
+      {/* Two views. The queue is the shift, worked in order; the sheet is the running
+          list of who owes us a reply, kept alongside it all shift. */}
+      <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm w-fit print:hidden">
+        {[['queue', 'My shift'], ['sheet', 'Waiting On']].map(([key, text]) => (
+          <button key={key} onClick={() => setView(key)}
+            className={`px-3 py-1.5 font-medium ${view === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            {text}
+          </button>
+        ))}
+      </div>
+
+      {view === 'sheet' ? (
+        <>
+          <WaitingSheet />
+          <div className="print:hidden pt-2">
+            <WriteHandoff />
+          </div>
+        </>
+      ) : (
+      <>
+
+      {/* Step 1 of the shift: read what the last person left. */}
+      <LatestHandoff />
 
       <CollapsibleSection id="mytasks_mine" title="Assigned to me" count={myTasks.length} defaultOpen={false}>
         {myTasks.length === 0 ? (
@@ -444,53 +475,6 @@ export default function MyTasksPage() {
       </CollapsibleSection>
 
       <CollapsibleSection
-        id="mytasks_anyone" accent="amber" title="🙋 Anyone — up for grabs"
-        count={anyoneTasks.length} defaultOpen={false}
-        right={<QuickAddOther onAdd={handleAddOther} />}
-      >
-        {anyoneTasks.length === 0 ? (
-          <p className="text-sm text-gray-400 italic px-2">Nothing unassigned right now.</p>
-        ) : (
-          <>
-            <p className="text-xs text-gray-400 mb-2 px-1">
-              Not assigned to anyone — Claire, Maria and Sarede all see these.
-            </p>
-            {listWithPanel(anyoneTasks)}
-          </>
-        )}
-      </CollapsibleSection>
-
-      {/* Collapsible here, unlike the Dashboard: this page is a focused work queue and
-          the waiting-on list is reference material you dip into, not the main event. */}
-      <WaitingOnOverview id="mytasks_waiting" defaultOpen={false} />
-
-      {/* One dialog for whatever's open — a task, a reminder, or an @mention. Rendered
-          once here rather than per-list so it always appears in the middle of the
-          screen instead of somewhere below the table you clicked. */}
-      {openItem && (
-        <Modal onClose={() => setOpenItemKey(null)} labelledBy="inline-work-title">
-          <InlineWorkPanel
-            item={openItem}
-            mentionableUsers={mentionableUsers}
-            openPath={getItemUrl(openItem)}
-            onFinish={handleInlineFinish}
-            onClose={() => setOpenItemKey(null)}
-          />
-        </Modal>
-      )}
-
-      {openMention && (
-        <Modal onClose={() => setOpenMentionId(null)} labelledBy="mention-thread-title">
-          <MentionThread
-            mention={openMention}
-            mentionableUsers={mentionableUsers}
-            onResolve={m => { setOpenMentionId(null); handleResolveMention(m) }}
-            onClose={() => setOpenMentionId(null)}
-          />
-        </Modal>
-      )}
-
-      <CollapsibleSection
         id="mytasks_reminders" accent="blue" title="Overdue Reminders"
         count={reminderTasks.length} defaultOpen={false}
       >
@@ -520,6 +504,57 @@ export default function MyTasksPage() {
           </div>
         )}
       </CollapsibleSection>
+
+      <CollapsibleSection
+        id="mytasks_anyone" accent="amber" title="🙋 Anyone — up for grabs"
+        count={anyoneTasks.length} defaultOpen={false}
+        right={<QuickAddOther onAdd={handleAddOther} />}
+      >
+        {anyoneTasks.length === 0 ? (
+          <p className="text-sm text-gray-400 italic px-2">Nothing unassigned right now.</p>
+        ) : (
+          <>
+            <p className="text-xs text-gray-400 mb-2 px-1">
+              Not assigned to anyone — Claire, Maria and Sarede all see these.
+            </p>
+            {listWithPanel(anyoneTasks)}
+          </>
+        )}
+      </CollapsibleSection>
+
+
+      <NeedsApproval />
+
+      </>
+      )}
+
+      {/* One dialog for whatever's open — a task, a reminder, or an @mention. Rendered
+          once here rather than per-list so it always appears in the middle of the
+          screen instead of somewhere below the table you clicked. */}
+      {openItem && (
+        <Modal onClose={() => setOpenItemKey(null)} labelledBy="inline-work-title">
+          <InlineWorkPanel
+            item={openItem}
+            mentionableUsers={mentionableUsers}
+            openPath={getItemUrl(openItem)}
+            onFinish={handleInlineFinish}
+            onClose={() => setOpenItemKey(null)}
+          />
+        </Modal>
+      )}
+
+      {openMention && (
+        <Modal onClose={() => setOpenMentionId(null)} labelledBy="mention-thread-title">
+          <MentionThread
+            mention={openMention}
+            mentionableUsers={mentionableUsers}
+            onResolve={m => { setOpenMentionId(null); handleResolveMention(m) }}
+            onClose={() => setOpenMentionId(null)}
+          />
+        </Modal>
+      )}
+
+
 
     </div>
   )

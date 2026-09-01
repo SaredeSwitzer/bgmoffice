@@ -262,6 +262,29 @@ export const api = {
   deleteClientAddress: (clientId, addressId) =>
     request(`/clients/${clientId}/addresses/${addressId}`, { method: 'DELETE' }),
 
+  // The shift working sheet + shift handoffs — see server/routes/waitingSheet.js.
+  getWaitingSheet: () => request('/waiting-sheet'),
+  getWaitingSheetDone: () => request('/waiting-sheet/done'),
+  addWaitingRow: (data) => request('/waiting-sheet', { method: 'POST', body: JSON.stringify(data) }),
+  updateWaitingRow: (id, data) => request(`/waiting-sheet/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  setWaitingRowUrgent: (id, urgent) =>
+    request(`/waiting-sheet/${id}/urgent`, { method: 'PATCH', body: JSON.stringify({ urgent }) }),
+  setWaitingOnPerson: (id, personId) =>
+    request(`/waiting-sheet/${id}/waiting-on`, { method: 'PATCH', body: JSON.stringify({ person_id: personId }) }),
+  addWaitingRowPerson: (id, person) =>
+    request(`/waiting-sheet/${id}/people`, { method: 'POST', body: JSON.stringify(person) }),
+  removeWaitingRowPerson: (id, personId) =>
+    request(`/waiting-sheet/${id}/people/${personId}`, { method: 'DELETE' }),
+  markWaitingRowDone: (id) => request(`/waiting-sheet/${id}/done`, { method: 'PATCH' }),
+  reopenWaitingRow: (id) => request(`/waiting-sheet/${id}/reopen`, { method: 'PATCH' }),
+  deleteWaitingRow: (id) => request(`/waiting-sheet/${id}`, { method: 'DELETE' }),
+
+  getLatestHandoff: () => request('/waiting-sheet/handoff/latest'),
+  getHandoffHistory: () => request('/waiting-sheet/handoff/history'),
+  getHandoffDraft: () => request('/waiting-sheet/handoff/draft'),
+  saveHandoff: (data) => request('/waiting-sheet/handoff', { method: 'POST', body: JSON.stringify(data) }),
+  markHandoffRead: (id) => request(`/waiting-sheet/handoff/${id}/read`, { method: 'PATCH' }),
+
   getScheduleDrift: () => request('/schedule/drift'),
   reconcileSchedule: (scheduleId, body) =>
     request(`/schedule/drift/${scheduleId}/reconcile`, { method: 'POST', body: JSON.stringify(body) }),
