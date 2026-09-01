@@ -176,16 +176,22 @@ export function AddressPicker({ clientId, value, onChange, label = 'Address' }) 
 
   if (rows.length < 2) return null
 
+  // A class with no address of its own runs at the client's main one. The select has to
+  // SHOW that, or it silently displays the first option while holding nothing — which is
+  // what made picking an address look like it worked and then change nothing.
+  const primary = rows.find(a => a.is_primary) || rows[0]
+  const shown = value ?? primary?.id ?? ''
+
   return (
     <div>
       <label className="block text-[10px] font-medium text-gray-500 mb-1">{label}</label>
       <select
-        value={value ?? ''}
+        value={String(shown)}
         onChange={e => onChange(e.target.value ? Number(e.target.value) : null)}
         className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         {rows.map(a => (
-          <option key={a.id} value={a.id}>
+          <option key={a.id} value={String(a.id)}>
             {a.label}{a.is_primary ? ' (main)' : ''}{a.city ? ` — ${a.city}` : ''}
           </option>
         ))}

@@ -286,6 +286,8 @@ router.put('/schedules/:id', async (req, res) => {
   const PROPAGATED = [
     'instructor_id', 'start_time', 'duration_minutes', 'charge_amount', 'charge_note',
     'instructor_pay', 'payment_method', 'style', 'participant_count', 'participant_ages',
+    // Moving the class to the client's other address moves the dates with it.
+    'address_id',
   ];
   const after = await getScheduleRow(req.params.id);
   const changed = PROPAGATED.filter(f => String(existing[f] ?? '') !== String(after[f] ?? ''));

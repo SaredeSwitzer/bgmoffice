@@ -10,6 +10,7 @@ import ConfirmClassModal from '../components/ConfirmClassModal'
 import RescheduleAlertModal from '../components/RescheduleAlertModal'
 import ClassSessionModal from '../components/ClassSessionModal'
 import ClientAddressEditor from '../components/ClientAddressEditor'
+import { AddressPicker } from '../components/ClientAddresses'
 import PendingClassModal from '../components/PendingClassModal'
 import AddClassDatesModal from '../components/AddClassDatesModal'
 import TimeInput from '../components/TimeInput'
@@ -109,6 +110,8 @@ const BLANK_SCHEDULE = {
   client: null, instructor: null, weekday: '', start_time: '', duration_minutes: 60,
   charge_amount: '', charge_note: '', instructor_pay: '', payment_method: '', style: '', location: '', special_instructions: '',
   participant_count: '', participant_ages: '',
+  // Which of the client's addresses this class runs at. Null means their main one.
+  address_id: null,
 }
 
 // Missing paperwork on a class — the client has no waiver on file, or the instructor
@@ -362,6 +365,7 @@ export default function SchedulePage() {
         special_instructions: form.special_instructions || null,
         participant_count: form.participant_count === '' ? null : form.participant_count,
         participant_ages: form.participant_ages || null,
+        address_id: form.address_id || null,
       }
       if (editingId) await api.updateClassSchedule(editingId, payload)
       else await api.createClassSchedule(payload)
@@ -394,6 +398,7 @@ export default function SchedulePage() {
       special_instructions: s.special_instructions || '',
       participant_count: s.participant_count ?? '',
       participant_ages: s.participant_ages || '',
+      address_id: s.address_id ?? null,
     })
     setEditingId(s.id)
     setShowNew(true)
@@ -660,11 +665,20 @@ export default function SchedulePage() {
                 <SearchSelect label="Instructor" options={instructors} value={form.instructor}
                   onChange={i => setForm(f => ({ ...f, instructor: i }))} placeholder="Search instructors…" />
                 {form.client && (
-                  <ClientAddressEditor
-                    className="col-span-2"
-                    client={form.client}
-                    onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
-                  />
+                  <>
+                    <ClientAddressEditor
+                      className="col-span-2"
+                      client={form.client}
+                      onUpdated={addr => setForm(f => ({ ...f, client: { ...f.client, ...addr } }))}
+                    />
+                    {/* Only appears when this client has more than one address on file. */}
+                    <AddressPicker
+                      clientId={form.client?.id}
+                      value={form.address_id}
+                      onChange={v => setForm(f => ({ ...f, address_id: v }))}
+                      label="Which address?"
+                    />
+                  </>
                 )}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Day of week</label>
