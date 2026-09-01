@@ -53,11 +53,15 @@ function AddPerson({ kind, options, onAdd }) {
   }
   return (
     <div className="w-full max-w-[240px]">
+      {/* Only a real pick closes the picker. SearchSelect calls onChange(null) on every
+          keystroke to say "nothing chosen yet" — closing on that made the box vanish the
+          moment you started typing a name. */}
       <SearchSelect
         options={options}
         value={null}
         onChange={v => {
-          if (v) onAdd({ kind, person_id: v.id, name: v.name })
+          if (!v) return
+          onAdd({ kind, person_id: v.id, name: v.name })
           setOpen(false)
         }}
         placeholder={`Search ${kind}…`}

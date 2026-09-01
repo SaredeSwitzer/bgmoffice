@@ -39,6 +39,17 @@ async function getRow(id) {
   return row || null;
 }
 
+// Put the hourglass on a person if the row doesn't already have it on someone. Used when a
+// row is created and when a name is added to a row nobody's flagged on, so the common case
+// (one name, we're waiting on them) needs no extra click.
+async function flagIfFirst(rowId, person) {
+  await pool.query(
+    `UPDATE waiting_sheet_rows SET waiting_on_id = $1, waiting_on_kind = $2, updated_at = now()
+      WHERE id = $3 AND waiting_on_id IS NULL`,
+    [person.id, person.kind, rowId]
+  );
+}
+
 // Open rows, urgent first, then oldest — the order you'd work them in.
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
@@ -87,12 +98,16 @@ router.post('/', async (req, res) => {
     `INSERT INTO waiting_sheet_rows (what, urgent, need_by, created_by) VALUES ($1,$2,$3,$4) RETURNING id`,
     [what.trim(), !!urgent, need_by || null, req.user.initials]
   );
+  // The first name on a new line is who we're waiting on — that's why the line exists.
+  // It starts flagged so nobody has to remember the extra click; clicking them clears it.
   for (const p of people) {
     if (!p?.name?.trim()) continue;
-    await pool.query(
-      `INSERT INTO waiting_sheet_people (row_id, kind, person_id, name) VALUES ($1,$2,$3,$4)`,
+    const { rows: [added] } = await pool.query(
+      `INSERT INTO waiting_sheet_people (row_id, kind, person_id, name) VALUES ($1,$2,$3,$4)
+       RETURNING id, kind`,
       [row.id, p.kind === 'instructor' ? 'instructor' : 'client', p.person_id || null, p.name.trim()]
     );
+    await flagIfFirst(row.id, added);
   }
   res.status(201).json(await getRow(row.id));
 });
@@ -153,10 +168,12 @@ router.patch('/:id/waiting-on', async (req, res) => {
 router.post('/:id/people', async (req, res) => {
   const { kind, person_id, name } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Pick or type a name' });
-  await pool.query(
-    `INSERT INTO waiting_sheet_people (row_id, kind, person_id, name) VALUES ($1,$2,$3,$4)`,
+  const { rows: [added] } = await pool.query(
+    `INSERT INTO waiting_sheet_people (row_id, kind, person_id, name) VALUES ($1,$2,$3,$4)
+     RETURNING id, kind`,
     [req.params.id, kind === 'instructor' ? 'instructor' : 'client', person_id || null, name.trim()]
   );
+  await flagIfFirst(req.params.id, added);
   res.status(201).json(await getRow(req.params.id));
 });
 
