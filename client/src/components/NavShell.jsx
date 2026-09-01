@@ -26,9 +26,6 @@ function Shell() {
   const navLinks = [
     { to: '/dashboard',   label: 'Dashboard' },
     { to: '/my-tasks',    label: 'My Tasks' },
-    // High in the order on purpose — chasing replies is most of the day's work, so it
-    // sits with the other "what do I do now" screens rather than down with reference.
-    { to: '/waiting',     label: 'Waiting On' },
     { to: '/clients',     label: 'Clients' },
     { to: '/instructors', label: 'Instructors' },
     { to: '/schedule',   label: 'Schedule' },

@@ -5,7 +5,7 @@ import NewCaseModal from '../components/NewCaseModal'
 import GmailComposeLink from '../components/GmailComposeLink'
 import MentionTextarea from '../components/MentionTextarea'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
-import WaitingOnSection from '../components/WaitingOnSection'
+import PaperworkOutstanding from '../components/PaperworkOutstanding'
 
 const CONTACT_ICONS = { text: '💬', email: '✉️', whatsapp: '📱', call: '📞' }
 
@@ -25,7 +25,7 @@ export default function ClientsPage() {
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [contractInviteOpen, setContractInviteOpen] = useState(false)
   const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'waiting' : 'clients')
+  const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'paperwork' : 'clients')
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -82,7 +82,7 @@ export default function ClientsPage() {
       </div>
 
       <div className="flex gap-1 border-b border-gray-200">
-        {[['clients', 'All Clients'], ['waiting', 'Waiting to Hear Back From']].map(([key, label]) => (
+        {[['clients', 'All Clients'], ['paperwork', 'Waivers & Contracts']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -92,9 +92,8 @@ export default function ClientsPage() {
         ))}
       </div>
 
-      {tab === 'waiting' && (
-        <WaitingOnSection kind="client" people={clients.map(c => ({ id: c.id, name: c.name }))}
-          mentionableUsers={mentionableUsers} showLink />
+      {tab === 'paperwork' && (
+        <PaperworkOutstanding kind="client" clients={clients} />
       )}
 
       {tab === 'clients' && contractInviteOpen && (

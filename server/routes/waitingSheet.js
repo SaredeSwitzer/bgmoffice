@@ -42,7 +42,11 @@ async function getRow(id) {
 // Open rows, urgent first, then oldest — the order you'd work them in.
 router.get('/', async (req, res) => {
   const { rows } = await pool.query(
-    `${ROW_SQL} WHERE r.status = 'open' ORDER BY r.urgent DESC, r.created_at ASC`
+    `${ROW_SQL} WHERE r.status = 'open'
+      ORDER BY r.urgent DESC,
+               (r.need_by IS NOT NULL AND r.need_by < CURRENT_DATE) DESC,
+               r.need_by ASC NULLS LAST,
+               r.created_at ASC`
   );
   res.json(rows);
 });
@@ -56,12 +60,12 @@ router.get('/done', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { what, people = [], urgent = false } = req.body;
+  const { what, people = [], urgent = false, need_by = null } = req.body;
   if (!what?.trim()) return res.status(400).json({ error: 'Say what you\'re waiting for' });
 
   const { rows: [row] } = await pool.query(
-    `INSERT INTO waiting_sheet_rows (what, urgent, created_by) VALUES ($1,$2,$3) RETURNING id`,
-    [what.trim(), !!urgent, req.user.initials]
+    `INSERT INTO waiting_sheet_rows (what, urgent, need_by, created_by) VALUES ($1,$2,$3,$4) RETURNING id`,
+    [what.trim(), !!urgent, need_by || null, req.user.initials]
   );
   for (const p of people) {
     if (!p?.name?.trim()) continue;
@@ -98,6 +102,15 @@ router.patch('/:id/urgent', async (req, res) => {
 
 // "We're waiting on this one now." Clicking the person who already holds it clears it,
 // which is how you say the ball is back with us.
+router.patch('/:id/need-by', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    'UPDATE waiting_sheet_rows SET need_by = $1, updated_at = now() WHERE id = $2 RETURNING id',
+    [req.body.need_by || null, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(await getRow(req.params.id));
+});
+
 router.patch('/:id/waiting-on', async (req, res) => {
   const personId = req.body.person_id || null;
   let kind = null;

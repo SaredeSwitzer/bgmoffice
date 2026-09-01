@@ -8,7 +8,6 @@ import InstructorMyClassesPage from './pages/InstructorMyClassesPage'
 import InstructorMyProfilePage from './pages/InstructorMyProfilePage'
 import LoginPage from './pages/LoginPage'
 import MyTasksPage from './pages/MyTasksPage'
-import WaitingOnPage from './pages/WaitingOnPage'
 import DashboardPage from './pages/DashboardPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import ClientsPage from './pages/ClientsPage'
@@ -69,7 +68,6 @@ export default function App() {
             {/* Default landing depends on role: instructors → my-classes, staff → dashboard */}
             <Route index element={<RoleHome />} />
             <Route path="my-tasks" element={<MyTasksPage />} />
-            <Route path="waiting" element={<WaitingOnPage />} />
             <Route path="reminders" element={<RemindersPage />} />
             <Route path="sms" element={<SmsPage />} />
             <Route path="reference" element={<ReferencePage />} />

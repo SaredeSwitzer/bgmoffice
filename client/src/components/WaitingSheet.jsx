@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
+import DateInput from './DateInput'
+import { today } from '../utils/dates'
 
 // The working sheet an admin keeps through a shift.
 //
@@ -76,6 +78,8 @@ function fmtWhen(ts) {
 function Row({ row, clients, instructors, onChanged, readOnly }) {
   const [busy, setBusy] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
+  const [editingDate, setEditingDate] = useState(false)
+  const overdue = row.need_by && row.need_by < today()
   const [noteText, setNoteText] = useState('')
   const notes = row.notes || []
   const instructorsOn = (row.people || []).filter(p => p.kind === 'instructor')
@@ -137,6 +141,31 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
 
       <td className="align-top px-3 py-2.5 text-sm text-gray-700">
         {row.what}
+
+        {/* A date that's passed is the thing to chase first, so it says so rather than
+            leaving you to compare it against today yourself. */}
+        <div className="mt-1 print:hidden">
+          {editingDate ? (
+            <div className="max-w-[180px]" onClick={e => e.stopPropagation()}>
+              <DateInput
+                value={row.need_by || ''}
+                onChange={v => { setEditingDate(false); act(() => api.setWaitingRowNeedBy(row.id, v || null)) }}
+              />
+              <button type="button" onClick={() => setEditingDate(false)}
+                className="text-[10px] text-gray-400 hover:underline mt-0.5">cancel</button>
+            </div>
+          ) : row.need_by ? (
+            <button type="button" onClick={() => setEditingDate(true)}
+              className={`text-[11px] ${overdue ? 'text-red-600 font-semibold' : 'text-gray-500'} hover:underline`}>
+              {overdue ? 'Needed a reply by' : 'Need reply by'} {row.need_by}
+            </button>
+          ) : (
+            <button type="button" onClick={() => setEditingDate(true)}
+              className="text-[11px] text-gray-400 hover:text-gray-700 hover:underline">
+              + need-by date
+            </button>
+          )}
+        </div>
 
         {/* The last note sits on the row itself — it's the bit the next person needs,
             and burying it behind a click means nobody reads it. */}
@@ -210,7 +239,7 @@ export default function WaitingSheet() {
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState({ what: '', instructor: null, client: null })
+  const [draft, setDraft] = useState({ what: '', instructor: null, client: null, need_by: '' })
   const [saving, setSaving] = useState(false)
 
   function load() {
@@ -231,8 +260,8 @@ export default function WaitingSheet() {
       const people = []
       if (draft.instructor) people.push({ kind: 'instructor', person_id: draft.instructor.id, name: draft.instructor.name })
       if (draft.client)     people.push({ kind: 'client',     person_id: draft.client.id,     name: draft.client.name })
-      await api.addWaitingRow({ what: draft.what.trim(), people })
-      setDraft({ what: '', instructor: null, client: null })
+      await api.addWaitingRow({ what: draft.what.trim(), people, need_by: draft.need_by || null })
+      setDraft({ what: '', instructor: null, client: null, need_by: '' })
       setAdding(false)
       load()
     } finally { setSaving(false) }
@@ -283,6 +312,12 @@ export default function WaitingSheet() {
               <SearchSelect options={clients} value={draft.client}
                 onChange={v => setDraft(d => ({ ...d, client: v }))} placeholder="Search client…" />
             </div>
+          </div>
+          <div className="max-w-[200px]">
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">
+              Need to hear back by (optional)
+            </label>
+            <DateInput value={draft.need_by} onChange={v => setDraft(d => ({ ...d, need_by: v }))} />
           </div>
           <p className="text-[11px] text-gray-400">
             Add either, both, or neither &mdash; you can put more names on the line afterwards.

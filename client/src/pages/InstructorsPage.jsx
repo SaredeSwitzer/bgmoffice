@@ -5,7 +5,7 @@ import MeetingInviteModal from '../components/MeetingInviteModal'
 import ContractInviteModal from '../components/ContractInviteModal'
 import SignupOptionPicker from '../components/SignupOptionPicker'
 import StylesManagerModal from '../components/StylesManagerModal'
-import WaitingOnSection from '../components/WaitingOnSection'
+import PaperworkOutstanding from '../components/PaperworkOutstanding'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
@@ -174,7 +174,7 @@ export default function InstructorsPage() {
   const [welcomeEmailFor, setWelcomeEmailFor] = useState(null) // newly-created instructor, or null
   const [signups, setSignups] = useState([])
   const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'waiting' : 'instructors')
+  const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'paperwork' : 'instructors')
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [neighborhoods, setNeighborhoods] = useState([])
   const [regions, setRegions] = useState([])
@@ -330,7 +330,7 @@ export default function InstructorsPage() {
       </div>
 
       <div className="flex gap-1 border-b border-gray-200">
-        {[['instructors', 'All Instructors'], ['waiting', 'Waiting to Hear Back From']].map(([key, label]) => (
+        {[['instructors', 'All Instructors'], ['paperwork', 'Contracts']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -340,9 +340,8 @@ export default function InstructorsPage() {
         ))}
       </div>
 
-      {tab === 'waiting' && (
-        <WaitingOnSection kind="instructor" people={instructors.map(i => ({ id: i.id, name: i.name }))}
-          mentionableUsers={mentionableUsers} showLink />
+      {tab === 'paperwork' && (
+        <PaperworkOutstanding kind="instructor" instructors={instructors} />
       )}
 
       {tab === 'instructors' && inviteOpen && <MeetingInviteModal onClose={() => setInviteOpen(false)} />}

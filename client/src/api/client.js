@@ -269,6 +269,8 @@ export const api = {
   updateWaitingRow: (id, data) => request(`/waiting-sheet/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   setWaitingRowUrgent: (id, urgent) =>
     request(`/waiting-sheet/${id}/urgent`, { method: 'PATCH', body: JSON.stringify({ urgent }) }),
+  setWaitingRowNeedBy: (id, needBy) =>
+    request(`/waiting-sheet/${id}/need-by`, { method: 'PATCH', body: JSON.stringify({ need_by: needBy }) }),
   setWaitingOnPerson: (id, personId) =>
     request(`/waiting-sheet/${id}/waiting-on`, { method: 'PATCH', body: JSON.stringify({ person_id: personId }) }),
   addWaitingRowPerson: (id, person) =>
