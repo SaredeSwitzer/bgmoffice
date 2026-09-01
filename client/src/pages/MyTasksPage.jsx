@@ -11,6 +11,7 @@ import MentionThread from '../components/MentionThread'
 import InlineWorkPanel from '../components/InlineWorkPanel'
 import Modal from '../components/Modal'
 import WaitingSheet from '../components/WaitingSheet'
+import ShiftChecklist from '../components/ShiftChecklist'
 import { LatestHandoff, WriteHandoff } from '../components/ShiftHandoff'
 
 const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
@@ -397,7 +398,7 @@ export default function MyTasksPage() {
       {/* Two views. The queue is the shift, worked in order; the sheet is the running
           list of who owes us a reply, kept alongside it all shift. */}
       <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm w-fit print:hidden">
-        {[['queue', 'My shift'], ['sheet', 'Waiting On']].map(([key, text]) => (
+        {[['queue', 'My shift'], ['checklist', 'Checklist'], ['sheet', 'Waiting On']].map(([key, text]) => (
           <button key={key} onClick={() => setView(key)}
             className={`px-3 py-1.5 font-medium ${view === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
             {text}
@@ -405,7 +406,19 @@ export default function MyTasksPage() {
         ))}
       </div>
 
-      {view === 'sheet' ? (
+      {view === 'checklist' ? (
+        // The counts come from the same lists the queue renders, so a step saying
+        // "6 reminders left" is the actual number, not a nudge to go and look.
+        <ShiftChecklist
+          counts={{
+            myTasks: myTasks.length,
+            mentions: mentionTasks.length,
+            reminders: reminderTasks.length,
+            anyone: anyoneTasks.length,
+          }}
+          onGo={setView}
+        />
+      ) : view === 'sheet' ? (
         <>
           <WaitingSheet />
           <div className="print:hidden pt-2">
