@@ -260,6 +260,7 @@ export default function MyTasksPage() {
     try { localStorage.setItem('bgm_mytasks_view', view) } catch { /* private mode */ }
   }, [view])
   const [mentionableUsers, setMentionableUsers] = useState([])
+  const [recruitingUnfilled, setRecruitingUnfilled] = useState(0)
   const [showRead, setShowRead] = useState(false)
 
   function isNew(item) {
@@ -285,6 +286,22 @@ export default function MyTasksPage() {
   }
 
   useEffect(() => { load(); loadReadMentions() }, [])
+
+  // Recruiting classes still without an instructor — shown as a live count on the
+  // checklist so "see what's outstanding" is a number rather than a trip to look.
+  useEffect(() => {
+    api.getRecruiting()
+      .then(res => {
+        // The endpoint returns { grouped: { Monday: [...], ... } }, already excluding
+        // archived entries. Unfilled means the same thing the Recruiting page means by
+        // it: no instructor picked and nothing typed in the instructor field.
+        const all = Object.values(res?.grouped || {}).flat()
+        setRecruitingUnfilled(
+          all.filter(e => !e.instructor_id && !String(e.instructor_info || '').trim()).length
+        )
+      })
+      .catch(() => setRecruitingUnfilled(0))
+  }, [])
 
   // Needed so @names inside a note render as names rather than raw "@Sarede" text.
   useEffect(() => {
@@ -417,6 +434,7 @@ export default function MyTasksPage() {
             mentions: mentionTasks.length,
             reminders: reminderTasks.length,
             anyone: anyoneTasks.length,
+            recruiting: recruitingUnfilled,
           }}
           onGo={setView}
         />

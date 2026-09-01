@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { today } from '../utils/dates'
@@ -61,6 +62,15 @@ const STEPS = [
     unit: 'task',
   },
   {
+    key: 'recruiting',
+    title: 'Recruiting',
+    detail: 'See what’s outstanding and whether you can move any of it along.',
+    href: '/recruiting',
+    count: c => c.recruiting,
+    unit: 'class needing an instructor',
+    units: 'classes needing an instructor',
+  },
+  {
     key: 'wrapup',
     title: 'Before you finish',
     detail: 'Anything still outstanding written down in the app, then write the handoff.',
@@ -70,6 +80,7 @@ const STEPS = [
 
 export default function ShiftChecklist({ counts, onGo }) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const day = today()
   const storageKey = `bgm_shift_checklist_${user?.initials || 'anon'}_${day}`
 
@@ -105,6 +116,7 @@ export default function ShiftChecklist({ counts, onGo }) {
         counts: {
           tasks: counts.myTasks, mentions: counts.mentions,
           overdue_reminders: counts.reminders, anyone: counts.anyone,
+          recruiting_unfilled: counts.recruiting,
         },
         note,
       })
@@ -188,7 +200,7 @@ export default function ShiftChecklist({ counts, onGo }) {
                     <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
                       clear ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'
                     }`}>
-                      {clear ? 'nothing left' : `${n} ${step.unit}${n === 1 ? '' : 's'} left`}
+                      {clear ? 'nothing left' : `${n} ${n === 1 ? step.unit : (step.units || step.unit + 's')} left`}
                     </span>
                   )}
                 </p>
@@ -198,7 +210,7 @@ export default function ShiftChecklist({ counts, onGo }) {
               {!isDone && (
                 <button
                   type="button"
-                  onClick={() => onGo(step.goto)}
+                  onClick={() => (step.href ? navigate(step.href) : onGo(step.goto))}
                   className="shrink-0 text-[11px] text-blue-600 hover:underline print:hidden"
                 >
                   Go →
