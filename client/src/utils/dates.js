@@ -21,3 +21,27 @@ export function daysFromToday(n) {
   d.setDate(d.getDate() + n)
   return ymd(d)
 }
+
+// When a note was written, for display next to its author.
+//
+// Timestamps arrive in two shapes here: proper timestamptz from newer tables, and plain
+// 'YYYY-MM-DD HH:MM:SS' local-time strings from the ones still carrying the SQLite-era
+// TEXT columns. The latter has no zone marker, so JS would read it as UTC and show it
+// hours out — hence the explicit patch to a local-time literal before parsing.
+//
+// The year is only shown when it isn't the current one, so the common case stays short.
+export function noteTime(ts) {
+  if (!ts) return ''
+  const raw = String(ts)
+  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)
+  const d = new Date(hasZone ? raw : raw.replace(' ', 'T'))
+  if (Number.isNaN(d.getTime())) return ''
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}

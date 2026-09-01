@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { noteTime } from '../utils/dates'
 
 // Same idea as ClassNotes, but backed by admin_notes — a separate table the server only
 // serves to Sarede/Claire/Maria (requireOwnerAccess). This component doesn't re-check
@@ -53,6 +54,7 @@ export default function AdminNotes({ kind, id, onCountChange }) {
               <span className="flex-1 text-xs leading-snug text-amber-900">
                 {n.text}
                 {n.author ? <span className="text-amber-500"> · {n.author}</span> : null}
+                {n.created_at ? <span className="text-amber-500/70"> · {noteTime(n.created_at)}</span> : null}
               </span>
               <button onClick={() => remove(n)}
                 className="text-amber-300 hover:text-red-500 text-sm leading-none opacity-0 group-hover:opacity-100">×</button>

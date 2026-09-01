@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import MentionTextarea from './MentionTextarea'
 import { renderWithMentions } from '../utils/mentions.jsx'
+import { noteTime } from '../utils/dates'
 
 // Working on a task or a reminder without leaving My Tasks — the same idea as
 // MentionThread, extended to the other two things on this page.
@@ -12,13 +13,6 @@ import { renderWithMentions } from '../utils/mentions.jsx'
 // task keeps replies in a JSON column, a case follow-up has its own notes table, a
 // reminder has another. The differences are absorbed by the loaders below so the panel
 // itself is one thing.
-
-function fmtWhen(ts) {
-  if (!ts) return ''
-  const d = new Date(String(ts).includes('T') ? ts : String(ts).replace(' ', 'T'))
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
 
 // { load, send, finish } per source. `finish` is what "done" means for that thing —
 // they're different verbs in different tables.
@@ -171,7 +165,7 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
                 <div key={n.id} className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs">
                   <div className="flex items-baseline gap-2 mb-0.5">
                     <span className="font-semibold text-gray-600">{n.author || '—'}</span>
-                    <span className="text-[10px] text-gray-400">{fmtWhen(n.created_at)}</span>
+                    <span className="text-[10px] text-gray-400">{noteTime(n.created_at)}</span>
                   </div>
                   <div className="text-gray-700 whitespace-pre-wrap">
                     {renderWithMentions(n.text, mentionableUsers)}

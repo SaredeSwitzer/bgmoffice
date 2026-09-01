@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { noteTime } from '../utils/dates'
 
 // Notes + checkable to-do tasks on a class. `kind` is 'schedule' (recurring class) or
 // 'session' (a single dated class). Self-contained: loads its own list on mount.
@@ -68,6 +69,7 @@ export default function ClassNotes({ kind, id, onCountChange }) {
               <span className={`flex-1 text-xs leading-snug ${n.is_done ? 'line-through text-gray-400' : 'text-gray-700'}`}>
                 {n.text}
                 {n.author ? <span className="text-gray-300"> · {n.author}</span> : null}
+                {n.created_at ? <span className="text-gray-300"> · {noteTime(n.created_at)}</span> : null}
               </span>
               <button onClick={() => remove(n)}
                 className="text-gray-300 hover:text-red-500 text-sm leading-none opacity-0 group-hover:opacity-100">×</button>

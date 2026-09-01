@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import MentionTextarea from './MentionTextarea'
 import { renderWithMentions } from '../utils/mentions.jsx'
+import { noteTime } from '../utils/dates'
 
 // An @mention opened in place on My Tasks. Before this, the only way to find out what
 // somebody wanted was to click through to whichever screen the note lived on — which
@@ -11,13 +12,6 @@ import { renderWithMentions } from '../utils/mentions.jsx'
 //
 // Here you read the whole thread, reply into it, and then decide: done with it, or
 // leave it sitting on the list.
-
-function fmtWhen(ts) {
-  if (!ts) return ''
-  const d = new Date(String(ts).includes('T') ? ts : String(ts).replace(' ', 'T'))
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
 
 export default function MentionThread({ mention, mentionableUsers = [], onResolve, onClose }) {
   const { user } = useAuth()
@@ -97,7 +91,7 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
                   }`}>
                   <div className="flex items-baseline gap-2 mb-0.5">
                     <span className="font-semibold text-gray-600">{n.author || '—'}</span>
-                    <span className="text-[10px] text-gray-400">{fmtWhen(n.created_at)}</span>
+                    <span className="text-[10px] text-gray-400">{noteTime(n.created_at)}</span>
                     {isTheOne && (
                       <span className="text-[9px] font-bold uppercase tracking-wide text-indigo-600">this one</span>
                     )}

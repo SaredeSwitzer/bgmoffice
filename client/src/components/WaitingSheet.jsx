@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
-import { today } from '../utils/dates'
+import { today, noteTime } from '../utils/dates'
 
 // The working sheet an admin keeps through a shift.
 //
@@ -66,13 +66,6 @@ function AddPerson({ kind, options, onAdd }) {
         className="text-[10px] text-gray-400 hover:underline mt-0.5">cancel</button>
     </div>
   )
-}
-
-function fmtWhen(ts) {
-  if (!ts) return ''
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function Row({ row, clients, instructors, onChanged, readOnly }) {
@@ -189,7 +182,7 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
               <div key={n.id} className="group flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-100 px-2.5 py-1.5">
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] text-gray-400">
-                    <span className="font-semibold text-gray-500">{n.author}</span> &middot; {fmtWhen(n.created_at)}
+                    <span className="font-semibold text-gray-500">{n.author}</span> &middot; {noteTime(n.created_at)}
                   </p>
                   <p className="text-xs text-gray-700 whitespace-pre-wrap">{n.text}</p>
                 </div>

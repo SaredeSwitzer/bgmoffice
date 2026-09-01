@@ -14,7 +14,7 @@ import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
-import { ymd } from '../utils/dates'
+import { ymd, noteTime } from '../utils/dates'
 
 // Local date, not UTC — see utils/dates.js.
 const today = ymd
@@ -189,6 +189,7 @@ function ReminderNoteThread({ reminderId, initialCount, mentionableUsers, autoOp
                     {n.author_initials}
                   </div>
                   <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-xl rounded-tl-sm px-2.5 py-1.5">
+                    <p className="text-[10px] text-gray-400 mb-0.5">{noteTime(n.created_at)}</p>
                     <p className="text-xs text-gray-800 whitespace-pre-wrap">{renderWithMentions(n.text, mentionableUsers)}</p>
                   </div>
                   <button onClick={() => handleDelete(n.id)}
