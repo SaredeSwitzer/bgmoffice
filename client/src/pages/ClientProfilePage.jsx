@@ -15,7 +15,7 @@ import { renderWithMentions } from '../utils/mentions'
 import { fmtTimeRange } from '../utils/time'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
 import { InstructorLink } from '../components/NameLink'
-import WaitingOnSection from '../components/WaitingOnSection'
+import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { useHashHighlight } from '../utils/hashHighlight'
 import ClientAddresses from '../components/ClientAddresses'
 import { today } from '../utils/dates'
@@ -1287,7 +1287,7 @@ export default function ClientProfilePage() {
       )}
 
       {/* Waiting to Hear Back From */}
-      <WaitingOnSection kind="client" linkedId={Number(id)} linkedName={client.name} mentionableUsers={mentionableUsers} />
+      <WaitingSheetForPerson kind="client" personId={id} personName={client.name} />
 
       {/* Classes — teaser + link to the full filterable report */}
       <ClassesSummary clientId={id} clientName={client.name} />

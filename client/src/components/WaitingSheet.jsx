@@ -234,6 +234,107 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
   )
 }
 
+// The same sheet, filtered to one person, for their profile page. Deliberately the same
+// Row component: a client's page and My Tasks read one list, so they cannot disagree.
+export function WaitingSheetForPerson({ kind, personId, personName }) {
+  const [rows, setRows] = useState(null)
+  const [clients, setClients] = useState([])
+  const [instructors, setInstructors] = useState([])
+  const [adding, setAdding] = useState(false)
+  const [what, setWhat] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  function load() {
+    if (!personId) return
+    api.getWaitingSheetFor(kind, personId).then(setRows).catch(() => setRows([]))
+  }
+  useEffect(load, [kind, personId])
+
+  useEffect(() => {
+    api.getClients().then(cs => setClients(cs.map(c => ({ id: c.id, name: c.name })))).catch(() => {})
+    api.getInstructors().then(is => setInstructors(is.map(i => ({ id: i.id, name: i.name })))).catch(() => {})
+  }, [])
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (!what.trim()) return
+    setSaving(true)
+    try {
+      await api.addWaitingRow({
+        what: what.trim(),
+        people: [{ kind, person_id: personId, name: personName }],
+      })
+      setWhat('')
+      setAdding(false)
+      load()
+    } finally { setSaving(false) }
+  }
+
+  if (rows === null) return null
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 pl-1 border-l-4 border-purple-400">
+          Waiting to hear back
+          {rows.length > 0 && (
+            <span className="ml-2 text-xs font-semibold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+              {rows.length}
+            </span>
+          )}
+        </h2>
+        {!adding && (
+          <button onClick={() => setAdding(true)}
+            className="text-xs text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 hover:border-gray-400 px-2.5 py-1 rounded-lg">
+            + Add
+          </button>
+        )}
+      </div>
+
+      {adding && (
+        <form onSubmit={handleAdd} className="bg-white border border-gray-200 rounded-xl p-3 mb-2 flex flex-wrap gap-2">
+          <input value={what} onChange={e => setWhat(e.target.value)} autoFocus
+            placeholder={`What are we waiting on ${personName} for?`}
+            className="flex-1 min-w-[220px] border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <button type="submit" disabled={saving || !what.trim()}
+            className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 hover:bg-blue-700">
+            {saving ? 'Adding…' : 'Add'}
+          </button>
+          <button type="button" onClick={() => { setAdding(false); setWhat('') }}
+            className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">Cancel</button>
+        </form>
+      )}
+
+      {rows.length === 0 ? (
+        !adding && <p className="text-sm text-gray-400 italic">Not waiting on anything from them.</p>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+          <table className="w-full min-w-[560px]">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="w-8" />
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">What we&rsquo;re waiting for</th>
+                <th className="w-20" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map(row => (
+                <Row key={row.id} row={row} clients={clients} instructors={instructors} onChanged={load} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="text-[11px] text-gray-400 mt-1">
+        These are lines from the shared Waiting On sheet in My Tasks that mention {personName}.
+      </p>
+    </section>
+  )
+}
+
 export default function WaitingSheet() {
   const [rows, setRows] = useState(null)
   const [clients, setClients] = useState([])

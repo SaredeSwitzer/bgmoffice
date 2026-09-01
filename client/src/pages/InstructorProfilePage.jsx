@@ -9,7 +9,7 @@ import ContractInviteModal from '../components/ContractInviteModal'
 import SignupOptionPicker from '../components/SignupOptionPicker'
 import StylesManagerModal from '../components/StylesManagerModal'
 import { ClientLink } from '../components/NameLink'
-import WaitingOnSection from '../components/WaitingOnSection'
+import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { today } from '../utils/dates'
 
 function fmt(iso) {
@@ -1082,7 +1082,7 @@ export default function InstructorProfilePage() {
       )}
 
       {/* Waiting to Hear Back From */}
-      <WaitingOnSection kind="instructor" linkedId={Number(id)} linkedName={instructor.name} mentionableUsers={mentionableUsers} />
+      <WaitingSheetForPerson kind="instructor" personId={id} personName={instructor.name} />
 
       {/* Case history */}
       <section>

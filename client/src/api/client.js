@@ -265,6 +265,7 @@ export const api = {
   // The shift working sheet + shift handoffs — see server/routes/waitingSheet.js.
   getWaitingSheet: () => request('/waiting-sheet'),
   getWaitingSheetDone: () => request('/waiting-sheet/done'),
+  getWaitingSheetFor: (kind, personId) => request(`/waiting-sheet/for/${kind}/${personId}`),
   addWaitingRow: (data) => request('/waiting-sheet', { method: 'POST', body: JSON.stringify(data) }),
   updateWaitingRow: (id, data) => request(`/waiting-sheet/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   setWaitingRowUrgent: (id, urgent) =>

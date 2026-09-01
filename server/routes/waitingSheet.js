@@ -51,6 +51,26 @@ router.get('/', async (req, res) => {
   res.json(rows);
 });
 
+// The rows that mention one particular person, for their own profile page. Same sheet,
+// filtered — a client's page and My Tasks can't disagree, because there's only one list.
+router.get('/for/:kind/:personId', async (req, res) => {
+  const kind = req.params.kind === 'instructor' ? 'instructor' : 'client';
+  const { rows } = await pool.query(
+    `${ROW_SQL}
+      WHERE r.status = 'open'
+        AND EXISTS (
+          SELECT 1 FROM waiting_sheet_people p
+           WHERE p.row_id = r.id AND p.kind = $1 AND p.person_id = $2
+        )
+      ORDER BY r.urgent DESC,
+               (r.need_by IS NOT NULL AND r.need_by < CURRENT_DATE) DESC,
+               r.need_by ASC NULLS LAST,
+               r.created_at ASC`,
+    [kind, req.params.personId]
+  );
+  res.json(rows);
+});
+
 // Recently cleared, so "what did I just finish?" has an answer.
 router.get('/done', async (req, res) => {
   const { rows } = await pool.query(

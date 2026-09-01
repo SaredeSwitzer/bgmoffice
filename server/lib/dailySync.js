@@ -479,20 +479,31 @@ async function syncWaitingOnReminders(today = ymd(new Date())) {
   // (parsed at UTC midnight) instead of a plain 'YYYY-MM-DD' string, which would then get
   // stored into remind_on (itself just TEXT) as a full ISO timestamp instead of a date,
   // breaking every date compare the rest of the reminders code does on that column.
+  // Reads the shift sheet now that it has replaced the old waiting-on list. The people
+  // on a row live in their own table, so the names come back joined; the first client and
+  // first instructor on the row are what the reminder links to.
   const { rows: overdue } = await pool.query(
-    `SELECT id, name, what, kind, client_id, instructor_id, need_by::text AS need_by
-       FROM waiting_on_items
-      WHERE status = 'open' AND need_by IS NOT NULL AND need_by < $1
-        AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.waiting_on_id = waiting_on_items.id)`,
+    `SELECT r.id, r.what, r.need_by::text AS need_by,
+            (SELECT string_agg(p.name, ' / ' ORDER BY p.created_at)
+               FROM waiting_sheet_people p WHERE p.row_id = r.id) AS names,
+            (SELECT p.person_id FROM waiting_sheet_people p
+              WHERE p.row_id = r.id AND p.kind = 'client' AND p.person_id IS NOT NULL
+              ORDER BY p.created_at LIMIT 1) AS client_id,
+            (SELECT p.person_id FROM waiting_sheet_people p
+              WHERE p.row_id = r.id AND p.kind = 'instructor' AND p.person_id IS NOT NULL
+              ORDER BY p.created_at LIMIT 1) AS instructor_id
+       FROM waiting_sheet_rows r
+      WHERE r.status = 'open' AND r.need_by IS NOT NULL AND r.need_by < $1
+        AND NOT EXISTS (SELECT 1 FROM reminders rem WHERE rem.waiting_sheet_row_id = r.id)`,
     [today]
   );
 
   for (const w of overdue) {
     await pool.query(
-      `INSERT INTO reminders (title, notes, remind_on, client_id, instructor_id, waiting_on_id, created_by)
+      `INSERT INTO reminders (title, notes, remind_on, client_id, instructor_id, waiting_sheet_row_id, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,'daily-sync')`,
       [
-        `Follow up: ${w.name}`,
+        `Follow up: ${w.names || 'waiting on someone'}`,
         w.what,
         w.need_by, w.client_id, w.instructor_id, w.id,
       ]
