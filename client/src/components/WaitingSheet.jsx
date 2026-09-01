@@ -149,7 +149,7 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
 
         {!readOnly && (
           <button type="button" onClick={() => setShowNotes(v => !v)}
-            className="text-[11px] text-blue-600 hover:underline mt-1 print:hidden">
+            className="block text-[11px] text-blue-600 hover:underline mt-1 print:hidden">
             {showNotes ? 'Hide notes' : notes.length ? `Notes (${notes.length})` : 'Add a note'}
           </button>
         )}
