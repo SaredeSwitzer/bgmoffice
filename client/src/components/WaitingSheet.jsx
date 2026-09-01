@@ -66,8 +66,18 @@ function AddPerson({ kind, options, onAdd }) {
   )
 }
 
+function fmtWhen(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 function Row({ row, clients, instructors, onChanged, readOnly }) {
   const [busy, setBusy] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const notes = row.notes || []
   const instructorsOn = (row.people || []).filter(p => p.kind === 'instructor')
   const clientsOn     = (row.people || []).filter(p => p.kind === 'client')
 
@@ -125,7 +135,64 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
         </div>
       </td>
 
-      <td className="align-top px-3 py-2.5 text-sm text-gray-700">{row.what}</td>
+      <td className="align-top px-3 py-2.5 text-sm text-gray-700">
+        {row.what}
+
+        {/* The last note sits on the row itself — it's the bit the next person needs,
+            and burying it behind a click means nobody reads it. */}
+        {notes.length > 0 && !showNotes && (
+          <p className="text-xs text-gray-500 mt-1">
+            <span className="font-semibold text-gray-600">{notes[notes.length - 1].author}:</span>{' '}
+            {notes[notes.length - 1].text}
+          </p>
+        )}
+
+        {!readOnly && (
+          <button type="button" onClick={() => setShowNotes(v => !v)}
+            className="text-[11px] text-blue-600 hover:underline mt-1 print:hidden">
+            {showNotes ? 'Hide notes' : notes.length ? `Notes (${notes.length})` : 'Add a note'}
+          </button>
+        )}
+
+        {showNotes && (
+          <div className="mt-2 space-y-1.5 print:hidden">
+            {notes.map(n => (
+              <div key={n.id} className="group flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-100 px-2.5 py-1.5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] text-gray-400">
+                    <span className="font-semibold text-gray-500">{n.author}</span> &middot; {fmtWhen(n.created_at)}
+                  </p>
+                  <p className="text-xs text-gray-700 whitespace-pre-wrap">{n.text}</p>
+                </div>
+                <button type="button"
+                  onClick={() => act(() => api.deleteWaitingRowNote(row.id, n.id))}
+                  className="opacity-0 group-hover:opacity-100 text-xs text-gray-300 hover:text-red-500 shrink-0">✕</button>
+              </div>
+            ))}
+            <form
+              onSubmit={e => {
+                e.preventDefault()
+                if (!noteText.trim()) return
+                const text = noteText.trim()
+                setNoteText('')
+                act(() => api.addWaitingRowNote(row.id, text))
+              }}
+              className="flex gap-1.5"
+            >
+              <input
+                value={noteText}
+                onChange={e => setNoteText(e.target.value)}
+                placeholder="Called 2pm, VM full — try her husband"
+                className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <button type="submit" disabled={busy || !noteText.trim()}
+                className="px-2.5 py-1 bg-blue-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 hover:bg-blue-700">
+                Add
+              </button>
+            </form>
+          </div>
+        )}
+      </td>
 
       <td className="align-top px-2 py-2.5 w-20 text-right whitespace-nowrap print:hidden">
         {!readOnly && (

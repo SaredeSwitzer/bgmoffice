@@ -275,6 +275,10 @@ export const api = {
     request(`/waiting-sheet/${id}/people`, { method: 'POST', body: JSON.stringify(person) }),
   removeWaitingRowPerson: (id, personId) =>
     request(`/waiting-sheet/${id}/people/${personId}`, { method: 'DELETE' }),
+  addWaitingRowNote: (id, text) =>
+    request(`/waiting-sheet/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  deleteWaitingRowNote: (id, noteId) =>
+    request(`/waiting-sheet/${id}/notes/${noteId}`, { method: 'DELETE' }),
   markWaitingRowDone: (id) => request(`/waiting-sheet/${id}/done`, { method: 'PATCH' }),
   reopenWaitingRow: (id) => request(`/waiting-sheet/${id}/reopen`, { method: 'PATCH' }),
   deleteWaitingRow: (id) => request(`/waiting-sheet/${id}`, { method: 'DELETE' }),

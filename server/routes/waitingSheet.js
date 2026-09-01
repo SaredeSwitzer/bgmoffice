@@ -23,7 +23,14 @@ const ROW_SQL = `
               ORDER BY p.created_at)
          FROM waiting_sheet_people p WHERE p.row_id = r.id),
       '[]'::json
-    ) AS people
+    ) AS people,
+    COALESCE(
+      (SELECT json_agg(json_build_object(
+                'id', n.id, 'text', n.text, 'author', n.author, 'created_at', n.created_at)
+              ORDER BY n.created_at)
+         FROM waiting_sheet_notes n WHERE n.row_id = r.id),
+      '[]'::json
+    ) AS notes
   FROM waiting_sheet_rows r
 `;
 
@@ -132,6 +139,24 @@ router.delete('/:id/people/:personId', async (req, res) => {
   res.json(await getRow(req.params.id));
 });
 
+router.post('/:id/notes', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Write something first' });
+  await pool.query(
+    'INSERT INTO waiting_sheet_notes (row_id, text, author) VALUES ($1,$2,$3)',
+    [req.params.id, text.trim(), req.user.initials]
+  );
+  // Touched so a row someone is actively working doesn't look stale.
+  await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [req.params.id]);
+  res.status(201).json(await getRow(req.params.id));
+});
+
+router.delete('/:id/notes/:noteId', async (req, res) => {
+  await pool.query('DELETE FROM waiting_sheet_notes WHERE id = $1 AND row_id = $2',
+    [req.params.noteId, req.params.id]);
+  res.json(await getRow(req.params.id));
+});
+
 router.patch('/:id/done', async (req, res) => {
   const { rows: [row] } = await pool.query(
     `UPDATE waiting_sheet_rows SET status = 'done', resolved_by = $1, resolved_at = now(), updated_at = now()
@@ -186,15 +211,21 @@ router.get('/handoff/draft', async (req, res) => {
     const names = (row.people || []).map(p => p.name);
     return names.length ? `${names.join(' / ')} — ${row.what}` : row.what;
   };
+  // The most recent note is the part that actually transfers — "VM full, try her
+  // husband" tells the next person what to do differently.
+  const lastNote = row => {
+    const notes = row.notes || [];
+    return notes.length ? ` — ${notes[notes.length - 1].text}` : '';
+  };
   const waitingLabel = row => {
     // String compare: waiting_on_id is a bigint (string from node-pg), p.id inside the
     // people JSON is a number.
     const who = (row.people || []).find(p => String(p.id) === String(row.waiting_on_id));
-    return who ? `${who.name} — ${row.what}` : label(row);
+    return (who ? `${who.name} — ${row.what}` : label(row)) + lastNote(row);
   };
 
   res.json({
-    urgent:    rows.filter(r => r.urgent).map(label).join('\n'),
+    urgent:    rows.filter(r => r.urgent).map(r => label(r) + lastNote(r)).join('\n'),
     // Names only on purpose: the detail lives in the app, and a handoff that restates it
     // goes stale the moment someone updates the record.
     follow_up: rows.filter(r => !r.urgent && !r.waiting_on_id).map(label).join('\n'),
