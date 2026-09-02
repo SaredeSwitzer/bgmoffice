@@ -1,10 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
 import NoteBody from './NoteBody'
 import MentionTextarea from './MentionTextarea'
 import { today, noteTime } from '../utils/dates'
+import { useHashHighlight } from '../utils/hashHighlight'
+
+// A mention on a sheet note links here as "#note-waiting_sheet_notes-<id>". The line it
+// belongs to opens itself, scrolls to the note and puts the cursor in the reply box, so
+// answering somebody is one click from the notification instead of a hunt.
+function linkedNoteId(hash) {
+  const m = /^#note-waiting_sheet_notes-(\d+)$/.exec(hash || '')
+  return m ? m[1] : null
+}
 
 // The working sheet an admin keeps through a shift.
 //
@@ -74,15 +84,26 @@ function AddPerson({ kind, options, onAdd }) {
   )
 }
 
-function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [] }) {
+function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [], openNoteId }) {
   const [busy, setBusy] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
+  const replyRef = useRef(null)
   const [editingDate, setEditingDate] = useState(false)
   const overdue = row.need_by && row.need_by < today()
   const [noteText, setNoteText] = useState('')
   const notes = row.notes || []
   const instructorsOn = (row.people || []).filter(p => p.kind === 'instructor')
   const clientsOn     = (row.people || []).filter(p => p.kind === 'client')
+
+  const hasLinkedNote = !!openNoteId && notes.some(n => String(n.id) === String(openNoteId))
+  useEffect(() => {
+    if (!hasLinkedNote) return
+    setShowNotes(true)
+    // After the thread has rendered — otherwise there's no box to put the cursor in.
+    const t = setTimeout(() => replyRef.current?.focus(), 120)
+    return () => clearTimeout(t)
+  }, [hasLinkedNote])
+  useHashHighlight([showNotes, notes.length])
 
   async function act(fn) {
     setBusy(true)
@@ -214,6 +235,7 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
               className="flex gap-1.5"
             >
               <MentionTextarea
+                ref={replyRef}
                 value={noteText}
                 onChange={setNoteText}
                 users={mentionableUsers}
@@ -258,6 +280,7 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [mentionableUsers, setMentionableUsers] = useState([])
+  const openNoteId = linkedNoteId(useLocation().hash)
   const [adding, setAdding] = useState(false)
   const [what, setWhat] = useState('')
   const [saving, setSaving] = useState(false)
@@ -341,7 +364,7 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
             <tbody className="divide-y divide-gray-100">
               {rows.map(row => (
                 <Row key={row.id} row={row} clients={clients} instructors={instructors}
-                  mentionableUsers={mentionableUsers} onChanged={load} />
+                  mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
               ))}
             </tbody>
           </table>
@@ -360,6 +383,7 @@ export default function WaitingSheet() {
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
   const [mentionableUsers, setMentionableUsers] = useState([])
+  const openNoteId = linkedNoteId(useLocation().hash)
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState({ what: '', instructor: null, client: null, need_by: '' })
   const [saving, setSaving] = useState(false)
@@ -475,7 +499,7 @@ export default function WaitingSheet() {
             <tbody className="divide-y divide-gray-100">
               {rows.map(row => (
                 <Row key={row.id} row={row} clients={clients} instructors={instructors}
-                  mentionableUsers={mentionableUsers} onChanged={load} />
+                  mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
               ))}
             </tbody>
           </table>

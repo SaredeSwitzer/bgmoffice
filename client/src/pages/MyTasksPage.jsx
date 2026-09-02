@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
@@ -259,6 +259,13 @@ export default function MyTasksPage() {
   useEffect(() => {
     try { localStorage.setItem('bgm_mytasks_view', view) } catch { /* private mode */ }
   }, [view])
+  // A mention on a Waiting On note links to /my-tasks#note-waiting_sheet_notes-<id>, and
+  // the sheet is a different view from the queue — so open it rather than dropping the
+  // person on whichever view they happened to leave behind.
+  useEffect(() => {
+    if ((hash || '').startsWith('#note-waiting_sheet_notes-')) setView('sheet')
+  }, [hash])
+  const { hash } = useLocation()
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [recruitingUnfilled, setRecruitingUnfilled] = useState(0)
   const [showRead, setShowRead] = useState(false)
