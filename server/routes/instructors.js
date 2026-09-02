@@ -9,6 +9,7 @@ const { sendMail } = require('../lib/mailer');
 const { notifyCrew } = require('../lib/notifyCrew');
 const { findDuplicateInstructors, describeDuplicates } = require('../lib/findDuplicateInstructors');
 const { mergeInstructors } = require('../lib/mergeInstructors');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 
@@ -482,6 +483,10 @@ router.post('/:id/notes', async (req, res) => {
     'INSERT INTO instructor_notes (instructor_id, text, author) VALUES ($1,$2,$3) RETURNING *',
     [req.params.id, text.trim(), req.user.initials || null]
   );
+  await syncMentions({
+    sourceTable: 'instructor_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: `/instructors/${req.params.id}`,
+  });
   res.status(201).json(note);
 });
 
@@ -493,11 +498,16 @@ router.patch('/:id/notes/:noteId', async (req, res) => {
     [text.trim(), req.params.noteId, req.params.id]
   );
   if (!note) return res.status(404).json({ error: 'Note not found' });
+  await syncMentions({
+    sourceTable: 'instructor_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: `/instructors/${req.params.id}`,
+  });
   res.json(note);
 });
 
 router.delete('/:id/notes/:noteId', async (req, res) => {
   await pool.query('DELETE FROM instructor_notes WHERE id = $1 AND instructor_id = $2', [req.params.noteId, req.params.id]);
+  await deleteMentions('instructor_notes', req.params.noteId);
   res.json({ success: true });
 });
 

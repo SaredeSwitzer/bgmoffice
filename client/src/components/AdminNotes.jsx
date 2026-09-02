@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { noteTime } from '../utils/dates'
 import NoteBody from './NoteBody'
+import MentionTextarea from './MentionTextarea'
 
 // Same idea as ClassNotes, but backed by admin_notes — a separate table the server only
 // serves to Sarede/Claire/Maria (requireOwnerAccess). This component doesn't re-check
@@ -12,6 +13,9 @@ export default function AdminNotes({ kind, id, onCountChange }) {
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
+  const [mentionableUsers, setMentionableUsers] = useState([])
+
+  useEffect(() => { api.getMentionableUsers().then(setMentionableUsers).catch(() => {}) }, [])
 
   function load() {
     setLoading(true)
@@ -55,10 +59,10 @@ export default function AdminNotes({ kind, id, onCountChange }) {
       ) : (
         <ul className="space-y-1.5">
           {notes.map(n => (
-            <li key={n.id} className="flex items-start gap-2 group">
+            <li key={n.id} id={`note-admin_notes-${n.id}`} className="flex items-start gap-2 group">
               <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
               <div className="flex-1 min-w-0">
-                <NoteBody text={n.text} editedAt={n.edited_at} mentions={false} rows={2}
+                <NoteBody text={n.text} editedAt={n.edited_at} users={mentionableUsers} rows={2}
                   onSave={t => edit(n, t)}
                   className="text-xs leading-snug text-amber-900" />
                 <span className="text-[10px] text-amber-500/70">
@@ -75,9 +79,10 @@ export default function AdminNotes({ kind, id, onCountChange }) {
       )}
 
       <form onSubmit={add} className="flex items-center gap-2 pt-1">
-        <input value={text} onChange={e => setText(e.target.value)}
-          placeholder="New admin note…"
-          className="flex-1 border border-amber-200 rounded-lg px-2.5 py-1 text-xs bg-white" />
+        <MentionTextarea value={text} onChange={setText} users={mentionableUsers} rows={1}
+          placeholder="New admin note… (@ to tag someone)"
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); add(e) } }}
+          className="flex-1 border border-amber-200 rounded-lg px-2.5 py-1 text-xs bg-white resize-none" />
         <button type="submit" disabled={saving || !text.trim()}
           className="px-2.5 py-1 bg-amber-600 text-white text-[11px] font-medium rounded-lg disabled:opacity-50">
           Add

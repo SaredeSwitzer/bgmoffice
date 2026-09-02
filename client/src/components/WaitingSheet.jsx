@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
 import NoteBody from './NoteBody'
+import MentionTextarea from './MentionTextarea'
 import { today, noteTime } from '../utils/dates'
 
 // The working sheet an admin keeps through a shift.
@@ -73,7 +74,7 @@ function AddPerson({ kind, options, onAdd }) {
   )
 }
 
-function Row({ row, clients, instructors, onChanged, readOnly }) {
+function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [] }) {
   const [busy, setBusy] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const [editingDate, setEditingDate] = useState(false)
@@ -183,7 +184,8 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
         {showNotes && (
           <div className="mt-2 space-y-1.5 print:hidden">
             {notes.map(n => (
-              <div key={n.id} className="group flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-100 px-2.5 py-1.5">
+              <div key={n.id} id={`note-waiting_sheet_notes-${n.id}`}
+                className="group flex items-start gap-2 rounded-lg bg-gray-50 border border-gray-100 px-2.5 py-1.5">
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] text-gray-400">
                     <span className="font-semibold text-gray-500">{n.author}</span> &middot; {noteTime(n.created_at)}
@@ -191,7 +193,7 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
                   <NoteBody
                     text={n.text}
                     editedAt={n.edited_at}
-                    mentions={false}
+                    users={mentionableUsers}
                     onSave={t => act(() => api.updateWaitingRowNote(row.id, n.id, t))}
                     className="text-xs text-gray-700 whitespace-pre-wrap"
                   />
@@ -211,11 +213,23 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
               }}
               className="flex gap-1.5"
             >
-              <input
+              <MentionTextarea
                 value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                placeholder="Called 2pm, VM full — try her husband"
-                className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                onChange={setNoteText}
+                users={mentionableUsers}
+                rows={1}
+                placeholder="Called 2pm, VM full — try her husband (@ to tag someone)"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (noteText.trim()) {
+                      const text = noteText.trim()
+                      setNoteText('')
+                      act(() => api.addWaitingRowNote(row.id, text))
+                    }
+                  }
+                }}
+                className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
               <button type="submit" disabled={busy || !noteText.trim()}
                 className="px-2.5 py-1 bg-blue-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 hover:bg-blue-700">
@@ -243,6 +257,7 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
   const [rows, setRows] = useState(null)
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
+  const [mentionableUsers, setMentionableUsers] = useState([])
   const [adding, setAdding] = useState(false)
   const [what, setWhat] = useState('')
   const [saving, setSaving] = useState(false)
@@ -256,6 +271,7 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
   useEffect(() => {
     api.getClients().then(cs => setClients(cs.map(c => ({ id: c.id, name: c.name })))).catch(() => {})
     api.getInstructors().then(is => setInstructors(is.map(i => ({ id: i.id, name: i.name })))).catch(() => {})
+    api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
   }, [])
 
   async function handleAdd(e) {
@@ -324,7 +340,8 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map(row => (
-                <Row key={row.id} row={row} clients={clients} instructors={instructors} onChanged={load} />
+                <Row key={row.id} row={row} clients={clients} instructors={instructors}
+                  mentionableUsers={mentionableUsers} onChanged={load} />
               ))}
             </tbody>
           </table>
@@ -342,6 +359,7 @@ export default function WaitingSheet() {
   const [rows, setRows] = useState(null)
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
+  const [mentionableUsers, setMentionableUsers] = useState([])
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState({ what: '', instructor: null, client: null, need_by: '' })
   const [saving, setSaving] = useState(false)
@@ -354,6 +372,7 @@ export default function WaitingSheet() {
     load()
     api.getClients().then(cs => setClients(cs.map(c => ({ id: c.id, name: c.name })))).catch(() => {})
     api.getInstructors().then(is => setInstructors(is.map(i => ({ id: i.id, name: i.name })))).catch(() => {})
+    api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
   }, [])
 
   async function handleAdd(e) {
@@ -455,7 +474,8 @@ export default function WaitingSheet() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map(row => (
-                <Row key={row.id} row={row} clients={clients} instructors={instructors} onChanged={load} />
+                <Row key={row.id} row={row} clients={clients} instructors={instructors}
+                  mentionableUsers={mentionableUsers} onChanged={load} />
               ))}
             </tbody>
           </table>

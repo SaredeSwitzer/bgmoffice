@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -183,10 +184,15 @@ router.delete('/:id/people/:personId', async (req, res) => {
 router.post('/:id/notes', async (req, res) => {
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'Write something first' });
-  await pool.query(
-    'INSERT INTO waiting_sheet_notes (row_id, text, author) VALUES ($1,$2,$3)',
+  const { rows: [note] } = await pool.query(
+    'INSERT INTO waiting_sheet_notes (row_id, text, author) VALUES ($1,$2,$3) RETURNING id',
     [req.params.id, text.trim(), req.user.initials]
   );
+  // The sheet lives on My Tasks; the note's own anchor is added by the mentions feed.
+  await syncMentions({
+    sourceTable: 'waiting_sheet_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: '/my-tasks',
+  });
   // Touched so a row someone is actively working doesn't look stale.
   await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [req.params.id]);
   res.status(201).json(await getRow(req.params.id));
@@ -202,6 +208,10 @@ router.patch('/:id/notes/:noteId', async (req, res) => {
     [text.trim(), req.params.noteId, req.params.id]
   );
   if (!note) return res.status(404).json({ error: 'Note not found' });
+  await syncMentions({
+    sourceTable: 'waiting_sheet_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: '/my-tasks',
+  });
   await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [req.params.id]);
   res.json(await getRow(req.params.id));
 });
@@ -209,6 +219,7 @@ router.patch('/:id/notes/:noteId', async (req, res) => {
 router.delete('/:id/notes/:noteId', async (req, res) => {
   await pool.query('DELETE FROM waiting_sheet_notes WHERE id = $1 AND row_id = $2',
     [req.params.noteId, req.params.id]);
+  await deleteMentions('waiting_sheet_notes', req.params.noteId);
   res.json(await getRow(req.params.id));
 });
 
@@ -233,7 +244,11 @@ router.patch('/:id/reopen', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  // The notes go with the row (cascade), so their mentions have to go too — otherwise a
+  // teammate keeps a notification pointing at a line that no longer exists.
+  const { rows: notes } = await pool.query('SELECT id FROM waiting_sheet_notes WHERE row_id = $1', [req.params.id]);
   await pool.query('DELETE FROM waiting_sheet_rows WHERE id = $1', [req.params.id]);
+  await Promise.all(notes.map(n => deleteMentions('waiting_sheet_notes', n.id)));
   res.json({ success: true });
 });
 

@@ -10,6 +10,7 @@ const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync')
 require('pg').types.setTypeParser(1082, (v) => v);
 
 const { findDrift, reconcile } = require('../lib/scheduleDrift');
+const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -1048,6 +1049,10 @@ async function addClassNote(col, id, body, initials) {
     `INSERT INTO class_notes (${col}, text, is_task, author) VALUES ($1,$2,$3,$4) RETURNING *`,
     [id, text, body.is_task ? true : false, initials || null]
   );
+  await syncMentions({
+    sourceTable: 'class_notes', sourceId: note.id, text,
+    authorInitials: initials, linkPath: '/schedule',
+  });
   return note;
 }
 
@@ -1092,6 +1097,10 @@ router.patch('/notes/:noteId', async (req, res) => {
       WHERE id=$3 RETURNING *`,
     [text, is_task, req.params.noteId]
   );
+  await syncMentions({
+    sourceTable: 'class_notes', sourceId: updated.id, text,
+    authorInitials: req.user.initials, linkPath: '/schedule',
+  });
   res.json(updated);
 });
 
@@ -1110,6 +1119,7 @@ router.patch('/notes/:noteId/done', async (req, res) => {
 router.delete('/notes/:noteId', async (req, res) => {
   const result = await pool.query('DELETE FROM class_notes WHERE id=$1', [req.params.noteId]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
+  await deleteMentions('class_notes', req.params.noteId);
   res.json({ success: true });
 });
 
@@ -1132,6 +1142,10 @@ async function addAdminNote(col, id, body, author) {
     `INSERT INTO admin_notes (${col}, text, author) VALUES ($1,$2,$3) RETURNING *`,
     [id, text, author || null]
   );
+  await syncMentions({
+    sourceTable: 'admin_notes', sourceId: note.id, text,
+    authorInitials: author, linkPath: '/schedule',
+  });
   return note;
 }
 
@@ -1171,12 +1185,17 @@ router.patch('/admin-notes/:noteId', requireOwnerAccess, async (req, res) => {
     [text, req.params.noteId]
   );
   if (!updated) return res.status(404).json({ error: 'Note not found' });
+  await syncMentions({
+    sourceTable: 'admin_notes', sourceId: updated.id, text,
+    authorInitials: req.user.initials, linkPath: '/schedule',
+  });
   res.json(updated);
 });
 
 router.delete('/admin-notes/:noteId', requireOwnerAccess, async (req, res) => {
   const result = await pool.query('DELETE FROM admin_notes WHERE id=$1', [req.params.noteId]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
+  await deleteMentions('admin_notes', req.params.noteId);
   res.json({ success: true });
 });
 

@@ -36,13 +36,81 @@ function RecipientPicker({ value, onChange, staff, disabled }) {
   )
 }
 
+// Urgent is written as a list, because that's how it gets read: someone scanning at the
+// start of a shift wants "three things", not a paragraph. The box keeps every line
+// bulleted for you — Enter starts the next bullet, and pasted or typed lines get a bullet
+// whether you remember one or not.
+const BULLET = '• '
+
+function bulletize(text) {
+  return (text || '')
+    .split('\n')
+    .map(line => {
+      const bare = line.replace(/^\s*[•\-*]\s*/, '')
+      return bare.trim() ? BULLET + bare : line
+    })
+    .join('\n')
+}
+
+// Empty bullets are scaffolding, not content — they shouldn't reach the next shift.
+function trimBullets(text) {
+  return (text || '')
+    .split('\n')
+    .filter(line => line.replace(/^\s*[•\-*]\s*/, '').trim())
+    .join('\n')
+}
+
+function BulletTextarea({ value, onChange, rows, className }) {
+  function handleKeyDown(e) {
+    if (e.key !== 'Enter' || e.shiftKey) return
+    e.preventDefault()
+    const el = e.target
+    const at = el.selectionStart
+    const next = `${value.slice(0, at)}\n${BULLET}${value.slice(el.selectionEnd)}`
+    onChange(next)
+    // Put the caret after the bullet we just inserted rather than at the end of the box.
+    const caret = at + 1 + BULLET.length
+    requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = caret })
+  }
+
+  return (
+    <textarea
+      value={value}
+      onChange={e => onChange(bulletize(e.target.value))}
+      onKeyDown={handleKeyDown}
+      onFocus={() => { if (!value.trim()) onChange(BULLET) }}
+      rows={rows}
+      className={className}
+    />
+  )
+}
+
+// One handoff section as the next shift reads it: bulleted lines become a real list so
+// they line up, anything else stays as written.
+function SectionText({ text }) {
+  const lines = (text || '').split('\n').filter(l => l.trim())
+  const bulleted = lines.length > 0 && lines.every(l => /^\s*[•\-*]\s/.test(l))
+  if (!bulleted) return <p className="text-sm text-gray-800 whitespace-pre-wrap">{text}</p>
+  return (
+    <ul className="space-y-0.5">
+      {lines.map((l, i) => (
+        <li key={i} className="text-sm text-gray-800 flex gap-1.5">
+          <span className="text-gray-400 shrink-0">•</span>
+          <span className="min-w-0">{l.replace(/^\s*[•\-*]\s*/, '')}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 const SECTIONS = [
   {
     key: 'urgent',
     title: 'Urgent',
-    hint: 'Deal with these first. If nothing is on fire, say so — an empty section reads as "you forgot".',
+    hint: 'One bullet per thing. If nothing is on fire, say so — an empty section reads as "you forgot".',
     accent: 'border-red-300 bg-red-50/50',
     label: 'text-red-700',
+    bullets: true,
   },
   {
     key: 'follow_up',
@@ -110,7 +178,7 @@ export function LatestHandoff() {
           {sections.map(s => (
             <div key={s.key} className={`rounded-lg border ${s.accent} px-3 py-2`}>
               <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${s.label}`}>{s.title}</p>
-              <p className="text-sm text-gray-800 whitespace-pre-wrap">{row[s.key]}</p>
+              <SectionText text={row[s.key]} />
             </div>
           ))}
           {row.notes && (
@@ -164,7 +232,7 @@ export function WriteHandoff() {
     setError('')
     try {
       const draft = await api.getHandoffDraft()
-      setForm({ urgent: draft.urgent || '', follow_up: draft.follow_up || '', waiting: draft.waiting || '', notes: '' })
+      setForm({ urgent: bulletize(draft.urgent || ''), follow_up: draft.follow_up || '', waiting: draft.waiting || '', notes: '' })
     } catch (e) {
       // A failed draft shouldn't stop the handoff being written by hand.
       setForm({ urgent: '', follow_up: '', waiting: '', notes: '' })
@@ -176,7 +244,7 @@ export function WriteHandoff() {
     setSaving(true)
     setError('')
     try {
-      const row = await api.saveHandoff({ ...form, handed_to: handedTo })
+      const row = await api.saveHandoff({ ...form, urgent: trimBullets(form.urgent), handed_to: handedTo })
       setSaved(row)
       setForm(null)
     } catch (e) {
@@ -258,12 +326,21 @@ export function WriteHandoff() {
           <label className={`block text-[10px] font-bold uppercase tracking-widest mb-1 ${s.label}`}>
             {s.title}
           </label>
-          <textarea
-            value={form[s.key]}
-            onChange={e => setForm(f => ({ ...f, [s.key]: e.target.value }))}
-            rows={Math.max(2, Math.min(8, (form[s.key] || '').split('\n').length + 1))}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          {s.bullets ? (
+            <BulletTextarea
+              value={form[s.key]}
+              onChange={v => setForm(f => ({ ...f, [s.key]: v }))}
+              rows={Math.max(2, Math.min(8, (form[s.key] || '').split('\n').length + 1))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          ) : (
+            <textarea
+              value={form[s.key]}
+              onChange={e => setForm(f => ({ ...f, [s.key]: e.target.value }))}
+              rows={Math.max(2, Math.min(8, (form[s.key] || '').split('\n').length + 1))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
           <p className="text-[11px] text-gray-400 mt-0.5">{s.hint}</p>
         </div>
       ))}

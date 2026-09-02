@@ -83,13 +83,16 @@ function attachCategories(items) {
 
 // Resolves display context (client name) per source table (recruiting_notes,
 // client_notes, invoice_notes, standalone_tasks/task_replies, action_items/
-// follow_up_notes, reminder_notes, sales_lead_notes). Add a LEFT JOIN here when a
-// new note type (source_table) gains @mention support.
+// follow_up_notes, reminder_notes, sales_lead_notes, instructor_notes,
+// waiting_sheet_notes). Add a LEFT JOIN here when a new note type (source_table) gains
+// @mention support. class_notes/admin_notes have no join — a class note's link lands on
+// the schedule, which shows the class itself.
 async function loadMentionTasks(userId) {
   const { rows } = await pool.query(
     `SELECT m.id, m.source_table, m.source_id, m.snippet, m.author_initials, m.created_at, m.link_path,
-            COALESCE(re.client_name, cl.name, icl.name, stcl.name, aicl.name, fucl.name, rncl.name, slcl.name, sl.name) AS client_name,
-            COALESCE(stins.name, aiins.name, fuins.name, rnins.name) AS instructor_name
+            COALESCE(re.client_name, cl.name, icl.name, stcl.name, aicl.name, fucl.name, rncl.name, slcl.name, sl.name,
+                     wsp_client.name) AS client_name,
+            COALESCE(stins.name, aiins.name, fuins.name, rnins.name, insn.name, wsp_instr.name) AS instructor_name
      FROM mentions m
      LEFT JOIN recruiting_notes    rn    ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
      LEFT JOIN recruiting_entries  re    ON re.id = rn.entry_id
@@ -126,6 +129,18 @@ async function loadMentionTasks(userId) {
      LEFT JOIN sales_lead_notes    sln   ON m.source_table = 'sales_lead_notes' AND sln.id = m.source_id
      LEFT JOIN sales_leads         sl    ON sl.id = sln.sales_lead_id
      LEFT JOIN clients             slcl  ON slcl.id = sl.client_id
+     -- instructor_notes (feedback notes on a profile) name the instructor directly.
+     LEFT JOIN instructor_notes    inn   ON m.source_table = 'instructor_notes' AND inn.id = m.source_id
+     LEFT JOIN instructors         insn  ON insn.id = inn.instructor_id
+     -- A waiting-sheet note belongs to a line, and a line can carry several names on
+     -- each side; the first of each is enough context to know which line is meant.
+     LEFT JOIN waiting_sheet_notes wsn   ON m.source_table = 'waiting_sheet_notes' AND wsn.id = m.source_id
+     LEFT JOIN LATERAL (SELECT p.name FROM waiting_sheet_people p
+                         WHERE p.row_id = wsn.row_id AND p.kind = 'client'
+                         ORDER BY p.created_at LIMIT 1) wsp_client ON true
+     LEFT JOIN LATERAL (SELECT p.name FROM waiting_sheet_people p
+                         WHERE p.row_id = wsn.row_id AND p.kind = 'instructor'
+                         ORDER BY p.created_at LIMIT 1) wsp_instr ON true
      WHERE m.mentioned_user_id = $1 AND m.resolved_at IS NULL
      ORDER BY m.created_at DESC`,
     [userId]

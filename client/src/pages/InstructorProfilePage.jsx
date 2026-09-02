@@ -12,6 +12,7 @@ import { ClientLink } from '../components/NameLink'
 import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { today } from '../utils/dates'
 import NoteBody from '../components/NoteBody'
+import MentionTextarea from '../components/MentionTextarea'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -523,7 +524,7 @@ function fmtNoteDate(iso) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 
-function FeedbackNotesSection({ instructorId, initialNotes }) {
+function FeedbackNotesSection({ instructorId, initialNotes, mentionableUsers = [] }) {
   const [notes, setNotes] = useState(initialNotes || [])
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
@@ -567,12 +568,13 @@ function FeedbackNotesSection({ instructorId, initialNotes }) {
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5 space-y-4">
         <form onSubmit={handleAdd} className="flex gap-2 items-start">
-          <textarea
+          <MentionTextarea
             value={text}
-            onChange={e => setText(e.target.value)}
+            onChange={setText}
+            users={mentionableUsers}
             onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(e) }}
             rows={2}
-            placeholder="Add a note… (Ctrl+Enter to save)"
+            placeholder="Add a note… (@ to tag someone, Ctrl+Enter to save)"
             className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300"
           />
           <button type="submit" disabled={saving || !text.trim()}
@@ -586,12 +588,12 @@ function FeedbackNotesSection({ instructorId, initialNotes }) {
         ) : (
           <div className="space-y-3">
             {notes.map(n => (
-              <div key={n.id} className="group flex gap-3 items-start">
+              <div key={n.id} id={`note-instructor_notes-${n.id}`} className="group flex gap-3 items-start">
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] text-gray-400 mb-0.5">
                     {fmtNoteDate(n.created_at)}{n.author && ` — ${n.author}`}
                   </p>
-                  <NoteBody text={n.text} editedAt={n.edited_at} mentions={false}
+                  <NoteBody text={n.text} editedAt={n.edited_at} users={mentionableUsers}
                     onSave={t => handleEdit(n.id, t)}
                     className="text-sm text-gray-800 whitespace-pre-wrap" />
                 </div>
@@ -1002,6 +1004,7 @@ export default function InstructorProfilePage() {
       <FeedbackNotesSection
         instructorId={id}
         initialNotes={feedbackNotes}
+        mentionableUsers={mentionableUsers}
       />
 
       {/* Availability */}

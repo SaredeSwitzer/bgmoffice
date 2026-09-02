@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { noteTime } from '../utils/dates'
 import NoteBody from './NoteBody'
+import MentionTextarea from './MentionTextarea'
 
 // Notes + checkable to-do tasks on a class. `kind` is 'schedule' (recurring class) or
 // 'session' (a single dated class). Self-contained: loads its own list on mount.
@@ -11,6 +12,9 @@ export default function ClassNotes({ kind, id, onCountChange }) {
   const [text, setText] = useState('')
   const [isTask, setIsTask] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [mentionableUsers, setMentionableUsers] = useState([])
+
+  useEffect(() => { api.getMentionableUsers().then(setMentionableUsers).catch(() => {}) }, [])
 
   function load() {
     setLoading(true)
@@ -62,7 +66,7 @@ export default function ClassNotes({ kind, id, onCountChange }) {
       ) : (
         <ul className="space-y-1.5">
           {notes.map(n => (
-            <li key={n.id} className="flex items-start gap-2 group">
+            <li key={n.id} id={`note-class_notes-${n.id}`} className="flex items-start gap-2 group">
               {n.is_task ? (
                 <button onClick={() => toggle(n)} title={n.is_done ? 'Mark not done' : 'Mark done'}
                   className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center text-[10px] leading-none
@@ -73,7 +77,7 @@ export default function ClassNotes({ kind, id, onCountChange }) {
                 <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
               )}
               <div className="flex-1 min-w-0">
-                <NoteBody text={n.text} editedAt={n.edited_at} mentions={false} rows={2}
+                <NoteBody text={n.text} editedAt={n.edited_at} users={mentionableUsers} rows={2}
                   onSave={t => edit(n, t)}
                   className={`text-xs leading-snug ${n.is_done ? 'line-through text-gray-400' : 'text-gray-700'}`} />
                 <span className="text-[10px] text-gray-300">
@@ -90,9 +94,10 @@ export default function ClassNotes({ kind, id, onCountChange }) {
       )}
 
       <form onSubmit={add} className="flex items-center gap-2 pt-1">
-        <input value={text} onChange={e => setText(e.target.value)}
-          placeholder={isTask ? 'New task…' : 'New note…'}
-          className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300" />
+        <MentionTextarea value={text} onChange={setText} users={mentionableUsers} rows={1}
+          placeholder={isTask ? 'New task… (@ to tag someone)' : 'New note… (@ to tag someone)'}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); add(e) } }}
+          className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1 text-xs bg-white resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
         <label className="flex items-center gap-1 text-[11px] text-gray-500 select-none cursor-pointer">
           <input type="checkbox" checked={isTask} onChange={e => setIsTask(e.target.checked)} className="accent-gray-700" />
           task
