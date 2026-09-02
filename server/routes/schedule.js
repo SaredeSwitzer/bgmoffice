@@ -2,7 +2,7 @@ const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth, requireStaff, requireOwnerAccess } = require('../middleware/auth');
 const { sendMail } = require('../lib/mailer');
-const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync');
+const { generateUpcomingSessions, defaultHorizon, adoptOrphanSessions } = require('../lib/dailySync');
 
 // Return DATE columns as plain 'YYYY-MM-DD' strings, not JS Date objects: a Date
 // gets JSON-serialized to a UTC timestamp and can shift a calendar day off the
@@ -273,6 +273,11 @@ router.put('/schedules/:id', async (req, res) => {
      participant_count === '' ? null : participant_count ?? null, participant_ages || null,
      req.params.id, address_id || null]
   );
+  // Classes that are really this series but were never linked to it get linked first, so
+  // the edit below reaches them too. Without this, a time change updated the dates the
+  // app had generated and silently skipped the ones typed straight onto the calendar.
+  await adoptOrphanSessions(req.params.id);
+
   // Editing the recurring class has to reach the classes already sitting on the
   // calendar, or the change silently applies to nothing you can see: generateUpcoming-
   // Sessions only ever INSERTs missing dates (ON CONFLICT DO NOTHING), so every

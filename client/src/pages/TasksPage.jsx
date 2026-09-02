@@ -27,7 +27,6 @@ function fmtTs(iso) {
 
 // ── Task form (inline create or edit) ────────────────────────────────────────
 export function TaskForm({ initial, onSave, onCancel, saving, clients = [], instructors = [] }) {
-  const today = today()
   const [form, setForm] = useState(initial || {
     title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: 'task',
     client: null, instructor: null,

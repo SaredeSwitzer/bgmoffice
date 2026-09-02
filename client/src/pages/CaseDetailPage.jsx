@@ -448,8 +448,8 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
 
 function LinkedReminderItem({ reminder, onDone }) {
   const [loading, setLoading] = useState(false)
-  const today = today()
-  const isOverdue = reminder.remind_on < today
+  const todayStr = today()
+  const isOverdue = reminder.remind_on < todayStr
 
   async function handleDone() {
     setLoading(true)

@@ -50,6 +50,10 @@ const RULES = {
   'no-const-assign':      'error',
   'no-class-assign':      'error',
   'use-isnan':            'error',
+  // Reading a const/let before its declaration line throws at render time — it compiles
+  // fine and the page comes up blank. That shipped once (a useEffect that used a value
+  // declared a few lines below it, My Tasks, 2026-09-02), so it's caught here now.
+  'no-use-before-define':  ['error', { functions: false, classes: false, variables: true }],
 };
 
 const asGlobals = names => Object.fromEntries(names.map(n => [n, 'readonly']));

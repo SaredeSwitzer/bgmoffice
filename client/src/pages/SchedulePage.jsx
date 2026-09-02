@@ -245,6 +245,9 @@ export default function SchedulePage() {
     try {
       await api.updateClassSession(id, patch)
     } finally {
+      // loadWeek is a useCallback defined further down; this runs on a click, long after
+      // the whole component has evaluated.
+      // eslint-disable-next-line no-use-before-define
       loadWeek()
     }
   }

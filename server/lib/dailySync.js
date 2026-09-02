@@ -19,6 +19,42 @@ function addDays(d, n) {
 // class_sessions row (or its start_date / today if it has none yet) — never re-walks
 // dates already generated. That means a session someone deliberately deleted (a one-off
 // cancellation) stays deleted instead of being silently resurrected on the next run.
+// Dated classes that belong to a recurring class but were never linked to it.
+//
+// The July migration (and any class typed straight onto the calendar) leaves
+// class_sessions rows with no schedule_id. They look identical on the calendar, but a
+// recurring class can't reach them: editing the series pushes changes to its own rows
+// only, so Maria changed a time and every already-on-the-calendar date kept the old one.
+// They also blocked generation — see the weekday note below.
+//
+// Adoption is by client + instructor + weekday, future dates only. That's the same class
+// by every practical definition; a one-off on another day, with another instructor, or
+// already in the past is left alone. A date the series already covers is skipped so the
+// (schedule_id, session_date) unique index can't be violated.
+async function adoptOrphanSessions(scheduleId) {
+  const { rowCount } = await pool.query(
+    `UPDATE class_sessions s
+        SET schedule_id = $1, updated_at = now()
+       FROM class_schedules sch
+      WHERE sch.id = $1
+        AND sch.weekday IS NOT NULL
+        AND s.schedule_id IS NULL
+        AND s.client_id = sch.client_id
+        AND s.instructor_id IS NOT DISTINCT FROM sch.instructor_id
+        AND s.session_date >= CURRENT_DATE
+        AND s.status <> 'cancelled'
+        AND EXTRACT(DOW FROM s.session_date)::int = sch.weekday
+        AND (sch.start_date IS NULL OR s.session_date >= sch.start_date)
+        AND (sch.end_date   IS NULL OR s.session_date <= sch.end_date)
+        AND NOT EXISTS (
+          SELECT 1 FROM class_sessions t
+           WHERE t.schedule_id = sch.id AND t.session_date = s.session_date
+        )`,
+    [scheduleId]
+  );
+  return rowCount;
+}
+
 async function generateUpcomingSessions(horizonDate, { scheduleId = null } = {}) {
   const { rows: schedules } = await pool.query(
     `SELECT * FROM class_schedules WHERE status = 'active' AND weekday IS NOT NULL
@@ -30,17 +66,27 @@ async function generateUpcomingSessions(horizonDate, { scheduleId = null } = {})
   let created = 0;
 
   for (const sch of schedules) {
+    // Anything on the calendar that is really this class but was never linked to it gets
+    // linked before we work out where to resume from — otherwise it counts as "not this
+    // schedule" here and as a duplicate below.
+    await adoptOrphanSessions(sch.id);
+
     // Also look at sessions NOT linked to this schedule (schedule_id IS NULL) for the same
     // client+instructor — the July migration created a batch of sessions before schedule_id
     // linkage existed. Without this, a schedule's "resume from" date ignores that legacy batch
     // entirely and re-generates dates that already have a (duplicate, unlinked) session —
     // found 87 such duplicate pairs on 2026-08-10, silently doubling payroll/revenue totals for
     // every affected date. IS NOT DISTINCT FROM (vs =) so null-instructor schedules match too.
+    //
+    // Same weekday only. Without that, one client's Wednesday class pushed their Monday
+    // class's start date two months out and the Monday series generated nothing until
+    // November — a "recurring class that isn't working", reported by Maria on 2026-09-02.
     const { rows: [{ max_date }] } = await pool.query(
       `SELECT MAX(session_date)::text AS max_date FROM class_sessions
         WHERE schedule_id = $1
-           OR (schedule_id IS NULL AND client_id = $2 AND instructor_id IS NOT DISTINCT FROM $3)`,
-      [sch.id, sch.client_id, sch.instructor_id]
+           OR (schedule_id IS NULL AND client_id = $2 AND instructor_id IS NOT DISTINCT FROM $3
+               AND EXTRACT(DOW FROM session_date)::int = $4)`,
+      [sch.id, sch.client_id, sch.instructor_id, sch.weekday]
     );
     let from = max_date ? ymd(addDays(new Date(`${max_date}T00:00:00`), 1)) : (sch.start_date || today);
     if (from < today) from = today;
@@ -533,4 +579,4 @@ function defaultHorizon() {
   return ymd(addDays(new Date(), 730));
 }
 
-module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, syncInvoiceSendReminders, syncWaitingOnReminders, defaultHorizon };
+module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, adoptOrphanSessions, syncInvoiceSendReminders, syncWaitingOnReminders, defaultHorizon };
