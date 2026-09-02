@@ -33,23 +33,31 @@ function addDays(d, n) {
 // (schedule_id, session_date) unique index can't be violated.
 async function adoptOrphanSessions(scheduleId) {
   const { rowCount } = await pool.query(
-    `UPDATE class_sessions s
+    `UPDATE class_sessions
         SET schedule_id = $1, updated_at = now()
-       FROM class_schedules sch
-      WHERE sch.id = $1
-        AND sch.weekday IS NOT NULL
-        AND s.schedule_id IS NULL
-        AND s.client_id = sch.client_id
-        AND s.instructor_id IS NOT DISTINCT FROM sch.instructor_id
-        AND s.session_date >= CURRENT_DATE
-        AND s.status <> 'cancelled'
-        AND EXTRACT(DOW FROM s.session_date)::int = sch.weekday
-        AND (sch.start_date IS NULL OR s.session_date >= sch.start_date)
-        AND (sch.end_date   IS NULL OR s.session_date <= sch.end_date)
-        AND NOT EXISTS (
-          SELECT 1 FROM class_sessions t
-           WHERE t.schedule_id = sch.id AND t.session_date = s.session_date
-        )`,
+      WHERE id IN (
+        -- One per date. Where the same date somehow has two unlinked classes on it, the
+        -- older row joins the series and the other is left alone rather than tripping the
+        -- one-class-per-date rule — a duplicate on the calendar is its own problem and
+        -- silently swallowing one here would hide it.
+        SELECT DISTINCT ON (s.session_date) s.id
+          FROM class_sessions s
+          JOIN class_schedules sch ON sch.id = $1
+         WHERE sch.weekday IS NOT NULL
+           AND s.schedule_id IS NULL
+           AND s.client_id = sch.client_id
+           AND s.instructor_id IS NOT DISTINCT FROM sch.instructor_id
+           AND s.session_date >= CURRENT_DATE
+           AND s.status <> 'cancelled'
+           AND EXTRACT(DOW FROM s.session_date)::int = sch.weekday
+           AND (sch.start_date IS NULL OR s.session_date >= sch.start_date)
+           AND (sch.end_date   IS NULL OR s.session_date <= sch.end_date)
+           AND NOT EXISTS (
+             SELECT 1 FROM class_sessions t
+              WHERE t.schedule_id = sch.id AND t.session_date = s.session_date
+           )
+         ORDER BY s.session_date, s.id
+      )`,
     [scheduleId]
   );
   return rowCount;
