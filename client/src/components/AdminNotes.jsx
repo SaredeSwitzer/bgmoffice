@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { api } from '../api/client'
 import { noteTime } from '../utils/dates'
 import NoteBody from './NoteBody'
@@ -16,6 +17,17 @@ export default function AdminNotes({ kind, id, onCountChange }) {
   const [mentionableUsers, setMentionableUsers] = useState([])
 
   useEffect(() => { api.getMentionableUsers().then(setMentionableUsers).catch(() => {}) }, [])
+
+  // Arriving from a mention: the note is on screen (the page opened this panel for it),
+  // so put the cursor in the box — replying is the reason they clicked.
+  const { hash } = useLocation()
+  const inputRef = useRef(null)
+  useEffect(() => {
+    const m = /^#note-admin_notes-(\d+)$/.exec(hash || '')
+    if (!m || !notes.some(n => String(n.id) === m[1])) return
+    const t = setTimeout(() => inputRef.current?.focus(), 120)
+    return () => clearTimeout(t)
+  }, [hash, notes])
 
   function load() {
     setLoading(true)
@@ -79,7 +91,7 @@ export default function AdminNotes({ kind, id, onCountChange }) {
       )}
 
       <form onSubmit={add} className="flex items-center gap-2 pt-1">
-        <MentionTextarea value={text} onChange={setText} users={mentionableUsers} rows={1}
+        <MentionTextarea ref={inputRef} value={text} onChange={setText} users={mentionableUsers} rows={1}
           placeholder="New admin note… (@ to tag someone)"
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); add(e) } }}
           className="flex-1 border border-amber-200 rounded-lg px-2.5 py-1 text-xs bg-white resize-none" />

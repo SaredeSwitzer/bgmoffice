@@ -1084,6 +1084,31 @@ router.post('/sessions/:id/notes', async (req, res) => {
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
+// Where does this note live? A mention on a class note links to /schedule, but the page
+// needs to know which class to open, which week to show, and whether it's a session or a
+// recurring schedule before it can put the note on screen. Admin notes answer through
+// their own gated route, since who may even know one exists is the point of that table.
+async function noteLocation(table, noteId, res) {
+  const { rows: [note] } = await pool.query(
+    `SELECT schedule_id, session_id FROM ${table} WHERE id = $1`, [noteId]
+  );
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  if (note.session_id) {
+    const { rows: [sess] } = await pool.query(
+      'SELECT id, session_date::text AS date FROM class_sessions WHERE id = $1', [note.session_id]
+    );
+    if (!sess) return res.status(404).json({ error: 'Class not found' });
+    return res.json({ kind: 'session', id: sess.id, date: sess.date });
+  }
+  res.json({ kind: 'schedule', id: note.schedule_id, date: null });
+}
+
+router.get('/note-location/class_notes/:noteId', (req, res) =>
+  noteLocation('class_notes', req.params.noteId, res));
+
+router.get('/note-location/admin_notes/:noteId', requireOwnerAccess, (req, res) =>
+  noteLocation('admin_notes', req.params.noteId, res));
+
 // Edit text / convert note<->task
 router.patch('/notes/:noteId', async (req, res) => {
   const { rows: [note] } = await pool.query('SELECT * FROM class_notes WHERE id=$1', [req.params.noteId]);

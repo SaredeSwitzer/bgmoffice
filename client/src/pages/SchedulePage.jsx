@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
+import { useLocation } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { isOwnerUser } from '../utils/ownerAccess'
@@ -20,6 +21,7 @@ import { ClientLink, InstructorLink } from '../components/NameLink'
 import { fmtTime, fmtTimeRange } from '../utils/time'
 import ReportsPage from './ReportsPage'
 import ScheduleDrift from '../components/ScheduleDrift'
+import { useHashHighlight } from '../utils/hashHighlight'
 
 // The horizontal line + time label shown between classes while dragging, so it's clear
 // exactly where a class will land (and what time it'll get) before you let go.
@@ -300,6 +302,32 @@ export default function SchedulePage() {
   // Separate from openNotes so staff notes and admin notes can be open at the same time.
   const [openAdminNotes, setOpenAdminNotes] = useState(null)
   const toggleAdminNotes = (key) => setOpenAdminNotes(prev => (prev === key ? null : key))
+  // A mention on a class note links here as "#note-class_notes-<id>" (or admin_notes).
+  // The note is inside a panel, on a class, in a particular week — so ask the server which
+  // class it is, move to that week, and open the panel. The person lands on the note with
+  // the reply box right there instead of hunting through the calendar for it.
+  const { hash } = useLocation()
+  useEffect(() => {
+    const m = /^#note-(class_notes|admin_notes)-(\d+)$/.exec(hash || '')
+    if (!m) return
+    const [, table, noteId] = m
+    let cancelled = false
+    api.getNoteLocation(table, noteId).then(loc => {
+      if (cancelled || !loc?.id) return
+      const key = `${loc.kind}-${loc.id}`
+      if (loc.kind === 'session') {
+        setTab('week')
+        if (loc.date) setAnchor(startOfWeek(new Date(`${loc.date}T00:00:00`)))
+      } else {
+        setTab('recurring')
+      }
+      if (table === 'admin_notes') setOpenAdminNotes(key); else setOpenNotes(key)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [hash])
+  // Flashes the note itself once the panel it lives in has rendered.
+  useHashHighlight([hash, openNotes, openAdminNotes, sessions, schedules])
+
   // Keep the row's badge in sync after edits inside the panel, without a full reload.
   function applyCounts(kind, id, rows) {
     const note_count = rows.length

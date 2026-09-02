@@ -560,6 +560,8 @@ export const api = {
     request(`/instructors/${instructorId}/availability-check`, { method: 'POST', body: JSON.stringify({ week_start }) }),
 
   // Notes & to-do tasks on a class — attach to a recurring class ('schedule') or a dated 'session'.
+  // Which class a note belongs to — used to open a mention straight onto the note.
+  getNoteLocation: (table, noteId) => request(`/schedule/note-location/${table}/${noteId}`),
   getClassNotes: (kind, id) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`),
   addClassNote: (kind, id, data) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/notes`, { method: 'POST', body: JSON.stringify(data) }),
   updateClassNote: (noteId, data) => request(`/schedule/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify(data) }),
