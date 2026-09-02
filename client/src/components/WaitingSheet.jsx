@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
+import NoteBody from './NoteBody'
 import { today, noteTime } from '../utils/dates'
 
 // The working sheet an admin keeps through a shift.
@@ -187,7 +188,13 @@ function Row({ row, clients, instructors, onChanged, readOnly }) {
                   <p className="text-[10px] text-gray-400">
                     <span className="font-semibold text-gray-500">{n.author}</span> &middot; {noteTime(n.created_at)}
                   </p>
-                  <p className="text-xs text-gray-700 whitespace-pre-wrap">{n.text}</p>
+                  <NoteBody
+                    text={n.text}
+                    editedAt={n.edited_at}
+                    mentions={false}
+                    onSave={t => act(() => api.updateWaitingRowNote(row.id, n.id, t))}
+                    className="text-xs text-gray-700 whitespace-pre-wrap"
+                  />
                 </div>
                 <button type="button"
                   onClick={() => act(() => api.deleteWaitingRowNote(row.id, n.id))}

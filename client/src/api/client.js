@@ -100,6 +100,8 @@ export const api = {
   updateTask: (id, data) => request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   starTask: (id, starred) => request(`/tasks/${id}/star`, { method: 'PATCH', body: JSON.stringify({ starred }) }),
   addTaskReply: (id, text, opts = {}) => request(`/tasks/${id}/replies`, { method: 'POST', body: JSON.stringify({ text, ...opts }) }),
+  updateTaskReply: (id, replyId, text) =>
+    request(`/tasks/${id}/replies/${replyId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   deleteTaskReply: (id, replyId) => request(`/tasks/${id}/replies/${replyId}`, { method: 'DELETE' }),
   deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
 
@@ -200,6 +202,8 @@ export const api = {
     request(`/instructors/${id}/documents/${docId}`, { method: 'DELETE' }),
   getInstructorNotes: (id) => request(`/instructors/${id}/notes`),
   addInstructorNote: (id, text) => request(`/instructors/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  updateInstructorNote: (id, noteId, text) =>
+    request(`/instructors/${id}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   deleteInstructorNote: (id, noteId) => request(`/instructors/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
   // Cases
@@ -280,6 +284,8 @@ export const api = {
     request(`/waiting-sheet/${id}/people/${personId}`, { method: 'DELETE' }),
   addWaitingRowNote: (id, text) =>
     request(`/waiting-sheet/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  updateWaitingRowNote: (id, noteId, text) =>
+    request(`/waiting-sheet/${id}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   deleteWaitingRowNote: (id, noteId) =>
     request(`/waiting-sheet/${id}/notes/${noteId}`, { method: 'DELETE' }),
   markWaitingRowDone: (id) => request(`/waiting-sheet/${id}/done`, { method: 'PATCH' }),
@@ -317,6 +323,8 @@ export const api = {
   getReminderNotes: (id) => request(`/reminders/${id}/notes`),
   addReminderNote: (id, text) =>
     request(`/reminders/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  updateReminderNote: (id, noteId, text) =>
+    request(`/reminders/${id}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   deleteReminderNote: (id, noteId) =>
     request(`/reminders/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
@@ -341,6 +349,8 @@ export const api = {
   getWaitingOnNotes: (id) => request(`/waiting-on/${id}/notes`),
   addWaitingOnNote: (id, text) =>
     request(`/waiting-on/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  updateWaitingOnNote: (id, noteId, text) =>
+    request(`/waiting-on/${id}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   deleteWaitingOnNote: (id, noteId) =>
     request(`/waiting-on/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
@@ -352,6 +362,8 @@ export const api = {
   getSalesLeadNotes: (id) => request(`/sales/${id}/notes`),
   addSalesLeadNote: (id, text) =>
     request(`/sales/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  updateSalesLeadNote: (id, noteId, text) =>
+    request(`/sales/${id}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   deleteSalesLeadNote: (id, noteId) =>
     request(`/sales/${id}/notes/${noteId}`, { method: 'DELETE' }),
 
@@ -557,6 +569,7 @@ export const api = {
   // Admin-only notes — same shape, but only visible to Sarede/Claire/Maria (server-enforced).
   getAdminNotes: (kind, id) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/admin-notes`),
   addAdminNote: (kind, id, data) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/admin-notes`, { method: 'POST', body: JSON.stringify(data) }),
+  updateAdminNote: (noteId, data) => request(`/schedule/admin-notes/${noteId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteAdminNote: (noteId) => request(`/schedule/admin-notes/${noteId}`, { method: 'DELETE' }),
 
   // Instructor confirmation email — preview (fills the template from the class) then send.

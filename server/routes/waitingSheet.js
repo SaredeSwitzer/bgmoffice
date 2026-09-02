@@ -27,7 +27,8 @@ const ROW_SQL = `
     ) AS people,
     COALESCE(
       (SELECT json_agg(json_build_object(
-                'id', n.id, 'text', n.text, 'author', n.author, 'created_at', n.created_at)
+                'id', n.id, 'text', n.text, 'author', n.author, 'created_at', n.created_at,
+                'edited_at', n.edited_at)
               ORDER BY n.created_at)
          FROM waiting_sheet_notes n WHERE n.row_id = r.id),
       '[]'::json
@@ -189,6 +190,20 @@ router.post('/:id/notes', async (req, res) => {
   // Touched so a row someone is actively working doesn't look stale.
   await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [req.params.id]);
   res.status(201).json(await getRow(req.params.id));
+});
+
+// Notes get edited — a typo, a wrong callback number, "she actually said Tuesday". The
+// note keeps its author and its time; `edited_at` is what makes the row say "edited".
+router.patch('/:id/notes/:noteId', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Write something first' });
+  const { rows: [note] } = await pool.query(
+    'UPDATE waiting_sheet_notes SET text = $1, edited_at = now() WHERE id = $2 AND row_id = $3 RETURNING id',
+    [text.trim(), req.params.noteId, req.params.id]
+  );
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [req.params.id]);
+  res.json(await getRow(req.params.id));
 });
 
 router.delete('/:id/notes/:noteId', async (req, res) => {

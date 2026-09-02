@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { noteTime } from '../utils/dates'
+import NoteBody from './NoteBody'
 
 // Notes + checkable to-do tasks on a class. `kind` is 'schedule' (recurring class) or
 // 'session' (a single dated class). Self-contained: loads its own list on mount.
@@ -41,6 +42,11 @@ export default function ClassNotes({ kind, id, onCountChange }) {
     try { await api.deleteClassNote(note.id) } finally { load() }
   }
 
+  async function edit(note, text) {
+    const updated = await api.updateClassNote(note.id, { text })
+    setNotes(prev => prev.map(n => (n.id === note.id ? updated : n)))
+  }
+
   return (
     <div className="bg-sky-50/60 border-t border-sky-100 px-4 py-3 space-y-2">
       {/* Deliberately styled apart from AdminNotes (amber, lock icon): these two sat
@@ -66,11 +72,16 @@ export default function ClassNotes({ kind, id, onCountChange }) {
               ) : (
                 <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
               )}
-              <span className={`flex-1 text-xs leading-snug ${n.is_done ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                {n.text}
-                {n.author ? <span className="text-gray-300"> · {n.author}</span> : null}
-                {n.created_at ? <span className="text-gray-300"> · {noteTime(n.created_at)}</span> : null}
-              </span>
+              <div className="flex-1 min-w-0">
+                <NoteBody text={n.text} editedAt={n.edited_at} mentions={false} rows={2}
+                  onSave={t => edit(n, t)}
+                  className={`text-xs leading-snug ${n.is_done ? 'line-through text-gray-400' : 'text-gray-700'}`} />
+                <span className="text-[10px] text-gray-300">
+                  {n.author ? `${n.author}` : null}
+                  {n.author && n.created_at ? ' · ' : null}
+                  {n.created_at ? noteTime(n.created_at) : null}
+                </span>
+              </div>
               <button onClick={() => remove(n)}
                 className="text-gray-300 hover:text-red-500 text-sm leading-none opacity-0 group-hover:opacity-100">×</button>
             </li>

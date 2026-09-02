@@ -286,7 +286,7 @@ router.put('/entries/:id/notes/:noteId', async (req, res) => {
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
 
-  await pool.query('UPDATE recruiting_notes SET text = $1 WHERE id = $2', [text.trim(), note.id]);
+  await pool.query('UPDATE recruiting_notes SET text = $1, edited_at = now() WHERE id = $2', [text.trim(), note.id]);
 
   await syncMentions({
     sourceTable: 'recruiting_notes',

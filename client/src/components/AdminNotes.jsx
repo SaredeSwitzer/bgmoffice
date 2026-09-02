@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { noteTime } from '../utils/dates'
+import NoteBody from './NoteBody'
 
 // Same idea as ClassNotes, but backed by admin_notes — a separate table the server only
 // serves to Sarede/Claire/Maria (requireOwnerAccess). This component doesn't re-check
@@ -37,6 +38,11 @@ export default function AdminNotes({ kind, id, onCountChange }) {
     try { await api.deleteAdminNote(note.id) } finally { load() }
   }
 
+  async function edit(note, text) {
+    const updated = await api.updateAdminNote(note.id, { text })
+    setNotes(prev => prev.map(n => (n.id === note.id ? updated : n)))
+  }
+
   return (
     <div className="bg-amber-50 border-t border-amber-100 px-4 py-3 space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700 flex items-center gap-1">
@@ -51,11 +57,16 @@ export default function AdminNotes({ kind, id, onCountChange }) {
           {notes.map(n => (
             <li key={n.id} className="flex items-start gap-2 group">
               <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
-              <span className="flex-1 text-xs leading-snug text-amber-900">
-                {n.text}
-                {n.author ? <span className="text-amber-500"> · {n.author}</span> : null}
-                {n.created_at ? <span className="text-amber-500/70"> · {noteTime(n.created_at)}</span> : null}
-              </span>
+              <div className="flex-1 min-w-0">
+                <NoteBody text={n.text} editedAt={n.edited_at} mentions={false} rows={2}
+                  onSave={t => edit(n, t)}
+                  className="text-xs leading-snug text-amber-900" />
+                <span className="text-[10px] text-amber-500/70">
+                  {n.author ? `${n.author}` : null}
+                  {n.author && n.created_at ? ' · ' : null}
+                  {n.created_at ? noteTime(n.created_at) : null}
+                </span>
+              </div>
               <button onClick={() => remove(n)}
                 className="text-amber-300 hover:text-red-500 text-sm leading-none opacity-0 group-hover:opacity-100">×</button>
             </li>

@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { useAuth } from '../context/AuthContext'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
@@ -207,14 +206,12 @@ function ActionTypeManager({ actionTypes, onRefresh }) {
 // ── Individual note with inline edit ─────────────────────────────────────────
 
 function NoteItem({ note, onEdited, onDeleted, mentionableUsers = [], context }) {
-  const { user } = useAuth()
   const [editing,  setEditing]  = useState(false)
   const [text,     setText]     = useState(note.text)
   const [saving,   setSaving]   = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error,    setError]    = useState('')
 
-  const canEdit   = user?.role === 'admin' || user?.initials === note.author_initials
   const wasEdited = note.updated_at && note.updated_at !== note.created_at
 
   async function handleSave() {
@@ -290,7 +287,9 @@ function NoteItem({ note, onEdited, onDeleted, mentionableUsers = [], context })
               </button>
             </>
           ) : (
-            canEdit && (
+            /* Anyone on staff, not just the author — deleting was never author-only, so
+               locking editing down only meant a typo got deleted and retyped. */
+            (
               <span className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => setEditing(true)}

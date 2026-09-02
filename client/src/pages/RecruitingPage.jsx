@@ -43,7 +43,9 @@ function NoteCard({ note: n, currentUserInitials, users, onDelete, onEdit, onRep
   const [editing,  setEditing]  = useState(false)
   const [editText, setEditText] = useState(n.text)
   const [saving,   setSaving]   = useState(false)
-  const isAuthor = n.author_initials === currentUserInitials
+  // Deliberately not author-only: three people share these threads, and the person who
+  // spots the wrong phone number often isn't the one who typed it. Deleting was already
+  // open to everyone, so gating editing only pushed people to delete and retype.
 
   async function handleSave(e) {
     e.preventDefault()
@@ -82,12 +84,13 @@ function NoteCard({ note: n, currentUserInitials, users, onDelete, onEdit, onRep
   return (
     <div id={`note-recruiting_notes-${n.id}`} className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
       <div className="flex items-start justify-between gap-2 mb-0.5">
-        <span className="text-[10px] font-semibold text-gray-500">{n.author_initials} — {fmt(n.created_at)}</span>
+        <span className="text-[10px] font-semibold text-gray-500">
+          {n.author_initials} — {fmt(n.created_at)}
+          {n.edited_at && <span className="ml-1 italic font-normal text-gray-400">· edited</span>}
+        </span>
         <div className="flex items-center gap-1.5">
-          {isAuthor && (
-            <button onClick={() => setEditing(true)}
-              className="text-[10px] text-gray-400 hover:text-gray-700">✎</button>
-          )}
+          <button onClick={() => setEditing(true)}
+            className="text-[10px] text-gray-400 hover:text-gray-700">✎</button>
           <button onClick={onReply}
             className="text-[10px] text-gray-400 hover:text-gray-700">↩ Reply</button>
           <button onClick={onDelete}

@@ -485,6 +485,17 @@ router.post('/:id/notes', async (req, res) => {
   res.status(201).json(note);
 });
 
+router.patch('/:id/notes/:noteId', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
+  const { rows: [note] } = await pool.query(
+    'UPDATE instructor_notes SET text = $1, edited_at = now() WHERE id = $2 AND instructor_id = $3 RETURNING *',
+    [text.trim(), req.params.noteId, req.params.id]
+  );
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  res.json(note);
+});
+
 router.delete('/:id/notes/:noteId', async (req, res) => {
   await pool.query('DELETE FROM instructor_notes WHERE id = $1 AND instructor_id = $2', [req.params.noteId, req.params.id]);
   res.json({ success: true });

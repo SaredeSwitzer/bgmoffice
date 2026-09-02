@@ -8,6 +8,7 @@ import DashboardFilterBar from '../components/DashboardFilterBar'
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
+import NoteBody from '../components/NoteBody'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { today } from '../utils/dates'
 
@@ -178,6 +179,12 @@ function TaskCard({ task, onUpdate, onDelete, onDone, isNew, actionTypes, client
     } finally { setSaving(false) }
   }
 
+  async function handleEditReply(replyId, text) {
+    const result = await api.updateTaskReply(task.id, replyId, text)
+    const updated = result.reply ?? result
+    setReplies(prev => prev.map(r => (String(r.id) === String(replyId) ? updated : r)))
+  }
+
   async function handleDeleteReply(replyId) {
     await api.deleteTaskReply(task.id, replyId)
     setReplies(prev => prev.filter(r => r.id !== replyId))
@@ -268,7 +275,9 @@ function TaskCard({ task, onUpdate, onDelete, onDone, isNew, actionTypes, client
                     )}
                   </div>
                 )}
-                <span className="text-gray-700">{renderWithMentions(r.text, mentionableUsers)}</span>
+                <NoteBody text={r.text} editedAt={r.edited_at} users={mentionableUsers}
+                  onSave={t => handleEditReply(r.id, t)}
+                  className="text-gray-700" />
               </div>
               <span className="text-gray-300 flex-shrink-0">{fmtTs(r.created_at)}</span>
               <button onClick={() => handleDeleteReply(r.id)}

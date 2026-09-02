@@ -1087,7 +1087,9 @@ router.patch('/notes/:noteId', async (req, res) => {
   const is_task = req.body.is_task !== undefined ? !!req.body.is_task            : note.is_task;
   if (!text) return res.status(400).json({ error: 'Text required' });
   const { rows: [updated] } = await pool.query(
-    'UPDATE class_notes SET text=$1, is_task=$2, updated_at=now() WHERE id=$3 RETURNING *',
+    `UPDATE class_notes SET text=$1, is_task=$2, updated_at=now(),
+            edited_at = CASE WHEN $1 <> text THEN now() ELSE edited_at END
+      WHERE id=$3 RETURNING *`,
     [text, is_task, req.params.noteId]
   );
   res.json(updated);
@@ -1165,7 +1167,7 @@ router.patch('/admin-notes/:noteId', requireOwnerAccess, async (req, res) => {
   const text = (req.body.text || '').trim();
   if (!text) return res.status(400).json({ error: 'Text required' });
   const { rows: [updated] } = await pool.query(
-    'UPDATE admin_notes SET text=$1, updated_at=now() WHERE id=$2 RETURNING *',
+    'UPDATE admin_notes SET text=$1, updated_at=now(), edited_at=now() WHERE id=$2 RETURNING *',
     [text, req.params.noteId]
   );
   if (!updated) return res.status(404).json({ error: 'Note not found' });

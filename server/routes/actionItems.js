@@ -125,8 +125,6 @@ router.put('/:id/notes/:noteId', async (req, res) => {
     [req.params.noteId, req.params.id]
   );
   if (!note) return res.status(404).json({ error: 'Note not found' });
-  if (note.author_initials !== req.user.initials && req.user.role !== 'admin')
-    return res.status(403).json({ error: 'Not authorized' });
   const { rows: [updated] } = await pool.query(
     `UPDATE follow_up_notes SET text=$1, updated_at=to_char(NOW(),'YYYY-MM-DD HH24:MI:SS') WHERE id=$2 RETURNING *`,
     [text.trim(), req.params.noteId]

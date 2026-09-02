@@ -11,6 +11,7 @@ import StylesManagerModal from '../components/StylesManagerModal'
 import { ClientLink } from '../components/NameLink'
 import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { today } from '../utils/dates'
+import NoteBody from '../components/NoteBody'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -540,6 +541,11 @@ function FeedbackNotesSection({ instructorId, initialNotes }) {
     }
   }
 
+  async function handleEdit(noteId, text) {
+    const updated = await api.updateInstructorNote(instructorId, noteId, text)
+    setNotes(n => n.map(x => (x.id === noteId ? updated : x)))
+  }
+
   async function handleDelete(noteId) {
     if (!confirm('Delete this note?')) return
     await api.deleteInstructorNote(instructorId, noteId)
@@ -585,7 +591,9 @@ function FeedbackNotesSection({ instructorId, initialNotes }) {
                   <p className="text-[11px] text-gray-400 mb-0.5">
                     {fmtNoteDate(n.created_at)}{n.author && ` — ${n.author}`}
                   </p>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{n.text}</p>
+                  <NoteBody text={n.text} editedAt={n.edited_at} mentions={false}
+                    onSave={t => handleEdit(n.id, t)}
+                    className="text-sm text-gray-800 whitespace-pre-wrap" />
                 </div>
                 <button
                   onClick={() => handleDelete(n.id)}

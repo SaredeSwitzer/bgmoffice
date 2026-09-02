@@ -81,6 +81,21 @@ router.post('/:id/notes', async (req, res) => {
   res.status(201).json(note);
 });
 
+router.patch('/:id/notes/:noteId', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'text required' });
+  const { rows: [note] } = await pool.query(
+    'UPDATE sales_lead_notes SET text = $1, edited_at = now() WHERE id = $2 AND sales_lead_id = $3 RETURNING *',
+    [text.trim(), req.params.noteId, req.params.id]
+  );
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  await syncMentions({
+    sourceTable: 'sales_lead_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: `/sales?lead=${req.params.id}`,
+  });
+  res.json(note);
+});
+
 router.delete('/:id/notes/:noteId', async (req, res) => {
   const result = await pool.query(
     'DELETE FROM sales_lead_notes WHERE id = $1 AND sales_lead_id = $2',

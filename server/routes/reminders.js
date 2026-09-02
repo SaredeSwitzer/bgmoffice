@@ -127,6 +127,22 @@ router.post('/:id/notes', async (req, res) => {
   res.status(201).json(note);
 });
 
+router.patch('/:id/notes/:noteId', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'text required' });
+  const { rows: [note] } = await pool.query(
+    'UPDATE reminder_notes SET text = $1, edited_at = now() WHERE id = $2 AND reminder_id = $3 RETURNING *',
+    [text.trim(), req.params.noteId, req.params.id]
+  );
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  // Re-run mentions so tagging someone in an edit reaches them, and un-tagging drops it.
+  await syncMentions({
+    sourceTable: 'reminder_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath: `/reminders?id=${req.params.id}`,
+  });
+  res.json(note);
+});
+
 router.delete('/:id/notes/:noteId', async (req, res) => {
   const result = await pool.query(
     'DELETE FROM reminder_notes WHERE id = $1 AND reminder_id = $2',

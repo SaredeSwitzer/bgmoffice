@@ -8,6 +8,7 @@ import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { noteTime } from '../utils/dates'
+import NoteBody from '../components/NoteBody'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -61,6 +62,11 @@ function LeadNoteThread({ leadId, initialCount, mentionableUsers, autoOpen }) {
     }
   }
 
+  async function handleEdit(noteId, text) {
+    const updated = await api.updateSalesLeadNote(leadId, noteId, text)
+    setNotes(prev => prev.map(n => (n.id === noteId ? updated : n)))
+  }
+
   async function handleDelete(noteId) {
     await api.deleteSalesLeadNote(leadId, noteId)
     setNotes(prev => prev.filter(n => n.id !== noteId))
@@ -85,7 +91,9 @@ function LeadNoteThread({ leadId, initialCount, mentionableUsers, autoOpen }) {
                   </div>
                   <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-xl rounded-tl-sm px-2.5 py-1.5">
                     <p className="text-[10px] text-gray-400 mb-0.5">{noteTime(n.created_at)}</p>
-                    <p className="text-xs text-gray-800 whitespace-pre-wrap">{renderWithMentions(n.text, mentionableUsers)}</p>
+                    <NoteBody text={n.text} editedAt={n.edited_at} users={mentionableUsers}
+                      onSave={t => handleEdit(n.id, t)}
+                      className="text-xs text-gray-800 whitespace-pre-wrap" />
                     <p className="text-[10px] text-gray-400 mt-0.5">{fmt(n.created_at)}</p>
                   </div>
                   <button onClick={() => handleDelete(n.id)}

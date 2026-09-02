@@ -15,6 +15,7 @@ import MentionTextarea from '../components/MentionTextarea'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { ymd, noteTime } from '../utils/dates'
+import NoteBody from '../components/NoteBody'
 
 // Local date, not UTC — see utils/dates.js.
 const today = ymd
@@ -166,6 +167,11 @@ function ReminderNoteThread({ reminderId, initialCount, mentionableUsers, autoOp
     }
   }
 
+  async function handleEdit(noteId, text) {
+    const updated = await api.updateReminderNote(reminderId, noteId, text)
+    setNotes(prev => prev.map(n => (n.id === noteId ? updated : n)))
+  }
+
   async function handleDelete(noteId) {
     await api.deleteReminderNote(reminderId, noteId)
     setNotes(prev => prev.filter(n => n.id !== noteId))
@@ -190,7 +196,9 @@ function ReminderNoteThread({ reminderId, initialCount, mentionableUsers, autoOp
                   </div>
                   <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-xl rounded-tl-sm px-2.5 py-1.5">
                     <p className="text-[10px] text-gray-400 mb-0.5">{noteTime(n.created_at)}</p>
-                    <p className="text-xs text-gray-800 whitespace-pre-wrap">{renderWithMentions(n.text, mentionableUsers)}</p>
+                    <NoteBody text={n.text} editedAt={n.edited_at} users={mentionableUsers}
+                      onSave={t => handleEdit(n.id, t)}
+                      className="text-xs text-gray-800 whitespace-pre-wrap" />
                   </div>
                   <button onClick={() => handleDelete(n.id)}
                     className="text-gray-300 hover:text-red-500 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs">✕</button>

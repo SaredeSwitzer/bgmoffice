@@ -100,6 +100,26 @@ router.post('/:id/replies', async (req, res) => {
   res.status(201).json(response);
 });
 
+// Replies live in a JSON column, so an edit is read-modify-write on the array. The reply
+// keeps its id, author and time; `edited_at` is what makes it read as edited.
+router.patch('/:id/replies/:replyId', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'Text required' });
+  const { rows: [task] } = await pool.query('SELECT id, replies FROM standalone_tasks WHERE id = $1', [req.params.id]);
+  if (!task) return res.status(404).json({ error: 'Not found' });
+  const existing = task.replies ? JSON.parse(task.replies) : [];
+  const reply = existing.find(r => String(r.id) === String(req.params.replyId));
+  if (!reply) return res.status(404).json({ error: 'Reply not found' });
+  reply.text = text.trim();
+  reply.edited_at = new Date().toISOString();
+  await pool.query('UPDATE standalone_tasks SET replies = $1 WHERE id = $2', [JSON.stringify(existing), task.id]);
+  await syncMentions({
+    sourceTable: 'task_replies', sourceId: reply.id, text: reply.text,
+    authorInitials: req.user.initials, linkPath: `/tasks?id=${task.id}`,
+  });
+  res.json({ reply });
+});
+
 router.delete('/:id/replies/:replyId', async (req, res) => {
   const { rows: [task] } = await pool.query('SELECT id, replies FROM standalone_tasks WHERE id = $1', [req.params.id]);
   if (!task) return res.status(404).json({ error: 'Not found' });

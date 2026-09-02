@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import MentionTextarea from './MentionTextarea'
 import { renderWithMentions } from '../utils/mentions.jsx'
 import { noteTime } from '../utils/dates'
+import NoteBody from './NoteBody'
 
 // Working on a task or a reminder without leaving My Tasks — the same idea as
 // MentionThread, extended to the other two things on this page.
@@ -24,10 +25,11 @@ const SOURCES = {
       try { replies = item.replies ? JSON.parse(item.replies) : [] } catch { replies = [] }
       return {
         body: item.description || item.notes || '',
-        thread: replies.map(r => ({ id: r.id, text: r.text, author: r.author, created_at: r.created_at })),
+        thread: replies.map(r => ({ id: r.id, text: r.text, author: r.author, created_at: r.created_at, edited_at: r.edited_at })),
       }
     },
     send:   (item, text) => api.addTaskReply(item.id, text),
+    edit:   (item, noteId, text) => api.updateTaskReply(item.id, noteId, text),
     finish: item => api.updateTask(item.id, { ...item, status: 'done' }),
     finishLabel: 'Mark done',
   },
@@ -38,10 +40,11 @@ const SOURCES = {
       try { replies = item.replies ? JSON.parse(item.replies) : [] } catch { replies = [] }
       return {
         body: item.description || item.notes || '',
-        thread: replies.map(r => ({ id: r.id, text: r.text, author: r.author, created_at: r.created_at })),
+        thread: replies.map(r => ({ id: r.id, text: r.text, author: r.author, created_at: r.created_at, edited_at: r.edited_at })),
       }
     },
     send:   (item, text) => api.addTaskReply(item.id, text),
+    edit:   (item, noteId, text) => api.updateTaskReply(item.id, noteId, text),
     finish: item => api.updateTask(item.id, { ...item, status: 'done' }),
     finishLabel: 'Mark done',
   },
@@ -52,6 +55,7 @@ const SOURCES = {
       thread: await api.getActionItemNotes(item.id).catch(() => []),
     }),
     send:   (item, text) => api.addNote(item.id, { text }),
+    edit:   (item, noteId, text) => api.updateNote(item.id, noteId, { text }),
     finish: item => api.setActionItemStatus(item.id, 'done'),
     finishLabel: 'Mark done',
   },
@@ -60,9 +64,10 @@ const SOURCES = {
     load: async item => ({
       body: item.notes || item.title || '',
       thread: (await api.getReminderNotes(item.id).catch(() => []))
-        .map(n => ({ id: n.id, text: n.text, author: n.author_initials, created_at: n.created_at })),
+        .map(n => ({ id: n.id, text: n.text, author: n.author_initials, created_at: n.created_at, edited_at: n.edited_at })),
     }),
     send:   (item, text) => api.addReminderNote(item.id, text),
+    edit:   (item, noteId, text) => api.updateReminderNote(item.id, noteId, text),
     finish: item => api.markReminderDone(item.id),
     finishLabel: 'Mark done',
   },
@@ -89,6 +94,18 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.source, item.id])
+
+  // A note added a moment ago only exists locally until the panel is reopened (the send
+  // endpoints don't all hand the saved row back), so those aren't editable in place yet —
+  // hence the `local-` guard where this is wired up.
+  async function handleEditNote(noteId, text) {
+    await source.edit(item, noteId, text)
+    setData(d => ({
+      ...d,
+      thread: (d?.thread || []).map(n =>
+        String(n.id) === String(noteId) ? { ...n, text, edited_at: new Date().toISOString() } : n),
+    }))
+  }
 
   async function handleSend(e) {
     e?.preventDefault()
@@ -167,9 +184,14 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
                     <span className="font-semibold text-gray-600">{n.author || '—'}</span>
                     <span className="text-[10px] text-gray-400">{noteTime(n.created_at)}</span>
                   </div>
-                  <div className="text-gray-700 whitespace-pre-wrap">
-                    {renderWithMentions(n.text, mentionableUsers)}
-                  </div>
+                  <NoteBody
+                    text={n.text}
+                    editedAt={n.edited_at}
+                    users={mentionableUsers}
+                    onSave={source.edit && !String(n.id).startsWith('local-')
+                      ? t => handleEditNote(n.id, t) : undefined}
+                    className="text-gray-700 whitespace-pre-wrap"
+                  />
                 </div>
               ))}
             </div>

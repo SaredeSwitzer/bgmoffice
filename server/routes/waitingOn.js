@@ -297,6 +297,27 @@ router.post('/:id/notes', async (req, res) => {
   res.status(201).json(note);
 });
 
+router.patch('/:id/notes/:noteId', async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'text required' });
+  const { rows: [note] } = await pool.query(
+    'UPDATE waiting_on_notes SET text = $1, edited_at = now() WHERE id = $2 AND waiting_on_id = $3 RETURNING *',
+    [text.trim(), req.params.noteId, req.params.id]
+  );
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  const { rows: [item] } = await pool.query(
+    'SELECT id, kind, client_id, instructor_id FROM waiting_on_items WHERE id = $1', [req.params.id]
+  );
+  const linkPath = item?.client_id ? `/clients/${item.client_id}?waiting=${item.id}`
+    : item?.instructor_id ? `/instructors/${item.instructor_id}?waiting=${item.id}`
+    : `/${item?.kind}s?waiting=${req.params.id}`;
+  await syncMentions({
+    sourceTable: 'waiting_on_notes', sourceId: note.id, text: text.trim(),
+    authorInitials: req.user.initials, linkPath,
+  });
+  res.json(note);
+});
+
 router.delete('/:id/notes/:noteId', async (req, res) => {
   const result = await pool.query(
     'DELETE FROM waiting_on_notes WHERE id = $1 AND waiting_on_id = $2',
