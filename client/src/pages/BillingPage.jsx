@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { fmtTime } from '../utils/time'
+import { fmtTime, fmtTimeRange } from '../utils/time'
 import DateInput from '../components/DateInput'
 import { loadSavedWeekAnchor, saveWeekAnchor } from '../utils/weekAnchor'
 import { ClientLink, InstructorLink } from '../components/NameLink'
@@ -456,11 +456,12 @@ function ReportTab({ weekStart, weekEnd, label }) {
             )}
             <button
               onClick={() => downloadCsv(`classes_${weekTag}${hasFilters ? '_filtered' : ''}.csv`,
-                ['Client Name', 'Contact Phone', 'Start Date', 'Charge to Client', 'Payment Method', 'Full Name', 'Instructor Rate', 'Expected Rate'],
+                ['Client Name', 'Contact Phone', 'Start Date', 'Class Time', 'Charge to Client', 'Payment Method', 'Full Name', 'Instructor Rate', 'Expected Rate'],
                 [
                   ...filteredSessions.map(s => [s.client_name, s.client_phone || '', s.session_date,
+                    s.start_time ? fmtTimeRange(s.start_time, s.duration_minutes) : '',
                     s.charge_amount, s.payment_method || '', s.instructor_name || '', s.instructor_pay, s.instructor_expected_rate]),
-                  ['Total', '', '',
+                  ['Total', '', '', '',
                     filteredSessions.reduce((sum, s) => sum + (Number(s.charge_amount) || 0), 0),
                     '', '',
                     filteredSessions.reduce((sum, s) => sum + (Number(s.instructor_pay) || 0), 0), ''],

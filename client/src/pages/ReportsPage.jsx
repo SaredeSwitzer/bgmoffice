@@ -55,11 +55,12 @@ function csvCell(v) {
 function downloadCsv(rows, clients, instructors) {
   const clientsById = new Map(clients.map(c => [c.id, c]))
   const instructorsById = new Map(instructors.map(i => [i.id, i]))
-  const header = ['Client Name', 'Contact Phone', 'Start Date', 'Charge to Client', 'Payment Method', 'Full Name', 'Instructor Rate', 'Expected Rate']
+  const header = ['Client Name', 'Contact Phone', 'Start Date', 'Class Time', 'Charge to Client', 'Payment Method', 'Full Name', 'Instructor Rate', 'Expected Rate']
   const lines = [header, ...rows.map(s => [
     s.client_name,
     clientsById.get(s.client_id)?.phone || '',
     s.session_date,
+    s.start_time ? fmtTimeRange(s.start_time, s.duration_minutes) : '',
     chargeDisplay(s),
     s.payment_method || '',
     s.instructor_name || '',
