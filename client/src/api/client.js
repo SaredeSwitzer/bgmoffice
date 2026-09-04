@@ -410,6 +410,8 @@ export const api = {
   },
   getRecruitingByClient: (clientId) => request(`/recruiting/client/${clientId}`),
   getRecruitingByInstructor: (instructorId) => request(`/recruiting/instructor/${instructorId}`),
+  submitClientIntake: (data) =>
+    request('/recruiting/intake-form', { method: 'POST', body: JSON.stringify(data) }),
   createRecruitingEntry: (data) =>
     request('/recruiting/entries', { method: 'POST', body: JSON.stringify(data) }),
   updateRecruitingEntry: (id, data) =>

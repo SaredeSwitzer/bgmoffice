@@ -1,25 +1,9 @@
 const express = require('express');
-const pool    = require('../db/pg');
+const { recordIntake } = require('../lib/clientIntake');
 
 const router = express.Router();
 
 const INTAKE_BY_INITIALS = { Sarede: 'S', Lyra: 'L', Claire: 'C' };
-
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-// The free-text schedule field often also names a *start date* ("start next
-// Monday"), which can introduce a second weekday and make a clearly-recurring
-// class look ambiguous. Recurring class days are usually written as plurals
-// ("Tuesdays"), so prefer a lone plural day before falling back to a lone
-// singular mention. Only commit to a day when exactly one candidate remains;
-// \b word boundaries keep "Tuesdays" from also matching the singular pass.
-function detectDayOfWeek(timeSlot) {
-  if (!timeSlot) return 'Flexible';
-  const plural = WEEKDAYS.filter(day => new RegExp(`\\b${day}s\\b`, 'i').test(timeSlot));
-  if (plural.length === 1) return plural[0];
-  const singular = WEEKDAYS.filter(day => new RegExp(`\\b${day}\\b`, 'i').test(timeSlot));
-  return singular.length === 1 ? singular[0] : 'Flexible';
-}
 
 // Match on a short, stable prefix rather than the full label text — the live
 // Google Form's long instructional labels drift slightly over time (edits to
@@ -65,30 +49,16 @@ router.post('/intake', async (req, res) => {
   const namedValues = raw.namedValues || raw;
   const f = mapRow(namedValues);
 
-  const noteLines = [];
-  if (f.new_or_past) noteLines.push(`New/Past client: ${f.new_or_past}`);
-  if (f.gender)      noteLines.push(`Gender: ${f.gender}`);
-  if (f.referral)    noteLines.push(`Referred by: ${f.referral}`);
-  if (f.notes)       noteLines.push(f.notes);
-  if (f.waiver && !/^YES/i.test(f.waiver)) noteLines.push(`Waiver: ${f.waiver}`);
-  if (f.confirmed)   noteLines.push(`Confirmed/CC: ${f.confirmed}`);
-  const class_notes = noteLines.filter(Boolean).join('\n\n') || null;
-  const waiver_signed = /^YES/i.test(f.waiver) ? 1 : 0;
-  const created_by    = INTAKE_BY_INITIALS[f.intake_by] || f.intake_by || 'FORM';
+  const created_by = INTAKE_BY_INITIALS[f.intake_by] || f.intake_by || 'FORM';
 
   try {
-    const { rows: [entry] } = await pool.query(
-      `INSERT INTO recruiting_entries
-         (day_of_week, time_slot, neighborhood, style, participants,
-          client_name, address, phone, waiver_signed,
-          instructor_info, client_rate, class_notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-      [
-        detectDayOfWeek(f.time_slot), f.time_slot || null, f.neighborhood || null, f.style || null, f.participants || null,
-        f.client_name || null, f.address || null, f.phone || null, waiver_signed,
-        f.instructor_info || null, f.client_rate || null, class_notes, created_by,
-      ]
-    );
+    // Same writer the in-app intake form uses (server/lib/clientIntake.js) — the two ways
+    // of answering these questions have to produce the same records. The form doesn't ask
+    // which existing client this is, so a profile is only made when staff say it's new.
+    const { entry } = await recordIntake(f, {
+      createClient: /^NEW/i.test(f.new_or_past || ''),
+      createdBy: created_by,
+    });
     res.status(201).json({ id: entry.id, ok: true });
   } catch (err) {
     console.error('[intake webhook] DB error:', err.message);

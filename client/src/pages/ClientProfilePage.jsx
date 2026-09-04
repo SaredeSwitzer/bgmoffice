@@ -788,6 +788,8 @@ export default function ClientProfilePage() {
           state: c.state || '',
           zip: c.zip || '',
           neighborhood: c.neighborhood || '',
+          referred_by: c.referred_by || '',
+          gender: c.gender || '',
           track_last_class: c.track_last_class ? true : false,
           skip_weekly_reminder: c.skip_weekly_reminder ? true : false,
           last_class_date: c.last_class_date || '',
@@ -1070,6 +1072,22 @@ export default function ClientProfilePage() {
                 <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
                   placeholder="Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
+              {/* Both come off the intake form: who sent them, and who the class is for
+                  (which decides who can teach it). */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Referred by</label>
+                <input value={editForm.referred_by} onChange={e => setEditForm(f => ({ ...f, referred_by: e.target.value }))}
+                  placeholder="Who sent them to us" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Men's or women's class</label>
+                <select value={editForm.gender} onChange={e => setEditForm(f => ({ ...f, gender: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
+                  <option value="">Not specified</option>
+                  <option value="Female">Women</option>
+                  <option value="Male">Men</option>
+                </select>
+              </div>
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={saving}
@@ -1113,6 +1131,13 @@ export default function ClientProfilePage() {
               </div>
             </div>
             <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
+            {(client.referred_by || client.gender) && (
+              <p className="text-xs text-gray-500 mt-1">
+                {client.referred_by && <>Referred by <span className="font-medium text-gray-700">{client.referred_by}</span></>}
+                {client.referred_by && client.gender ? ' · ' : ''}
+                {client.gender && <>{client.gender === 'Male' ? "Men's" : "Women's"} class</>}
+              </p>
+            )}
             {client.invoice_email && (() => {
               const addresses = client.invoice_email.split(/[,;]+/).map(s => s.trim()).filter(Boolean)
               return (

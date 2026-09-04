@@ -10,6 +10,7 @@ import StylesManagerModal from '../components/StylesManagerModal'
 import ScheduleFromRecruitingModal from '../components/ScheduleFromRecruitingModal'
 import { renderWithMentions } from '../utils/mentions'
 import { AddressPicker } from '../components/ClientAddresses'
+import ClientIntakeForm from '../components/ClientIntakeForm'
 
 const ALL_DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 const WEEK_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
@@ -1670,6 +1671,16 @@ export default function RecruitingPage() {
           Entries
         </button>
         <button
+          onClick={() => setTab('intake')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === 'intake'
+              ? 'border-gray-900 text-gray-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Client Intake
+        </button>
+        <button
           onClick={() => setTab('availability')}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             tab === 'availability'
@@ -1688,6 +1699,14 @@ export default function RecruitingPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
+      ) : tab === 'intake' ? (
+        <ClientIntakeForm
+          clients={clients}
+          styles={styles}
+          // A saved intake belongs in the list behind the Entries tab straight away, so
+          // switching back doesn't show a stale board.
+          onSaved={() => load(query, showArchived)}
+        />
       ) : tab === 'entries' ? (
         <div className="space-y-4">
           {showArchived && (

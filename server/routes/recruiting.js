@@ -4,6 +4,7 @@ const { requireAuth, requireStaff } = require('../middleware/auth');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
 const { sendMail } = require('../lib/mailer');
 const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync');
+const { recordIntake } = require('../lib/clientIntake');
 
 const router = express.Router();
 
@@ -170,6 +171,29 @@ router.get('/instructor/:instructorId', async (req, res) => {
     e.notes = await attachNoteActionTypes(notes);
   }
   res.json(entries);
+});
+
+// Taking on a new class, answered inside the app instead of in the Google Form. Same
+// questions, same writer (server/lib/clientIntake.js), so both routes land identically —
+// one recruiting entry, and a client profile created or filled in and linked to it.
+//
+// Not /intake: that path already belongs to the Google Form webhook (mounted ahead of
+// this router), which authenticates with a shared secret rather than a login.
+router.post('/intake-form', async (req, res) => {
+  const { client_id, create_client, preferred_days, class_type, class_dates, instructor_id, ...answers } = req.body || {};
+  if (!client_id && !answers.client_name?.trim()) {
+    return res.status(400).json({ error: 'Pick the client or type their name' });
+  }
+  const out = await recordIntake(answers, {
+    clientId: client_id || null,
+    createClient: !!create_client,
+    preferredDays: Array.isArray(preferred_days) ? preferred_days : null,
+    createdBy: req.user.initials,
+    instructorId: instructor_id || null,
+    classType: class_type || null,
+    classDates: class_dates || null,
+  });
+  res.status(201).json(out);
 });
 
 router.post('/entries', async (req, res) => {
