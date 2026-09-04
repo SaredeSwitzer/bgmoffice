@@ -121,10 +121,22 @@ async function findDrift() {
       const signature = signatureFor(scheduleValue, off.map(s => s[key]));
       if (isDismissed(sch.id, key, signature)) continue;
 
+      // Blanks aren't an answer, so they can't be copied up onto the recurring class.
+      // A field where the calendar only ever disagrees by being empty has exactly one
+      // sensible fix — fill the classes in from the class — and the panel should say so
+      // rather than offer a button that would wipe the last good value.
+      const nonBlank = off.filter(s => s[key] !== null && s[key] !== undefined && s[key] !== '');
+      const blankCount = off.length - nonBlank.length;
+
       issues.push({
         field: key,
         label,
         signature,
+        // Adoptable only when the calendar's disagreement is mostly a real answer. If it
+        // is mostly emptiness — 97 classes missing a payment method and one filled in —
+        // the story is a gap to be filled from the class, not a decision to copy up.
+        adoptable: nonBlank.length > blankCount,
+        blank_count: blankCount,
         schedule_value: display(key, scheduleValue, instructorNames),
         // The calendar's own answer, for adopting in the other direction: the value the
         // most classes agree on, which is what staff have actually been entering.
@@ -279,13 +291,21 @@ async function adopt(scheduleId, { fields = [], adoptWeekday = false, dryRun = t
 
   // Most common wins. A tie keeps the recurring class as it is rather than picking
   // arbitrarily — a genuine 50/50 split is not something to resolve without a person.
+  //
+  // Blanks never vote. A missing payment method or style means nobody filled it in, not
+  // that the class is meant to have none — and blank payment methods are precisely what
+  // stops a class coming off a client's package. Counting them would let the commonest
+  // fault on the calendar overwrite the one record that still holds the right answer.
   function majority(key) {
     const counts = new Map();
     for (const s of sessions) {
-      const v = s[key] === null || s[key] === undefined ? null : String(s[key]);
+      const raw = s[key];
+      if (raw === null || raw === undefined || raw === '') continue;
+      const v = String(raw);
       counts.set(v, (counts.get(v) || 0) + 1);
     }
     const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    if (!ranked.length) return undefined;
     if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) return undefined;
     return ranked[0];
   }

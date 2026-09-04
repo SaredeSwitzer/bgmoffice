@@ -30,6 +30,8 @@ function Card({ item, onGone }) {
       key: 'weekday',
       signature: item.wrong_weekday.signature,
       label: 'Day',
+      adoptable: true,
+      blankCount: 0,
       classSays: item.wrong_weekday.expected,
       calendarSays: item.wrong_weekday.variants.map(v => `${v.count} on ${v.value}`).join(', '),
       calendarValue: item.wrong_weekday.variants[0]?.value,
@@ -39,6 +41,8 @@ function Card({ item, onGone }) {
       key: iss.field,
       signature: iss.signature,
       label: iss.label,
+      adoptable: iss.adoptable !== false,
+      blankCount: iss.blank_count || 0,
       classSays: iss.schedule_value,
       calendarSays: iss.variants.map(v => `${v.count} say ${v.value}`).join(' and '),
       calendarValue: iss.calendar_value,
@@ -47,6 +51,10 @@ function Card({ item, onGone }) {
   ].filter(r => !hidden.includes(r.signature))
 
   const nothingPicked = picked.length === 0
+  const labelOf   = Object.fromEntries(rows.map(r => [r.key, r.label]))
+  // Copying a blank up would erase the last good value, so those fields can only be
+  // fixed in the other direction.
+  const blockedByBlank = picked.filter(k => rows.find(r => r.key === k && !r.adoptable))
 
   function toggle(key) {
     setPreview(null)
@@ -141,6 +149,23 @@ function Card({ item, onGone }) {
                 <span className="font-semibold text-gray-700">{row.label}:</span>{' '}
                 the calendar says <span className="font-semibold">{row.calendarSays}</span>,
                 but the recurring class says <span className="font-semibold">{row.classSays}</span>.
+                {/* One or two classes out of step is somebody's deliberate change for one
+                    week, not a stale record — changing the recurring class over it would
+                    make a substitute permanent. */}
+                {row.affected <= 2 && (
+                  <span className="block text-gray-400 mt-0.5">
+                    Only {row.affected} class{row.affected === 1 ? '' : 'es'} — this is usually
+                    a one-off (a substitute, a single week moved). Hide it rather than change
+                    the recurring class.
+                  </span>
+                )}
+                {!row.adoptable && (
+                  <span className="block text-amber-600 mt-0.5">
+                    The calendar is simply blank here on {row.blankCount} class
+                    {row.blankCount === 1 ? '' : 'es'} — that's a gap, not an answer, so there's
+                    nothing to copy up. Filling them in from the class is the fix.
+                  </span>
+                )}
               </span>
             </label>
             <button onClick={() => hide(row)} disabled={busy}
@@ -155,7 +180,11 @@ function Card({ item, onGone }) {
       <div className="flex flex-wrap items-center gap-2 mt-3">
         {!preview ? (
           <>
-            <button onClick={() => run('adopt', true)} disabled={busy || nothingPicked}
+            <button onClick={() => run('adopt', true)}
+              disabled={busy || nothingPicked || blockedByBlank.length > 0}
+              title={blockedByBlank.length
+                ? 'The calendar is blank on those — there is nothing to copy up'
+                : 'Update the recurring class to match the calendar'}
               className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">
               {busy ? 'Checking…' : 'The calendar is right'}
             </button>
@@ -171,10 +200,26 @@ function Card({ item, onGone }) {
         ) : preview.direction === 'adopt' ? (
           <>
             <span className="text-xs text-gray-600">
-              {Object.keys(preview.data.changes || {}).length
-                ? `Updates the recurring class only — ${Object.entries(preview.data.changes)
-                    .map(([, c]) => `to ${c.to === null ? 'blank' : c.to}`).join(', ')}. The calendar is left alone.`
-                : 'Nothing to change — the classes ahead don’t agree on one answer, so pick a side by hand.'}
+              {Object.keys(preview.data.changes || {}).length ? (
+                <>
+                  Changes the recurring class so next time it makes dates, it makes them right:
+                  <span className="block mt-0.5">
+                    {Object.entries(preview.data.changes).map(([field, c]) => (
+                      <span key={field} className="block">
+                        <span className="font-semibold">{labelOf[field] || field}</span>:{' '}
+                        {c.from === null || c.from === '' ? 'blank' : String(c.from)} →{' '}
+                        <span className="font-semibold">{c.to === null ? 'blank' : String(c.to)}</span>
+                        <span className="text-gray-400"> ({c.agreed_by} classes ahead already say so)</span>
+                      </span>
+                    ))}
+                  </span>
+                  <span className="block text-gray-400 mt-0.5">
+                    No class on the calendar is touched — they already say this.
+                  </span>
+                </>
+              ) : (
+                'Nothing to change — the classes ahead don’t agree on one answer, so pick a side by hand.'
+              )}
             </span>
             <button onClick={() => run('adopt', false)}
               disabled={busy || !Object.keys(preview.data.changes || {}).length}
