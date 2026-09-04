@@ -6,49 +6,114 @@ import CollapsibleSection from './CollapsibleSection'
 //
 // Deliberately not automatic. A difference is often meant — a substitute for one week,
 // a different rate for one date — so this shows what disagrees and lets someone decide,
-// with a preview before anything is written. The shape of a difference is the tell:
-// ninety-odd classes all saying the same wrong thing is a bug that got missed, one or
-// two are almost always somebody's deliberate change.
+// with a preview before anything is written.
+//
+// Which side is right is not assumed. The calendar is the record staff actually keep
+// current, so a disagreement usually means the recurring class has gone stale, and
+// "the calendar is right" is offered first and reads as the ordinary answer. Pushing the
+// class down onto the calendar is the second option, for when a change to the class
+// genuinely never reached the dates.
+//
+// Anything can also just be hidden. Without that, a change made on purpose gets raised
+// again every single week and the whole panel turns into noise that gets ignored.
 
-function Card({ item, onFixed }) {
+function Card({ item, onGone }) {
   const [picked, setPicked]   = useState([])
-  const [fixDay, setFixDay]   = useState(false)
-  const [preview, setPreview] = useState(null)
+  const [preview, setPreview] = useState(null)   // { direction, data }
   const [busy, setBusy]       = useState(false)
   const [error, setError]     = useState('')
   const [done, setDone]       = useState(null)
+  const [hidden, setHidden]   = useState([])     // signatures dismissed in this session
 
-  const nothingPicked = picked.length === 0 && !fixDay
+  const rows = [
+    ...(item.wrong_weekday ? [{
+      key: 'weekday',
+      signature: item.wrong_weekday.signature,
+      label: 'Day',
+      classSays: item.wrong_weekday.expected,
+      calendarSays: item.wrong_weekday.variants.map(v => `${v.count} on ${v.value}`).join(', '),
+      calendarValue: item.wrong_weekday.variants[0]?.value,
+      affected: item.wrong_weekday.affected,
+    }] : []),
+    ...item.issues.map(iss => ({
+      key: iss.field,
+      signature: iss.signature,
+      label: iss.label,
+      classSays: iss.schedule_value,
+      calendarSays: iss.variants.map(v => `${v.count} say ${v.value}`).join(' and '),
+      calendarValue: iss.calendar_value,
+      affected: iss.affected,
+    })),
+  ].filter(r => !hidden.includes(r.signature))
 
-  function toggle(field) {
+  const nothingPicked = picked.length === 0
+
+  function toggle(key) {
     setPreview(null)
-    setPicked(p => (p.includes(field) ? p.filter(f => f !== field) : [...p, field]))
+    setPicked(p => (p.includes(key) ? p.filter(f => f !== key) : [...p, key]))
   }
 
-  async function run(dryRun) {
+  // Both directions take the same picked list; only the endpoint and the wording differ.
+  async function run(direction, dryRun) {
     setBusy(true); setError('')
+    const fields = picked.filter(f => f !== 'weekday')
+    const touchesDay = picked.includes('weekday')
     try {
-      const res = await api.reconcileSchedule(item.schedule_id, {
-        fields: picked, fix_weekday: fixDay, dry_run: dryRun,
-      })
-      if (dryRun) setPreview(res)
-      else { setDone(res); onFixed(item.schedule_id) }
+      const res = direction === 'adopt'
+        ? await api.adoptScheduleFromCalendar(item.schedule_id,
+            { fields, adopt_weekday: touchesDay, dry_run: dryRun })
+        : await api.reconcileSchedule(item.schedule_id,
+            { fields, fix_weekday: touchesDay, dry_run: dryRun })
+      if (dryRun) setPreview({ direction, data: res })
+      else { setDone({ direction, data: res }); onGone(item.schedule_id) }
     } catch (e) {
       setError(e.message || 'That did not work.')
     } finally { setBusy(false) }
   }
 
+  async function hide(row) {
+    setBusy(true); setError('')
+    try {
+      await api.dismissScheduleDrift(item.schedule_id,
+        { field: row.key, signature: row.signature })
+      setPicked(p => p.filter(f => f !== row.key))
+      setPreview(null)
+      setHidden(h => [...h, row.signature])
+      if (rows.length === 1) onGone(item.schedule_id)
+    } catch (e) {
+      setError(e.message || 'That did not work.')
+    } finally { setBusy(false) }
+  }
+
+  async function hideAll() {
+    setBusy(true); setError('')
+    try {
+      for (const r of rows) {
+        await api.dismissScheduleDrift(item.schedule_id, { field: r.key, signature: r.signature })
+      }
+      onGone(item.schedule_id)
+    } catch (e) {
+      setError(e.message || 'That did not work.')
+      setBusy(false)
+    }
+  }
+
   if (done) {
+    const { direction, data } = done
     return (
       <div className="rounded-xl border border-green-200 bg-green-50/60 px-4 py-3">
         <p className="text-sm font-semibold text-gray-900">{item.client_name}</p>
         <p className="text-xs text-green-700 mt-0.5">
-          ✓ Updated {done.updated} class{done.updated === 1 ? '' : 'es'}
-          {done.removed ? `, moved ${done.removed} onto the right day (${done.regenerated} put back)` : ''}.
+          {direction === 'adopt'
+            ? `✓ The recurring class now matches the calendar. Nothing on the calendar changed.`
+            : `✓ Updated ${data.updated} class${data.updated === 1 ? '' : 'es'}` +
+              (data.removed ? `, moved ${data.removed} onto the right day (${data.regenerated} put back)` : '') + '.'}
         </p>
       </div>
     )
   }
+
+  if (!rows.length) return null
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
@@ -67,51 +132,67 @@ function Card({ item, onFixed }) {
       </div>
 
       <div className="space-y-1.5">
-        {item.wrong_weekday && (
-          <label className="flex items-start gap-2 text-xs cursor-pointer">
-            <input type="checkbox" checked={fixDay}
-              onChange={e => { setFixDay(e.target.checked); setPreview(null) }}
-              className="mt-0.5 accent-blue-600" />
-            <span>
-              <span className="font-semibold text-red-700">On the wrong day:</span>{' '}
-              {item.wrong_weekday.variants.map(v => `${v.count} on ${v.value}`).join(', ')},
-              but this class runs {item.wrong_weekday.expected}.
-              <span className="block text-gray-400 mt-0.5">
-                Ticking this removes those dates and puts the class back on {item.wrong_weekday.expected}.
+        {rows.map(row => (
+          <div key={row.key} className="flex items-start gap-2">
+            <label className="flex items-start gap-2 text-xs cursor-pointer flex-1">
+              <input type="checkbox" checked={picked.includes(row.key)}
+                onChange={() => toggle(row.key)} className="mt-0.5 accent-blue-600" />
+              <span>
+                <span className="font-semibold text-gray-700">{row.label}:</span>{' '}
+                the calendar says <span className="font-semibold">{row.calendarSays}</span>,
+                but the recurring class says <span className="font-semibold">{row.classSays}</span>.
               </span>
-            </span>
-          </label>
-        )}
-
-        {item.issues.map(iss => (
-          <label key={iss.field} className="flex items-start gap-2 text-xs cursor-pointer">
-            <input type="checkbox" checked={picked.includes(iss.field)}
-              onChange={() => toggle(iss.field)} className="mt-0.5 accent-blue-600" />
-            <span>
-              <span className="font-semibold text-gray-700">{iss.label}:</span>{' '}
-              the class says <span className="font-semibold">{iss.schedule_value}</span>, but{' '}
-              {iss.variants.map(v => `${v.count} say ${v.value}`).join(' and ')}.
-              <span className="block text-gray-400 mt-0.5">
-                Ticking this sets all {iss.affected} to {iss.schedule_value}.
-              </span>
-            </span>
-          </label>
+            </label>
+            <button onClick={() => hide(row)} disabled={busy}
+              title="Hide this — it's meant to be this way"
+              className="text-[11px] text-gray-400 hover:text-gray-700 px-1.5 py-0.5 rounded disabled:opacity-40 shrink-0">
+              Hide
+            </button>
+          </div>
         ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mt-3">
         {!preview ? (
-          <button onClick={() => run(true)} disabled={busy || nothingPicked}
-            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40">
-            {busy ? 'Checking…' : 'Preview the change'}
-          </button>
+          <>
+            <button onClick={() => run('adopt', true)} disabled={busy || nothingPicked}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">
+              {busy ? 'Checking…' : 'The calendar is right'}
+            </button>
+            <button onClick={() => run('reconcile', true)} disabled={busy || nothingPicked}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+              The recurring class is right
+            </button>
+            <button onClick={hideAll} disabled={busy}
+              className="px-3 py-1.5 text-xs rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-40">
+              Hide all of these
+            </button>
+          </>
+        ) : preview.direction === 'adopt' ? (
+          <>
+            <span className="text-xs text-gray-600">
+              {Object.keys(preview.data.changes || {}).length
+                ? `Updates the recurring class only — ${Object.entries(preview.data.changes)
+                    .map(([, c]) => `to ${c.to === null ? 'blank' : c.to}`).join(', ')}. The calendar is left alone.`
+                : 'Nothing to change — the classes ahead don’t agree on one answer, so pick a side by hand.'}
+            </span>
+            <button onClick={() => run('adopt', false)}
+              disabled={busy || !Object.keys(preview.data.changes || {}).length}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">
+              {busy ? 'Applying…' : 'Do it'}
+            </button>
+            <button onClick={() => setPreview(null)} disabled={busy}
+              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
+              Back
+            </button>
+          </>
         ) : (
           <>
             <span className="text-xs text-gray-600">
-              Will change {preview.updated} class{preview.updated === 1 ? '' : 'es'}
-              {preview.removed ? `, and move ${preview.removed} onto the right day` : ''}.
+              Changes {preview.data.updated} class{preview.data.updated === 1 ? '' : 'es'} on the calendar
+              {preview.data.removed ? `, and moves ${preview.data.removed} onto the right day` : ''}.
             </span>
-            <button onClick={() => run(false)} disabled={busy}
+            <button onClick={() => run('reconcile', false)} disabled={busy}
               className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
               {busy ? 'Applying…' : 'Do it'}
             </button>
@@ -127,22 +208,71 @@ function Card({ item, onFixed }) {
   )
 }
 
-export default function ScheduleDrift({ id = 'schedule_drift', defaultOpen = false }) {
-  const [data, setData]       = useState(null)
-  const [fixed, setFixed]     = useState([])
-  const [loading, setLoading] = useState(true)
+// Hidden differences stay reachable. Something hidden by mistake, or a decision that
+// later turns out to have been wrong, would otherwise be gone with no way back.
+function Hidden({ onChanged }) {
+  const [open, setOpen] = useState(false)
+  const [rows, setRows] = useState(null)
 
   useEffect(() => {
+    if (!open) return
+    api.getDismissedScheduleDrift().then(setRows).catch(() => setRows([]))
+  }, [open])
+
+  async function restore(r) {
+    await api.undismissScheduleDrift(r.schedule_id, { field: r.field, signature: r.signature })
+    setRows(rs => rs.filter(x => x.id !== r.id))
+    onChanged()
+  }
+
+  return (
+    <div className="mt-3 px-1">
+      <button onClick={() => setOpen(o => !o)}
+        className="text-[11px] text-gray-400 hover:text-gray-700 underline">
+        {open ? 'Hide' : 'Show'} the differences you’ve hidden
+      </button>
+      {open && rows && (
+        rows.length ? (
+          <ul className="mt-2 space-y-1">
+            {rows.map(r => (
+              <li key={r.id} className="flex items-center gap-2 text-[11px] text-gray-500">
+                <span className="flex-1">
+                  <span className="font-semibold text-gray-700">{r.client_name}</span> — {r.label}
+                  {r.instructor_name ? ` · ${r.instructor_name}` : ''}
+                </span>
+                <button onClick={() => restore(r)} className="text-blue-600 hover:underline">
+                  Put back
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-[11px] text-gray-400">Nothing hidden.</p>
+        )
+      )}
+    </div>
+  )
+}
+
+export default function ScheduleDrift({ id = 'schedule_drift', defaultOpen = false }) {
+  const [data, setData]       = useState(null)
+  const [gone, setGone]       = useState([])
+  const [loading, setLoading] = useState(true)
+  const [nonce, setNonce]     = useState(0)
+
+  useEffect(() => {
+    setLoading(true)
     api.getScheduleDrift()
-      .then(setData)
+      .then(d => { setData(d); setGone([]) })
       .catch(() => setData(null))
       .finally(() => setLoading(false))
-  }, [])
+  }, [nonce])
 
   if (loading || !data) return null
-  const outstanding = data.report.filter(r => !fixed.includes(r.schedule_id))
-  if (!data.report.length) return null
+  const outstanding = data.report.filter(r => !gone.includes(r.schedule_id))
 
+  // Still render when everything is handled, so the way back to hidden items doesn't
+  // disappear along with the last card.
   return (
     <CollapsibleSection
       id={id} accent="amber" title="⚠ Calendar doesn't match the class"
@@ -150,20 +280,27 @@ export default function ScheduleDrift({ id = 'schedule_drift', defaultOpen = fal
     >
       <p className="text-xs text-gray-500 mb-3 px-1 max-w-3xl">
         A recurring class and the dates it puts on the calendar are two separate records, and
-        they can come apart — usually because a change to the class was made before the app
-        knew to push it down. Checked {data.schedules_checked} recurring classes.
+        they can come apart. Checked {data.schedules_checked} recurring classes.
         <span className="block mt-1 text-gray-400">
-          Lots of classes all saying the same thing is usually the mistake. One or two on their
-          own are usually deliberate — a substitute, a one-off rate — so leave those alone. And
-          if the <em>calendar</em> is the one that's right, edit the recurring class instead:
-          that now pushes down to future classes on its own.
+          Usually the calendar is the one that’s right — it’s what gets kept up day to day — and
+          the recurring class is just out of date. “The calendar is right” fixes that without
+          touching a single class on the calendar. If a difference is meant to be there, hide it
+          and it won’t be raised again.
         </span>
       </p>
-      <div className="space-y-2">
-        {data.report.map(item => (
-          <Card key={item.schedule_id} item={item} onFixed={sid => setFixed(f => [...f, sid])} />
-        ))}
-      </div>
+      {outstanding.length ? (
+        <div className="space-y-2">
+          {outstanding.map(item => (
+            <Card key={item.schedule_id} item={item}
+              onGone={sid => setGone(g => [...g, sid])} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 px-1">
+          Nothing to look at — the calendar and the recurring classes agree.
+        </p>
+      )}
+      <Hidden onChanged={() => setNonce(n => n + 1)} />
     </CollapsibleSection>
   )
 }

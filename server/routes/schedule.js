@@ -9,7 +9,7 @@ const { generateUpcomingSessions, defaultHorizon, adoptOrphanSessions } = requir
 // server's timezone. DATE (oid 1082) is used only by this module's tables.
 require('pg').types.setTypeParser(1082, (v) => v);
 
-const { findDrift, reconcile } = require('../lib/scheduleDrift');
+const { findDrift, reconcile, adopt, dismissDrift, undismissDrift, listDismissed } = require('../lib/scheduleDrift');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
 
 const router = express.Router();
@@ -363,6 +363,34 @@ router.post('/drift/:scheduleId/reconcile', async (req, res) => {
   });
   if (out.error) return res.status(404).json(out);
   res.json(out);
+});
+
+// The opposite of reconcile: the calendar is right, so the recurring class learns from it.
+router.post('/drift/:scheduleId/adopt', async (req, res) => {
+  const { fields = [], adopt_weekday = false, dry_run = true } = req.body || {};
+  const out = await adopt(req.params.scheduleId, {
+    fields, adoptWeekday: !!adopt_weekday, dryRun: dry_run !== false,
+  });
+  if (out.error) return res.status(404).json(out);
+  res.json(out);
+});
+
+// Hiding a difference that is meant to be there, so it stops being raised every week.
+router.post('/drift/:scheduleId/dismiss', async (req, res) => {
+  const { field, signature } = req.body || {};
+  if (!field || !signature) {
+    return res.status(400).json({ error: 'field and signature are required' });
+  }
+  res.json(await dismissDrift(req.params.scheduleId, field, signature, req.user?.email || null));
+});
+
+router.post('/drift/:scheduleId/undismiss', async (req, res) => {
+  const { field, signature } = req.body || {};
+  res.json(await undismissDrift(req.params.scheduleId, field || null, signature || null));
+});
+
+router.get('/drift-dismissed', async (req, res) => {
+  res.json(await listDismissed());
 });
 
 router.delete('/schedules/:id/future-sessions', async (req, res) => {

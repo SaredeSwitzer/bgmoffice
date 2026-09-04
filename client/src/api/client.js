@@ -310,6 +310,13 @@ export const api = {
   getScheduleDrift: () => request('/schedule/drift'),
   reconcileSchedule: (scheduleId, body) =>
     request(`/schedule/drift/${scheduleId}/reconcile`, { method: 'POST', body: JSON.stringify(body) }),
+  adoptScheduleFromCalendar: (scheduleId, body) =>
+    request(`/schedule/drift/${scheduleId}/adopt`, { method: 'POST', body: JSON.stringify(body) }),
+  dismissScheduleDrift: (scheduleId, body) =>
+    request(`/schedule/drift/${scheduleId}/dismiss`, { method: 'POST', body: JSON.stringify(body) }),
+  undismissScheduleDrift: (scheduleId, body) =>
+    request(`/schedule/drift/${scheduleId}/undismiss`, { method: 'POST', body: JSON.stringify(body || {}) }),
+  getDismissedScheduleDrift: () => request('/schedule/drift-dismissed'),
 
   getRemindersByInstructor: (instructorId) => request(`/reminders?instructor_id=${instructorId}`),
   createReminder: (data) =>

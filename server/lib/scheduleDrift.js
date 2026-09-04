@@ -11,6 +11,14 @@
 // holds. It deliberately does NOT decide who is right. A difference is often intentional
 // — a substitute instructor for one week, a different rate for one date — so every fix is
 // something a person chooses per schedule and per field, with a preview first.
+//
+// In practice the calendar is the record staff actually keep up, so most disagreements are
+// a stale recurring class rather than a wrong calendar. Two things follow from that:
+// `adopt` takes the calendar's answer and writes it back onto the recurring class (the
+// opposite direction from `reconcile`), and any disagreement can be dismissed so a
+// deliberate change stops being re-reported every week. A dismissal is keyed to *what*
+// disagreed, not just the class — see signatureFor — so if the same field drifts to some
+// new value later it surfaces again instead of staying silently hidden.
 
 const pool = require('../db/pg');
 
@@ -44,6 +52,16 @@ function display(field, value, instructorNames) {
   return String(value);
 }
 
+// Identifies a specific disagreement so a dismissal survives the ordinary passage of time
+// but not an actual change. Counts are deliberately left out: the number of future classes
+// falls every week as they happen, and a dismissal shouldn't pop back for that alone. The
+// distinct values on each side are what matter.
+function signatureFor(scheduleValue, calendarValues) {
+  const side = [...new Set(calendarValues.map(v => (v === null || v === undefined ? '' : String(v))))].sort();
+  const mine = scheduleValue === null || scheduleValue === undefined ? '' : String(scheduleValue);
+  return `${mine}»${side.join(',')}`;
+}
+
 // One report covering every active recurring class that has future dates on the calendar.
 async function findDrift() {
   const { rows: instructors } = await pool.query('SELECT id, name FROM instructors');
@@ -69,6 +87,13 @@ async function findDrift() {
         AND s.status <> 'cancelled'`
   );
 
+  const { rows: dismissals } = await pool.query(
+    'SELECT schedule_id, field, signature FROM schedule_drift_dismissals'
+  );
+  const dismissed = new Set(dismissals.map(d => `${d.schedule_id}|${d.field}|${d.signature}`));
+  const isDismissed = (scheduleId, field, signature) =>
+    dismissed.has(`${scheduleId}|${field}|${signature}`);
+
   const bySchedule = new Map();
   for (const s of sessions) {
     if (!bySchedule.has(s.schedule_id)) bySchedule.set(s.schedule_id, []);
@@ -93,10 +118,18 @@ async function findDrift() {
         const v = s[key] === null || s[key] === undefined ? '' : String(s[key]);
         variants.set(v, (variants.get(v) || 0) + 1);
       }
+      const signature = signatureFor(scheduleValue, off.map(s => s[key]));
+      if (isDismissed(sch.id, key, signature)) continue;
+
       issues.push({
         field: key,
         label,
+        signature,
         schedule_value: display(key, scheduleValue, instructorNames),
+        // The calendar's own answer, for adopting in the other direction: the value the
+        // most classes agree on, which is what staff have actually been entering.
+        calendar_value: display(key, [...variants.entries()]
+          .sort((a, b) => b[1] - a[1])[0][0] || null, instructorNames),
         affected: off.length,
         // A single big group is almost always the bug; a scatter of ones is almost
         // always deliberate. Ordering by size puts the telling one first.
@@ -109,8 +142,11 @@ async function findDrift() {
     // Classes sitting on a day this class doesn't run. Can't be patched in place — the
     // date itself is wrong — so it's reported separately with its own fix.
     const wrongDay = sch.weekday === null ? [] : mine.filter(s => s.session_weekday !== sch.weekday);
-    const wrongWeekday = wrongDay.length
+    const weekdaySignature = wrongDay.length
+      ? signatureFor(sch.weekday, wrongDay.map(s => s.session_weekday)) : null;
+    const wrongWeekday = wrongDay.length && !isDismissed(sch.id, 'weekday', weekdaySignature)
       ? {
+          signature: weekdaySignature,
           expected: DAYS[sch.weekday],
           affected: wrongDay.length,
           variants: [...wrongDay.reduce((m, s) => m.set(s.session_weekday, (m.get(s.session_weekday) || 0) + 1), new Map())]
@@ -214,4 +250,114 @@ async function reconcile(scheduleId, { fields = [], fixWeekday = false, dryRun =
   return result;
 }
 
-module.exports = { findDrift, reconcile, FIELDS };
+// The other direction: the calendar is right, so teach the recurring class what it says.
+//
+// This is the common case — staff keep the calendar current and the recurring class is the
+// record that goes stale — and without it the only offered fix was to overwrite the good
+// data with the stale data. Nothing on the calendar is touched; only the recurring class
+// changes, so the next dates it generates come out right too.
+//
+// The value adopted is whatever the most future classes agree on, worked out here from the
+// database rather than taken from the caller, so what gets written is what is actually on
+// the calendar at this moment.
+async function adopt(scheduleId, { fields = [], adoptWeekday = false, dryRun = true } = {}) {
+  const { rows: [sch] } = await pool.query('SELECT * FROM class_schedules WHERE id = $1', [scheduleId]);
+  if (!sch) return { error: 'Schedule not found' };
+
+  const { rows: sessions } = await pool.query(
+    `SELECT instructor_id, start_time::text AS start_time, duration_minutes,
+            charge_amount, instructor_pay, payment_method, style,
+            EXTRACT(DOW FROM session_date::date)::int AS session_weekday
+       FROM class_sessions
+      WHERE schedule_id = $1 AND session_date >= CURRENT_DATE AND status <> 'cancelled'`,
+    [scheduleId]
+  );
+
+  const allowed = fields.filter(f => FIELDS.some(x => x.key === f));
+  const result = { schedule_id: Number(scheduleId), dry_run: dryRun, changes: {}, applied: false };
+  if (!sessions.length) return result;
+
+  // Most common wins. A tie keeps the recurring class as it is rather than picking
+  // arbitrarily — a genuine 50/50 split is not something to resolve without a person.
+  function majority(key) {
+    const counts = new Map();
+    for (const s of sessions) {
+      const v = s[key] === null || s[key] === undefined ? null : String(s[key]);
+      counts.set(v, (counts.get(v) || 0) + 1);
+    }
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) return undefined;
+    return ranked[0];
+  }
+
+  const sets = [];
+  const args = [];
+  for (const key of allowed) {
+    const top = majority(key);
+    if (top === undefined) continue;
+    const [value, count] = top;
+    if (same(value, sch[key])) continue;
+    args.push(value);
+    sets.push(`${key} = $${args.length}`);
+    result.changes[key] = { from: sch[key] ?? null, to: value, agreed_by: count };
+  }
+
+  if (adoptWeekday) {
+    const top = majority('session_weekday');
+    if (top !== undefined && !same(top[0], sch.weekday)) {
+      args.push(Number(top[0]));
+      sets.push(`weekday = $${args.length}`);
+      result.changes.weekday = {
+        from: sch.weekday === null ? null : DAYS[sch.weekday],
+        to: DAYS[Number(top[0])],
+        agreed_by: top[1],
+      };
+    }
+  }
+
+  if (!sets.length || dryRun) return result;
+
+  sets.push('updated_at = now()');
+  args.push(scheduleId);
+  await pool.query(`UPDATE class_schedules SET ${sets.join(', ')} WHERE id = $${args.length}`, args);
+  result.applied = true;
+  return result;
+}
+
+// Stop reporting one particular disagreement. Tied to the signature, not just the field,
+// so this silences the difference that was actually looked at and nothing else.
+async function dismissDrift(scheduleId, field, signature, who) {
+  await pool.query(
+    `INSERT INTO schedule_drift_dismissals (schedule_id, field, signature, dismissed_by)
+          VALUES ($1, $2, $3, $4)
+     ON CONFLICT (schedule_id, field, signature) DO NOTHING`,
+    [scheduleId, field, signature, who || null]
+  );
+  return { success: true };
+}
+
+async function undismissDrift(scheduleId, field, signature) {
+  const { rowCount } = signature
+    ? await pool.query(
+        'DELETE FROM schedule_drift_dismissals WHERE schedule_id=$1 AND field=$2 AND signature=$3',
+        [scheduleId, field, signature])
+    : await pool.query('DELETE FROM schedule_drift_dismissals WHERE schedule_id=$1', [scheduleId]);
+  return { success: true, removed: rowCount };
+}
+
+// What has been hidden, so it can be shown and put back rather than lost for good.
+async function listDismissed() {
+  const { rows } = await pool.query(
+    `SELECT d.id, d.schedule_id, d.field, d.signature, d.dismissed_by, d.dismissed_at,
+            c.name AS client_name, i.name AS instructor_name
+       FROM schedule_drift_dismissals d
+       JOIN class_schedules sch ON sch.id = d.schedule_id
+       JOIN clients c           ON c.id   = sch.client_id
+       LEFT JOIN instructors i  ON i.id   = sch.instructor_id
+      ORDER BY d.dismissed_at DESC`
+  );
+  const labelFor = f => (f === 'weekday' ? 'Day' : (FIELDS.find(x => x.key === f)?.label || f));
+  return rows.map(r => ({ ...r, label: labelFor(r.field) }));
+}
+
+module.exports = { findDrift, reconcile, adopt, dismissDrift, undismissDrift, listDismissed, FIELDS };
