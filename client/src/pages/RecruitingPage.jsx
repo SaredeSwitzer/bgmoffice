@@ -1726,9 +1726,13 @@ export default function RecruitingPage() {
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
-      ) : tab === 'intake' ? (
+      {/* The intake form is checked before `loading` on purpose. Saving refreshes the
+          board behind it, and that refresh turns `loading` on — which used to swap this
+          whole branch for the spinner, unmounting the form mid-save and taking its "intake
+          saved" screen with it. The confirmation, the card link and the waiver button were
+          therefore never reachable: the form just went blank and looked like it had eaten
+          the answers. It needs nothing from the refresh, so it shouldn't wait on it. */}
+      {tab === 'intake' ? (
         <ClientIntakeForm
           clients={clients}
           styles={styles}
@@ -1736,6 +1740,8 @@ export default function RecruitingPage() {
           // switching back doesn't show a stale board.
           onSaved={() => load(query, showArchived)}
         />
+      ) : loading ? (
+        <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
       ) : tab === 'entries' ? (
         <div className="space-y-4">
           {showArchived && (
