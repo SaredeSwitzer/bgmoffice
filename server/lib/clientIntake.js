@@ -34,6 +34,11 @@ function composeEntryNotes(f) {
   if (f.new_or_past) lines.push(`New/Past client: ${f.new_or_past}`);
   if (f.gender)      lines.push(`Gender: ${f.gender}`);
   if (f.referral)    lines.push(`Referred by: ${f.referral}`);
+  // These three also live on the client (they stay true between classes), but whoever
+  // picks the entry up is choosing an instructor for it and needs them in front of them.
+  if (f.goals)        lines.push(`Goals: ${f.goals}`);
+  if (f.health_notes) lines.push(`Health / injuries: ${f.health_notes}`);
+  if (f.equipment)    lines.push(`Equipment at home: ${f.equipment}`);
   if (f.notes)       lines.push(f.notes);
   if (f.waiver && !/^YES/i.test(f.waiver)) lines.push(`Waiver: ${f.waiver}`);
   if (f.confirmed)   lines.push(`Confirmed/CC: ${f.confirmed}`);
@@ -58,6 +63,9 @@ async function fillBlanksOnClient(clientId, f) {
     referred_by:    f.referral,
     referred_by_client_id: f.referral_client_id,
     gender:         f.gender,
+    goals:          f.goals,
+    health_notes:   f.health_notes,
+    equipment:      f.equipment,
   };
   const fill = Object.entries(candidates)
     .filter(([col, val]) => val && !String(client[col] ?? '').trim());
@@ -84,14 +92,16 @@ async function createClientFromIntake(f) {
   const { rows: [client] } = await pool.query(
     `INSERT INTO clients (name, phone, street, neighborhood, rate_per_class, default_style,
                           default_participants, referred_by, referred_by_client_id, gender,
-                          waiver_signed, waiver_signed_date, client_type)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'individual') RETURNING *`,
+                          waiver_signed, waiver_signed_date, goals, health_notes, equipment,
+                          client_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'individual') RETURNING *`,
     [
       f.client_name.trim(), f.phone || null, f.address || null, f.neighborhood || null,
       f.client_rate || null, f.style || null,
       Number.isInteger(Number(f.participants)) && f.participants !== '' ? Number(f.participants) : null,
       f.referral || null, f.referral_client_id || null, f.gender || null,
       isYes(f.waiver) ? 1 : 0, isYes(f.waiver) ? new Date().toISOString().slice(0, 10) : null,
+      f.goals || null, f.health_notes || null, f.equipment || null,
     ]
   );
   return client;
@@ -130,8 +140,8 @@ async function recordIntake(f, { clientId = null, createClient = false, preferre
        (day_of_week, time_slot, neighborhood, style, participants,
         client_name, client_id, address, phone, waiver_signed,
         instructor_info, instructor_id, client_rate, class_notes, class_type, class_dates,
-        preferred_days, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
+        preferred_days, created_by, time_preference, instructor_rate)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
     [
       day_of_week, time_slot, f.neighborhood || null, f.style || null, f.participants || null,
       client?.name || f.client_name || null, client?.id || null, f.address || null, f.phone || null,
@@ -139,7 +149,7 @@ async function recordIntake(f, { clientId = null, createClient = false, preferre
       f.instructor_info || null, instructorId || null, f.client_rate || null,
       composeEntryNotes(f), classType || null, classDates || null,
       days.length ? JSON.stringify(days) : null,
-      createdBy,
+      createdBy, f.time_preference || null, f.instructor_rate || null,
     ]
   );
 

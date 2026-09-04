@@ -201,7 +201,7 @@ router.post('/entries', async (req, res) => {
     preferred_days, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
     instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
-    class_type, class_dates, class_notes, address_id,
+    class_type, class_dates, class_notes, address_id, time_preference, instructor_rate,
   } = req.body;
 
   const day_of_week = resolveDayOfWeek(preferred_days, req.body.day_of_week);
@@ -215,8 +215,9 @@ router.post('/entries', async (req, res) => {
        (day_of_week, time_slot, neighborhood, style, participants,
         client_name, client_id, address, phone, waiver_signed,
         instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id, created_by,
-        class_type, class_dates, class_notes, preferred_days, address_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id`,
+        class_type, class_dates, class_notes, preferred_days, address_id,
+        time_preference, instructor_rate)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING id`,
     [
       day_of_week, resolvedTime || null, neighborhood || null, style || null, participants || null,
       client_name || null, client_id || null, address || null, phone || null, waiver_signed ? 1 : 0,
@@ -225,6 +226,7 @@ router.post('/entries', async (req, res) => {
       class_type || null, class_dates || null, class_notes || null,
       preferred_days ? JSON.stringify(preferred_days) : null,
       address_id || null,
+      time_preference || null, instructor_rate || null,
     ]
   );
   res.status(201).json(await getEntry(entry.id));
@@ -238,7 +240,7 @@ router.put('/entries/:id', async (req, res) => {
     preferred_days, time_slot, neighborhood, style, participants,
     client_name, client_id, address, phone, waiver_signed,
     instructor_info, instructor_id, client_rate, action_type_id, assigned_to_user_id,
-    class_type, class_dates, class_notes, address_id,
+    class_type, class_dates, class_notes, address_id, time_preference, instructor_rate,
   } = req.body;
 
   const day_of_week = resolveDayOfWeek(preferred_days, req.body.day_of_week);
@@ -250,7 +252,8 @@ router.put('/entries/:id', async (req, res) => {
        day_of_week=$1, time_slot=$2, neighborhood=$3, style=$4, participants=$5,
        client_name=$6, client_id=$7, address=$8, phone=$9, waiver_signed=$10,
        instructor_info=$11, instructor_id=$12, client_rate=$13, action_type_id=$14, assigned_to_user_id=$15,
-       class_type=$16, class_dates=$17, class_notes=$18, preferred_days=$19, address_id=$21
+       class_type=$16, class_dates=$17, class_notes=$18, preferred_days=$19, address_id=$21,
+       time_preference=$22, instructor_rate=$23
      WHERE id=$20`,
     [
       day_of_week || null, resolvedTime || null, neighborhood || null, style || null, participants || null,
@@ -261,6 +264,7 @@ router.put('/entries/:id', async (req, res) => {
       preferred_days ? JSON.stringify(preferred_days) : null,
       req.params.id,
       address_id || null,
+      time_preference || null, instructor_rate || null,
     ]
   );
   res.json(await getEntry(req.params.id));

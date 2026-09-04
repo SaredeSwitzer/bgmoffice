@@ -796,6 +796,9 @@ export default function ClientProfilePage() {
           neighborhood: c.neighborhood || '',
           referred_by: c.referred_by || '',
           referred_by_client_id: c.referred_by_client_id || null,
+          goals: c.goals || '',
+          health_notes: c.health_notes || '',
+          equipment: c.equipment || '',
           gender: c.gender || '',
           track_last_class: c.track_last_class ? true : false,
           skip_weekly_reminder: c.skip_weekly_reminder ? true : false,
@@ -1048,6 +1051,25 @@ export default function ClientProfilePage() {
                 <input value={editForm.default_age} onChange={e => setEditForm(f => ({ ...f, default_age: e.target.value }))}
                   placeholder="e.g. 5-8 years" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
+              {/* Asked at intake, and true long after it — every instructor who teaches
+                  them needs these, not just the first one. */}
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Goals for classes</label>
+                <textarea value={editForm.goals} onChange={e => setEditForm(f => ({ ...f, goals: e.target.value }))} rows={2}
+                  placeholder="What they're hoping to get out of it"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Injuries / health notes</label>
+                <textarea value={editForm.health_notes} onChange={e => setEditForm(f => ({ ...f, health_notes: e.target.value }))} rows={2}
+                  placeholder="Anything to work around"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Equipment at home</label>
+                <input value={editForm.equipment} onChange={e => setEditForm(f => ({ ...f, equipment: e.target.value }))}
+                  placeholder="Weights, mats, blocks…" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              </div>
               {/* Address */}
               <div className="col-span-2 pt-1">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Address</p>
@@ -1221,6 +1243,31 @@ export default function ClientProfilePage() {
                     client.default_age,
                   ].filter(Boolean).join(' · ')}
                 </p>
+              </div>
+            )}
+
+            {/* What they want, what to work around, what they already own. Amber-tinted
+                because the health line is the one an instructor must not miss. */}
+            {(client.goals || client.health_notes || client.equipment) && (
+              <div className="mt-3 bg-amber-50/60 rounded-xl px-4 py-3 border border-amber-100 space-y-1.5">
+                {client.goals && (
+                  <p className="text-sm text-gray-800">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mr-1.5">Goals</span>
+                    {client.goals}
+                  </p>
+                )}
+                {client.health_notes && (
+                  <p className="text-sm text-gray-800">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mr-1.5">Health</span>
+                    {client.health_notes}
+                  </p>
+                )}
+                {client.equipment && (
+                  <p className="text-sm text-gray-800">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mr-1.5">Equipment</span>
+                    {client.equipment}
+                  </p>
+                )}
               </div>
             )}
 

@@ -253,6 +253,8 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
     instructor_info:     entry?.instructor_info     || '',
     instructor_id:       entry?.instructor_id       || null,
     client_rate:         entry?.client_rate         || '',
+    instructor_rate:     entry?.instructor_rate     || '',
+    time_preference:     entry?.time_preference     || '',
     class_notes:         entry?.class_notes         || '',
   }))
 
@@ -537,6 +539,23 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
           <label className="block text-xs font-medium text-gray-600 mb-1">Client Rate / Payment</label>
           <input value={form.client_rate} onChange={e => setField('client_rate', e.target.value)}
             placeholder="e.g. $125" className={inputCls} />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Instructor Rate</label>
+          <input value={form.instructor_rate} onChange={e => setField('instructor_rate', e.target.value)}
+            placeholder="e.g. $50" className={inputCls} />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Time Preference</label>
+          <select value={form.time_preference} onChange={e => setField('time_preference', e.target.value)} className={selectCls}>
+            <option value="">Not specified</option>
+            <option value="Mornings">Mornings</option>
+            <option value="Afternoons">Afternoons</option>
+            <option value="Evenings">Evenings</option>
+            <option value="Flexible">Flexible</option>
+          </select>
         </div>
 
       </div>
@@ -878,6 +897,16 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, mentionabl
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Client Rate</p>
                     <p className="text-sm text-gray-800">{entry.client_rate || <span className="text-gray-300">—</span>}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Instructor Rate</p>
+                    <p className="text-sm text-gray-800">{entry.instructor_rate || <span className="text-gray-300">—</span>}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Time Preference</p>
+                    <p className="text-sm text-gray-800">{entry.time_preference || <span className="text-gray-300">—</span>}</p>
                   </div>
 
                   <div>

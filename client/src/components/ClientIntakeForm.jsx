@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -22,7 +22,11 @@ const BLANK = {
   style: '', neighborhood: '', address: '', participants: '', client_rate: '',
   time_slot: '', notes: '', waiver: 'No', instructor_info: '', confirmed: '',
   class_type: '', class_dates: '', referral_client_id: null,
+  time_preference: '', instructor_rate: '', goals: '', health_notes: '', equipment: '',
 }
+
+// What "any time on that day" actually means to whoever is being asked to teach it.
+const TIME_PREFERENCES = ['Mornings', 'Afternoons', 'Evenings', 'Flexible']
 
 export default function ClientIntakeForm({ clients = [], styles = [], onSaved }) {
   const { user } = useAuth()
@@ -33,6 +37,13 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(null)
+  const [neighborhoods, setNeighborhoods] = useState([])
+  const [cardLink, setCardLink] = useState('')
+
+  // The neighborhoods already in use, so the same place doesn't end up spelled three ways.
+  useEffect(() => {
+    api.getSignupNeighborhoods().then(rows => setNeighborhoods(rows || [])).catch(() => {})
+  }, [])
 
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
   const isPast = f.new_or_past === 'Past'
@@ -67,6 +78,18 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
 
   function startAnother() {
     setF(BLANK); setClient(null); setCreateClient(true); setDays([]); setDone(null); setError('')
+    setCardLink('')
+  }
+
+  // Their card can be taken as soon as the profile exists — which it now does, a second
+  // after the intake is saved. The link goes to the client; the number never touches us.
+  async function getCardLink() {
+    const r = await api.getClientSaveLink(done.client.id)
+    if (r.token) {
+      const url = `${window.location.origin}/save-card/${r.token}`
+      setCardLink(url)
+      try { await navigator.clipboard.writeText(url) } catch { /* clipboard blocked */ }
+    }
   }
 
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300'
@@ -104,6 +127,35 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
             <li className="text-gray-500">No client profile was made — the entry keeps the name only.</li>
           )}
         </ul>
+        {done.client && (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
+            <p className="text-xs font-semibold text-gray-700">Card on file</p>
+            {cardLink ? (
+              <>
+                <p className="text-[11px] text-green-700 mt-0.5">
+                  Copied — send it to them and they key the card in themselves.
+                </p>
+                <p className="text-[11px] text-gray-500 break-all mt-0.5">{cardLink}</p>
+              </>
+            ) : (
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                Their profile exists now, so their card can be taken straight away — send them
+                the link, or key it in from a photo on their profile.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2 mt-2">
+              <button onClick={getCardLink}
+                className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg hover:bg-white">
+                {cardLink ? '✓ Link copied' : 'Copy save-card link'}
+              </button>
+              <Link to={`/clients/${done.client.id}`}
+                className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg hover:bg-white">
+                Key in a card on their profile →
+              </Link>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2 pt-1">
           <button onClick={startAnother}
             className="px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700">
@@ -194,7 +246,12 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
         </div>
         <div>
           <label className={labelCls}>Neighborhood</label>
-          <input value={f.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls} />
+          <input list="intake-neighborhoods" value={f.neighborhood}
+            onChange={e => set('neighborhood', e.target.value)}
+            placeholder="Start typing — or a new one" className={inputCls} />
+          <datalist id="intake-neighborhoods">
+            {neighborhoods.map(n => <option key={n.id ?? n.name} value={n.name ?? n} />)}
+          </datalist>
         </div>
         <div className="sm:col-span-2">
           <label className={labelCls}>Address</label>
@@ -208,6 +265,11 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
           <label className={labelCls}>Rate charging client</label>
           <input value={f.client_rate} onChange={e => set('client_rate', e.target.value)}
             placeholder="e.g. 80" className={inputCls} />
+        </div>
+        <div>
+          <label className={labelCls}>Rate paying instructor</label>
+          <input value={f.instructor_rate} onChange={e => set('instructor_rate', e.target.value)}
+            placeholder="e.g. 50" className={inputCls} />
         </div>
       </div>
 
@@ -237,6 +299,20 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
         <input value={f.time_slot} onChange={e => set('time_slot', e.target.value)}
           placeholder="Or describe the timing in their words — “Tuesdays 8pm, starting next week”"
           className={`${inputCls} mt-2`} />
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-gray-500 mr-1">Time of day that suits them:</span>
+          {TIME_PREFERENCES.map(t => (
+            <button key={t} type="button"
+              onClick={() => set('time_preference', f.time_preference === t ? '' : t)}
+              className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                f.time_preference === t
+                  ? 'bg-gray-900 border-gray-900 text-white font-medium'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}>
+              {t}
+            </button>
+          ))}
+        </div>
         {days.length > 1 && (
           <p className="text-[11px] text-blue-600 mt-1">More than one day — the entry files under Flex.</p>
         )}
@@ -277,7 +353,23 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
             placeholder="Anyone in mind, or who they asked for" className={inputCls} />
         </div>
         <div className="sm:col-span-2">
-          <label className={labelCls}>Notes</label>
+          <label className={labelCls}>What are they hoping to get out of it?</label>
+          <textarea value={f.goals} onChange={e => set('goals', e.target.value)} rows={2}
+            placeholder="Their goals for the classes" className={`${inputCls} resize-y`} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Injuries, health issues, anything to work around?</label>
+          <textarea value={f.health_notes} onChange={e => set('health_notes', e.target.value)} rows={2}
+            placeholder="Anything the instructor needs to know before the first class"
+            className={`${inputCls} resize-y`} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Equipment at home?</label>
+          <input value={f.equipment} onChange={e => set('equipment', e.target.value)}
+            placeholder="Weights, mats, blocks, bands…" className={inputCls} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Anything else</label>
           <textarea value={f.notes} onChange={e => set('notes', e.target.value)} rows={3}
             placeholder="Anything else from the call"
             className={`${inputCls} resize-y`} />
