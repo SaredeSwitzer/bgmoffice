@@ -69,6 +69,7 @@ async function fillBlanksOnClient(clientId, f) {
     default_age:    f.age,
     phone_texting:  f.phone_texting,
     phone_whatsapp: f.phone_whatsapp,
+    email:          f.email,
   };
   const fill = Object.entries(candidates)
     .filter(([col, val]) => val && !String(client[col] ?? '').trim());
@@ -96,9 +97,9 @@ async function createClientFromIntake(f) {
     `INSERT INTO clients (name, phone, street, neighborhood, rate_per_class, default_style,
                           default_participants, referred_by, referred_by_client_id, gender,
                           waiver_signed, waiver_signed_date, goals, health_notes, equipment,
-                          default_age, phone_texting, phone_whatsapp,
+                          default_age, phone_texting, phone_whatsapp, email,
                           client_type)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'individual') RETURNING *`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'individual') RETURNING *`,
     [
       f.client_name.trim(), f.phone || null, f.address || null, f.neighborhood || null,
       f.client_rate || null, f.style || null,
@@ -106,7 +107,7 @@ async function createClientFromIntake(f) {
       f.referral || null, f.referral_client_id || null, f.gender || null,
       isYes(f.waiver) ? 1 : 0, isYes(f.waiver) ? new Date().toISOString().slice(0, 10) : null,
       f.goals || null, f.health_notes || null, f.equipment || null,
-      f.age || null, f.phone_texting || null, f.phone_whatsapp || null,
+      f.age || null, f.phone_texting || null, f.phone_whatsapp || null, f.email || null,
     ]
   );
   return client;

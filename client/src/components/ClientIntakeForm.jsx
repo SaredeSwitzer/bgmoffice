@@ -19,7 +19,7 @@ const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 const BLANK = {
   new_or_past: 'New', gender: '', client_name: '', referral: '', phone: '',
-  phone_texting: '', phone_whatsapp: '', age: '',
+  phone_texting: '', phone_whatsapp: '', age: '', email: '', send_waiver: false,
   style: '', neighborhood: '', address: '', participants: '', client_rate: '',
   time_slot: '', notes: '', waiver: 'No', instructor_info: '', confirmed: '',
   class_type: '', class_dates: '', referral_client_id: null,
@@ -40,6 +40,7 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
   const [done, setDone] = useState(null)
   const [neighborhoods, setNeighborhoods] = useState([])
   const [cardLink, setCardLink] = useState('')
+  const [waiver, setWaiver] = useState(null)   // { state: 'sending'|'sent'|'error', detail }
 
   // The neighborhoods already in use, so the same place doesn't end up spelled three ways.
   useEffect(() => {
@@ -74,7 +75,9 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
         create_client: !isPast && createClient,
         preferred_days: days.filter(d => d.day),
       })
-      setDone(saved)
+      // The form's own intent, not something the server decides: it is what the box said
+      // at the moment Save was pressed.
+      setDone({ ...saved, sent_waiver_to: (f.send_waiver && f.email.trim()) ? f.email.trim() : null })
       onSaved?.(saved)
     } catch (err) {
       setError(err.message || 'That did not save.')
@@ -84,7 +87,38 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
   function startAnother() {
     setF(BLANK); setClient(null); setCreateClient(true); setDays([]); setDone(null); setError('')
     setCardLink('')
+    setWaiver(null)
   }
+
+  // Two steps on purpose, reusing the same pair the client profile uses: /invite draws up
+  // the waiver and the covering email from the wording in Settings, /invite/:id/send is
+  // what actually posts it. Going through them rather than emailing directly means the
+  // signature is on file, so signing flips the client's profile to signed by itself.
+  async function sendWaiver(client, email) {
+    setWaiver({ state: 'sending' })
+    try {
+      const invite = await api.getClientContractInvitePreview({
+        client_id: client.id, contact_name: client.name, email,
+      })
+      await api.sendClientContractInvite(invite.signature_id, {
+        email, subject: invite.subject, body: invite.body,
+      })
+      setWaiver({ state: 'sent', detail: email })
+    } catch (e) {
+      // Never silent. The intake itself is saved either way, and a waiver everyone
+      // believes went out but didn't is worse than one nobody sent.
+      setWaiver({ state: 'error', detail: e.message || 'Could not send it.' })
+    }
+  }
+
+  // Fires once, on the confirmation screen, only when the box was ticked and there is
+  // both a client to attach it to and somewhere to send it.
+  useEffect(() => {
+    if (done?.client && done.sent_waiver_to && !waiver) {
+      sendWaiver(done.client, done.sent_waiver_to)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done])
 
   // Their card can be taken as soon as the profile exists — which it now does, a second
   // after the intake is saved. The link goes to the client; the number never touches us.
@@ -132,6 +166,42 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
             <li className="text-gray-500">No client profile was made — the entry keeps the name only.</li>
           )}
         </ul>
+        {done.client && (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
+            <p className="text-xs font-semibold text-gray-700">Waiver</p>
+            {waiver?.state === 'sending' && (
+              <p className="text-[11px] text-gray-500 mt-0.5">Sending the waiver…</p>
+            )}
+            {waiver?.state === 'sent' && (
+              <p className="text-[11px] text-green-700 mt-0.5">
+                ✓ Sent to {waiver.detail}. Their profile flips to signed the moment they sign it.
+              </p>
+            )}
+            {waiver?.state === 'error' && (
+              <p className="text-[11px] text-red-600 mt-0.5">
+                Not sent — {waiver.detail} The intake is saved; try again below.
+              </p>
+            )}
+            {(!waiver || waiver.state === 'error') && (
+              <>
+                {!waiver && (
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {done.client.email
+                      ? 'Not sent yet.'
+                      : 'No email on their profile — add one there to send it.'}
+                  </p>
+                )}
+                {done.client.email && (
+                  <button type="button"
+                    onClick={() => sendWaiver(done.client, done.client.email)}
+                    className="mt-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-white">
+                    Email the waiver to {done.client.email}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
         {done.client && (
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
             <p className="text-xs font-semibold text-gray-700">Card on file</p>
@@ -264,6 +334,26 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
               </select>
             </label>
           </div>
+        </div>
+        <div>
+          <label className={labelCls}>Email</label>
+          <input type="email" value={f.email} onChange={e => set('email', e.target.value)}
+            placeholder="For the waiver and invoices" className={inputCls} />
+          {/* The waiver goes out from the confirmation screen a second later, not from
+              here: it has to be attached to a client so that signing flips their profile
+              to signed, and the client doesn't exist until this form is saved. */}
+          {!isPast && createClient && (
+            <label className="flex items-start gap-2 mt-1.5 text-[11px] text-gray-600 select-none cursor-pointer">
+              <input type="checkbox" checked={f.send_waiver}
+                disabled={!f.email.trim()}
+                onChange={e => set('send_waiver', e.target.checked)}
+                className="mt-0.5 accent-gray-800 disabled:opacity-40" />
+              <span className={f.email.trim() ? '' : 'text-gray-400'}>
+                Email them the waiver to sign as soon as this is saved
+                {!f.email.trim() && ' — needs an email address'}
+              </span>
+            </label>
+          )}
         </div>
         <div>
           <label className={labelCls}>Class style</label>
