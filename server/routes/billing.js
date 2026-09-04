@@ -160,18 +160,28 @@ router.get('/week', async (req, res) => {
           AND s.status <> 'cancelled'
         GROUP BY s.client_id
      )
-     SELECT wk.client_id, wk.amount, wk.session_count,
+     ch AS (
+       SELECT * FROM recurring_charges WHERE week_start = $1::date
+     )
+     -- FULL OUTER, not a join from the classes side. A charge whose classes have since
+     -- been removed from the calendar has no row in wk, and would drop off the page
+     -- entirely — hiding the one case that most needs looking at, since a charge with no
+     -- classes behind it is money taken for nothing. Those rows appear with 0 classes.
+     SELECT COALESCE(wk.client_id, ch.client_id) AS client_id,
+            COALESCE(wk.amount, 0)::numeric(10,2) AS amount,
+            COALESCE(wk.session_count, 0)         AS session_count,
             c.name AS client_name, c.card_brand, c.card_last4,
             (c.card_last4 IS NOT NULL) AS has_card,
-            rc.status AS charged_status, rc.amount AS charged_amount,
+            ch.status AS charged_status, ch.amount AS charged_amount,
             -- Needed to refund it from the Billing page; a charge can only be sent back
             -- if we can point at the row that took the money.
-            rc.id AS charge_id, rc.stripe_payment_intent_id,
+            ch.id AS charge_id, ch.stripe_payment_intent_id,
+            (wk.client_id IS NULL) AS charged_without_classes,
             COALESCE((SELECT SUM(rf.amount) FROM refunds rf
-                       WHERE rf.recurring_charge_id = rc.id AND rf.status = 'succeeded'), 0) AS refunded_amount
+                       WHERE rf.recurring_charge_id = ch.id AND rf.status = 'succeeded'), 0) AS refunded_amount
        FROM wk
-       JOIN clients c ON c.id = wk.client_id
-       LEFT JOIN recurring_charges rc ON rc.client_id = wk.client_id AND rc.week_start = $1::date
+       FULL OUTER JOIN ch ON ch.client_id = wk.client_id
+       JOIN clients c ON c.id = COALESCE(wk.client_id, ch.client_id)
       ORDER BY c.name`,
     [start]
   );

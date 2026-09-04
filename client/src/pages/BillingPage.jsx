@@ -762,6 +762,14 @@ export default function BillingPage() {
                             <span className="text-red-600 font-medium"> · {money(r.refunded_amount)} refunded</span>
                           )}
                         </p>
+                        {/* Money taken for a week that now has nothing in it. Either the
+                            classes were removed after the charge, or it shouldn't have
+                            gone out — both are worth seeing rather than being hidden. */}
+                        {r.charged_without_classes && (
+                          <p className="text-[11px] text-red-600 mt-0.5">
+                            Charged, but there are no classes on the calendar for this week — check whether this should be refunded.
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {/* Only on a charge that actually went through Stripe — a charge
