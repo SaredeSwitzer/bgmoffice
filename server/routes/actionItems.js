@@ -1,7 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
-const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { syncMentions, deleteMentions, resolveMentionsForParent } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -96,6 +96,8 @@ router.put('/:id', async (req, res) => {
 router.patch('/:id/star', async (req, res) => {
   const result = await pool.query('UPDATE action_items SET starred=$1 WHERE id=$2', [req.body.starred ? 1 : 0, req.params.id]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Action item not found' });
+  // Resolved, so the tags asking someone to look at it are answered.
+  if (status === 'resolved') await resolveMentionsForParent('action_item', req.params.id);
   res.json(await getItem(req.params.id));
 });
 

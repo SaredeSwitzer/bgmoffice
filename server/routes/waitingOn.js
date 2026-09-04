@@ -1,7 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
-const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { syncMentions, deleteMentions, resolveMentionsForParent } = require('../lib/mentions');
 const { maybeScanInBackground } = require('../lib/detectWaitingOn');
 
 const router = express.Router();
@@ -132,10 +132,14 @@ router.post('/suggestions/:id/accept', async (req, res) => {
         WHERE id = $2 AND status = 'open'`,
       [req.user.initials, s.waiting_on_id]
     );
-    await pool.query(
-      `UPDATE reminders SET status = 'done' WHERE waiting_on_id = $1 AND status = 'pending'`,
+    const { rows: closed } = await pool.query(
+      `UPDATE reminders SET status = 'done' WHERE waiting_on_id = $1 AND status = 'pending' RETURNING id`,
       [s.waiting_on_id]
     );
+    // Settled, so the tags asking someone to chase it are answered — on the item itself
+    // and on any reminder that closed with it.
+    await resolveMentionsForParent('waiting_on', s.waiting_on_id);
+    for (const r of closed) await resolveMentionsForParent('reminder', r.id);
     ({ rows: [item] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [s.waiting_on_id]));
   } else {
     // `kind` steers which sub-tab the item shows under, so the card lets staff say which
@@ -236,10 +240,12 @@ router.patch('/:id/resolve', async (req, res) => {
     [req.user.initials, req.params.id]
   );
   if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
-  await pool.query(
-    `UPDATE reminders SET status = 'done' WHERE waiting_on_id = $1 AND status = 'pending'`,
+  const { rows: closed } = await pool.query(
+    `UPDATE reminders SET status = 'done' WHERE waiting_on_id = $1 AND status = 'pending' RETURNING id`,
     [req.params.id]
   );
+  await resolveMentionsForParent('waiting_on', req.params.id);
+  for (const r of closed) await resolveMentionsForParent('reminder', r.id);
   const { rows: [row] } = await pool.query(`${ITEM_JOIN} WHERE w.id = $1`, [req.params.id]);
   res.json(row);
 });

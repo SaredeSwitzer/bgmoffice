@@ -1,7 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
-const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { syncMentions, deleteMentions, resolveMentionsForParent } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -230,6 +230,8 @@ router.patch('/:id/done', async (req, res) => {
     [req.user.initials, req.params.id]
   );
   if (!row) return res.status(404).json({ error: 'Not found' });
+  // The line is settled, so anyone tagged on it no longer needs chasing.
+  await resolveMentionsForParent('waiting_sheet', req.params.id);
   res.json({ success: true });
 });
 

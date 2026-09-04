@@ -1,7 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
-const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { syncMentions, deleteMentions, resolveMentionsForParent } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -103,6 +103,8 @@ router.put('/:id', async (req, res) => {
 
 router.patch('/:id/done', async (req, res) => {
   await pool.query(`UPDATE reminders SET status = 'done' WHERE id = $1`, [req.params.id]);
+  // The work is done, so anyone tagged about it no longer needs chasing.
+  await resolveMentionsForParent('reminder', req.params.id);
   res.json({ ok: true });
 });
 

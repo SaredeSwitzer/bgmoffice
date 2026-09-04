@@ -1,7 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
-const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { syncMentions, deleteMentions, resolveMentionsForParent } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -57,6 +57,11 @@ router.put('/:id', async (req, res) => {
      instructor_id !== undefined ? (instructor_id || null) : existing.instructor_id,
      req.params.id]
   );
+  // Only on the edit that finishes it — re-saving an already-done task shouldn't
+  // re-clear a tag somebody deliberately put back.
+  if (status === 'done' && existing.status !== 'done') {
+    await resolveMentionsForParent('standalone_task', req.params.id);
+  }
   const { rows: [task] } = await pool.query(`${TASK_JOIN} WHERE st.id = $1`, [req.params.id]);
   await syncMentions({
     sourceTable: 'standalone_tasks', sourceId: req.params.id,

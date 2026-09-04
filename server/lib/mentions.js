@@ -75,7 +75,79 @@ async function stripMentionsForPublic(text) {
   return stripMentions(text, await getMentionableUsers());
 }
 
+// Clearing a tag when the thing it was about is finished.
+//
+// A mention is a request for someone's attention about a particular piece of work. Once
+// that work is marked done the request is answered by definition, but the tag stayed on
+// My Tasks regardless — so a list meant to show what still needs a person accumulated
+// items that didn't, and the ones that did got harder to see among them.
+//
+// Resolved, not deleted: it moves to "Show read @mentions" with Put back, the same as
+// clearing one by hand. Marking something done by mistake shouldn't lose the tag.
+const PARENT_NOTES = {
+  reminder:      { table: 'reminder_notes',      parent: 'reminder_id' },
+  action_item:   { table: 'follow_up_notes',     parent: 'action_item_id' },
+  waiting_sheet: { table: 'waiting_sheet_notes', parent: 'row_id' },
+  waiting_on:    { table: 'waiting_on_notes',    parent: 'waiting_on_id' },
+  recruiting:    { table: 'recruiting_notes',    parent: 'entry_id' },
+};
+
+// A mention can also sit on the thing itself rather than on one of its notes.
+const DIRECT_SOURCE = {
+  standalone_task: 'standalone_tasks',
+  action_item:     'action_items',
+};
+
+async function resolveMentionsForParent(kind, parentId) {
+  if (!parentId) return 0;
+  let cleared = 0;
+
+  const src = PARENT_NOTES[kind];
+  if (src) {
+    const { rowCount } = await pool.query(
+      `UPDATE mentions SET resolved_at = now()
+        WHERE resolved_at IS NULL AND source_table = $1
+          AND source_id IN (SELECT id FROM ${src.table} WHERE ${src.parent} = $2)`,
+      [src.table, parentId]
+    );
+    cleared += rowCount;
+  }
+
+  // Replies to a standalone task aren't rows — they're a JSON array on the task, so the
+  // ids have to be read out of it rather than selected.
+  if (kind === 'standalone_task') {
+    const { rows: [task] } = await pool.query('SELECT replies FROM standalone_tasks WHERE id = $1', [parentId]);
+    let ids = [];
+    try {
+      const parsed = JSON.parse(task?.replies || '[]');
+      if (Array.isArray(parsed)) ids = parsed.map(r => String(r.id)).filter(Boolean);
+    } catch { /* a malformed array is not a reason to fail marking something done */ }
+    if (ids.length) {
+      const { rowCount } = await pool.query(
+        `UPDATE mentions SET resolved_at = now()
+          WHERE resolved_at IS NULL AND source_table = 'task_replies'
+            AND source_id = ANY($1::bigint[])`,
+        [ids]
+      );
+      cleared += rowCount;
+    }
+  }
+
+  const direct = DIRECT_SOURCE[kind];
+  if (direct) {
+    const { rowCount } = await pool.query(
+      `UPDATE mentions SET resolved_at = now()
+        WHERE resolved_at IS NULL AND source_table = $1 AND source_id = $2`,
+      [direct, parentId]
+    );
+    cleared += rowCount;
+  }
+
+  return cleared;
+}
+
 module.exports = {
+  resolveMentionsForParent,
   getMentionableUsers, findMentionedUserIds, syncMentions, deleteMentions,
   stripMentions, stripMentionsForPublic,
 };
