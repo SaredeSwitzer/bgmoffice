@@ -289,13 +289,65 @@ router.get('/directory', async (req, res) => {
 // The five note tables don't share a shape — the parent column and the author column
 // are named differently in each — so this maps them once here rather than making the
 // front end know about any of it.
+//
+// `about` is what the note is hanging off — the reminder's title, the waiting-on item, the
+// task. Without it a note that reads only "@Sarede" arrives with no subject at all and the
+// reader has no idea what they've been pulled into, which is exactly how it went wrong.
 const NOTE_SOURCES = {
-  follow_up_notes:  { parent: 'action_item_id',  author: 'author_initials', reply: id => `/api/action-items/${id}/notes` },
-  recruiting_notes: { parent: 'entry_id',        author: 'author_initials', reply: id => `/api/recruiting/entries/${id}/notes` },
-  reminder_notes:   { parent: 'reminder_id',     author: 'author_initials', reply: id => `/api/reminders/${id}/notes` },
-  sales_lead_notes: { parent: 'sales_lead_id',   author: 'author_initials', reply: id => `/api/sales/${id}/notes` },
-  instructor_notes: { parent: 'instructor_id',   author: 'author',          reply: id => `/api/instructors/${id}/notes` },
+  follow_up_notes:  { parent: 'action_item_id',  author: 'author_initials', reply: id => `/api/action-items/${id}/notes`,
+                      about: { table: 'action_items',       title: 'initial_note' } },
+  recruiting_notes: { parent: 'entry_id',        author: 'author_initials', reply: id => `/api/recruiting/entries/${id}/notes`,
+                      about: { table: 'recruiting_entries', title: 'client_name' } },
+  reminder_notes:   { parent: 'reminder_id',     author: 'author_initials', reply: id => `/api/reminders/${id}/notes`,
+                      about: { table: 'reminders',          title: 'title' } },
+  sales_lead_notes: { parent: 'sales_lead_id',   author: 'author_initials', reply: id => `/api/sales/${id}/notes`,
+                      about: { table: 'sales_leads',        title: 'name' } },
+  instructor_notes: { parent: 'instructor_id',   author: 'author',          reply: id => `/api/instructors/${id}/notes`,
+                      about: { table: 'instructors',        title: 'name' } },
+  // These three were missing entirely, so a mention on any of them opened with no
+  // conversation and no reply box — the tag arrived and the note it came from did not.
+  waiting_on_notes: { parent: 'waiting_on_id',   author: 'author_initials', reply: id => `/api/waiting-on/${id}/notes`,
+                      about: { table: 'waiting_on_items',   title: 'what' } },
+  waiting_sheet_notes: { parent: 'row_id',       author: 'author',          reply: id => `/api/waiting-sheet/${id}/notes`,
+                      about: { table: 'waiting_sheet_rows', title: 'what' } },
 };
+
+// Replies to a standalone task aren't a table — they're a JSON array on the task itself,
+// so they can't be read the way every other source is and need their own path.
+async function taskReplyThread(sourceId) {
+  const { rows } = await pool.query(
+    `SELECT id, title, replies FROM standalone_tasks
+      WHERE replies IS NOT NULL AND replies LIKE $1`,
+    [`%${String(sourceId)}%`]
+  );
+  for (const task of rows) {
+    let replies;
+    try { replies = JSON.parse(task.replies); } catch { continue; }
+    if (!Array.isArray(replies)) continue;
+    const note = replies.find(r => String(r.id) === String(sourceId));
+    if (!note) continue;
+    return {
+      note: { id: note.id, text: note.text, author: note.author, created_at: note.created_at },
+      thread: replies.map(r => ({ id: r.id, text: r.text, author: r.author, created_at: r.created_at })),
+      about: { title: task.title, kind: 'Task' },
+      reply_to: { path: `/api/tasks/${task.id}/replies`, source_table: 'task_replies' },
+    };
+  }
+  return null;
+}
+
+// A one-line label for whatever the note is attached to.
+async function aboutFor(src, parentId) {
+  if (!src.about || parentId === null || parentId === undefined) return null;
+  try {
+    const { rows: [row] } = await pool.query(
+      `SELECT ${src.about.title} AS title FROM ${src.about.table} WHERE id = $1`, [parentId]
+    );
+    return row?.title ? { title: row.title, kind: src.about.kind || null } : null;
+  } catch {
+    return null;   // a label is never worth failing the whole thread over
+  }
+}
 
 router.get('/mentions/:id/thread', async (req, res) => {
   const { rows: [m] } = await pool.query(
@@ -304,17 +356,24 @@ router.get('/mentions/:id/thread', async (req, res) => {
   );
   if (!m) return res.status(404).json({ error: 'Not found' });
 
+  if (m.source_table === 'task_replies') {
+    const found = await taskReplyThread(m.source_id);
+    return res.json(found
+      ? { mention: m, ...found }
+      : { mention: m, note: null, thread: [], about: null, reply_to: null });
+  }
+
   const src = NOTE_SOURCES[m.source_table];
   // A mention on something without a note thread (a task title, say) still opens —
   // it just shows the snippet and offers the link out instead of a reply box.
-  if (!src) return res.json({ mention: m, note: null, thread: [], reply_to: null });
+  if (!src) return res.json({ mention: m, note: null, thread: [], about: null, reply_to: null });
 
   const { rows: [note] } = await pool.query(
     `SELECT id, text, ${src.author} AS author, created_at, ${src.parent} AS parent_id
        FROM ${m.source_table} WHERE id = $1`,
     [m.source_id]
   );
-  if (!note) return res.json({ mention: m, note: null, thread: [], reply_to: null });
+  if (!note) return res.json({ mention: m, note: null, thread: [], about: null, reply_to: null });
 
   // The few notes either side of it, so a one-line "@Sarede thoughts?" has the
   // conversation it belongs to attached instead of arriving with no context.
@@ -329,6 +388,7 @@ router.get('/mentions/:id/thread', async (req, res) => {
     mention: m,
     note,
     thread,
+    about: await aboutFor(src, note.parent_id),
     reply_to: { path: src.reply(note.parent_id), source_table: m.source_table },
   });
 });

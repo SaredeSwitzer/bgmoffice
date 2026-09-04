@@ -70,6 +70,14 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
           <h2 id="mention-thread-title" className="text-base font-bold text-gray-900 leading-snug">
             {mention.client_name || mention.instructor_name || 'In a note'}
           </h2>
+          {/* What the note is actually attached to. A tag with no message — "@Sarede" and
+              nothing else — is meaningless without it, and that is the common case. */}
+          {data?.about?.title && (
+            <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+              {data.about.kind ? `${data.about.kind}: ` : 'Re: '}
+              <span className="text-gray-700">{data.about.title}</span>
+            </p>
+          )}
         </div>
         <button onClick={onClose} title="Close"
           className="text-lg text-gray-300 hover:text-gray-700 leading-none shrink-0 -mt-1">✕</button>
