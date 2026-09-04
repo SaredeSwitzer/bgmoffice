@@ -42,7 +42,11 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
 
   // The neighborhoods already in use, so the same place doesn't end up spelled three ways.
   useEffect(() => {
-    api.getSignupNeighborhoods().then(rows => setNeighborhoods(rows || [])).catch(() => {})
+    // The endpoint answers { neighborhoods, regions } — reading it as a bare list put an
+    // object where a list was expected and took the whole page blank on open.
+    api.getSignupNeighborhoods()
+      .then(d => setNeighborhoods(Array.isArray(d) ? d : (d?.neighborhoods || [])))
+      .catch(() => {})
   }, [])
 
   const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
