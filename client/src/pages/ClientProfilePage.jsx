@@ -14,7 +14,8 @@ import DateInput from '../components/DateInput'
 import { renderWithMentions } from '../utils/mentions'
 import { fmtTimeRange } from '../utils/time'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
-import { InstructorLink } from '../components/NameLink'
+import { ClientLink, InstructorLink } from '../components/NameLink'
+import ClientOrNameInput from '../components/ClientOrNameInput'
 import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { useHashHighlight } from '../utils/hashHighlight'
 import ClientAddresses from '../components/ClientAddresses'
@@ -750,6 +751,9 @@ export default function ClientProfilePage() {
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [showNewCase, setShowNewCase] = useState(false)
+  // Only for the "referred by" box — offering the clients we already have so a referral
+  // becomes a link rather than a name that matches nothing.
+  const [allClients, setAllClients] = useState([])
   const [error, setError] = useState('')
 
   useHashHighlight([client])
@@ -768,8 +772,10 @@ export default function ClientProfilePage() {
       api.getRecruitingByClient(id),
       api.getRemindersByClient(id),
       api.getMentionableUsers(),
+      api.getClients(),
     ])
-      .then(([c, cs, instr, recr, rems, mentionable]) => {
+      .then(([c, cs, instr, recr, rems, mentionable, everyClient]) => {
+        setAllClients(everyClient || [])
         setClient(c)
         setEditForm({
           name: c.name, phone: c.phone || '', email: c.email || '',
@@ -789,6 +795,7 @@ export default function ClientProfilePage() {
           zip: c.zip || '',
           neighborhood: c.neighborhood || '',
           referred_by: c.referred_by || '',
+          referred_by_client_id: c.referred_by_client_id || null,
           gender: c.gender || '',
           track_last_class: c.track_last_class ? true : false,
           skip_weekly_reminder: c.skip_weekly_reminder ? true : false,
@@ -1076,8 +1083,12 @@ export default function ClientProfilePage() {
                   (which decides who can teach it). */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Referred by</label>
-                <input value={editForm.referred_by} onChange={e => setEditForm(f => ({ ...f, referred_by: e.target.value }))}
-                  placeholder="Who sent them to us" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <ClientOrNameInput
+                  value={{ name: editForm.referred_by, id: editForm.referred_by_client_id }}
+                  onChange={v => setEditForm(f => ({ ...f, referred_by: v.name, referred_by_client_id: v.id }))}
+                  clients={allClients.filter(c => String(c.id) !== String(id))}
+                  placeholder="Who sent them to us"
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Men's or women's class</label>
@@ -1133,9 +1144,28 @@ export default function ClientProfilePage() {
             <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
             {(client.referred_by || client.gender) && (
               <p className="text-xs text-gray-500 mt-1">
-                {client.referred_by && <>Referred by <span className="font-medium text-gray-700">{client.referred_by}</span></>}
+                {client.referred_by && (
+                  <>
+                    Referred by{' '}
+                    {client.referred_by_client_id
+                      ? <ClientLink id={client.referred_by_client_id} name={client.referred_by_client_name || client.referred_by} />
+                      : <span className="font-medium text-gray-700">{client.referred_by}</span>}
+                  </>
+                )}
                 {client.referred_by && client.gender ? ' · ' : ''}
                 {client.gender && <>{client.gender === 'Male' ? "Men's" : "Women's"} class</>}
+              </p>
+            )}
+            {/* The other direction — the reason linking a referral is worth doing. */}
+            {client.referred_clients?.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Sent us{' '}
+                {client.referred_clients.map((c, i) => (
+                  <span key={c.id}>
+                    {i > 0 && ', '}
+                    <ClientLink id={c.id} name={c.name} />
+                  </span>
+                ))}
               </p>
             )}
             {client.invoice_email && (() => {

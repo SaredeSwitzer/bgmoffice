@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import SearchSelect from './SearchSelect'
+import ClientOrNameInput from './ClientOrNameInput'
 
 // Taking a class on, typed straight into the app.
 //
@@ -20,7 +21,7 @@ const BLANK = {
   new_or_past: 'New', gender: '', client_name: '', referral: '', phone: '',
   style: '', neighborhood: '', address: '', participants: '', client_rate: '',
   time_slot: '', notes: '', waiver: 'No', instructor_info: '', confirmed: '',
-  class_type: '', class_dates: '',
+  class_type: '', class_dates: '', referral_client_id: null,
 }
 
 export default function ClientIntakeForm({ clients = [], styles = [], onSaved }) {
@@ -171,8 +172,13 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
           <label className={labelCls}>Who referred them?</label>
-          <input value={f.referral} onChange={e => set('referral', e.target.value)}
-            placeholder="Name, or how they found us" className={inputCls} />
+          {/* Usually another client — pick them and the name becomes a link on both
+              profiles. Anyone else (a neighbour, a school) is just typed in. */}
+          <ClientOrNameInput
+            value={{ name: f.referral, id: f.referral_client_id }}
+            onChange={v => setF(prev => ({ ...prev, referral: v.name, referral_client_id: v.id }))}
+            clients={clients}
+          />
         </div>
         <div>
           <label className={labelCls}>Phone</label>

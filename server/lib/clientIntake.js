@@ -56,6 +56,7 @@ async function fillBlanksOnClient(clientId, f) {
     rate_per_class: f.client_rate,
     default_style:  f.style,
     referred_by:    f.referral,
+    referred_by_client_id: f.referral_client_id,
     gender:         f.gender,
   };
   const fill = Object.entries(candidates)
@@ -82,14 +83,14 @@ async function fillBlanksOnClient(clientId, f) {
 async function createClientFromIntake(f) {
   const { rows: [client] } = await pool.query(
     `INSERT INTO clients (name, phone, street, neighborhood, rate_per_class, default_style,
-                          default_participants, referred_by, gender, waiver_signed, waiver_signed_date,
-                          client_type)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'individual') RETURNING *`,
+                          default_participants, referred_by, referred_by_client_id, gender,
+                          waiver_signed, waiver_signed_date, client_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'individual') RETURNING *`,
     [
       f.client_name.trim(), f.phone || null, f.address || null, f.neighborhood || null,
       f.client_rate || null, f.style || null,
       Number.isInteger(Number(f.participants)) && f.participants !== '' ? Number(f.participants) : null,
-      f.referral || null, f.gender || null,
+      f.referral || null, f.referral_client_id || null, f.gender || null,
       isYes(f.waiver) ? 1 : 0, isYes(f.waiver) ? new Date().toISOString().slice(0, 10) : null,
     ]
   );

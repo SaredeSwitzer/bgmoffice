@@ -67,7 +67,20 @@ router.get('/:id', async (req, res) => {
      WHERE cip.client_id = $1`,
     [req.params.id]
   );
-  res.json({ ...client, prefs });
+  // Referrals in both directions: who sent them to us (clickable when it's another
+  // client), and who they've sent us since — the payoff for recording it at intake.
+  const { rows: [referrer] } = client.referred_by_client_id
+    ? await pool.query('SELECT id, name FROM clients WHERE id = $1', [client.referred_by_client_id])
+    : { rows: [null] };
+  const { rows: referred } = await pool.query(
+    'SELECT id, name FROM clients WHERE referred_by_client_id = $1 ORDER BY name', [req.params.id]
+  );
+
+  res.json({
+    ...client, prefs,
+    referred_by_client_name: referrer?.name || null,
+    referred_clients: referred,
+  });
 });
 
 router.post('/', async (req, res) => {
@@ -77,7 +90,7 @@ router.post('/', async (req, res) => {
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
     default_age, default_participants, default_style,
     track_last_class, last_class_date, skip_weekly_reminder,
-    referred_by, gender,
+    referred_by, gender, referred_by_client_id,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
 
@@ -104,8 +117,9 @@ router.post('/', async (req, res) => {
         contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
         waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
         default_age, default_participants, default_style,
-        track_last_class, last_class_date, skip_weekly_reminder, referred_by, gender)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+        track_last_class, last_class_date, skip_weekly_reminder, referred_by, gender,
+        referred_by_client_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
      RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
@@ -117,7 +131,7 @@ router.post('/', async (req, res) => {
       client_type === 'organization' ? 'organization' : 'individual',
       default_age || null, default_participants === '' ? null : default_participants ?? null, default_style || null,
       !!track_last_class, last_class_date || null, !!skip_weekly_reminder,
-      referred_by || null, gender || null,
+      referred_by || null, gender || null, referred_by_client_id || null,
     ]
   );
   if (signatureToLink) {
@@ -132,7 +146,8 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query(
-    'SELECT id, skip_weekly_reminder, referred_by, gender FROM clients WHERE id = $1', [req.params.id]
+    'SELECT id, skip_weekly_reminder, referred_by, gender, referred_by_client_id FROM clients WHERE id = $1',
+    [req.params.id]
   );
   if (!existing) return res.status(404).json({ error: 'Client not found' });
 
@@ -141,7 +156,7 @@ router.put('/:id', async (req, res) => {
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
     track_last_class, last_class_date, default_age, default_participants, default_style,
-    skip_weekly_reminder, referred_by, gender,
+    skip_weekly_reminder, referred_by, gender, referred_by_client_id,
   } = req.body;
 
   // PUT replaces the whole record, so an omitted field would silently clear it. This flag
@@ -157,10 +172,13 @@ router.put('/:id', async (req, res) => {
   // not wipe them. Sent-but-empty still clears, which is how you correct a wrong answer.
   const nextReferredBy = referred_by === undefined ? existing.referred_by : (referred_by || null);
   const nextGender     = gender     === undefined ? existing.gender     : (gender     || null);
+  const nextReferrerId = referred_by_client_id === undefined
+    ? existing.referred_by_client_id
+    : (referred_by_client_id || null);
 
   const { rows: [client] } = await pool.query(
     `UPDATE clients SET
-       referred_by=$27, gender=$28,
+       referred_by=$27, gender=$28, referred_by_client_id=$29,
        name=$1, phone=$2, email=$3, invoice_email=$4, preferred_contact=$5, notes=$6, rate_per_class=$7,
        contact_person_name=$8, contact_person_phone=$9, contact_person_email=$10, contact_person_role=$11,
        waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
@@ -180,7 +198,7 @@ router.put('/:id', async (req, res) => {
       default_age || null, default_participants === '' ? null : default_participants ?? null, default_style || null,
       nextSkipWeekly,
       req.params.id,
-      nextReferredBy, nextGender,
+      nextReferredBy, nextGender, nextReferrerId,
     ]
   );
   await syncMentions({
