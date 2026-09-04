@@ -148,7 +148,8 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query(
     `SELECT id, skip_weekly_reminder, referred_by, gender, referred_by_client_id,
-            goals, health_notes, equipment FROM clients WHERE id = $1`,
+            goals, health_notes, equipment, phone_texting, phone_whatsapp
+       FROM clients WHERE id = $1`,
     [req.params.id]
   );
   if (!existing) return res.status(404).json({ error: 'Client not found' });
@@ -159,7 +160,7 @@ router.put('/:id', async (req, res) => {
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
     track_last_class, last_class_date, default_age, default_participants, default_style,
     skip_weekly_reminder, referred_by, gender, referred_by_client_id,
-    goals, health_notes, equipment,
+    goals, health_notes, equipment, phone_texting, phone_whatsapp,
   } = req.body;
 
   // PUT replaces the whole record, so an omitted field would silently clear it. This flag
@@ -181,11 +182,17 @@ router.put('/:id', async (req, res) => {
   const nextGoals     = goals        === undefined ? existing.goals        : (goals        || null);
   const nextHealth    = health_notes === undefined ? existing.health_notes : (health_notes || null);
   const nextEquipment = equipment    === undefined ? existing.equipment    : (equipment    || null);
+  // Same rule again: whether a number takes texts is asked at intake and not repeated on
+  // every form that saves a client, and it is exactly the kind of answer that must not be
+  // lost by someone correcting a postcode.
+  const nextTexting  = phone_texting  === undefined ? existing.phone_texting  : (phone_texting  || null);
+  const nextWhatsapp = phone_whatsapp === undefined ? existing.phone_whatsapp : (phone_whatsapp || null);
 
   const { rows: [client] } = await pool.query(
     `UPDATE clients SET
        referred_by=$27, gender=$28, referred_by_client_id=$29,
        goals=$30, health_notes=$31, equipment=$32,
+       phone_texting=$33, phone_whatsapp=$34,
        name=$1, phone=$2, email=$3, invoice_email=$4, preferred_contact=$5, notes=$6, rate_per_class=$7,
        contact_person_name=$8, contact_person_phone=$9, contact_person_email=$10, contact_person_role=$11,
        waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
@@ -207,6 +214,7 @@ router.put('/:id', async (req, res) => {
       req.params.id,
       nextReferredBy, nextGender, nextReferrerId,
       nextGoals, nextHealth, nextEquipment,
+      nextTexting, nextWhatsapp,
     ]
   );
   await syncMentions({

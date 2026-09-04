@@ -9,13 +9,29 @@ const CONTACT_COLORS = {
   call:     'bg-orange-100 text-orange-700',
 }
 
-export default function ContactInfo({ phone, email, preferred_contact }) {
+export default function ContactInfo({ phone, email, preferred_contact, phone_texting, phone_whatsapp }) {
   return (
     <div className="flex flex-wrap gap-4 text-sm">
       {phone && (
         <div>
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Phone</p>
           <PhoneLink phone={phone} />
+          {/* Answered at intake. "No" is the one worth seeing before anybody types a
+              message — a number that doesn't take texts silently swallows them. */}
+          {(phone_texting || phone_whatsapp) && (
+            <p className="text-[11px] mt-0.5 flex flex-wrap gap-1.5">
+              {phone_texting && (
+                <span className={phone_texting === 'No' ? 'text-red-600 font-semibold' : 'text-gray-500'}>
+                  {phone_texting === 'No' ? 'No texts' : 'Texts OK'}
+                </span>
+              )}
+              {phone_whatsapp && (
+                <span className={phone_whatsapp === 'No' ? 'text-gray-400' : 'text-green-700 font-semibold'}>
+                  {phone_whatsapp === 'No' ? 'No WhatsApp' : 'WhatsApp'}
+                </span>
+              )}
+            </p>
+          )}
         </div>
       )}
       {email && (

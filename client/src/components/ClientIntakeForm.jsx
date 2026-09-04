@@ -19,6 +19,7 @@ const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 const BLANK = {
   new_or_past: 'New', gender: '', client_name: '', referral: '', phone: '',
+  phone_texting: '', phone_whatsapp: '', age: '',
   style: '', neighborhood: '', address: '', participants: '', client_rate: '',
   time_slot: '', notes: '', waiver: 'No', instructor_info: '', confirmed: '',
   class_type: '', class_dates: '', referral_client_id: null,
@@ -239,6 +240,30 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
         <div>
           <label className={labelCls}>Phone</label>
           <input value={f.phone} onChange={e => set('phone', e.target.value)} className={inputCls} />
+          {/* Asked on the call and otherwise lost. Whether a number takes texts decides
+              whether a reminder can be sent at all, and plenty of numbers here are
+              WhatsApp-only — guessing wrong means the message is never seen. Left blank
+              means nobody asked, which is not the same as "no". */}
+          <div className="grid grid-cols-2 gap-2 mt-1.5">
+            <label className="text-[11px] text-gray-500">
+              Texting?
+              <select value={f.phone_texting} onChange={e => set('phone_texting', e.target.value)}
+                className={`${selectCls} mt-0.5`}>
+                <option value="">Didn’t ask</option>
+                <option value="Yes">Yes — texts OK</option>
+                <option value="No">No texts</option>
+              </select>
+            </label>
+            <label className="text-[11px] text-gray-500">
+              WhatsApp?
+              <select value={f.phone_whatsapp} onChange={e => set('phone_whatsapp', e.target.value)}
+                className={`${selectCls} mt-0.5`}>
+                <option value="">Didn’t ask</option>
+                <option value="Yes">Yes — on WhatsApp</option>
+                <option value="No">Not on WhatsApp</option>
+              </select>
+            </label>
+          </div>
         </div>
         <div>
           <label className={labelCls}>Class style</label>
@@ -264,6 +289,13 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
         <div>
           <label className={labelCls}># of participants</label>
           <input value={f.participants} onChange={e => set('participants', e.target.value)} className={inputCls} />
+        </div>
+        <div>
+          {/* Free text on purpose: the useful answer is as often "60s" or "kids 8-11" as
+              it is a number, and it goes to the instructor as-is. */}
+          <label className={labelCls}>Age</label>
+          <input value={f.age} onChange={e => set('age', e.target.value)}
+            placeholder="e.g. 34, or 60s, or kids 8–11" className={inputCls} />
         </div>
         <div>
           <label className={labelCls}>Rate charging client</label>
@@ -381,6 +413,16 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {/* There is no card box on this form and there shouldn't be: taking a card needs a
+          client to attach it to, and that client doesn't exist until this is saved. Saying
+          so here stops the form reading as though the question were forgotten. */}
+      {!isPast && createClient && (
+        <p className="text-[11px] text-gray-500">
+          Card details come after this — saving makes their profile, and the next screen
+          offers a link to send them, or you can key it in from their profile.
+        </p>
+      )}
 
       <div className="flex gap-2">
         <button type="submit" disabled={saving}

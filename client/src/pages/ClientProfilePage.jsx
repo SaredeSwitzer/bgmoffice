@@ -781,6 +781,7 @@ export default function ClientProfilePage() {
           name: c.name, phone: c.phone || '', email: c.email || '',
           invoice_email: c.invoice_email || '',
           preferred_contact: c.preferred_contact || '', notes: c.notes || '',
+          phone_texting: c.phone_texting || '', phone_whatsapp: c.phone_whatsapp || '',
           rate_per_class: c.rate_per_class || '',
           client_type: c.client_type === 'organization' ? 'organization' : 'individual',
           contact_person_name: c.contact_person_name || '',
@@ -909,6 +910,24 @@ export default function ClientProfilePage() {
                   <option value="email">Email</option>
                   <option value="whatsapp">WhatsApp</option>
                   <option value="call">Call</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Takes texts?</label>
+                <select value={editForm.phone_texting} onChange={e => setEditForm(f => ({ ...f, phone_texting: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+                  <option value="">Not asked</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">On WhatsApp?</label>
+                <select value={editForm.phone_whatsapp} onChange={e => setEditForm(f => ({ ...f, phone_whatsapp: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+                  <option value="">Not asked</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
                 </select>
               </div>
               <div>
@@ -1163,7 +1182,8 @@ export default function ClientProfilePage() {
                 </button>
               </div>
             </div>
-            <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
+            <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact}
+              phone_texting={client.phone_texting} phone_whatsapp={client.phone_whatsapp} />
             {(client.referred_by || client.gender) && (
               <p className="text-xs text-gray-500 mt-1">
                 {client.referred_by && (
