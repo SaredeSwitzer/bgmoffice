@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import ErrorBoundary from './ErrorBoundary'
 import PasskeyPrompt from './PasskeyPrompt'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
@@ -15,6 +16,7 @@ function Shell() {
   useEffect(() => { if (user) loadDirectory() }, [user])
   const { overdueCount } = useRemindersContext()
   const navigate = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
 
   function handleLogout() {
@@ -131,7 +133,9 @@ function Shell() {
 
       {/* Page content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-6">
-        <Outlet />
+        <ErrorBoundary key={location.pathname} what="this page">
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* Amber floating chat */}

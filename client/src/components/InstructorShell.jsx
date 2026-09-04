@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import ErrorBoundary from './ErrorBoundary'
 import { useAuth } from '../context/AuthContext'
 
 // Minimal shell for instructor accounts: no admin nav, no Amber chat, no staff tools.
@@ -8,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 export default function InstructorShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   function handleLogout() {
     logout()
@@ -55,7 +57,9 @@ export default function InstructorShell() {
         </div>
       </header>
       <main className="flex-1 max-w-2xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
-        <Outlet />
+        <ErrorBoundary key={location.pathname} what="this page">
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   )
