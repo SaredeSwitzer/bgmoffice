@@ -526,6 +526,10 @@ export default function RemindersPage() {
   const [showInstructorCheckIn, setShowInstructorCheckIn] = useState(false)
   const [showWaiverContract,    setShowWaiverContract]    = useState(false)
   const [followUpReminder, setFollowUpReminder] = useState(null)
+  // A reminder linked to from elsewhere (an @mention on one of its notes) that isn't in
+  // either list because it's already been marked done. Without this the link lands on a
+  // page that simply doesn't contain it, and says nothing about why.
+  const [linkedDone, setLinkedDone] = useState(null)
 
   function load() {
     return api.getReminders().then(({ overdue: o, upcoming: u }) => {
@@ -543,6 +547,19 @@ export default function RemindersPage() {
       api.getMentionableUsers().then(setMentionableUsers),
     ]).finally(() => setLoading(false))
   }, [])
+
+  // Only once the lists are in: if what we were sent to isn't among them, fetch it on its
+  // own so the page can still show the thing it was asked to show.
+  useEffect(() => {
+    if (loading || !targetReminderId) { setLinkedDone(null); return }
+    const inList = [...overdue, ...upcoming].some(r => String(r.id) === targetReminderId)
+    if (inList) { setLinkedDone(null); return }
+    let cancelled = false
+    api.getReminder(targetReminderId)
+      .then(r => { if (!cancelled) setLinkedDone(r) })
+      .catch(() => { if (!cancelled) setLinkedDone(null) })
+    return () => { cancelled = true }
+  }, [loading, targetReminderId, overdue, upcoming])
 
   async function handleDone(reminder) {
     await api.markReminderDone(reminder.id)
@@ -605,6 +622,22 @@ export default function RemindersPage() {
           </button>
         </div>
       </div>
+
+      {linkedDone && (
+        <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/60 px-4 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 mb-1">
+            You were sent here for this one — it’s already marked done
+          </p>
+          <p className="text-sm font-semibold text-gray-900">{linkedDone.title}</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {[linkedDone.client_name, linkedDone.instructor_name].filter(Boolean).join(' · ')}
+            {linkedDone.remind_on ? ` · was due ${linkedDone.remind_on}` : ''}
+          </p>
+          {linkedDone.notes && (
+            <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{linkedDone.notes}</p>
+          )}
+        </div>
+      )}
 
       <Section
         title="Overdue"

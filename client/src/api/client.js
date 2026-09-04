@@ -237,6 +237,7 @@ export const api = {
 
   // Reminders
   getReminders: () => request('/reminders'),
+  getReminder: (id) => request(`/reminders/${id}`),
   getRemindersByClient: (clientId) => request(`/reminders?client_id=${clientId}`),
   // Options an instructor typed in that staff still need to eyeball — see
   // server/routes/approvals.js.

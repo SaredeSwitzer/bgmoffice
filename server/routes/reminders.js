@@ -49,6 +49,20 @@ router.get('/', async (req, res) => {
   });
 });
 
+// One reminder by id, whatever its status.
+//
+// The list above is deliberately pending-only, but an @mention on a reminder note links
+// straight here — and a reminder that has since been marked done vanished from the page
+// entirely, so following the mention landed on a list that didn't contain the thing it
+// was pointing at. Nothing said so; it just wasn't there.
+router.get('/:id', async (req, res) => {
+  const { rows: [reminder] } = await pool.query(
+    `${REMINDER_JOIN} WHERE r.id = $1`, [req.params.id]
+  );
+  if (!reminder) return res.status(404).json({ error: 'Reminder not found' });
+  res.json({ ...reminder, case_id: reminder.resolved_case_id });
+});
+
 router.post('/', async (req, res) => {
   const { title, notes, remind_on, client_id, instructor_id, case_id, action_item_id, delegate_name } = req.body;
   if (!title || !remind_on) return res.status(400).json({ error: 'title and remind_on are required' });
