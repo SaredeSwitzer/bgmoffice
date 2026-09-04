@@ -35,6 +35,39 @@ async function ensureCustomer(client, stripe) {
 
 // After a SetupIntent succeeds, attach its card to the client as the default and
 // remember the brand/last4 for display. Shared by the public and in-app save flows.
+// A client can have several cards — a personal one and the husband's, a business card
+// for the school. Saving a card ADDS one; it never quietly replaces what's already there.
+//
+// The first card saved becomes the default. A later one is kept alongside and only
+// becomes the default if somebody says so, because the card a weekly charge lands on is
+// not something to change as a side effect of typing in another one.
+//
+// clients.stripe_payment_method_id / card_brand / card_last4 are kept in step with
+// whichever card is the default, so the charge code, the Billing page and every "has a
+// card on file" check carry on working untouched.
+async function setDefaultCard(clientId, cardId, stripe) {
+  const { rows: [card] } = await pool.query(
+    'SELECT * FROM client_cards WHERE id = $1 AND client_id = $2', [cardId, clientId]
+  );
+  if (!card) throw new Error('That card is not on this client');
+
+  const { rows: [client] } = await pool.query('SELECT stripe_customer_id FROM clients WHERE id = $1', [clientId]);
+  if (stripe && client?.stripe_customer_id) {
+    await stripe.customers.update(client.stripe_customer_id, {
+      invoice_settings: { default_payment_method: card.stripe_payment_method_id },
+    });
+  }
+  // Clear first: the partial unique index allows only one default per client, so both
+  // statements can't be in flight with two defaults set.
+  await pool.query('UPDATE client_cards SET is_default = false WHERE client_id = $1', [clientId]);
+  await pool.query('UPDATE client_cards SET is_default = true  WHERE id = $1', [cardId]);
+  await pool.query(
+    `UPDATE clients SET stripe_payment_method_id=$1, card_brand=$2, card_last4=$3 WHERE id=$4`,
+    [card.stripe_payment_method_id, card.brand, card.last4, clientId]
+  );
+  return card;
+}
+
 async function storeCardFromSetupIntent(clientId, setupIntentId, stripe) {
   const si = await stripe.setupIntents.retrieve(setupIntentId);
   if (si.status !== 'succeeded' || !si.payment_method) {
@@ -42,15 +75,33 @@ async function storeCardFromSetupIntent(clientId, setupIntentId, stripe) {
   }
   const pm = await stripe.paymentMethods.retrieve(si.payment_method);
   const customerId = si.customer;
-  // Make it the customer's default so charges "just work".
-  await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: pm.id } });
   const card = pm.card || {};
-  await pool.query(
-    `UPDATE clients SET stripe_customer_id=$1, stripe_payment_method_id=$2,
-       card_brand=$3, card_last4=$4, card_saved_at=now() WHERE id=$5`,
-    [customerId, pm.id, card.brand || null, card.last4 || null, clientId]
+
+  await pool.query('UPDATE clients SET stripe_customer_id=$1, card_saved_at=now() WHERE id=$2',
+    [customerId, clientId]);
+
+  const { rows: [existingDefault] } = await pool.query(
+    'SELECT id FROM client_cards WHERE client_id = $1 AND is_default', [clientId]
   );
-  return { card_brand: card.brand || null, card_last4: card.last4 || null };
+  const { rows: [saved] } = await pool.query(
+    `INSERT INTO client_cards (client_id, stripe_payment_method_id, brand, last4, exp_month, exp_year, added_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (client_id, stripe_payment_method_id)
+       DO UPDATE SET brand=EXCLUDED.brand, last4=EXCLUDED.last4,
+                     exp_month=EXCLUDED.exp_month, exp_year=EXCLUDED.exp_year
+     RETURNING id`,
+    [clientId, pm.id, card.brand || null, card.last4 || null,
+     card.exp_month || null, card.exp_year || null, 'save-card link']
+  );
+
+  // Only the first card claims the default slot.
+  if (!existingDefault) await setDefaultCard(clientId, saved.id, stripe);
+
+  return {
+    card_brand: card.brand || null,
+    card_last4: card.last4 || null,
+    is_default: !existingDefault,
+  };
 }
 
 // ── Public "save your card" flow (no auth — backs the /save-card/:token link) ──
@@ -159,7 +210,7 @@ router.get('/week', async (req, res) => {
           AND (s.payment_method ILIKE '%CC%' OR s.payment_method ILIKE '%credit%')
           AND s.status <> 'cancelled'
         GROUP BY s.client_id
-     )
+     ),
      ch AS (
        SELECT * FROM recurring_charges WHERE week_start = $1::date
      )
