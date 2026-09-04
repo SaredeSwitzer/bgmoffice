@@ -92,7 +92,12 @@ async function loadMentionTasks(userId) {
     `SELECT m.id, m.source_table, m.source_id, m.snippet, m.author_initials, m.created_at, m.link_path,
             COALESCE(re.client_name, cl.name, icl.name, stcl.name, aicl.name, fucl.name, rncl.name, slcl.name, sl.name,
                      wsp_client.name) AS client_name,
-            COALESCE(stins.name, aiins.name, fuins.name, rnins.name, insn.name, wsp_instr.name) AS instructor_name
+            COALESCE(stins.name, aiins.name, fuins.name, rnins.name, insn.name, wsp_instr.name) AS instructor_name,
+            -- What the note is hanging off. Without it the row reads "MA: @Sarede" and
+            -- says nothing at all — a tag with no message is common and perfectly normal,
+            -- and the subject is the only part carrying meaning.
+            COALESCE(rnr.title, stt.title, trt.title, fuai.initial_note, ai.initial_note,
+                     wsr.what, woi.what) AS about
      FROM mentions m
      LEFT JOIN recruiting_notes    rn    ON m.source_table = 'recruiting_notes' AND rn.id = m.source_id
      LEFT JOIN recruiting_entries  re    ON re.id = rn.entry_id
@@ -141,6 +146,17 @@ async function loadMentionTasks(userId) {
      LEFT JOIN LATERAL (SELECT p.name FROM waiting_sheet_people p
                          WHERE p.row_id = wsn.row_id AND p.kind = 'instructor'
                          ORDER BY p.created_at LIMIT 1) wsp_instr ON true
+     LEFT JOIN waiting_sheet_rows   wsr  ON wsr.id = wsn.row_id
+     -- waiting_on_notes had no join here at all, so a mention from the Waiting On list
+     -- arrived with neither a name nor a subject.
+     LEFT JOIN waiting_on_notes     won  ON m.source_table = 'waiting_on_notes' AND won.id = m.source_id
+     LEFT JOIN waiting_on_items     woi  ON woi.id = won.waiting_on_id
+     -- A reply to a standalone task isn't a table: replies are a JSON array on the task,
+     -- so the only way back to the task is to find the one whose array holds this id.
+     -- Matched on the "id": prefix rather than the bare number so a reply id can't be
+     -- picked up out of the middle of some other value.
+     LEFT JOIN standalone_tasks     trt  ON m.source_table = 'task_replies'
+                                        AND trt.replies LIKE '%"id":' || m.source_id || '%'
      WHERE m.mentioned_user_id = $1 AND m.resolved_at IS NULL
      ORDER BY m.created_at DESC`,
     [userId]
@@ -158,6 +174,7 @@ async function loadMentionTasks(userId) {
     // id="note-<source_table>-<id>" DOM id (table-namespaced since source ids aren't
     // unique across tables), see client/src/utils/hashHighlight.js.
     link_path: m.link_path ? `${m.link_path}#note-${m.source_table}-${m.source_id}` : null,
+    about: m.about || null,
     last_note: { text: m.snippet, author_initials: m.author_initials },
   }));
 }

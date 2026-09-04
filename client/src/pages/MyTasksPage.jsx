@@ -126,11 +126,19 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
         :              'hover:bg-gray-50'
       }`}
     >
-      <td className="px-3 py-2.5 text-sm whitespace-nowrap">
-        <span className={`flex items-center gap-1.5 ${isNew ? 'font-bold text-gray-900' : 'text-gray-900'}`}>
+      <td className="px-3 py-2.5 text-sm">
+        <span className={`flex items-center gap-1.5 whitespace-nowrap ${isNew ? 'font-bold text-gray-900' : 'text-gray-900'}`}>
           {isNew && <span className="inline-block w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
           {item.client_name ? <ClientLink id={item.client_id} name={item.client_name} /> : <span className="text-gray-400 font-normal">—</span>}
         </span>
+        {/* What the mention is actually about. The client's name alone doesn't say why
+            someone tagged you, and plenty of mentions are a bare "@Sarede" with no message
+            — for those this is the only line that means anything. */}
+        {item.about && (
+          <span className="block text-[11px] text-gray-500 leading-snug truncate max-w-[260px]" title={item.about}>
+            {item.about}
+          </span>
+        )}
       </td>
       <td className="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">
         {item.instructor_name ? <InstructorLink id={item.instructor_id} name={item.instructor_name} /> : <span className="text-gray-400">—</span>}
