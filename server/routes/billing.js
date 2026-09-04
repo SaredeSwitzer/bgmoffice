@@ -163,7 +163,12 @@ router.get('/week', async (req, res) => {
      SELECT wk.client_id, wk.amount, wk.session_count,
             c.name AS client_name, c.card_brand, c.card_last4,
             (c.card_last4 IS NOT NULL) AS has_card,
-            rc.status AS charged_status, rc.amount AS charged_amount
+            rc.status AS charged_status, rc.amount AS charged_amount,
+            -- Needed to refund it from the Billing page; a charge can only be sent back
+            -- if we can point at the row that took the money.
+            rc.id AS charge_id, rc.stripe_payment_intent_id,
+            COALESCE((SELECT SUM(rf.amount) FROM refunds rf
+                       WHERE rf.recurring_charge_id = rc.id AND rf.status = 'succeeded'), 0) AS refunded_amount
        FROM wk
        JOIN clients c ON c.id = wk.client_id
        LEFT JOIN recurring_charges rc ON rc.client_id = wk.client_id AND rc.week_start = $1::date

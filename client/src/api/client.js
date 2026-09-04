@@ -247,6 +247,12 @@ export const api = {
   replyToMention: (path, text) =>
     request(path.replace(/^\/api/, ''), { method: 'POST', body: JSON.stringify({ text }) }),
 
+  // Refunds — Sarede-only on the server; the UI hides the buttons for everyone else.
+  getRefundAvailable: (params) =>
+    request(`/refunds/available?${new URLSearchParams(params).toString()}`),
+  listRefunds: () => request('/refunds'),
+  createRefund: (body) => request('/refunds', { method: 'POST', body: JSON.stringify(body) }),
+
   getPendingApprovals: () => request('/approvals'),
   getDecidedApprovals: () => request('/approvals/decided'),
   approveOption: (id, body) =>

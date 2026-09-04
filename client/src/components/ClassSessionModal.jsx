@@ -21,11 +21,30 @@ const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Pa
 //   session: null                    → create new, pre-filled with `defaultDate`
 //   session: {...}                   → edit that session in place
 //   session: {...}, duplicate: true  → pre-filled from that session, but saves as a new one
+// An instructor's rate is a free-text field and is used as one: of 101 instructors, 24
+// hold a clean number, 74 hold nothing, and a handful hold a sentence — "$200 per day at
+// Beth Shalom", "$65 usually but gave him $80 for ... extra travel time". Copying that
+// straight into the pay box put "$50" into a number input (which shows blank), pasted
+// prose into a payroll figure, and — worst — wiped the pay to empty for the 74 with no
+// rate at all. A blank pay is how somebody ends up unpaid.
+//
+// So read it, don't trust it: only a bare number is used, anything else is shown to the
+// person and the pay is left alone.
+function readRate(payRate) {
+  const raw = (payRate ?? '').trim()
+  if (!raw) return { amount: null, note: null }
+  const m = /^\$?\s*([0-9]+(?:\.[0-9]+)?)$/.exec(raw)
+  if (m) return { amount: m[1], note: null }
+  return { amount: null, note: raw }
+}
+
 export default function ClassSessionModal({ session, defaultDate, duplicate = false, onClose, onSaved, onDeleted }) {
   const isEdit = !!session?.id && !duplicate
   const { user } = useAuth()
   const [clients, setClients] = useState([])
   const [instructors, setInstructors] = useState([])
+  // Why the pay box says what it says, after an instructor change.
+  const [rateNote, setRateNote] = useState(null)
   const [form, setForm] = useState({
     client: session ? {
       id: session.client_id, name: session.client_name,
@@ -204,13 +223,17 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
                 participant_ages: f.participant_ages || v?.default_age || '',
               }))} placeholder="Search client…" />
             <SearchSelect label="Instructor" options={instructors} value={form.instructor}
-              onChange={v => setForm(f => ({
-                ...f,
-                instructor: v,
+              onChange={v => {
                 // Pay follows whoever is actually teaching, not the client or a prior
-                // instructor's rate — e.g. when someone subs a one-off class.
-                instructor_pay: v?.pay_rate ?? f.instructor_pay,
-              }))} placeholder="Search instructor…" />
+                // instructor's rate — e.g. when someone subs a one-off class. Only a
+                // clean number is taken; see readRate.
+                const { amount, note } = readRate(v?.pay_rate)
+                setForm(f => ({ ...f, instructor: v, instructor_pay: amount ?? f.instructor_pay }))
+                setRateNote(!v ? null
+                  : amount ? { kind: 'set',  text: `set from ${v.name}'s rate ($${amount})` }
+                  : note   ? { kind: 'note', text: `${v.name}'s rate is recorded as “${note}” — set the pay by hand` }
+                  :          { kind: 'none', text: `No rate on file for ${v.name} — pay left as it was` })
+              }} placeholder="Search instructor…" />
             {form.client && (
               <>
                 <ClientAddressEditor
@@ -286,8 +309,18 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Instructor pay</label>
-                <input type="number" step="1" value={form.instructor_pay} onChange={e => setField('instructor_pay', e.target.value)}
+                <input type="number" step="1" value={form.instructor_pay}
+                  onChange={e => { setField('instructor_pay', e.target.value); setRateNote(null) }}
                   placeholder="60" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                {/* Where this number came from. A pay that changes on its own with no
+                    explanation is worse than one you typed. Clears the moment it's edited. */}
+                {rateNote && (
+                  <p className={`text-[11px] mt-1 leading-snug ${
+                    rateNote.kind === 'set' ? 'text-green-700' :
+                    rateNote.kind === 'note' ? 'text-amber-600' : 'text-gray-500'}`}>
+                    {rateNote.text}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Payment method</label>

@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
+import RefundModal from '../components/RefundModal'
+import { isSaredeUser } from '../utils/saredeAccess'
 import { navClick } from '../utils/nav'
+import { useAuth } from '../context/AuthContext'
 import SearchSelect from '../components/SearchSelect'
 import SendInvoiceModal from '../components/SendInvoiceModal'
 import MentionTextarea from '../components/MentionTextarea'
@@ -32,6 +35,7 @@ function fmtDate(iso) {
 const EMPTY_LINE = { description: '', class_date: '', unit_price: '' }
 
 export default function InvoiceDetailPage() {
+  const { user } = useAuth()
   const { id } = useParams()
   const navigate = useNavigate()
   const [invoice, setInvoice] = useState(null)
@@ -55,6 +59,12 @@ export default function InvoiceDetailPage() {
     return api.getInvoicePayments(id).then(setPayments)
   }
 
+  // After a refund the invoice's own figures change (amount paid, and its status when the
+  // whole lot goes back), so the invoice is re-read, not just the payment list.
+  function reloadInvoice() {
+    return Promise.all([api.getInvoice(id).then(setInvoice), loadPayments()])
+  }
+
   useEffect(() => {
     Promise.all([
       api.getInvoice(id),
@@ -72,6 +82,9 @@ export default function InvoiceDetailPage() {
   }, [id])
 
   const balanceDue = invoice ? Math.max(invoice.total - (invoice.amount_paid || 0), 0) : 0
+  // Refunds are Sarede's alone (enforced server-side); the button isn't drawn otherwise.
+  const canRefund = isSaredeUser(user)
+  const [refunding, setRefunding] = useState(false)
 
   function startPaymentForm() {
     setPaymentForm({ amount: balanceDue ? balanceDue.toFixed(2) : '', paid_date: today(), method: 'cash', note: '' })
@@ -641,6 +654,14 @@ export default function InvoiceDetailPage() {
                     </div>
                   </>
                 )}
+                {/* Only a card payment can be sent back — an invoice settled by cheque or
+                    Zelle has no Stripe payment behind it. */}
+                {canRefund && invoice.paid_at && invoice.stripe_payment_intent_id && (
+                  <button onClick={() => setRefunding(true)}
+                    className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
+                    Refund this payment
+                  </button>
+                )}
               </div>
             </div>
 
@@ -808,6 +829,14 @@ export default function InvoiceDetailPage() {
           invoice={invoice}
           onClose={() => setShowSendModal(false)}
           onSent={updated => setInvoice(updated)}
+        />
+      )}
+    
+      {refunding && (
+        <RefundModal
+          invoiceId={invoice.id}
+          onClose={() => setRefunding(false)}
+          onDone={() => { setRefunding(false); reloadInvoice() }}
         />
       )}
     </div>

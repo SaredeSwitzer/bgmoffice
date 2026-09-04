@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import RefundModal from '../components/RefundModal'
+import { isSaredeUser } from '../utils/saredeAccess'
 import { api } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import { fmtTime, fmtTimeRange } from '../utils/time'
 import DateInput from '../components/DateInput'
 import { loadSavedWeekAnchor, saveWeekAnchor } from '../utils/weekAnchor'
@@ -577,6 +580,11 @@ export default function BillingPage() {
   useEffect(() => { saveWeekAnchor(weekStart) }, [weekStart])
 
   const [rows, setRows] = useState([])       // { client_id, client_name, amount(edited), session_count, card_last4, has_card, charged_status, include }
+  // Refunds are Sarede's alone (the server enforces it); the button simply isn't drawn
+  // for anyone else rather than appearing and then failing.
+  const { user } = useAuth()
+  const canRefund = isSaredeUser(user)
+  const [refunding, setRefunding] = useState(null)   // the charge row being refunded
   const [loading, setLoading] = useState(true)
   const [charging, setCharging] = useState(false)
   const [results, setResults] = useState(null)
@@ -750,9 +758,20 @@ export default function BillingPage() {
                           {done ? <span className="text-green-600 font-medium">charged {money(r.charged_amount)}</span>
                             : r.has_card ? <span>{r.card_brand ? `${r.card_brand} ` : ''}•••• {r.card_last4}</span>
                             : <span className="text-amber-600 font-medium">no card on file</span>}
+                          {Number(r.refunded_amount) > 0 && (
+                            <span className="text-red-600 font-medium"> · {money(r.refunded_amount)} refunded</span>
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
+                        {/* Only on a charge that actually went through Stripe — a charge
+                            recorded by hand has no payment to send back. */}
+                        {canRefund && done && r.charge_id && r.stripe_payment_intent_id && (
+                          <button onClick={() => setRefunding(r)}
+                            className="mr-1 px-2 py-1 text-[11px] font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
+                            Refund
+                          </button>
+                        )}
                         <span className="text-gray-400 text-sm">$</span>
                         <input type="number" step="1" value={r.amount} disabled={done}
                           onChange={e => patch(r.client_id, { amount: e.target.value })}
@@ -911,6 +930,15 @@ export default function BillingPage() {
           />
         )
       })()}
+
+      {refunding && (
+        <RefundModal
+          chargeId={refunding.charge_id}
+          onClose={() => setRefunding(null)}
+          // Reload so the row shows what's now been sent back.
+          onDone={() => { setRefunding(null); load() }}
+        />
+      )}
     </div>
   )
 }

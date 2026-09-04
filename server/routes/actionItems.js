@@ -96,8 +96,6 @@ router.put('/:id', async (req, res) => {
 router.patch('/:id/star', async (req, res) => {
   const result = await pool.query('UPDATE action_items SET starred=$1 WHERE id=$2', [req.body.starred ? 1 : 0, req.params.id]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Action item not found' });
-  // Resolved, so the tags asking someone to look at it are answered.
-  if (status === 'resolved') await resolveMentionsForParent('action_item', req.params.id);
   res.json(await getItem(req.params.id));
 });
 
@@ -107,6 +105,8 @@ router.patch('/:id/status', async (req, res) => {
   const resolved_at = status === 'resolved' ? new Date().toISOString() : null;
   const result = await pool.query('UPDATE action_items SET status=$1, resolved_at=$2 WHERE id=$3', [status, resolved_at, req.params.id]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'Action item not found' });
+  // Resolved, so the tags asking someone to look at it are answered.
+  if (status === 'resolved') await resolveMentionsForParent('action_item', req.params.id);
   res.json(await getItem(req.params.id));
 });
 
