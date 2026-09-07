@@ -346,4 +346,8 @@ router.post('/signatures/:id/link', requireStaff, async (req, res) => {
   res.json({ ok: true });
 });
 
+// sendSignedCopy is exported alongside the router so a one-off catch-up (people who
+// signed before this existed) runs the same code the app runs, rather than a second
+// implementation of it that could quietly differ.
 module.exports = router;
+module.exports.sendSignedCopy = sendSignedCopy;
