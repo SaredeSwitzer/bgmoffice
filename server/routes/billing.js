@@ -173,6 +173,77 @@ router.post('/clients/:id/setup-intent', async (req, res) => {
   res.json({ clientSecret: si.client_secret, publishable_key: await getPublishableKey() });
 });
 
+// ── Cards on file ────────────────────────────────────────────────────────────
+// A client can have several: their own and a spouse's, a personal card and the school's.
+// Exactly one is the default — that's the one a weekly charge lands on.
+
+router.get('/clients/:id/cards', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, stripe_payment_method_id, brand, last4, exp_month, exp_year, label,
+            is_default, added_by, created_at
+       FROM client_cards WHERE client_id = $1
+      ORDER BY is_default DESC, created_at`, [req.params.id]
+  );
+  res.json(rows);
+});
+
+// Which card the weekly charge uses. Also pushed to Stripe as the customer's default so
+// anything charging the customer rather than a named card agrees with this screen.
+router.patch('/clients/:id/cards/:cardId/default', async (req, res) => {
+  try {
+    const stripe = await getStripe();
+    const card = await setDefaultCard(req.params.id, req.params.cardId, stripe);
+    res.json({ ok: true, brand: card.brand, last4: card.last4 });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// A name the office will recognise. Four digits and a guess is not enough when there are
+// three cards on one client.
+router.patch('/clients/:id/cards/:cardId', async (req, res) => {
+  const { rows: [card] } = await pool.query(
+    'UPDATE client_cards SET label=$1 WHERE id=$2 AND client_id=$3 RETURNING id, label',
+    [String(req.body.label ?? '').trim() || null, req.params.cardId, req.params.id]
+  );
+  if (!card) return res.status(404).json({ error: 'Card not found on this client' });
+  res.json(card);
+});
+
+router.delete('/clients/:id/cards/:cardId', async (req, res) => {
+  const { rows: [card] } = await pool.query(
+    'SELECT * FROM client_cards WHERE id=$1 AND client_id=$2', [req.params.cardId, req.params.id]
+  );
+  if (!card) return res.status(404).json({ error: 'Card not found on this client' });
+
+  // Detach at Stripe as well, or the card stays chargeable there after being removed here
+  // — the screen would say gone and the money would still go through. A card Stripe has
+  // already lost is not an error worth stopping for.
+  const stripe = await getStripe();
+  if (stripe) {
+    try { await stripe.paymentMethods.detach(card.stripe_payment_method_id); }
+    catch (e) { console.error('[stripe] detach failed:', e.message); }
+  }
+  await pool.query('DELETE FROM client_cards WHERE id=$1', [req.params.cardId]);
+
+  // Removing the default leaves nothing to charge, so the oldest remaining card takes
+  // over rather than the client silently becoming uncharge­able.
+  if (card.is_default) {
+    const { rows: [next] } = await pool.query(
+      'SELECT id FROM client_cards WHERE client_id=$1 ORDER BY created_at LIMIT 1', [req.params.id]
+    );
+    if (next) {
+      await setDefaultCard(req.params.id, next.id, stripe);
+    } else {
+      await pool.query(
+        `UPDATE clients SET stripe_payment_method_id=NULL, card_brand=NULL, card_last4=NULL
+          WHERE id=$1`, [req.params.id]
+      );
+    }
+  }
+  res.json({ ok: true });
+});
+
 router.post('/clients/:id/confirm-card', async (req, res) => {
   const stripe = await getStripe();
   try {

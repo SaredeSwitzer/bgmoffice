@@ -247,6 +247,15 @@ export const api = {
   replyToMention: (path, text) =>
     request(path.replace(/^\/api/, ''), { method: 'POST', body: JSON.stringify({ text }) }),
 
+  // Cards on file — a client can have several; exactly one is the default.
+  getClientCards: (clientId) => request(`/billing/clients/${clientId}/cards`),
+  setDefaultClientCard: (clientId, cardId) =>
+    request(`/billing/clients/${clientId}/cards/${cardId}/default`, { method: 'PATCH' }),
+  labelClientCard: (clientId, cardId, label) =>
+    request(`/billing/clients/${clientId}/cards/${cardId}`, { method: 'PATCH', body: JSON.stringify({ label }) }),
+  deleteClientCard: (clientId, cardId) =>
+    request(`/billing/clients/${clientId}/cards/${cardId}`, { method: 'DELETE' }),
+
   // Refunds — Sarede-only on the server; the UI hides the buttons for everyone else.
   getRefundAvailable: (params) =>
     request(`/refunds/available?${new URLSearchParams(params).toString()}`),

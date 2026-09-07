@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
@@ -671,12 +671,22 @@ function CardKeyForm({ clientId, onDone, onCancel }) {
   )
 }
 
+// Cards on file. Plural on purpose: a client may pay with their own card one month and a
+// spouse's or the school's the next, and replacing the saved card each time loses the one
+// they'll want again. Exactly one card is the default — that is the one the weekly charge
+// lands on — and the rest sit alongside it until somebody says otherwise.
 function CardOnFileSection({ clientId, client, onChange }) {
   const [keying, setKeying] = useState(false)
   const [stripePromise, setStripePromise] = useState(null)
   const [clientSecret, setClientSecret] = useState(null)
   const [linkCopied, setLinkCopied] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [cards, setCards] = useState([])
+  const [editing, setEditing] = useState(null)      // card id being named
+  const [labelDraft, setLabelDraft] = useState('')
+
+  const loadCards = useCallback(() => api.getClientCards(clientId).then(setCards).catch(() => setCards([])), [clientId])
+  useEffect(() => { loadCards() }, [loadCards])
 
   async function startKey() {
     setBusy(true)
@@ -693,44 +703,97 @@ function CardOnFileSection({ clientId, client, onChange }) {
       setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500)
     }
   }
-  async function remove() {
-    if (!confirm('Remove the saved card?')) return
-    await api.removeClientCard(clientId); onChange()
+  async function makeDefault(card) {
+    await api.setDefaultClientCard(clientId, card.id)
+    await loadCards(); onChange()
+  }
+  async function saveLabel(card) {
+    await api.labelClientCard(clientId, card.id, labelDraft)
+    setEditing(null); await loadCards()
+  }
+  async function removeCard(card) {
+    const naming = card.label || `${card.brand || 'card'} ending ${card.last4}`
+    if (!confirm(`Remove ${naming}? It stops being chargeable straight away.`)) return
+    await api.deleteClientCard(clientId, card.id)
+    await loadCards(); onChange()
   }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5">
-      <h3 className="font-semibold text-gray-800 text-sm mb-3">Card on File</h3>
-      {client.card_last4 ? (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-700">
-            {client.card_brand ? `${client.card_brand} ` : ''}•••• {client.card_last4}
-            <span className="text-xs text-gray-400 ml-2">on file for weekly billing</span>
-          </p>
-          <button onClick={remove} className="text-xs text-red-500 hover:text-red-700">Remove</button>
-        </div>
-      ) : (
+      <h3 className="font-semibold text-gray-800 text-sm mb-3">
+        Cards on File{cards.length > 1 ? ` (${cards.length})` : ''}
+      </h3>
+
+      {cards.length === 0 ? (
         <p className="text-sm text-gray-400 italic">No card saved. Needed to charge this client via weekly CC billing.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+          {cards.map(card => (
+            <li key={card.id} className="px-3 py-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-800">
+                  {card.brand ? `${card.brand} ` : ''}•••• {card.last4}
+                </span>
+                {card.exp_month && card.exp_year && (
+                  <span className="text-[11px] text-gray-400">
+                    exp {String(card.exp_month).padStart(2, '0')}/{String(card.exp_year).slice(-2)}
+                  </span>
+                )}
+                {card.label && <span className="text-xs text-gray-600">· {card.label}</span>}
+                {card.is_default ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wide bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                    charged weekly
+                  </span>
+                ) : (
+                  <button onClick={() => makeDefault(card)}
+                    className="text-[11px] text-blue-600 hover:underline">
+                    charge this one instead
+                  </button>
+                )}
+                <span className="flex-1" />
+                <button onClick={() => { setEditing(card.id); setLabelDraft(card.label || '') }}
+                  className="text-[11px] text-gray-400 hover:text-gray-700">
+                  {card.label ? 'rename' : 'name it'}
+                </button>
+                <button onClick={() => removeCard(card)}
+                  className="text-[11px] text-red-500 hover:text-red-700">Remove</button>
+              </div>
+              {editing === card.id && (
+                <div className="flex items-center gap-2 mt-2">
+                  <input value={labelDraft} onChange={e => setLabelDraft(e.target.value)}
+                    placeholder="e.g. her husband's card, the school's Amex"
+                    className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  <button onClick={() => saveLabel(card)}
+                    className="px-2 py-1 text-[11px] font-semibold rounded-lg bg-gray-900 text-white hover:bg-gray-700">Save</button>
+                  <button onClick={() => setEditing(null)}
+                    className="px-2 py-1 text-[11px] rounded-lg border border-gray-200 text-gray-500">Cancel</button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
+
       {!keying && (
         <>
           <div className="flex flex-wrap gap-2 mt-3">
             <button onClick={startKey} disabled={busy} className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
-              {busy ? '…' : client.card_last4 ? 'Replace card — e.g. from a photo' : 'Key in a card — e.g. from a photo'}
+              {busy ? '…' : cards.length ? 'Add another card — e.g. from a photo' : 'Key in a card — e.g. from a photo'}
             </button>
             <button onClick={copyLink} className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
               {linkCopied ? '✓ Link copied' : 'Copy save-card link'}
             </button>
           </div>
           <p className="text-[11px] text-gray-400 mt-1.5">
-            Have a photo or screenshot of their card? Click "Key in a card" and type in the numbers you see — it goes straight to Stripe and is never saved on our end.
+            Have a photo or screenshot of their card? Click "Add another card" and type in the numbers you see — it goes straight to Stripe and is never saved on our end.
+            {cards.length > 0 && ' A new card is added alongside the others; the one marked “charged weekly” is the one billing uses.'}
           </p>
         </>
       )}
       {keying && clientSecret && stripePromise && (
         <div className="mt-3">
           <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
-            <CardKeyForm clientId={clientId} onDone={() => { setKeying(false); onChange() }} onCancel={() => setKeying(false)} />
+            <CardKeyForm clientId={clientId} onDone={() => { setKeying(false); loadCards(); onChange() }} onCancel={() => setKeying(false)} />
           </Elements>
         </div>
       )}
