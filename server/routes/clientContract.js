@@ -90,6 +90,54 @@ router.post('/public/:token/create-payment-intent', async (req, res) => {
   }
 });
 
+// Emails the signer a PDF of exactly what they agreed to. Also used by the "send them
+// their copy again" action, so there is one implementation rather than two that drift.
+async function sendSignedCopy(signatureId) {
+  const { rows: [sig] } = await pool.query(
+    'SELECT * FROM client_contract_signatures WHERE id = $1', [signatureId]
+  );
+  if (!sig || !sig.signed_at) return { sent: false, reason: 'not signed' };
+
+  // The address they typed on the form, falling back to the one the invite went to.
+  const to = (sig.email || '').trim();
+  if (!to) return { sent: false, reason: 'no email' };
+
+  const { buildSignedWaiverPdf } = require('../lib/signedWaiverPdf');
+  const pdf = await buildSignedWaiverPdf(sig);
+  const isOrg = !!sig.org_name;
+  const who = (sig.signed_name || sig.contact_name || '').trim().split(' ')[0] || 'there';
+
+  await sendMail({
+    to,
+    subject: isOrg
+      ? 'Your signed contract — Bring the Gym to Me'
+      : 'Your signed waiver — Bring the Gym to Me',
+    text: `Hi ${who},\n\nThank you — your ${isOrg ? 'contract' : 'waiver'} is signed. `
+        + `A copy is attached for your records.\n\nIf anything looks wrong, just reply to this email.\n\n`
+        + `Bring the Gym to Me`,
+    attachments: [{
+      filename: isOrg ? 'BGM-signed-contract.pdf' : 'BGM-signed-waiver.pdf',
+      content: pdf,
+    }],
+  });
+
+  await pool.query(
+    'UPDATE client_contract_signatures SET copy_sent_at = now() WHERE id = $1', [signatureId]
+  );
+  return { sent: true, to };
+}
+
+// Staff re-sending the copy — for a bounced address, or one corrected afterwards.
+router.post('/signatures/:id/send-copy', requireStaff, async (req, res) => {
+  try {
+    const out = await sendSignedCopy(req.params.id);
+    if (!out.sent) return res.status(400).json({ error: `Not sent — ${out.reason}` });
+    res.json(out);
+  } catch (e) {
+    res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+});
+
 router.post('/public/:token/sign', async (req, res) => {
   const { signed_name, contact_name, email, phone, org_name, street, city, zip } = req.body;
   if (!signed_name?.trim()) return res.status(400).json({ error: 'Please type your full name to sign.' });
@@ -144,6 +192,14 @@ router.post('/public/:token/sign', async (req, res) => {
       [row.client_id, row.id]
     );
   }
+
+  // Their own copy, sent the moment they sign.
+  //
+  // Deliberately after the signature is safely written and wrapped so it cannot throw:
+  // the signature is the thing that matters, and an email problem must never turn a
+  // completed agreement into an error on the client's screen. If it fails it's logged and
+  // staff can send it again from the signatures list.
+  sendSignedCopy(row.id).catch(e => console.error('[waiver] signed copy failed:', e.message));
 
   res.json({ ok: true, signed_at: updated.signed_at });
 });

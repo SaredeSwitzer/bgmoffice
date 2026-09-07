@@ -94,6 +94,23 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
   // the waiver and the covering email from the wording in Settings, /invite/:id/send is
   // what actually posts it. Going through them rather than emailing directly means the
   // signature is on file, so signing flips the client's profile to signed by itself.
+  // The same waiver, handed over by link instead of email — for a client who is on the
+  // phone, or who only uses WhatsApp, or whose address nobody is sure of. Draws up the
+  // waiver exactly as the email route does (so signing still flips their profile to
+  // signed) and stops short of sending anything.
+  async function copyWaiverLink(client) {
+    setWaiver({ state: 'linking' })
+    try {
+      const invite = await api.getClientContractInvitePreview({
+        client_id: client.id, contact_name: client.name, email: client.email || null,
+      })
+      try { await navigator.clipboard.writeText(invite.link) } catch { /* clipboard blocked */ }
+      setWaiver({ state: 'link', detail: invite.link })
+    } catch (e) {
+      setWaiver({ state: 'error', detail: e.message || 'Could not make the link.' })
+    }
+  }
+
   async function sendWaiver(client, email) {
     setWaiver({ state: 'sending' })
     try {
@@ -172,6 +189,17 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
             {waiver?.state === 'sending' && (
               <p className="text-[11px] text-gray-500 mt-0.5">Sending the waiver…</p>
             )}
+            {waiver?.state === 'linking' && (
+              <p className="text-[11px] text-gray-500 mt-0.5">Making the link…</p>
+            )}
+            {waiver?.state === 'link' && (
+              <>
+                <p className="text-[11px] text-green-700 mt-0.5">
+                  Copied — send it however you like. Signing it still marks them signed here.
+                </p>
+                <p className="text-[11px] text-gray-500 break-all mt-0.5">{waiver.detail}</p>
+              </>
+            )}
             {waiver?.state === 'sent' && (
               <p className="text-[11px] text-green-700 mt-0.5">
                 ✓ Sent to {waiver.detail}. Their profile flips to signed the moment they sign it.
@@ -191,13 +219,21 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
                       : 'No email on their profile — add one there to send it.'}
                   </p>
                 )}
-                {done.client.email && (
-                  <button type="button"
-                    onClick={() => sendWaiver(done.client, done.client.email)}
-                    className="mt-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-white">
-                    Email the waiver to {done.client.email}
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {done.client.email && (
+                    <button type="button"
+                      onClick={() => sendWaiver(done.client, done.client.email)}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-white">
+                      Email the waiver to {done.client.email}
+                    </button>
+                  )}
+                  {/* Always offered, email or not — a link works for a client with no
+                      address on file, which is exactly when the email button can't help. */}
+                  <button type="button" onClick={() => copyWaiverLink(done.client)}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-white">
+                    Copy a link instead
                   </button>
-                )}
+                </div>
               </>
             )}
           </div>
