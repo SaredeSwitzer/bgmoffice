@@ -785,7 +785,9 @@ function CardOnFileSection({ clientId, client, onChange }) {
             </button>
           </div>
           <p className="text-[11px] text-gray-400 mt-1.5">
-            Have a photo or screenshot of their card? Click "Add another card" and type in the numbers you see — it goes straight to Stripe and is never saved on our end.
+            Have a photo or screenshot of their card? Click
+            {cards.length ? ' "Add another card" ' : ' "Key in a card" '}
+            and type in the numbers you see — it goes straight to Stripe and is never saved on our end.
             {cards.length > 0 && ' A new card is added alongside the others; the one marked “charged weekly” is the one billing uses.'}
           </p>
         </>
