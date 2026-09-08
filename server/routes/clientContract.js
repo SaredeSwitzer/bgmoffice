@@ -210,14 +210,12 @@ router.use(requireAuth);
 
 router.post('/invite/preview', requireStaff, async (req, res) => {
   const { org_name, contact_name, email, phone, payment_terms_text, deposit_amount, client_id } = req.body;
-  // Email is preferred (lets us actually send it), but some clients only want to sign via
-  // a link staff paste into a text or WhatsApp message — so a phone number on its own is
-  // enough to generate the link. They still type their own email at signing time.
+  // Email is preferred (lets us actually send it), but nothing is required to make a
+  // link: staff paste it into a text or WhatsApp message, or read it out on the phone,
+  // and the signer types their own email at signing time. Requiring contact details up
+  // front blocked the one case the link exists for — a client with nothing on file.
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: "That email address doesn't look right" });
-  }
-  if (!email?.trim() && !phone?.trim()) {
-    return res.status(400).json({ error: 'An email or phone number is required' });
   }
 
   // Individuals get a plain liability waiver; organizations get the fuller

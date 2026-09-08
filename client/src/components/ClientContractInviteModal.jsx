@@ -37,10 +37,6 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
 
   async function handlePreview(e) {
     e.preventDefault()
-    if (!email.trim() && !phone.trim()) {
-      setError('Enter an email, or at least a phone number if you plan to text/WhatsApp the link instead.')
-      return
-    }
     setLoadingPreview(true)
     setError('')
     try {
@@ -98,7 +94,8 @@ export default function ClientContractInviteModal({ client, onClose, onSent }) {
             {client ? `Send Waiver/Contract to Sign · ${client.name}` : 'Send Contract to Sign'}
           </h3>
           <p className="text-xs text-gray-500 mt-1 mb-4">
-            Emails a unique signing link, or copy it to text/WhatsApp instead —
+            Emails a unique signing link, or leave the email blank and copy the link to
+            text/WhatsApp instead —
             {client ? ' their profile updates to "signed" as soon as they do.' : ' no client record needed.'}
           </p>
         </div>
