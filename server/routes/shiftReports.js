@@ -9,10 +9,13 @@ router.use(requireAuth);
 // whole set. Whoever wrote one can see their own, so "did that send?" has an answer
 // without needing her.
 
-// Sarede's view: everything, newest first.
+// Sarede's view: the ones she hasn't dealt with yet, newest first. Marking one read
+// clears it off her list for good — a read summary has done its job, and a growing pile
+// of them is just noise on the page she works from. The person who wrote it keeps their
+// own copy under /mine either way.
 router.get('/', requireSaredeOnly, async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT * FROM shift_reports ORDER BY created_at DESC LIMIT 60'
+    'SELECT * FROM shift_reports WHERE read_at IS NULL ORDER BY created_at DESC LIMIT 60'
   );
   res.json(rows);
 });
@@ -45,7 +48,8 @@ router.post('/', async (req, res) => {
 });
 
 // Marked read only when Sarede says so, not on render — otherwise loading the page
-// clears the "new" flag on summaries she hasn't actually looked at.
+// clears summaries she hasn't actually looked at. This is what makes one disappear
+// from her list; the row stays so the author can still see they sent it.
 router.patch('/:id/read', requireSaredeOnly, async (req, res) => {
   const { rows: [row] } = await pool.query(
     'UPDATE shift_reports SET read_at = now() WHERE id = $1 RETURNING *',

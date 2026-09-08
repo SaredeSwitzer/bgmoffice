@@ -6,8 +6,9 @@ import CollapsibleSection from './CollapsibleSection'
 // through, what was still outstanding at the time, and anything they wanted to say.
 //
 // Only she sees this — the server checks independently, this just decides whether to
-// render. Not marked read on load: opening My Tasks shouldn't clear the "new" flag on a
-// summary she hasn't actually looked at.
+// render. Not marked read on load: opening My Tasks shouldn't clear a summary she hasn't
+// actually looked at. Clicking Read takes it off the list for good (the server stops
+// returning read ones), so the section empties out instead of growing forever.
 
 function fmtWhen(ts) {
   if (!ts) return ''
@@ -24,14 +25,14 @@ const COUNT_LABELS = {
 }
 
 function Summary({ row, onRead }) {
-  const [open, setOpen] = useState(!row.read_at)
+  const [open, setOpen] = useState(true)
   const steps = row.steps || []
   const doneCount = steps.filter(s => s.done).length
   const missed = steps.filter(s => !s.done)
   const leftovers = Object.entries(row.counts || {}).filter(([, n]) => Number(n) > 0)
 
   return (
-    <div className={`rounded-xl border px-4 py-3 ${row.read_at ? 'border-gray-200 bg-white' : 'border-blue-300 bg-blue-50/40'}`}>
+    <div className="rounded-xl border border-blue-300 bg-blue-50/40 px-4 py-3">
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between gap-3 text-left">
         <span className="flex flex-wrap items-baseline gap-2 min-w-0">
           <span className="text-sm font-semibold text-gray-900">
@@ -44,11 +45,6 @@ function Summary({ row, onRead }) {
             {doneCount} of {steps.length}
           </span>
         </span>
-        {!row.read_at && (
-          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-blue-600 text-white px-2 py-0.5 rounded-full">
-            New
-          </span>
-        )}
       </button>
 
       {open && (
@@ -78,12 +74,10 @@ function Summary({ row, onRead }) {
             </div>
           )}
 
-          {!row.read_at && (
-            <button onClick={() => onRead(row.id)}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700">
-              ✓ Read
-            </button>
-          )}
+          <button onClick={() => onRead(row.id)}
+            className="px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700">
+            ✓ Read — clear it
+          </button>
         </div>
       )}
     </div>
@@ -98,17 +92,16 @@ export default function ShiftSummaries({ id = 'mytasks_shift_summaries' }) {
   }, [])
 
   async function markRead(reportId) {
-    const updated = await api.markShiftReportRead(reportId)
-    setRows(rs => rs.map(r => (String(r.id) === String(updated.id) ? updated : r)))
+    await api.markShiftReportRead(reportId)
+    setRows(rs => rs.filter(r => String(r.id) !== String(reportId)))
   }
 
   if (!rows || rows.length === 0) return null
-  const unread = rows.filter(r => !r.read_at).length
 
   return (
     <CollapsibleSection
       id={id} accent="purple" title="🗒 Shift summaries"
-      count={unread} defaultOpen={unread > 0}
+      count={rows.length} defaultOpen
     >
       <div className="space-y-2">
         {rows.slice(0, 12).map(row => (
