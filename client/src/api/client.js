@@ -100,6 +100,11 @@ export const api = {
   createTask: (data) => request('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id, data) => request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   starTask: (id, starred) => request(`/tasks/${id}/star`, { method: 'PATCH', body: JSON.stringify({ starred }) }),
+  // Urgent, the same star the Waiting On sheet uses — one per kind of thing on My Tasks.
+  starMention: (id, starred) =>
+    request(`/dashboard/mentions/${id}/star`, { method: 'PATCH', body: JSON.stringify({ starred }) }),
+  starReminder: (id, starred) =>
+    request(`/reminders/${id}/star`, { method: 'PATCH', body: JSON.stringify({ starred }) }),
   addTaskReply: (id, text, opts = {}) => request(`/tasks/${id}/replies`, { method: 'POST', body: JSON.stringify({ text, ...opts }) }),
   updateTaskReply: (id, replyId, text) =>
     request(`/tasks/${id}/replies/${replyId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),

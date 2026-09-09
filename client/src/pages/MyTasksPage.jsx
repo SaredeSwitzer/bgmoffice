@@ -93,7 +93,7 @@ function rowKey(item) {
   return `${item.source}-${item.id}`
 }
 
-function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }) {
+function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, onToggleUrgent, isNew }) {
   const days = daysOpen(item.created_at)
   const isMention    = item.source === 'mention'
   const isRecruiting = item.source === 'recruiting'
@@ -122,11 +122,20 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
       onClick={handleClick}
       onAuxClick={handleAuxClick}
       className={`group cursor-pointer transition-colors ${
-        item.starred ? 'bg-yellow-50/60 hover:bg-yellow-50'
+        item.starred ? 'bg-red-50/60 hover:bg-red-50'
         : isNew      ? 'bg-blue-50/50 hover:bg-blue-50'
         :              'hover:bg-gray-50'
       }`}
     >
+      {/* Urgent, exactly as it works on the Waiting On sheet: click the star. */}
+      <td className="px-2 py-2.5 w-8 align-top">
+        <button
+          onClick={e => { e.stopPropagation(); onToggleUrgent(item) }}
+          title={item.starred ? 'Not urgent' : 'Mark urgent'}
+          className={`text-base leading-none ${
+            item.starred ? 'text-red-500' : 'text-gray-200 hover:text-red-300'}`}
+        >★</button>
+      </td>
       <td className="px-3 py-2.5 text-sm">
         <span className={`flex items-center gap-1.5 whitespace-nowrap ${isNew ? 'font-bold text-gray-900' : 'text-gray-900'}`}>
           {isNew && <span className="inline-block w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
@@ -213,13 +222,14 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
 
 // One table shared by both sections so the two piles look and behave identically —
 // the only difference between them is which items go in.
-function TaskTable({ items, onClick, onResolveMention, onResolveReminder, isNew }) {
+function TaskTable({ items, onClick, onResolveMention, onResolveReminder, onToggleUrgent, isNew }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[480px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="w-8" />
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type / Action</th>
@@ -236,6 +246,7 @@ function TaskTable({ items, onClick, onResolveMention, onResolveReminder, isNew 
                 onClick={() => onClick(item)}
                 onResolveMention={onResolveMention}
                 onResolveReminder={onResolveReminder}
+                onToggleUrgent={onToggleUrgent}
                 isNew={isNew(item)}
               />
             ))}
@@ -281,6 +292,28 @@ export default function MyTasksPage() {
 
   function isNew(item) {
     return !seen.has(item.id) && item.created_by !== user?.initials
+  }
+
+  // Urgent, like the Waiting On sheet's star. Each source keeps its own flag in its own
+  // table, so the star has to know which kind of thing it's on — but the person clicking
+  // it doesn't. Updated on screen first: the row moves to the top of its section on the
+  // click, and waiting for a round trip to do that makes the click feel broken.
+  async function handleToggleUrgent(item) {
+    const starred = !item.starred
+    setTasks(prev => prev.map(t =>
+      t.source === item.source && t.id === item.id ? { ...t, starred } : t))
+    try {
+      // A mention's row id is "mention-<id>" so it can't collide with a task's — the
+      // real id it lives under is mention_id.
+      if (item.source === 'mention')          await api.starMention(item.mention_id, starred)
+      else if (item.source === 'reminder')    await api.starReminder(item.id, starred)
+      else if (item.source === 'action_item') await api.starActionItem(item.id, starred)
+      else                                    await api.starTask(item.id, starred)
+    } catch {
+      // Put it back rather than leaving a star that didn't stick.
+      setTasks(prev => prev.map(t =>
+        t.source === item.source && t.id === item.id ? { ...t, starred: !starred } : t))
+    }
   }
 
   function handleAddOther(newTask) {
@@ -375,18 +408,23 @@ export default function MyTasksPage() {
   // Each pile gets its own section. Splitting them is the whole point — an unassigned item
   // that sat in a mixed list was nobody's job and quietly aged, and an @mention is somebody
   // pulling you into a conversation, not a job that was delegated to you.
-  const reminderTasks = tasks.filter(t => t.source === 'reminder')
+  // Urgent first, everything else in the order the server sent it (oldest first). The
+  // server sorts the same way; doing it here too means starring something moves it to the
+  // top of its section on the click, rather than on the next load.
+  const byUrgency = list => [...list].sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
+
+  const reminderTasks = byUrgency(tasks.filter(t => t.source === 'reminder'))
   // Reminders now cover the whole team, so they split again inside their own section:
   // mine first, everyone else's underneath, so the list stays useful without hiding
   // anything that's due.
   const myReminders    = reminderTasks.filter(t => t.is_mine)
   const otherReminders = reminderTasks.filter(t => !t.is_mine)
-  const mentionTasks  = tasks.filter(t => t.source === 'mention')
+  const mentionTasks  = byUrgency(tasks.filter(t => t.source === 'mention'))
   const openMention   = mentionTasks.find(t => t.id === openMentionId) || null
   const openItem      = tasks.find(t => rowKey(t) === openItemKey) || null
   const other         = t => t.source !== 'reminder' && t.source !== 'mention'
-  const myTasks       = tasks.filter(t => !t.is_anyone && other(t))
-  const anyoneTasks   = tasks.filter(t => t.is_anyone && other(t))
+  const myTasks       = byUrgency(tasks.filter(t => !t.is_anyone && other(t)))
+  const anyoneTasks   = byUrgency(tasks.filter(t => t.is_anyone && other(t)))
 
   // Finishing something from the panel drops it off the list, same as the row's own
   // tick would, and closes the panel.
@@ -403,7 +441,7 @@ export default function MyTasksPage() {
       <TaskTable
         items={items} onClick={handleClick}
         onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-        isNew={isNew}
+        onToggleUrgent={handleToggleUrgent} isNew={isNew}
       />
     )
   }
@@ -494,7 +532,7 @@ export default function MyTasksPage() {
           <TaskTable
             items={mentionTasks} onClick={handleClick}
             onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-            isNew={isNew}
+            onToggleUrgent={handleToggleUrgent} isNew={isNew}
           />
         )}
 

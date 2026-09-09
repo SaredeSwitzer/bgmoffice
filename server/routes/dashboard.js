@@ -94,7 +94,7 @@ function attachCategories(items) {
 // the schedule, which shows the class itself.
 async function loadMentionTasks(userId) {
   const { rows } = await pool.query(
-    `SELECT m.id, m.source_table, m.source_id, m.snippet, m.author_initials, m.created_at, m.link_path,
+    `SELECT m.id, m.source_table, m.source_id, m.snippet, m.author_initials, m.created_at, m.link_path, m.starred,
             COALESCE(re.client_name, cl.name, icl.name, stcl.name, aicl.name, fucl.name, rncl.name, slcl.name, sl.name,
                      wsp_client.name) AS client_name,
             COALESCE(stins.name, aiins.name, fuins.name, rnins.name, insn.name, wsp_instr.name) AS instructor_name,
@@ -180,6 +180,7 @@ async function loadMentionTasks(userId) {
     // unique across tables), see client/src/utils/hashHighlight.js.
     link_path: m.link_path ? `${m.link_path}#note-${m.source_table}-${m.source_id}` : null,
     about: m.about || null,
+    starred: !!m.starred,
     last_note: { text: m.snippet, author_initials: m.author_initials },
   }));
 }
@@ -195,7 +196,7 @@ async function loadReminderTasks(delegateName) {
   // reminders.js `today()`), so the due-date comparison happens in JS rather than
   // SQL to avoid a text/date operator mismatch.
   const { rows } = await pool.query(
-    `SELECT r.id, r.title, r.notes, r.remind_on, r.created_at, r.created_by, r.delegate_name,
+    `SELECT r.id, r.title, r.notes, r.remind_on, r.created_at, r.created_by, r.delegate_name, r.starred,
             r.client_id, c.name AS client_name,
             r.instructor_id, i.name AS instructor_name
        FROM reminders r
@@ -213,6 +214,7 @@ async function loadReminderTasks(delegateName) {
     categories: ['reminder'],
     created_at: r.created_at || r.remind_on,
     created_by: r.created_by,
+    starred: !!r.starred,
     client_id: r.client_id, client_name: r.client_name,
     instructor_id: r.instructor_id, instructor_name: r.instructor_name,
     last_note: {
@@ -420,6 +422,16 @@ router.get('/mentions/:id/thread', async (req, res) => {
     about: await aboutFor(src, note.parent_id),
     reply_to: { path: src.reply(note.parent_id), source_table: m.source_table },
   });
+});
+
+// Urgent, the same star the Waiting On sheet uses. A mention can be the most pressing
+// thing on the list — somebody tagged you because a class is about to go wrong — and
+// there was no way to say so.
+router.patch('/mentions/:id/star', async (req, res) => {
+  const { rowCount } = await pool.query(
+    'UPDATE mentions SET starred = $1 WHERE id = $2', [!!req.body.starred, req.params.id]);
+  if (!rowCount) return res.status(404).json({ error: 'Mention not found' });
+  res.json({ ok: true, starred: !!req.body.starred });
 });
 
 router.patch('/mentions/:id/resolve', async (req, res) => {

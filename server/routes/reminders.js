@@ -101,6 +101,13 @@ router.put('/:id', async (req, res) => {
   res.json({ ...updated, case_id: updated.resolved_case_id });
 });
 
+router.patch('/:id/star', async (req, res) => {
+  const { rowCount } = await pool.query(
+    'UPDATE reminders SET starred = $1 WHERE id = $2', [!!req.body.starred, req.params.id]);
+  if (!rowCount) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true, starred: !!req.body.starred });
+});
+
 router.patch('/:id/done', async (req, res) => {
   await pool.query(`UPDATE reminders SET status = 'done' WHERE id = $1`, [req.params.id]);
   // The work is done, so anyone tagged about it no longer needs chasing.
