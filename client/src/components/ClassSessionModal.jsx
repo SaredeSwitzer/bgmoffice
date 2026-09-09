@@ -13,6 +13,7 @@ import ClassNotes from './ClassNotes'
 import AdminNotes from './AdminNotes'
 import RescheduleAlertModal from './RescheduleAlertModal'
 import { PAYMENT_METHODS } from '../utils/payments'
+import { readRate } from '../utils/rates'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -21,23 +22,6 @@ const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 //   session: null                    → create new, pre-filled with `defaultDate`
 //   session: {...}                   → edit that session in place
 //   session: {...}, duplicate: true  → pre-filled from that session, but saves as a new one
-// An instructor's rate is a free-text field and is used as one: of 101 instructors, 24
-// hold a clean number, 74 hold nothing, and a handful hold a sentence — "$200 per day at
-// Beth Shalom", "$65 usually but gave him $80 for ... extra travel time". Copying that
-// straight into the pay box put "$50" into a number input (which shows blank), pasted
-// prose into a payroll figure, and — worst — wiped the pay to empty for the 74 with no
-// rate at all. A blank pay is how somebody ends up unpaid.
-//
-// So read it, don't trust it: only a bare number is used, anything else is shown to the
-// person and the pay is left alone.
-function readRate(payRate) {
-  const raw = (payRate ?? '').trim()
-  if (!raw) return { amount: null, note: null }
-  const m = /^\$?\s*([0-9]+(?:\.[0-9]+)?)$/.exec(raw)
-  if (m) return { amount: m[1], note: null }
-  return { amount: null, note: raw }
-}
-
 export default function ClassSessionModal({ session, defaultDate, duplicate = false, onClose, onSaved, onDeleted }) {
   const isEdit = !!session?.id && !duplicate
   const { user } = useAuth()
@@ -45,6 +29,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
   const [instructors, setInstructors] = useState([])
   // Why the pay box says what it says, after an instructor change.
   const [rateNote, setRateNote] = useState(null)
+  // Same, for what the client is charged, after a client change.
+  const [chargeNote, setChargeNote] = useState(null)
   const [form, setForm] = useState({
     client: session ? {
       id: session.client_id, name: session.client_name,
@@ -212,16 +198,29 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               </div>
             )}
             <SearchSelect label="Client" required options={clients} value={form.client}
-              onChange={v => setForm(f => ({
-                ...f,
-                client: v,
-                // Pre-fill from the client's class defaults — only when this field
-                // hasn't already been typed in, so switching clients never clobbers
-                // something staff already entered for this specific class.
-                style: f.style || v?.default_style || '',
-                participant_count: f.participant_count || (v?.default_participants ?? ''),
-                participant_ages: f.participant_ages || v?.default_age || '',
-              }))} placeholder="Search client…" />
+              onChange={v => {
+                // What they pay is on their profile; it was the one thing this form made
+                // you look up and retype. Same reader the instructor's pay uses: a clean
+                // number fills the amount, and wording like "$35 per child, 4 minimum"
+                // goes in the note beside it, because it isn't a number to bill.
+                const { amount, note } = readRate(v?.rate_per_class)
+                setForm(f => ({
+                  ...f,
+                  client: v,
+                  // Only when the field hasn't already been typed in, so switching
+                  // clients never clobbers something entered for this specific class.
+                  charge_amount: f.charge_amount || amount || '',
+                  charge_note: f.charge_note || note || '',
+                  payment_method: f.payment_method || v?.default_payment_method || '',
+                  style: f.style || v?.default_style || '',
+                  participant_count: f.participant_count || (v?.default_participants ?? ''),
+                  participant_ages: f.participant_ages || v?.default_age || '',
+                }))
+                setChargeNote(!v ? null
+                  : amount ? { kind: 'set',  text: `set from ${v.name}'s rate ($${amount})` }
+                  : note   ? { kind: 'note', text: `${v.name}'s rate is recorded as “${note}” — set the charge by hand` }
+                  :          { kind: 'none', text: `No rate on file for ${v.name}` })
+              }} placeholder="Search client…" />
             <SearchSelect label="Instructor" options={instructors} value={form.instructor}
               onChange={v => {
                 // Pay follows whoever is actually teaching, not the client or a prior
@@ -305,7 +304,17 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Charge to client</label>
                 <ChargeInput amount={form.charge_amount} note={form.charge_note}
-                  onChange={({ amount, note }) => setForm(f => ({ ...f, charge_amount: amount, charge_note: note }))} />
+                  onChange={({ amount, note }) => {
+                    setForm(f => ({ ...f, charge_amount: amount, charge_note: note }))
+                    setChargeNote(null)
+                  }} />
+                {chargeNote && (
+                  <p className={`text-[11px] mt-1 ${
+                    chargeNote.kind === 'set' ? 'text-green-700' :
+                    chargeNote.kind === 'note' ? 'text-amber-600' : 'text-gray-500'}`}>
+                    {chargeNote.text}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Instructor pay</label>

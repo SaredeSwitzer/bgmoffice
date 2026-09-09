@@ -25,6 +25,7 @@ import ReportsPage from './ReportsPage'
 import ScheduleDrift from '../components/ScheduleDrift'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { PAYMENT_METHODS } from '../utils/payments'
+import { readRate } from '../utils/rates'
 
 // The horizontal line + time label shown between classes while dragging, so it's clear
 // exactly where a class will land (and what time it'll get) before you let go.
@@ -715,16 +716,24 @@ export default function SchedulePage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <SearchSelect label="Client" required options={clients} value={form.client}
-                  onChange={c => setForm(f => ({
-                    ...f,
-                    client: c,
-                    // Pre-fill from the client's class defaults — only when this field
-                    // hasn't already been typed in, so switching clients never clobbers
-                    // something staff already entered for this specific class.
-                    style: f.style || c?.default_style || '',
-                    participant_count: f.participant_count || (c?.default_participants ?? ''),
-                    participant_ages: f.participant_ages || c?.default_age || '',
-                  }))} placeholder="Search clients…" />
+                  onChange={c => {
+                    // What they pay is on their profile — fill it in rather than making
+                    // somebody look it up. Wording rather than a number (e.g. "$35 per
+                    // child, 4 minimum") goes to the note beside the amount.
+                    const { amount, note } = readRate(c?.rate_per_class)
+                    setForm(f => ({
+                      ...f,
+                      client: c,
+                      // Only when the field hasn't already been typed in, so switching
+                      // clients never clobbers something entered for this class.
+                      charge_amount: f.charge_amount || amount || '',
+                      charge_note: f.charge_note || note || '',
+                      payment_method: f.payment_method || c?.default_payment_method || '',
+                      style: f.style || c?.default_style || '',
+                      participant_count: f.participant_count || (c?.default_participants ?? ''),
+                      participant_ages: f.participant_ages || c?.default_age || '',
+                    }))
+                  }} placeholder="Search clients…" />
                 <SearchSelect label="Instructor" options={instructors} value={form.instructor}
                   onChange={i => setForm(f => ({ ...f, instructor: i }))} placeholder="Search instructors…" />
                 {form.client && (

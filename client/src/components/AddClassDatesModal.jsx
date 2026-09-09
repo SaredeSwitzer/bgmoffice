@@ -8,6 +8,7 @@ import { AddressPicker } from './ClientAddresses'
 import DurationInput from './DurationInput'
 import ChargeInput from './ChargeInput'
 import { PAYMENT_METHODS } from '../utils/payments'
+import { readRate } from '../utils/rates'
 
 
 // Add a set of specific dates at once — for a run of classes that doesn't fit a weekly
@@ -73,16 +74,22 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
         <form onSubmit={handleSubmit}>
           <div className="px-5 py-4 space-y-3">
             <SearchSelect label="Client" required options={clients} value={form.client}
-              onChange={v => setForm(f => ({
-                ...f,
-                client: v,
-                // Pre-fill from the client's class defaults — only when this field
-                // hasn't already been typed in, so switching clients never clobbers
-                // something staff already entered for this specific class.
-                style: f.style || v?.default_style || '',
-                participant_count: f.participant_count || (v?.default_participants ?? ''),
-                participant_ages: f.participant_ages || v?.default_age || '',
-              }))} placeholder="Search client…" />
+              onChange={v => {
+                const { amount, note } = readRate(v?.rate_per_class)
+                setForm(f => ({
+                  ...f,
+                  client: v,
+                  // Pre-fill from the client's profile — only when this field hasn't
+                  // already been typed in, so switching clients never clobbers
+                  // something staff already entered for this specific class.
+                  charge_amount: f.charge_amount || amount || '',
+                  charge_note: f.charge_note || note || '',
+                  payment_method: f.payment_method || v?.default_payment_method || '',
+                  style: f.style || v?.default_style || '',
+                  participant_count: f.participant_count || (v?.default_participants ?? ''),
+                  participant_ages: f.participant_ages || v?.default_age || '',
+                }))
+              }} placeholder="Search client…" />
             <SearchSelect label="Instructor" options={instructors} value={form.instructor}
               onChange={v => setForm(f => ({
                 ...f,
