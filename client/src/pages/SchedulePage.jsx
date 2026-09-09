@@ -114,6 +114,7 @@ function fmtParticipants(s) {
 const BLANK_SCHEDULE = {
   client: null, instructor: null, weekday: '', start_time: '', duration_minutes: 60,
   charge_amount: '', charge_note: '', instructor_pay: '', payment_method: '', style: '', location: '', special_instructions: '',
+  check_in_reminder: false,
   participant_count: '', participant_ages: '',
   // Which of the client's addresses this class runs at. Null means their main one.
   address_id: null,
@@ -405,6 +406,7 @@ export default function SchedulePage() {
         participant_count: form.participant_count === '' ? null : form.participant_count,
         participant_ages: form.participant_ages || null,
         address_id: form.address_id || null,
+        check_in_reminder: !editingId && form.check_in_reminder,
       }
       const saved = editingId
         ? await api.updateClassSchedule(editingId, payload)
@@ -724,6 +726,8 @@ export default function SchedulePage() {
                     setForm(f => ({
                       ...f,
                       client: c,
+                      // Their first class with us is the one worth following up.
+                      check_in_reminder: c && c.has_classes === false ? true : f.check_in_reminder,
                       // Only when the field hasn't already been typed in, so switching
                       // clients never clobbers something entered for this class.
                       charge_amount: f.charge_amount || amount || '',
@@ -736,6 +740,22 @@ export default function SchedulePage() {
                   }} placeholder="Search clients…" />
                 <SearchSelect label="Instructor" options={instructors} value={form.instructor}
                   onChange={i => setForm(f => ({ ...f, instructor: i }))} placeholder="Search instructors…" />
+                {form.client && !editingId && (
+                  <label className="sm:col-span-2 flex items-start gap-2 text-sm text-gray-700 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2 cursor-pointer">
+                    <input type="checkbox" checked={form.check_in_reminder}
+                      onChange={e => setForm(f => ({ ...f, check_in_reminder: e.target.checked }))}
+                      className="rounded mt-0.5" />
+                    <span>
+                      Remind me to check in after the first class
+                      {form.client.has_classes === false && (
+                        <span className="text-blue-700 font-medium"> — this is their first class with us</span>
+                      )}
+                      <span className="block text-[11px] text-gray-500">
+                        Adds a reminder to My Tasks for the day after it happens.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 {form.client && (
                   <>
                     <ClientAddressEditor

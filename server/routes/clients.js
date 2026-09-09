@@ -52,7 +52,13 @@ router.get('/', async (req, res) => {
       [like, like, like]
     ));
   } else {
-    ({ rows } = await pool.query('SELECT * FROM clients ORDER BY name'));
+    // has_classes tells the class forms whether this is somebody's first one — that's
+    // when a check-in afterwards is worth offering, and offering it by default.
+    ({ rows } = await pool.query(`
+      SELECT c.*,
+             (EXISTS (SELECT 1 FROM class_schedules s WHERE s.client_id = c.id)
+           OR EXISTS (SELECT 1 FROM class_sessions  s WHERE s.client_id = c.id)) AS has_classes
+        FROM clients c ORDER BY c.name`));
   }
   res.json(rows);
 });

@@ -211,6 +211,54 @@ router.get('/schedules/:id', async (req, res) => {
   res.json(row);
 });
 
+// ── "Check in after the first class" ───────────────────────────────────────────
+// A new client's first class is the one worth following up: did the instructor suit them,
+// was the pace right, do they want to keep the slot. It's also the easiest thing in the
+// world to forget a week later.
+//
+// So setting up a class can set the reminder at the same time — dated the day after the
+// first class actually happens, and landing in My Tasks like every other reminder.
+async function createCheckInReminder({ client_id, instructor_id, firstDate, style, start_time, initials }) {
+  if (!client_id || !firstDate) return null;
+
+  const { rows: [client] } = await pool.query('SELECT name FROM clients WHERE id = $1', [client_id]);
+  const { rows: [inst] } = instructor_id
+    ? await pool.query('SELECT name FROM instructors WHERE id = $1', [instructor_id])
+    : { rows: [] };
+
+  // The day after — not the same day, since the class may not have happened yet when the
+  // reminder would land.
+  const [y, m, d] = String(firstDate).split('-').map(Number);
+  const when = new Date(y, m - 1, d);
+  when.setDate(when.getDate() + 1);
+  const remind_on = toDateStr(when);
+
+  const notes = [
+    `First class: ${fmtCalendarDate(firstDate)}${start_time ? ` at ${fmtTime(start_time)}` : ''}`,
+    inst?.name ? `Instructor: ${inst.name}` : null,
+    style ? `Style: ${style}` : null,
+    '',
+    'Ask how it went — the instructor, the pace, whether the time works — and whether they want to carry on.',
+  ].filter(v => v !== null).join('\n');
+
+  const { rows: [reminder] } = await pool.query(
+    `INSERT INTO reminders (title, notes, remind_on, client_id, instructor_id, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, remind_on`,
+    [`Check in with ${client?.name || 'this client'} after their first class`,
+     notes, remind_on, client_id, instructor_id || null, initials]
+  );
+  return reminder;
+}
+
+// The first date this class actually happens: for a weekly class, the first one on the
+// calendar; for a one-off, itself.
+async function firstDateOfSchedule(scheduleId, fallback) {
+  const { rows: [{ min_date }] } = await pool.query(
+    'SELECT MIN(session_date)::text AS min_date FROM class_sessions WHERE schedule_id = $1', [scheduleId]
+  );
+  return min_date || fallback || null;
+}
+
 router.post('/schedules', async (req, res) => {
   const {
     client_id, instructor_id, weekday, start_time, duration_minutes, charge_amount, charge_note, instructor_pay,
@@ -246,7 +294,14 @@ router.post('/schedules', async (req, res) => {
     client_id, instructor_id, charge_amount, charge_note, instructor_pay, payment_method,
     style: filled.style, participant_count: filled.participant_count, participant_ages: filled.participant_ages,
   });
-  res.status(201).json({ ...(await getScheduleRow(id)), profile_updates });
+  const check_in_reminder = req.body.check_in_reminder
+    ? await createCheckInReminder({
+        client_id, instructor_id,
+        firstDate: await firstDateOfSchedule(id, start_date),
+        style: filled.style, start_time, initials: req.user.initials,
+      })
+    : null;
+  res.status(201).json({ ...(await getScheduleRow(id)), profile_updates, check_in_reminder });
 });
 
 router.put('/schedules/:id', async (req, res) => {
@@ -495,7 +550,13 @@ router.post('/sessions', async (req, res) => {
     style: filled.style, participant_count: filled.participant_count,
     participant_ages: filled.participant_ages,
   });
-  res.status(201).json({ ...row, profile_updates });
+  const check_in_reminder = req.body.check_in_reminder
+    ? await createCheckInReminder({
+        client_id, instructor_id, firstDate: session_date,
+        style: filled.style, start_time, initials: req.user.initials,
+      })
+    : null;
+  res.status(201).json({ ...row, profile_updates, check_in_reminder });
 });
 
 // Ad hoc dated classes — a set of specific dates that don't fit a weekly recurring
@@ -542,6 +603,12 @@ router.post('/sessions/bulk', async (req, res) => {
     payment_method: method, style: filled.style,
     participant_count: filled.participant_count, participant_ages: filled.participant_ages,
   });
+  if (req.body.check_in_reminder) {
+    await createCheckInReminder({
+      client_id, instructor_id, firstDate: [...dates].sort()[0],
+      style: filled.style, start_time, initials: req.user.initials,
+    });
+  }
   res.status(201).json(created);
 });
 

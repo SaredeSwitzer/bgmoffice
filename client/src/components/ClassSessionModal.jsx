@@ -42,6 +42,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
     duration_minutes: session?.duration_minutes ?? 60,
     charge_amount: session?.charge_amount ?? '',
     charge_note: session?.charge_note || '',
+    // Set a follow-up for after their first class. Only offered on a new class.
+    check_in_reminder: false,
     instructor_pay: session?.instructor_pay ?? '',
     payment_method: session?.payment_method || '',
     style: session?.style || '',
@@ -103,6 +105,7 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
       duration_minutes: form.duration_minutes || 60,
       charge_amount: form.charge_amount === '' ? null : form.charge_amount,
       charge_note: form.charge_note || null,
+      check_in_reminder: !isEdit && form.check_in_reminder,
       instructor_pay: form.instructor_pay === '' ? null : form.instructor_pay,
       payment_method: form.payment_method || null,
       style: form.style || null,
@@ -207,6 +210,10 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
                 setForm(f => ({
                   ...f,
                   client: v,
+                  // Their first class with us is the one worth following up, so the
+                  // check-in starts ticked for a client who has none yet. Anyone can
+                  // untick it; picking an established client leaves it alone.
+                  check_in_reminder: v && v.has_classes === false ? true : f.check_in_reminder,
                   // Only when the field hasn't already been typed in, so switching
                   // clients never clobbers something entered for this specific class.
                   charge_amount: f.charge_amount || amount || '',
@@ -233,6 +240,22 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
                   : note   ? { kind: 'note', text: `${v.name}'s rate is recorded as “${note}” — set the pay by hand` }
                   :          { kind: 'none', text: `No rate on file for ${v.name} — pay left as it was` })
               }} placeholder="Search instructor…" />
+            {form.client && !isEdit && (
+              <label className="flex items-start gap-2 text-sm text-gray-700 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2 cursor-pointer">
+                <input type="checkbox" checked={form.check_in_reminder}
+                  onChange={e => setField('check_in_reminder', e.target.checked)}
+                  className="rounded mt-0.5" />
+                <span>
+                  Remind me to check in after the first class
+                  {form.client.has_classes === false && (
+                    <span className="text-blue-700 font-medium"> — this is their first class with us</span>
+                  )}
+                  <span className="block text-[11px] text-gray-500">
+                    Adds a reminder to My Tasks for the day after it happens.
+                  </span>
+                </span>
+              </label>
+            )}
             {form.client && (
               <>
                 <ClientAddressEditor

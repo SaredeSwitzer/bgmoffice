@@ -23,6 +23,7 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
     charge_amount: '', charge_note: '', instructor_pay: '', payment_method: '', style: '',
     address_id: null,
     participant_count: '', participant_ages: '',
+    check_in_reminder: false,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -53,6 +54,7 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
       style: form.style || null,
       participant_count: form.participant_count === '' ? null : form.participant_count,
       participant_ages: form.participant_ages || null,
+      check_in_reminder: form.check_in_reminder,
     }
     try {
       const saved = await api.createClassSessionsBulk(payload)
@@ -82,6 +84,7 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
                   // Pre-fill from the client's profile — only when this field hasn't
                   // already been typed in, so switching clients never clobbers
                   // something staff already entered for this specific class.
+                  check_in_reminder: v && v.has_classes === false ? true : f.check_in_reminder,
                   charge_amount: f.charge_amount || amount || '',
                   charge_note: f.charge_note || note || '',
                   payment_method: f.payment_method || v?.default_payment_method || '',
@@ -90,6 +93,22 @@ export default function AddClassDatesModal({ onClose, onSaved }) {
                   participant_ages: f.participant_ages || v?.default_age || '',
                 }))
               }} placeholder="Search client…" />
+            {form.client && (
+              <label className="flex items-start gap-2 text-sm text-gray-700 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2 cursor-pointer">
+                <input type="checkbox" checked={form.check_in_reminder}
+                  onChange={e => setField('check_in_reminder', e.target.checked)}
+                  className="rounded mt-0.5" />
+                <span>
+                  Remind me to check in after the first class
+                  {form.client.has_classes === false && (
+                    <span className="text-blue-700 font-medium"> — this is their first class with us</span>
+                  )}
+                  <span className="block text-[11px] text-gray-500">
+                    Adds a reminder to My Tasks for the day after it happens.
+                  </span>
+                </span>
+              </label>
+            )}
             <SearchSelect label="Instructor" options={instructors} value={form.instructor}
               onChange={v => setForm(f => ({
                 ...f,
