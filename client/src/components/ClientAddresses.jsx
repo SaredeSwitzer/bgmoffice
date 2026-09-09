@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { NeighborhoodWarning } from '../utils/neighborhood'
 
 // Clients who are taught in more than one place — a Brooklyn home and an upstate house,
 // a main site and an annexe. One of them is the primary: it's what the client record,
@@ -39,6 +40,7 @@ function AddressForm({ initial, onSave, onCancel, saving }) {
       </div>
       <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
         placeholder="Neighborhood" className={input} />
+      <NeighborhoodWarning value={form.neighborhood} />
       <input value={form.notes} onChange={e => set('notes', e.target.value)}
         placeholder="Anything the instructor needs to know — parking, side entrance…" className={input} />
       {error && <p className="text-[11px] text-red-600">{error}</p>}

@@ -4,6 +4,7 @@ const bcrypt   = require('bcryptjs');
 const pool     = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { notifyCrew } = require('../lib/notifyCrew');
+const { looksLikeAddress, NEIGHBORHOOD_HELP } = require('../lib/neighborhood');
 const { findDuplicateInstructors, describeDuplicates } = require('../lib/findDuplicateInstructors');
 
 const router = express.Router();
@@ -57,6 +58,9 @@ router.get('/neighborhoods', async (req, res) => {
 router.post('/neighborhoods', async (req, res) => {
   const { name, region } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  // This adds to the list everyone picks from, so an address typed into "+ Other" would
+  // become a permanent option for every future instructor. Refused outright.
+  if (looksLikeAddress(name)) return res.status(400).json({ error: NEIGHBORHOOD_HELP });
   const trimmed = name.trim();
   const { rows: [existing] } = await pool.query('SELECT * FROM neighborhoods WHERE LOWER(name) = LOWER($1)', [trimmed]);
   if (existing) return res.json(existing);
@@ -125,16 +129,25 @@ router.post('/', async (req, res) => {
     return res.status(200).json({ maybe_registered: true });
   }
 
+  // Somebody applying for work is not the person to argue with about which box an address
+  // goes in. If they put one where the area goes, keep what they wrote — it moves into
+  // their notes, where staff will see it — rather than refusing the application.
+  const areaIsAddress = looksLikeAddress(neighborhood);
+  const area  = areaIsAddress ? null : (neighborhood || null);
+  const notes2 = areaIsAddress
+    ? [`Address they gave: ${String(neighborhood).trim()}`, notes].filter(Boolean).join('\n')
+    : notes;
+
   const { rows: [signup] } = await pool.query(
     `INSERT INTO instructor_signups (name, email, phone, neighborhood, city, state, styles_taught, specialties, notes, heard_about_us)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [name.trim(), email || null, phone || null, neighborhood || null, city || null, state || null,
-     styles_taught || null, specialties || null, notes || null, heard_about_us?.trim() || null]
+    [name.trim(), email || null, phone || null, area, city || null, state || null,
+     styles_taught || null, specialties || null, notes2 || null, heard_about_us?.trim() || null]
   );
 
   // Ping the crew Telegram — a sign-up sits in Instructors → Sign-ups waiting to be
   // approved, and nothing else would surface it until someone happened to look.
-  const where = [neighborhood, [city, state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+  const where = [area, [city, state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
   await notifyCrew(
     `🙋 New instructor sign-up: ${name.trim()}` +
     (email ? `\n${email}` : '') +

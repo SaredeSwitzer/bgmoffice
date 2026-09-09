@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, uploadsUrl } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import SignupOptionPicker from '../components/SignupOptionPicker'
+import { NeighborhoodWarning } from '../utils/neighborhood'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -377,8 +378,11 @@ export default function InstructorMyProfilePage() {
                 />
               </>
             ) : (
-              <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              <>
+                <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <NeighborhoodWarning value={form.neighborhood} />
+              </>
             )}
           </div>
           <div className="sm:col-span-2">

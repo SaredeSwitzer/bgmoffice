@@ -22,6 +22,7 @@ import Byline from '../components/Byline'
 import { PAYMENT_METHODS } from '../utils/payments'
 import ClientAddresses from '../components/ClientAddresses'
 import { today } from '../utils/dates'
+import { NeighborhoodWarning } from '../utils/neighborhood'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
@@ -1191,6 +1192,7 @@ export default function ClientProfilePage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
                 <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
                   placeholder="Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <NeighborhoodWarning value={editForm.neighborhood} />
               </div>
               {/* Both come off the intake form: who sent them, and who the class is for
                   (which decides who can teach it). */}

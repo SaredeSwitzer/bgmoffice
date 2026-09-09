@@ -13,6 +13,7 @@ import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { today } from '../utils/dates'
 import NoteBody from '../components/NoteBody'
 import MentionTextarea from '../components/MentionTextarea'
+import { NeighborhoodWarning } from '../utils/neighborhood'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -823,8 +824,11 @@ export default function InstructorProfilePage() {
                     addLabel="neighborhood"
                   />
                 ) : (
-                  <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
-                    placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  <>
+                    <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
+                      placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                    <NeighborhoodWarning value={editForm.neighborhood} />
+                  </>
                 )}
               </div>
               <div className="col-span-2">

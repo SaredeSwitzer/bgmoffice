@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SignupOptionPicker from '../components/SignupOptionPicker'
+import { NeighborhoodWarning } from '../utils/neighborhood'
 
 // Public, no-login page at /join — an instructor who heard about the new system (e.g. a
 // site-wide email to everyone in Shiftboard) opts in here. Staff review and approve/reject
@@ -197,8 +198,11 @@ export default function InstructorSignupPage() {
                 />
               </>
             ) : (
-              <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              <>
+                <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <NeighborhoodWarning value={form.neighborhood} />
+              </>
             )}
           </div>
           <div>

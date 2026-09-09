@@ -6,6 +6,7 @@ import GmailComposeLink from '../components/GmailComposeLink'
 import MentionTextarea from '../components/MentionTextarea'
 import ClientContractInviteModal from '../components/ClientContractInviteModal'
 import PaperworkOutstanding from '../components/PaperworkOutstanding'
+import { NeighborhoodWarning } from '../utils/neighborhood'
 
 const CONTACT_ICONS = { text: '💬', email: '✉️', whatsapp: '📱', call: '📞' }
 
@@ -161,6 +162,7 @@ export default function ClientsPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood</label>
               <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="e.g. Park Slope" />
+              <NeighborhoodWarning value={form.neighborhood} />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Client Type</label>

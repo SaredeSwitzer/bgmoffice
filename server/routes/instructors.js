@@ -5,6 +5,7 @@ const path     = require('path');
 const pool     = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { decryptSSN } = require('../lib/ssnCrypto');
+const { rejectIfAddress } = require('../lib/neighborhood');
 const { sendMail } = require('../lib/mailer');
 const { notifyCrew } = require('../lib/notifyCrew');
 const { findDuplicateInstructors, describeDuplicates } = require('../lib/findDuplicateInstructors');
@@ -235,6 +236,10 @@ router.get('/:id/reveal-ssn', requireStaff, async (req, res) => {
 router.post('/', async (req, res) => {
   const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, tax_id_type, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
+  // The neighborhood box sits next to the address box, and an address typed into it makes
+  // the instructor unfindable by area — see lib/neighborhood.js.
+  const badArea = rejectIfAddress(neighborhood);
+  if (badArea) return res.status(400).json(badArea);
   // Unlike PUT, defaulting to 'ssn' is correct here — a brand-new record has no stored
   // value to preserve, and an SSN is what an unspecified tax ID has always meant.
   let taxIdType = tax_id_type === 'ein' ? 'ein' : 'ssn';
@@ -364,6 +369,8 @@ router.put('/:id', async (req, res) => {
     // pay RATE, contract, name, or SSN. payout_method/handle is just "how to reach me for
     // pay" (a Venmo @handle, a phone for Zelle, etc.) — same trust level as phone/email.
     const { phone, email, mailing_address, city, state, neighborhood, styles_taught, specialties, payout_method, payout_handle } = req.body;
+    const badArea = rejectIfAddress(neighborhood);
+    if (badArea) return res.status(400).json(badArea);
     await pool.query(
       `UPDATE instructors SET phone=$1, email=$2, mailing_address=$3, city=$4, state=$5, neighborhood=$6, styles_taught=$7, specialties=$8,
          payout_method=$9, payout_handle=$10
@@ -381,6 +388,9 @@ router.put('/:id', async (req, res) => {
   }
 
   const { name, phone, email, specialties, style, notes, pay_rate, mailing_address, city, state, ssn, tax_id_type, contract_signed, contract_signed_date, neighborhood, styles_taught, payout_method, payout_handle } = req.body;
+
+  const badArea = rejectIfAddress(neighborhood);
+  if (badArea) return res.status(400).json(badArea);
 
   // An omitted tax_id_type must NOT fall through to 'ssn' — this is a full-record replace,
   // so a caller that doesn't echo the field (a sync script, a partial update) would

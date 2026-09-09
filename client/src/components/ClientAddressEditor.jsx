@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import { NeighborhoodWarning } from '../utils/neighborhood'
 
 // Read-only "📍 neighborhood / street, city, zip" block with an inline edit mode —
 // used wherever a class shows its client's location (ClassSessionModal, SchedulePage's
@@ -46,6 +47,7 @@ export default function ClientAddressEditor({ client, onUpdated, className = '' 
         <div className="grid grid-cols-2 gap-1.5">
           <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
             placeholder="Neighborhood" className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
+          <NeighborhoodWarning value={form.neighborhood} />
           <input value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))}
             placeholder="Zip" className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-300" />
         </div>

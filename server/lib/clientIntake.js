@@ -1,4 +1,5 @@
 const pool = require('../db/pg');
+const { looksLikeAddress } = require('./neighborhood');
 
 // Taking on a new class: one set of questions, two ways in.
 //
@@ -124,6 +125,13 @@ async function createClientFromIntake(f) {
 async function recordIntake(f, { clientId = null, createClient = false, preferredDays = null,
                                  createdBy = 'FORM', instructorId = null, classType = null,
                                  classDates = null } = {}) {
+  // Both intakes ask for the neighborhood and the address one after the other, and people
+  // answer the wrong one. Neither route can stop and ask, so an address written in the
+  // neighborhood answer is moved to the address it plainly is (see lib/neighborhood.js).
+  if (looksLikeAddress(f.neighborhood)) {
+    f = { ...f, address: [f.address, f.neighborhood].filter(Boolean).join(' ').trim(), neighborhood: '' };
+  }
+
   let client = null;
   let filled = [];
 

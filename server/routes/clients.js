@@ -2,6 +2,7 @@ const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { rejectIfAddress } = require('../lib/neighborhood');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -93,6 +94,9 @@ router.post('/', async (req, res) => {
     referred_by, gender, referred_by_client_id, goals, health_notes, equipment,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
+  // Neighborhood is the area, not the street — see lib/neighborhood.js.
+  const badArea = rejectIfAddress(neighborhood);
+  if (badArea) return res.status(400).json(badArea);
 
   // If this organization already signed the contract in-app before being added as a
   // client (see clientContract.js), carry that signature + contact info over.
@@ -165,6 +169,9 @@ router.put('/:id', async (req, res) => {
     skip_weekly_reminder, referred_by, gender, referred_by_client_id,
     goals, health_notes, equipment, phone_texting, phone_whatsapp,
   } = req.body;
+
+  const badArea = rejectIfAddress(neighborhood);
+  if (badArea) return res.status(400).json(badArea);
 
   // PUT replaces the whole record, so an omitted field would silently clear it. This flag
   // isn't on every form that saves a client, so absent has to mean "leave it alone" —
@@ -266,6 +273,8 @@ router.get('/:id/addresses', async (req, res) => {
 router.post('/:id/addresses', async (req, res) => {
   const { label, street, city, state, zip, neighborhood, notes, is_primary } = req.body;
   if (!label?.trim()) return res.status(400).json({ error: 'Give the address a label, e.g. "Brooklyn"' });
+  const badArea = rejectIfAddress(neighborhood);
+  if (badArea) return res.status(400).json(badArea);
 
   // The first address a client gets is their primary whether or not anyone said so —
   // otherwise a client can end up with addresses and no default for classes to use.
@@ -290,6 +299,8 @@ router.post('/:id/addresses', async (req, res) => {
 router.put('/:id/addresses/:addressId', async (req, res) => {
   const { label, street, city, state, zip, neighborhood, notes } = req.body;
   if (!label?.trim()) return res.status(400).json({ error: 'Give the address a label, e.g. "Brooklyn"' });
+  const badArea = rejectIfAddress(neighborhood);
+  if (badArea) return res.status(400).json(badArea);
   const { rows: [row] } = await pool.query(
     `UPDATE client_addresses
         SET label=$1, street=$2, city=$3, state=$4, zip=$5, neighborhood=$6, notes=$7
