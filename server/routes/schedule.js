@@ -988,7 +988,7 @@ async function sendConfirmationRoute(kind, table, req, res) {
 // are ours to know, not theirs to be told again.
 
 const CLIENT_SMS_DEFAULT =
-  "Hi {client_name}! {intro} Your {style} class {with_instructor}is confirmed for " +
+  "Hi {client_name}! {intro} Your {style_phrase} {with_instructor}is confirmed for " +
   "{days_times}. Please give us at least 24 hours' notice to cancel a class. " +
   "Reply here any time.";
 
@@ -1004,16 +1004,36 @@ async function introFor(phone) {
     : 'This is Bring the Gym to Me — our texting number, feel free to save it.';
 }
 
-// How you'd actually greet them in a text. A person gets their first name; an
-// organization gets whoever we deal with there, because "Hi Shalom Center - Genya!" is
-// not how anybody talks.
+// How you'd actually greet them in a text.
+//
+// A person gets their first name. An organization is trickier: seven of these clients are
+// filed as "HaMaspik - Charny Schonfeld" or "Shalom Center - Genya" — the place, a dash,
+// and the person we actually deal with. Greeting them "Hi HaMaspik!" is not how anybody
+// talks, so the name after the dash wins when there's no contact person recorded.
+function firstNameOf(name) {
+  const first = String(name || '').trim().split(/\s+/)[0] || '';
+  return first ? first[0].toUpperCase() + first.slice(1) : '';
+}
+
 function smsGreetingName(client) {
   if (!client) return 'there';
-  const firstNameOf = n => String(n || '').trim().split(/\s+/)[0] || '';
-  if (client.client_type === 'organization') {
-    return firstNameOf(client.contact_person_name) || client.name || 'there';
-  }
+  const contact = firstNameOf(client.contact_person_name);
+  if (contact) return contact;
+  // "Place - Person", "Place -- Person": the part after the last dash separator.
+  const m = String(client.name || '').match(/\s-{1,2}\s*(.+)$/);
+  if (m) return firstNameOf(m[1]);
+  if (client.client_type === 'organization') return client.name || 'there';
   return firstNameOf(client.name) || 'there';
+}
+
+// "Your Pilates class", but "Your Fitness Class" — one of the styles on file is already
+// called Fitness Class, and "Your Fitness Class class" is what a robot writes. And one
+// style is a whole paragraph describing what an instructor likes to teach; that belongs
+// nowhere near a text message, so anything that long just becomes "class".
+function smsStylePhrase(style) {
+  const s = String(style || '').trim();
+  if (!s || s.length > 25) return 'class';
+  return /class(es)?$/i.test(s) ? s : `${s} class`;
 }
 
 // The email spells the schedule out in a labelled line ("Day/Time: Tuesday, starting
@@ -1030,9 +1050,13 @@ function smsDaysTimes(row) {
   }
   if (row.weekday == null) return start ? `${start}` : '';
   const from = row.start_date || nextWeekdayOnOrAfter(row.weekday, toDateStr(new Date()));
+  const day = `${WEEKDAY_NAMES[row.weekday]}s at ${start}`;
+  // "starting Jul 13" on a class that has been running since July is just confusing.
+  // A start date only earns its place when it hasn't happened yet.
+  if (from <= toDateStr(new Date())) return day;
   const [y, m, d] = from.split('-').map(Number);
   const fromLabel = new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return `${WEEKDAY_NAMES[row.weekday]}s at ${start}, starting ${fromLabel}`;
+  return `${day}, starting ${fromLabel}`;
 }
 
 async function getClientSmsTemplate() {
@@ -1063,6 +1087,7 @@ async function buildClientText(kind, id) {
   const ctx = confirmationContext(wordingRow);
   ctx.client_name = smsGreetingName(client);
   ctx.days_times = smsDaysTimes(wordingRow);
+  ctx.style_phrase = smsStylePhrase(ctx.style);
   ctx.intro = phone ? await introFor(phone) : 'This is Bring the Gym to Me.';
   // Its own placeholder rather than a bare {instructor_name}, so a class with nobody
   // assigned yet reads "Your Pilates class is confirmed" instead of "with there".
