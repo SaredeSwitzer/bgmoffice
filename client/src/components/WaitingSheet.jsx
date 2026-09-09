@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
 import NoteBody from './NoteBody'
 import Byline from './Byline'
+import { ClientLink } from './NameLink'
 import MentionTextarea from './MentionTextarea'
 import { today, noteTime } from '../utils/dates'
 import { useHashHighlight } from '../utils/hashHighlight'
@@ -27,7 +28,81 @@ function linkedNoteId(hash) {
 // A row works just as well with only an instructor, only a client, or several of either —
 // one instructor being lined up for three clients is three names on one side.
 
-function PersonChip({ person, isWaiting, onClick, onRemove, readOnly }) {
+// ── Grouping the sheet by client ───────────────────────────────────────────────
+//
+// One client can easily have four separate threads running — a rate increase, a
+// substitute for Tuesdays, whether classes stay on Fridays — and scattered down the sheet
+// they read as four unrelated problems. When a client has more than one line, their lines
+// are collected under a single heading with their name on it. One line stays exactly as
+// it was: a heading over a single row is just noise.
+//
+// Instructors are deliberately left alone. A line usually has both an instructor and a
+// client on it, so grouping by both at once would mean deciding which one owns the row,
+// and the answer changes line by line.
+
+// A typed-in name has no id, so fall back to the name itself.
+function personKey(p) {
+  return p.person_id ? `id:${p.person_id}` : `name:${String(p.name || '').trim().toLowerCase()}`
+}
+
+function clientOf(row) {
+  return (row.people || []).find(p => p.kind === 'client') || null
+}
+
+// Rows, in the order the server sent them (urgent first, then oldest), turned into a list
+// of blocks: either one loose row, or every row belonging to one client. A group takes
+// the position of its first row, so the urgent line at the top of the sheet stays at the
+// top and brings the rest of that client's lines with it.
+export function groupByClient(rows) {
+  const counts = new Map()
+  for (const row of rows) {
+    const c = clientOf(row)
+    if (c) counts.set(personKey(c), (counts.get(personKey(c)) || 0) + 1)
+  }
+
+  const blocks = []
+  const done = new Set()
+  for (const row of rows) {
+    const c = clientOf(row)
+    const key = c ? personKey(c) : null
+    if (!key || counts.get(key) < 2) { blocks.push({ kind: 'row', row }); continue }
+    if (done.has(key)) continue
+    done.add(key)
+    blocks.push({ kind: 'group', key, client: c, rows: rows.filter(r => {
+      const rc = clientOf(r)
+      return rc && personKey(rc) === key
+    }) })
+  }
+  return blocks
+}
+
+// The band that carries the client's name over their lines.
+function GroupHeading({ client, rows, colSpan }) {
+  const waiting = rows.filter(r => (r.people || []).some(p => p.waiting)).length
+  const urgent  = rows.some(r => r.urgent)
+  return (
+    <tr className="bg-gray-50 border-t border-gray-200">
+      <td colSpan={colSpan} className="px-3 py-1.5">
+        <span className="text-xs font-bold text-gray-700">
+          {urgent && <span className="text-red-500 mr-1">★</span>}
+          <ClientLink id={client.person_id} name={client.name} />
+        </span>
+        <span className="text-[11px] text-gray-400 ml-2">
+          {rows.length} things open
+          {waiting > 0 && ` · waiting on someone on ${waiting}`}
+        </span>
+      </td>
+    </tr>
+  )
+}
+
+// `compact` drops the name and leaves the hourglass: used under a client's own heading,
+// where printing "Etty Silberstein" on all four of her lines says nothing the heading
+// hasn't. The flag itself still has to be there — it's per line, not per person.
+function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact }) {
+  // Read-only and not flagged: there is nothing to say and nothing to click, and the
+  // heading above already carries the name.
+  if (compact && readOnly && !isWaiting) return null
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-0.5 text-xs transition-colors ${
@@ -40,11 +115,13 @@ function PersonChip({ person, isWaiting, onClick, onRemove, readOnly }) {
         type="button"
         onClick={onClick}
         disabled={readOnly}
-        title={isWaiting ? 'They came back to us — clear the flag' : "We're waiting on them"}
+        title={isWaiting
+          ? `${person.name} came back to us — clear the flag`
+          : `We're waiting on ${person.name}`}
         className="disabled:cursor-default"
       >
         {isWaiting && <span className="mr-1">⏳</span>}
-        {person.name}
+        {compact ? (isWaiting ? 'Waiting' : 'Waiting?') : person.name}
       </button>
       {!readOnly && (
         <button type="button" onClick={onRemove} title="Take off this row"
@@ -85,7 +162,7 @@ function AddPerson({ kind, options, onAdd }) {
   )
 }
 
-function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [], openNoteId }) {
+function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [], openNoteId, groupedUnder = null }) {
   const [busy, setBusy] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const replyRef = useRef(null)
@@ -131,6 +208,22 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
         {readOnly && row.urgent && <span className="text-red-500">★</span>}
       </td>
 
+      {/* Client first: it's the one you scan the sheet by. */}
+      <td className="align-top px-3 py-2.5">
+        <div className="flex flex-wrap gap-1.5 items-center">
+          {clientsOn.map(p => (
+            <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
+              compact={groupedUnder != null && personKey(p) === groupedUnder}
+              onClick={() => toggleWaiting(p)} readOnly={readOnly}
+              onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
+          ))}
+          {!readOnly && (
+            <AddPerson kind="client" options={clients}
+              onAdd={p => act(() => api.addWaitingRowPerson(row.id, p))} />
+          )}
+        </div>
+      </td>
+
       <td className="align-top px-3 py-2.5">
         <div className="flex flex-wrap gap-1.5 items-center">
           {instructorsOn.map(p => (
@@ -140,20 +233,6 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
           ))}
           {!readOnly && (
             <AddPerson kind="instructor" options={instructors}
-              onAdd={p => act(() => api.addWaitingRowPerson(row.id, p))} />
-          )}
-        </div>
-      </td>
-
-      <td className="align-top px-3 py-2.5">
-        <div className="flex flex-wrap gap-1.5 items-center">
-          {clientsOn.map(p => (
-            <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
-              onClick={() => toggleWaiting(p)} readOnly={readOnly}
-              onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
-          ))}
-          {!readOnly && (
-            <AddPerson kind="client" options={clients}
               onAdd={p => act(() => api.addWaitingRowPerson(row.id, p))} />
           )}
         </div>
@@ -320,6 +399,10 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
 
   if (rows === null) return null
 
+  // On a client's own profile every line is already theirs, so grouping by client would
+  // put their own name in a heading above their own lines. An instructor's profile is a
+  // different matter — those lines belong to several different clients, and grouping is
+  // exactly what makes them readable.
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
@@ -361,16 +444,27 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="w-8" />
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">What we&rsquo;re waiting for</th>
                 <th className="w-20" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map(row => (
-                <Row key={row.id} row={row} clients={clients} instructors={instructors}
-                  mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
+              {(kind === 'client' ? rows.map(row => ({ kind: 'row', row })) : groupByClient(rows)).map(block => (
+                block.kind === 'row' ? (
+                  <Row key={block.row.id} row={block.row} clients={clients} instructors={instructors}
+                    mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
+                ) : (
+                  <Fragment key={block.key}>
+                    <GroupHeading client={block.client} rows={block.rows} colSpan={5} />
+                    {block.rows.map(row => (
+                      <Row key={row.id} row={row} clients={clients} instructors={instructors}
+                        mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load}
+                        groupedUnder={block.key} />
+                    ))}
+                  </Fragment>
+                )
               ))}
             </tbody>
           </table>
@@ -410,6 +504,10 @@ export default function WaitingSheet() {
     if (!draft.what.trim()) return
     setSaving(true)
     try {
+      // Instructor first on purpose, even though the form now asks for the client first:
+      // the first name added is the one the hourglass lands on, and on a line with both
+      // it is nearly always the instructor we're chasing. Reordering these would quietly
+      // move the flag to the client on every new line.
       const people = []
       if (draft.instructor) people.push({ kind: 'instructor', person_id: draft.instructor.id, name: draft.instructor.name })
       if (draft.client)     people.push({ kind: 'client',     person_id: draft.client.id,     name: draft.client.name })
@@ -456,14 +554,14 @@ export default function WaitingSheet() {
           />
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Instructor (optional)</label>
-              <SearchSelect options={instructors} value={draft.instructor}
-                onChange={v => setDraft(d => ({ ...d, instructor: v }))} placeholder="Search instructor…" />
-            </div>
-            <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Client (optional)</label>
               <SearchSelect options={clients} value={draft.client}
                 onChange={v => setDraft(d => ({ ...d, client: v }))} placeholder="Search client…" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">Instructor (optional)</label>
+              <SearchSelect options={instructors} value={draft.instructor}
+                onChange={v => setDraft(d => ({ ...d, instructor: v }))} placeholder="Search instructor…" />
             </div>
           </div>
           <div className="max-w-[200px]">
@@ -496,16 +594,27 @@ export default function WaitingSheet() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="w-8" />
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Instructor</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">What we&rsquo;re waiting for</th>
                 <th className="w-20 print:hidden" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map(row => (
-                <Row key={row.id} row={row} clients={clients} instructors={instructors}
-                  mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
+              {groupByClient(rows).map(block => (
+                block.kind === 'row' ? (
+                  <Row key={block.row.id} row={block.row} clients={clients} instructors={instructors}
+                    mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
+                ) : (
+                  <Fragment key={block.key}>
+                    <GroupHeading client={block.client} rows={block.rows} colSpan={5} />
+                    {block.rows.map(row => (
+                      <Row key={row.id} row={row} clients={clients} instructors={instructors}
+                        mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load}
+                        groupedUnder={block.key} />
+                    ))}
+                  </Fragment>
+                )
               ))}
             </tbody>
           </table>
