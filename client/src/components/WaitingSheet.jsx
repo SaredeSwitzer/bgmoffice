@@ -76,15 +76,17 @@ export function groupByClient(rows) {
   return blocks
 }
 
-// The band that carries the client's name over their lines.
+// The band that carries the client's name over their lines. The name is the thing to
+// see — it's how you find your way down the sheet — so it's the only thing set large and
+// dark here, and the count sits quietly next to it.
 function GroupHeading({ client, rows, colSpan }) {
   const waiting = rows.filter(r => (r.people || []).some(p => p.waiting)).length
   const urgent  = rows.some(r => r.urgent)
   return (
-    <tr className="bg-gray-50 border-t border-gray-200">
-      <td colSpan={colSpan} className="px-3 py-1.5">
-        <span className="text-xs font-bold text-gray-700">
-          {urgent && <span className="text-red-500 mr-1">★</span>}
+    <tr className="bg-gray-50 border-t-2 border-gray-200">
+      <td colSpan={colSpan} className="px-3 pt-2 pb-1">
+        {urgent && <span className="text-red-500 mr-1">★</span>}
+        <span className="text-sm font-bold text-gray-900">
           <ClientLink id={client.person_id} name={client.name} />
         </span>
         <span className="text-[11px] text-gray-400 ml-2">
@@ -96,13 +98,34 @@ function GroupHeading({ client, rows, colSpan }) {
   )
 }
 
-// `compact` drops the name and leaves the hourglass: used under a client's own heading,
-// where printing "Etty Silberstein" on all four of her lines says nothing the heading
-// hasn't. The flag itself still has to be there — it's per line, not per person.
+// `compact` is how a client's chip renders underneath their own heading: the name comes
+// off (the heading already says it) and what's left is the hourglass on its own, so the
+// lines read as a bullet list under the name rather than four copies of it.
 function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact }) {
   // Read-only and not flagged: there is nothing to say and nothing to click, and the
   // heading above already carries the name.
   if (compact && readOnly && !isWaiting) return null
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={readOnly}
+        title={isWaiting
+          ? `${person.name} came back to us — clear the flag`
+          : `We're waiting on ${person.name}`}
+        className={`rounded-full border w-6 h-6 leading-none text-xs transition-colors disabled:cursor-default ${
+          isWaiting
+            ? 'bg-amber-100 border-amber-400'
+            : 'bg-white border-gray-200 text-transparent hover:text-gray-300 hover:border-amber-300'
+        }`}
+      >
+        ⏳
+      </button>
+    )
+  }
+
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-0.5 text-xs transition-colors ${
@@ -121,7 +144,7 @@ function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact })
         className="disabled:cursor-default"
       >
         {isWaiting && <span className="mr-1">⏳</span>}
-        {compact ? (isWaiting ? 'Waiting' : 'Waiting?') : person.name}
+        {person.name}
       </button>
       {!readOnly && (
         <button type="button" onClick={onRemove} title="Take off this row"
@@ -190,6 +213,7 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
 
   // The flag sits on each person, so any number of them can carry it — often we're waiting
   // on the instructor for one thing and the client for another on the same line.
+  const grouped = groupedUnder != null
   const isWaitingOn = p => !!p.waiting
   const toggleWaiting = p => act(() =>
     api.setWaitingOnPerson(row.id, p.id, !isWaitingOn(p)))
@@ -208,9 +232,12 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
         {readOnly && row.urgent && <span className="text-red-500">★</span>}
       </td>
 
-      {/* Client first: it's the one you scan the sheet by. */}
-      <td className="align-top px-3 py-2.5">
+      {/* Client first: it's the one you scan the sheet by. Under a client's own heading
+          the cell becomes a bullet and the hourglass, so their lines read as a list
+          beneath the name instead of repeating it. */}
+      <td className={`align-top px-3 py-2.5 ${grouped ? 'pl-8' : ''}`}>
         <div className="flex flex-wrap gap-1.5 items-center">
+          {grouped && <span className="text-gray-300 select-none">&bull;</span>}
           {clientsOn.map(p => (
             <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
               compact={groupedUnder != null && personKey(p) === groupedUnder}
