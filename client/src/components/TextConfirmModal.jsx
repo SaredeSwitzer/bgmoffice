@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 
-// Text the client their class confirmation — the short version of the instructor's
-// confirmation email: what's booked, with whom, and the 24-hour cancellation notice.
+// The short confirmation text — to the client, or to the instructor teaching it.
+//
+// The client's version is what's booked, with whom, and the 24-hour cancellation notice.
+// The instructor's is the same class from the other side, and goes out alongside (not
+// instead of) their full confirmation email — it's the version that reaches them on the
+// way out the door.
 //
 // Same shape as ConfirmClassModal on purpose: the app writes it, you read it, you press
 // send. Nothing goes out on its own, and what's on screen is exactly what's sent, so
@@ -16,7 +20,7 @@ function segments(text) {
   return n <= 160 ? 1 : Math.ceil(n / 153)
 }
 
-export default function TextClientModal({ classRow, kind = 'schedule', onClose, onSent }) {
+export default function TextConfirmModal({ who = 'client', classRow, kind = 'schedule', onClose, onSent }) {
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(null)
   const [text, setText] = useState('')
@@ -26,17 +30,17 @@ export default function TextClientModal({ classRow, kind = 'schedule', onClose, 
   useEffect(() => {
     let cancelled = false
     setLoading(true); setError(null)
-    api.getClientTextPreview(kind, classRow.id)
+    api.getConfirmTextPreview(who, kind, classRow.id)
       .then(p => { if (cancelled) return; setPreview(p); setText(p.text) })
       .catch(e => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [classRow.id, kind])
+  }, [classRow.id, kind, who])
 
   async function send() {
     setSending(true); setError(null)
     try {
-      const r = await api.sendClientText(kind, classRow.id, { text })
+      const r = await api.sendConfirmText(who, kind, classRow.id, { text })
       onSent?.(r)
       onClose()
     } catch (e) {
@@ -52,7 +56,9 @@ export default function TextClientModal({ classRow, kind = 'schedule', onClose, 
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="px-5 pt-5 pb-3 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900 text-base">Text {preview?.client_name || 'the client'}</h3>
+          <h3 className="font-bold text-gray-900 text-base">
+            Text {preview?.client_name || preview?.person_name || `the ${who}`}
+          </h3>
           {preview?.to && <p className="text-xs text-gray-400 mt-0.5">To {preview.to}</p>}
         </div>
 
@@ -61,8 +67,8 @@ export default function TextClientModal({ classRow, kind = 'schedule', onClose, 
             <p className="text-sm text-gray-400 italic">Writing it…</p>
           ) : !preview?.to ? (
             <p className="text-sm text-gray-600">
-              {preview?.client_name || 'This client'} has no phone number on file. Add one on their
-              profile and this will work.
+              {preview?.client_name || preview?.person_name || `This ${who}`} has no phone number on
+              file. Add one on their profile and this will work.
             </p>
           ) : (
             <>
@@ -72,7 +78,7 @@ export default function TextClientModal({ classRow, kind = 'schedule', onClose, 
                   sends another one.
                 </p>
               )}
-              {!preview.has_instructor && (
+              {who === 'client' && preview.has_instructor === false && (
                 <p className="text-xs text-gray-500">
                   No instructor on this class yet, so the text doesn’t name one.
                 </p>

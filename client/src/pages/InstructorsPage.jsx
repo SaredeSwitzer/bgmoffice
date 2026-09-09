@@ -8,6 +8,7 @@ import StylesManagerModal from '../components/StylesManagerModal'
 import PaperworkOutstanding from '../components/PaperworkOutstanding'
 import NeighborhoodPicker from '../components/NeighborhoodPicker'
 import { normalizeState, splitAreas, stateLabel } from '../utils/places'
+import MultiSelectFilter from '../components/MultiSelectFilter'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
@@ -145,12 +146,6 @@ function PendingSignups({ signups, onApproved, onRejected, onMerged }) {
   )
 }
 
-const LOGIN_STATUS_LABELS = {
-  not_logged_in: 'Not logged in yet',
-  active: 'Active',
-  no_login: 'No login access',
-}
-
 function loginStatusOf(inst) {
   if (!inst.has_login) return 'no_login'
   return inst.last_login_at ? 'active' : 'not_logged_in'
@@ -161,14 +156,16 @@ export default function InstructorsPage() {
   const [classStyles, setClassStyles] = useState([])
   const [showStylesManager, setShowStylesManager] = useState(false)
   const [query, setQuery] = useState('')
-  const [styleFilter, setStyleFilter] = useState('')
+  // Every filter takes several answers at once: you're usually asking "Pilates or Zumba?",
+  // "Brooklyn or Queens?" — not "which single one?". Within a box the answers are ORed;
+  // across boxes they narrow each other.
+  const [styleFilter, setStyleFilter] = useState([])
   // Where they teach, narrowed in three steps — a single flat list of every answer any
   // instructor ever gave was unreadable, and matched the whole string, so picking
   // "Park Slope" never found somebody listed as "Park Slope, Williamsburg".
-  const [stateFilter, setStateFilter] = useState('')
-  const [areaFilter, setAreaFilter] = useState('')
-  const [locationFilter, setLocationFilter] = useState('')
-  const [loginFilter, setLoginFilter] = useState('')
+  const [stateFilter, setStateFilter] = useState([])
+  const [areaFilter, setAreaFilter] = useState([])
+  const [locationFilter, setLocationFilter] = useState([])
   const [loading, setLoading] = useState(true)
   const [newInstructor, setNewInstructor] = useState(false)
   const [form, setForm] = useState(BLANK_FORM)
@@ -256,30 +253,36 @@ export default function InstructorsPage() {
     return new Set([own, ...fromAreas].filter(Boolean))
   }
 
+  // Only the states somebody is actually in — today NY, NJ, FL and PA.
   const stateOptions = [...new Set([
     ...neighborhoods.map(n => normalizeState(n.state) || 'NY'),
     ...instructors.map(i => normalizeState(i.state)).filter(Boolean),
   ])].sort()
 
-  // Areas offered for the chosen state (all of them when no state is picked).
-  const areaOptions = [...new Set(
-    neighborhoods
-      .filter(n => !stateFilter || (normalizeState(n.state) || 'NY') === stateFilter)
-      .map(n => n.region || 'Other')
-  )].sort()
+  const inChosenState = n => stateFilter.length === 0 || stateFilter.includes(normalizeState(n.state) || 'NY')
 
-  // Neighborhood options: the canonical names for the chosen state and area, plus
+  // Areas offered for the chosen states (all of them when no state is picked). "Other" is
+  // the catch-all, so it belongs at the bottom rather than alphabetically between
+  // Manhattan and Queens.
+  const areaOptions = [...new Set(neighborhoods.filter(inChosenState).map(n => n.region || 'Other'))]
+    .sort((a, b) => {
+      if (a === 'Other') return 1
+      if (b === 'Other') return -1
+      return a.localeCompare(b)
+    })
+
+  // Neighborhood options: the canonical names for the chosen states and areas, plus
   // anything typed straight onto an instructor that isn't on the list — otherwise the
   // people with a hand-typed area would be unreachable from the dropdown.
   const canonical = neighborhoods
-    .filter(n => !stateFilter || (normalizeState(n.state) || 'NY') === stateFilter)
-    .filter(n => !areaFilter || (n.region || 'Other') === areaFilter)
+    .filter(inChosenState)
+    .filter(n => areaFilter.length === 0 || areaFilter.includes(n.region || 'Other'))
     .map(n => n.name)
   const strays = instructors
-    .filter(i => !stateFilter || statesOf(i).has(stateFilter))
+    .filter(i => stateFilter.length === 0 || [...statesOf(i)].some(st => stateFilter.includes(st)))
     .flatMap(areasOf)
     .filter(a => !stateOfName.has(a.toLowerCase()))
-  const locations = [...new Set([...canonical, ...(areaFilter ? [] : strays)])]
+  const locations = [...new Set([...canonical, ...(areaFilter.length ? [] : strays)])]
     .sort((a, b) => a.localeCompare(b))
   // Style options = the canonical class styles, plus any styles already typed on
   // instructors that aren't in the canonical list.
@@ -291,12 +294,12 @@ export default function InstructorsPage() {
   const filtered = instructors.filter(inst => {
     if (query && !(has(inst.name, query) || has(inst.phone, query) || has(inst.email, query) ||
                    has(inst.specialties, query) || has(inst.styles_taught, query) || has(inst.neighborhood, query))) return false
-    if (styleFilter && !has(inst.styles_taught || inst.specialties, styleFilter)) return false
-    if (stateFilter && !statesOf(inst).has(stateFilter)) return false
-    if (areaFilter && !areasOf(inst).some(a => areaOfName.get(a.toLowerCase()) === areaFilter)) return false
+    // Any one of the ticked styles is a match, not all of them.
+    if (styleFilter.length && !styleFilter.some(f => has(inst.styles_taught || inst.specialties, f))) return false
+    if (stateFilter.length && ![...statesOf(inst)].some(st => stateFilter.includes(st))) return false
+    if (areaFilter.length && !areasOf(inst).some(a => areaFilter.includes(areaOfName.get(a.toLowerCase())))) return false
     // Matches one of the areas they listed, not the whole answer.
-    if (locationFilter && !areasOf(inst).some(a => a.toLowerCase() === locationFilter.toLowerCase())) return false
-    if (loginFilter && loginStatusOf(inst) !== loginFilter) return false
+    if (locationFilter.length && !areasOf(inst).some(a => locationFilter.some(f => f.toLowerCase() === a.toLowerCase()))) return false
     return true
   })
 
@@ -484,47 +487,44 @@ export default function InstructorsPage() {
       )}
 
       {tab === 'instructors' && (
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
+      <div className="space-y-2">
+        {/* The search box gets its own line. Sharing a row with the filters squeezed it to
+            an icon and nothing else — five boxes don't fit across a screen. */}
+        <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search instructors…"
+            placeholder="Search instructors by name, phone, email, style or area…"
             className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
           />
         </div>
-        <select value={styleFilter} onChange={e => setStyleFilter(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
-          <option value="">All styles</option>
-          {styleNames.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        {/* State → area → neighborhood. Each one narrows the next, and clearing a step
-            clears the narrower ones so the boxes can never contradict each other. */}
-        <select value={stateFilter}
-          onChange={e => { setStateFilter(e.target.value); setAreaFilter(''); setLocationFilter('') }}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-36 focus:outline-none focus:ring-2 focus:ring-gray-300">
-          <option value="">All states</option>
-          {stateOptions.map(st => <option key={st} value={st}>{stateLabel(st)}</option>)}
-        </select>
-        <select value={areaFilter}
-          onChange={e => { setAreaFilter(e.target.value); setLocationFilter('') }}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
-          <option value="">{stateFilter === 'NY' ? 'All boroughs & areas' : 'All areas'}</option>
-          {areaOptions.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
-          <option value="">All neighborhoods</option>
-          {locations.map(l => <option key={l} value={l}>{l}</option>)}
-        </select>
-        <select value={loginFilter} onChange={e => setLoginFilter(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
-          <option value="">Any login status</option>
-          {Object.entries(LOGIN_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
+        {/* State → area → neighborhood. Each narrows the next, and clearing a step clears
+            the narrower ones so the boxes can never contradict each other. */}
+        <div className="flex flex-wrap gap-2">
+          <MultiSelectFilter className="w-40" options={styleNames} values={styleFilter}
+            onChange={setStyleFilter} allLabel="All styles" noun="styles" />
+          <MultiSelectFilter className="w-36"
+            options={stateOptions.map(st => ({ value: st, label: stateLabel(st) }))}
+            values={stateFilter}
+            onChange={v => { setStateFilter(v); setAreaFilter([]); setLocationFilter([]) }}
+            allLabel="All states" noun="states" />
+          <MultiSelectFilter className="w-44" options={areaOptions} values={areaFilter}
+            onChange={v => { setAreaFilter(v); setLocationFilter([]) }}
+            allLabel={stateFilter.length === 1 && stateFilter[0] === 'NY' ? 'All boroughs & areas' : 'All areas'}
+            noun="areas" />
+          <MultiSelectFilter className="w-44" options={locations} values={locationFilter}
+            onChange={setLocationFilter} allLabel="All neighborhoods" noun="neighborhoods" />
+          {(query || styleFilter.length || stateFilter.length || areaFilter.length || locationFilter.length) > 0 && (
+            <button type="button"
+              onClick={() => { setQuery(''); setStyleFilter([]); setStateFilter([]); setAreaFilter([]); setLocationFilter([]) }}
+              className="text-xs text-gray-500 hover:text-gray-800 underline px-1">
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
       )}
 
@@ -537,7 +537,8 @@ export default function InstructorsPage() {
           <div className="flex items-center justify-between px-1 gap-2 flex-wrap">
             <p className="text-xs text-gray-400">
               {filtered.length} instructor{filtered.length === 1 ? '' : 's'}
-              {(query || styleFilter || stateFilter || areaFilter || locationFilter || loginFilter) && ` of ${instructors.length}`}
+              {(query || styleFilter.length || stateFilter.length || areaFilter.length || locationFilter.length)
+                ? ` of ${instructors.length}` : ''}
             </p>
             <div className="flex items-center gap-3">
               {selected.size > 0 && (

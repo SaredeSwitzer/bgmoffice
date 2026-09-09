@@ -1066,10 +1066,9 @@ async function getClientSmsTemplate() {
 
 // Same wording rules the instructor email uses (see buildConfirmation): a dated class
 // generated from a recurring one reads as the weekly pattern, not as a lone date.
-async function buildClientText(kind, id) {
-  const row = kind === 'session' ? await getSessionRow(id) : await getScheduleRow(id);
-  if (!row) return { error: `${kind === 'session' ? 'Session' : 'Schedule'} not found`, status: 404 };
-
+// A dated class generated from a recurring one is described by the pattern it belongs to
+// ("Tuesdays at 6:30pm"), not as a lone date — same rule the confirmation email follows.
+async function wordingRowFor(kind, row) {
   let wordingRow = (kind === 'session' && row.schedule_id)
     ? (await getScheduleRow(row.schedule_id)) || row
     : row;
@@ -1079,6 +1078,14 @@ async function buildClientText(kind, id) {
     );
     if (min_date) wordingRow = { ...wordingRow, start_date: min_date };
   }
+  return wordingRow;
+}
+
+async function buildClientText(kind, id) {
+  const row = kind === 'session' ? await getSessionRow(id) : await getScheduleRow(id);
+  if (!row) return { error: `${kind === 'session' ? 'Session' : 'Schedule'} not found`, status: 404 };
+
+  const wordingRow = await wordingRowFor(kind, row);
 
   const { rows: [client] } = await pool.query(
     'SELECT name, phone, client_type, contact_person_name FROM clients WHERE id = $1', [row.client_id]);
@@ -1109,16 +1116,69 @@ async function buildClientText(kind, id) {
   };
 }
 
+// The instructor's text: the same short shape, but for the person teaching it. They also
+// get the full email with the rate, the address and the participant count — this is the
+// version that reaches them on the way out the door.
+//
+// Deliberately no cancellation line here. The instructor cancellation policy is still
+// with the lawyer, and a text is not the place to invent wording for it.
+const INSTRUCTOR_SMS_DEFAULT =
+  "Hi {instructor_name}! {intro} Confirming your {style_phrase} with {client_name}{where}: " +
+  "{days_times}. Full details are in your email. Reply here any time.";
+
+async function getInstructorSmsTemplate() {
+  const { rows: [row] } = await pool.query("SELECT value FROM app_settings WHERE key = 'instructor_confirm_sms'");
+  return row?.value || INSTRUCTOR_SMS_DEFAULT;
+}
+
+async function buildInstructorText(kind, id) {
+  const row = kind === 'session' ? await getSessionRow(id) : await getScheduleRow(id);
+  if (!row) return { error: `${kind === 'session' ? 'Session' : 'Schedule'} not found`, status: 404 };
+  if (!row.instructor_id) return { error: 'No instructor on this class yet.', status: 400 };
+
+  const wordingRow = await wordingRowFor(kind, row);
+  const { rows: [inst] } = await pool.query('SELECT name, phone FROM instructors WHERE id = $1', [row.instructor_id]);
+  const phone = inst?.phone ? toE164(inst.phone) : null;
+
+  const ctx = confirmationContext(wordingRow);
+  ctx.instructor_name = firstNameOf(inst?.name) || 'there';
+  ctx.client_name = row.client_name || '';
+  ctx.days_times = smsDaysTimes(wordingRow);
+  ctx.style_phrase = smsStylePhrase(ctx.style);
+  ctx.intro = phone ? await introFor(phone) : 'This is Bring the Gym to Me.';
+  // The neighborhood, not the full address — the address is in their email, and it makes
+  // a text twice as long for something they'll look up properly before they travel.
+  ctx.where = row.neighborhood ? ` in ${row.neighborhood}` : '';
+
+  const text = renderTemplate(await getInstructorSmsTemplate(), ctx)
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ([.,!?])/g, '$1')
+    .trim();
+
+  return {
+    to: phone,
+    person_name: inst?.name || null,
+    text,
+    already_sent_at: row.instructor_text_sent_at || null,
+    already_sent_to: row.instructor_text_sent_to || null,
+  };
+}
+
 async function clientTextPreviewRoute(kind, req, res) {
   const r = await buildClientText(kind, req.params.id);
   if (r.error) return res.status(r.status).json({ error: r.error });
   res.json(r);
 }
 
-async function sendClientTextRoute(kind, table, req, res) {
-  const r = await buildClientText(kind, req.params.id);
+async function sendConfirmTextRoute({ who, kind, table, req, res }) {
+  const isClient = who === 'client';
+  const r = isClient ? await buildClientText(kind, req.params.id) : await buildInstructorText(kind, req.params.id);
   if (r.error) return res.status(r.status).json({ error: r.error });
-  if (!r.to) return res.status(400).json({ error: 'This client has no phone number on file. Add one on their profile first.' });
+  if (!r.to) {
+    return res.status(400).json({
+      error: `This ${who} has no phone number on file. Add one on their profile first.`,
+    });
+  }
   // Whatever staff read on screen is what goes out, edits included.
   const text = String(req.body.text ?? r.text).trim();
   if (!text) return res.status(400).json({ error: 'The message is empty.' });
@@ -1129,8 +1189,8 @@ async function sendClientTextRoute(kind, table, req, res) {
   } catch (e) {
     return res.status(502).json({ error: `Could not send: ${e.message}` });
   }
-  // Logged the same way a hand-typed text is, so it lands in the client's thread on the
-  // Texts screen and their reply comes back to the same conversation.
+  // Logged the same way a hand-typed text is, so it lands in their thread on the Texts
+  // screen and the reply comes back to the same conversation.
   await smsStore.logMessage({
     direction: 'outbound',
     phone: r.to,
@@ -1139,21 +1199,38 @@ async function sendClientTextRoute(kind, table, req, res) {
     body: text,
     telnyx_id: sent?.id || null,
     status: sent?.to?.[0]?.status || 'queued',
-    person_kind: 'client',
-    person_name: r.client_name,
+    person_kind: who,
+    person_name: isClient ? r.client_name : r.person_name,
   }).catch(e => console.error('[schedule] could not log the confirmation text:', e.message));
 
+  const stampedAt = isClient ? 'client_text_sent_at'  : 'instructor_text_sent_at';
+  const stampedTo = isClient ? 'client_text_sent_to'  : 'instructor_text_sent_to';
   await pool.query(
-    `UPDATE ${table} SET client_text_sent_at = now(), client_text_sent_to = $1 WHERE id = $2`,
+    `UPDATE ${table} SET ${stampedAt} = now(), ${stampedTo} = $1 WHERE id = $2`,
     [r.to, req.params.id]
   );
   res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
 }
 
+async function instructorTextPreviewRoute(kind, req, res) {
+  const r = await buildInstructorText(kind, req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
+}
+
 router.get('/schedules/:id/client-text-preview', (req, res) => clientTextPreviewRoute('schedule', req, res));
-router.post('/schedules/:id/send-client-text', (req, res) => sendClientTextRoute('schedule', 'class_schedules', req, res));
+router.post('/schedules/:id/send-client-text', (req, res) =>
+  sendConfirmTextRoute({ who: 'client', kind: 'schedule', table: 'class_schedules', req, res }));
 router.get('/sessions/:id/client-text-preview', (req, res) => clientTextPreviewRoute('session', req, res));
-router.post('/sessions/:id/send-client-text', (req, res) => sendClientTextRoute('session', 'class_sessions', req, res));
+router.post('/sessions/:id/send-client-text', (req, res) =>
+  sendConfirmTextRoute({ who: 'client', kind: 'session', table: 'class_sessions', req, res }));
+
+router.get('/schedules/:id/instructor-text-preview', (req, res) => instructorTextPreviewRoute('schedule', req, res));
+router.post('/schedules/:id/send-instructor-text', (req, res) =>
+  sendConfirmTextRoute({ who: 'instructor', kind: 'schedule', table: 'class_schedules', req, res }));
+router.get('/sessions/:id/instructor-text-preview', (req, res) => instructorTextPreviewRoute('session', req, res));
+router.post('/sessions/:id/send-instructor-text', (req, res) =>
+  sendConfirmTextRoute({ who: 'instructor', kind: 'session', table: 'class_sessions', req, res }));
 
 router.get('/schedules/:id/confirmation-preview', async (req, res) => {
   const r = await buildConfirmation('schedule', req.params.id);

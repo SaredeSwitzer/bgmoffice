@@ -8,7 +8,7 @@ import SearchSelect from '../components/SearchSelect'
 import ClassNotes from '../components/ClassNotes'
 import AdminNotes from '../components/AdminNotes'
 import ConfirmClassModal from '../components/ConfirmClassModal'
-import TextClientModal from '../components/TextClientModal'
+import TextConfirmModal from '../components/TextConfirmModal'
 import RescheduleAlertModal from '../components/RescheduleAlertModal'
 import ClassSessionModal from '../components/ClassSessionModal'
 import ClientAddressEditor from '../components/ClientAddressEditor'
@@ -162,8 +162,9 @@ export default function SchedulePage() {
   // Recurring class / dated session whose instructor-confirmation email modal is open.
   const [confirmSchedule, setConfirmSchedule] = useState(null)
   const [confirmSession, setConfirmSession] = useState(null)
-  // The class whose client-confirmation text is being previewed, and which kind it is.
-  const [textClient, setTextClient] = useState(null)
+  // The class whose confirmation text is being previewed: who it's to, and which kind of
+  // class row it is.
+  const [textClass, setTextClass] = useState(null)
   const [rescheduleAlertSession, setRescheduleAlertSession] = useState(null)
   // Recurring schedules for the same client+instructor (e.g. teaching there twice a
   // week) that got combined into one confirmation email, if any.
@@ -629,7 +630,7 @@ export default function SchedulePage() {
                                     {s.confirmation_sent_at ? '✓ Emailed' : 'Confirmation Email'}
                                   </button>
                                 )}
-                                <button onClick={e => { e.stopPropagation(); setTextClient({ row: s, kind: 'session' }) }}
+                                <button onClick={e => { e.stopPropagation(); setTextClass({ who: 'client', row: s, kind: 'session' }) }}
                                   title="Text the client a short class confirmation"
                                   className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
                                     s.client_text_sent_at
@@ -638,6 +639,17 @@ export default function SchedulePage() {
                                   }`}>
                                   {s.client_text_sent_at ? '✓ Texted client' : 'Text Client'}
                                 </button>
+                                {s.instructor_id && (
+                                  <button onClick={e => { e.stopPropagation(); setTextClass({ who: 'instructor', row: s, kind: 'session' }) }}
+                                    title="Text the instructor a short class confirmation"
+                                    className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
+                                      s.instructor_text_sent_at
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                                    }`}>
+                                    {s.instructor_text_sent_at ? '✓ Texted instructor' : 'Text Instructor'}
+                                  </button>
+                                )}
                                 {s.instructor_id && (
                                   <button onClick={e => { e.stopPropagation(); setRescheduleAlertSession(s) }}
                                     title="Email the instructor that this class's date/time changed"
@@ -851,7 +863,7 @@ export default function SchedulePage() {
                       </button>
                     )}
                     <button
-                      onClick={() => setTextClient({ row: s, kind: 'schedule' })}
+                      onClick={() => setTextClass({ who: 'client', row: s, kind: 'schedule' })}
                       title="Text the client a short class confirmation"
                       className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
                         s.client_text_sent_at
@@ -860,6 +872,18 @@ export default function SchedulePage() {
                       }`}>
                       {s.client_text_sent_at ? '✓ Texted Client' : 'Text Client'}
                     </button>
+                    {s.instructor_id && (
+                      <button
+                        onClick={() => setTextClass({ who: 'instructor', row: s, kind: 'schedule' })}
+                        title="Text the instructor a short class confirmation — they still get the full email"
+                        className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
+                          s.instructor_text_sent_at
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}>
+                        {s.instructor_text_sent_at ? '✓ Texted Instructor' : 'Text Instructor'}
+                      </button>
+                    )}
                     {canSeeAdminNotes && (
                       <button onClick={() => toggleAdminNotes(`schedule-${s.id}`)}
                         title="Admin notes (Sarede/Claire/Maria only)"
@@ -900,17 +924,20 @@ export default function SchedulePage() {
         </>
       )}
 
-      {textClient && (
-        <TextClientModal
-          classRow={textClient.row}
-          kind={textClient.kind}
-          onClose={() => setTextClient(null)}
+      {textClass && (
+        <TextConfirmModal
+          who={textClass.who}
+          classRow={textClass.row}
+          kind={textClass.kind}
+          onClose={() => setTextClass(null)}
           onSent={r => {
-            const stamp = x => ({ ...x, client_text_sent_at: r.sent_at, client_text_sent_to: r.sent_to })
-            if (textClient.kind === 'session') {
-              setSessions(prev => prev.map(x => x.id === textClient.row.id ? stamp(x) : x))
+            const stamp = x => (textClass.who === 'client'
+              ? { ...x, client_text_sent_at: r.sent_at, client_text_sent_to: r.sent_to }
+              : { ...x, instructor_text_sent_at: r.sent_at, instructor_text_sent_to: r.sent_to })
+            if (textClass.kind === 'session') {
+              setSessions(prev => prev.map(x => x.id === textClass.row.id ? stamp(x) : x))
             } else {
-              setSchedules(prev => prev.map(x => x.id === textClient.row.id ? stamp(x) : x))
+              setSchedules(prev => prev.map(x => x.id === textClass.row.id ? stamp(x) : x))
             }
           }}
         />
