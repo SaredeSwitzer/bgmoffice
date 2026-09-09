@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import DateInput from './DateInput'
 import NoteBody from './NoteBody'
+import Byline from './Byline'
 import MentionTextarea from './MentionTextarea'
 import { today, noteTime } from '../utils/dates'
 import { useHashHighlight } from '../utils/hashHighlight'
@@ -160,6 +161,11 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
 
       <td className="align-top px-3 py-2.5 text-sm text-gray-700">
         {row.what}
+
+        {/* Who started this line and when. Every note underneath says who wrote it; the
+            line itself used to be anonymous, so the one entry that explains why the row
+            exists was the one nobody could trace. */}
+        <Byline author={row.created_by} at={row.created_at} className="text-[10px] text-gray-400 mt-0.5" />
 
         {/* A date that's passed is the thing to chase first, so it says so rather than
             leaving you to compare it against today yourself. */}

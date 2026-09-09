@@ -6,6 +6,7 @@ import MentionTextarea from './MentionTextarea'
 import { renderWithMentions } from '../utils/mentions.jsx'
 import { noteTime } from '../utils/dates'
 import NoteBody from './NoteBody'
+import Byline from './Byline'
 
 // Working on a task or a reminder without leaving My Tasks — the same idea as
 // MentionThread, extended to the other two things on this page.
@@ -161,6 +162,9 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
               item.delegate_name || item.assigned_to || null,
             ].filter(Boolean).join(' · ')}
           </p>
+          {/* Whoever opened it, same stamp the replies underneath carry. */}
+          <Byline author={item.created_by} at={item.created_at} prefix="Opened by"
+            className="text-[10px] text-gray-400 mt-0.5" />
         </div>
         <button onClick={onClose} title="Close"
           className="text-lg text-gray-300 hover:text-gray-700 leading-none shrink-0 -mt-1">✕</button>

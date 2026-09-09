@@ -1126,7 +1126,10 @@ export default function CaseDetailPage() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-400">Opened {fmt(caseData.created_at)}</p>
+            <p className="text-xs text-gray-400">
+              Opened {fmt(caseData.created_at)}
+              {caseData.created_by ? ` by ${caseData.created_by}` : ''}
+            </p>
             {isResolved && caseData.resolved_at && (
               <p className="text-xs text-green-600">Resolved {fmt(caseData.resolved_at)}</p>
             )}

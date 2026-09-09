@@ -11,6 +11,7 @@ import MentionThread from '../components/MentionThread'
 import InlineWorkPanel from '../components/InlineWorkPanel'
 import Modal from '../components/Modal'
 import WaitingSheet from '../components/WaitingSheet'
+import { authorLabel } from '../utils/author'
 import ShiftChecklist from '../components/ShiftChecklist'
 import ShiftSummaries from '../components/ShiftSummaries'
 import { isSaredeUser } from '../utils/saredeAccess'
@@ -170,7 +171,7 @@ function MyTaskRow({ item, onClick, onResolveMention, onResolveReminder, isNew }
       <td className="px-3 py-2.5 max-w-xs">
         {item.last_note ? (
           <span className={`text-xs truncate block max-w-[180px] ${isNew ? 'text-gray-700 font-semibold' : 'text-gray-500'}`}>
-            <span className={isNew ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}>{item.last_note.author_initials}:</span>{' '}
+            <span className={isNew ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}>{authorLabel(item.last_note.author_initials)}:</span>{' '}
             {item.last_note.text}
           </span>
         ) : (

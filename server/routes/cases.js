@@ -6,7 +6,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 const CASE_SELECT = `
-  SELECT c.id, c.title, c.status, c.created_at, c.resolved_at,
+  SELECT c.id, c.title, c.status, c.created_at, c.created_by, c.resolved_at,
     cl.id AS client_id, cl.name AS client_name,
     i.id  AS instructor_id, i.name AS instructor_name
   FROM cases c
@@ -83,8 +83,8 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   const { client_id, instructor_id, title } = req.body;
   const { rows: [caseRow] } = await pool.query(
-    'INSERT INTO cases (client_id, instructor_id, title) VALUES ($1,$2,$3) RETURNING id',
-    [client_id || null, instructor_id || null, title || null]
+    'INSERT INTO cases (client_id, instructor_id, title, created_by) VALUES ($1,$2,$3,$4) RETURNING id',
+    [client_id || null, instructor_id || null, title || null, req.user.initials]
   );
   const { rows: [row] } = await pool.query(`${CASE_SELECT} WHERE c.id = $1`, [caseRow.id]);
   res.status(201).json(await enrichCase(row));

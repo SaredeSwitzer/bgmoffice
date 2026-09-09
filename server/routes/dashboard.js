@@ -17,7 +17,7 @@ const INSTRUCTOR_FACING_TYPES = [
 ];
 
 const BASE_SQL = `
-  SELECT ai.id, ai.case_id, ai.status, ai.initial_note, ai.created_at, ai.starred,
+  SELECT ai.id, ai.case_id, ai.status, ai.initial_note, ai.created_at, ai.created_by, ai.starred,
     d.id   AS delegate_id,   d.name  AS delegate_name,
     cl.id  AS client_id,     cl.name AS client_name,
     i.id   AS instructor_id, i.name  AS instructor_name,
@@ -57,7 +57,12 @@ async function attachLastNote(items) {
       'SELECT text, author_initials, created_at FROM follow_up_notes WHERE action_item_id = $1 ORDER BY created_at DESC LIMIT 1',
       [item.id]
     );
-    return { ...item, last_note: last || null };
+    // Nobody has replied yet, but somebody did type the line that opened this — showing
+    // "No notes yet" hid it, along with who wrote it. The opening note is the first note.
+    const opening = item.initial_note?.trim()
+      ? { text: item.initial_note, author_initials: item.created_by, created_at: item.created_at }
+      : null;
+    return { ...item, last_note: last || opening };
   }));
 }
 
@@ -210,7 +215,10 @@ async function loadReminderTasks(delegateName) {
     created_by: r.created_by,
     client_id: r.client_id, client_name: r.client_name,
     instructor_id: r.instructor_id, instructor_name: r.instructor_name,
-    last_note: { text: r.notes || r.title, author_initials: 'Reminder' },
+    last_note: {
+      text: r.notes || r.title, created_at: r.created_at,
+      author_initials: r.created_by || 'Reminder',
+    },
     title: r.title,
     remind_on: r.remind_on,
     delegate_name: r.delegate_name || null,
@@ -245,7 +253,7 @@ router.get('/my-tasks', async (req, res) => {
     .map(t => ({ ...t, source: 'action_item', is_anyone: true, delegate_name: 'Anyone' }));
 
   const { rows: standaloneRows } = await pool.query(
-    `SELECT st.id, st.title, st.status, st.created_at, st.starred, st.assigned_to,
+    `SELECT st.id, st.title, st.status, st.created_at, st.created_by, st.starred, st.assigned_to,
             st.client_id, cl.name AS client_name,
             st.instructor_id, i.name AS instructor_name,
             st.action_type_id, at.name AS action_type_name, at.color AS action_type_color,
@@ -277,7 +285,11 @@ router.get('/my-tasks', async (req, res) => {
     action_types: t.action_type_id
       ? [{ id: t.action_type_id, name: t.action_type_name, color: t.action_type_color }]
       : [],
-    last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
+    // Whoever wrote it, not what kind of thing it is — the Type column already says that.
+    last_note: {
+      text: t.title, created_at: t.created_at,
+      author_initials: t.created_by || (t.recruiting_note_id ? 'Recruiting' : 'Task'),
+    },
     recruiting_entry_id: t.recruiting_entry_id || null,
   }));
 
@@ -489,7 +501,7 @@ router.get('/', async (req, res) => {
             st.client_id, cl.name AS client_name,
             st.instructor_id, i.name AS instructor_name,
             st.action_type_id, at.name AS action_type_name, at.color AS action_type_color,
-            st.assigned_to, st.recruiting_note_id, st.notes, st.task_type,
+            st.assigned_to, st.created_by, st.recruiting_note_id, st.notes, st.task_type,
             rn.entry_id AS recruiting_entry_id
      FROM standalone_tasks st
      LEFT JOIN clients        cl ON cl.id = st.client_id
@@ -502,6 +514,7 @@ router.get('/', async (req, res) => {
 
   const standaloneTasks = standaloneRows.map(t => ({
     id: t.id, case_id: null, status: t.status, created_at: t.created_at, starred: t.starred,
+    created_by: t.created_by,
     title: t.title, delegate_name: t.assigned_to,
     client_id: t.client_id, client_name: t.client_name,
     instructor_id: t.instructor_id, instructor_name: t.instructor_name,
@@ -510,7 +523,11 @@ router.get('/', async (req, res) => {
     action_type_id: t.action_type_id,
     action_type_name: t.action_type_name || null,
     action_type_color: t.action_type_color || 'gray',
-    last_note: { text: t.title, author_initials: t.recruiting_note_id ? 'Recruiting' : 'Task' },
+    // Whoever wrote it, not what kind of thing it is — the Type column already says that.
+    last_note: {
+      text: t.title, created_at: t.created_at,
+      author_initials: t.created_by || (t.recruiting_note_id ? 'Recruiting' : 'Task'),
+    },
     source: t.recruiting_note_id ? 'recruiting' : 'standalone',
     // Standalone tasks don't have a Client/Instructor F/U distinction the way action
     // items do — they all land in Other, including ones with no explicit type at all.

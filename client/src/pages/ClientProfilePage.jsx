@@ -18,6 +18,7 @@ import { ClientLink, InstructorLink } from '../components/NameLink'
 import ClientOrNameInput from '../components/ClientOrNameInput'
 import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { useHashHighlight } from '../utils/hashHighlight'
+import Byline from '../components/Byline'
 import ClientAddresses from '../components/ClientAddresses'
 import { today } from '../utils/dates'
 
@@ -216,6 +217,7 @@ function PackageCard({
             </p>
           )}
           {pkg.notes && <p className="text-xs text-gray-500 italic mt-0.5">{pkg.notes}</p>}
+          <Byline author={pkg.created_by} at={pkg.created_at} prefix="Added by" className="text-[10px] text-gray-400 mt-0.5" />
 
           {/* Progress bar */}
           <div className="mt-2">

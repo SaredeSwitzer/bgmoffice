@@ -177,6 +177,11 @@ without a push and leaves git behind — prefer pushing so version control stays
 - Date inputs use the custom `<DateInput>` component (click-to-open calendar popover, anchored
   under the field so it doesn't cover the rest of the form) — do not use `<input type="date">`
   directly
+- **Anything a person typed says who typed it and when.** Notes always did; the *first*
+  entry — the Waiting On line, the case, the follow-up's opening note, the package — must
+  too. Use `<Byline author={x.created_by} at={x.created_at} />`, and give any new table
+  that stores typed text a `created_by TEXT` column filled with `req.user.initials`.
+  Machine authors (`daily-sync`, `signup`) are shown in plain English by `utils/author.js`
 - Tailwind v4 — utility classes only, no `tailwind.config.js`
 
 ## Backups
