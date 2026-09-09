@@ -11,6 +11,7 @@ import StylesManagerModal from '../components/StylesManagerModal'
 import { ClientLink } from '../components/NameLink'
 import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { today } from '../utils/dates'
+import DateInput from '../components/DateInput'
 import NoteBody from '../components/NoteBody'
 import MentionTextarea from '../components/MentionTextarea'
 import NeighborhoodPicker from '../components/NeighborhoodPicker'
@@ -675,6 +676,9 @@ export default function InstructorProfilePage() {
           contract_signed: inst.contract_signed ? true : false,
           contract_signed_date: inst.contract_signed_date || '',
           styles_taught: inst.styles_taught || '',
+          interview_done: !!inst.interview_done,
+          interview_date: inst.interview_date || '',
+          interview_notes: inst.interview_notes || '',
         })
         setCases(cs)
         setRecruitingEntries(recr)
@@ -853,6 +857,35 @@ export default function InstructorProfilePage() {
                   )}
                 </div>
               </div>
+              {/* The Zoom interview. Ticking it dates itself to today — nobody fills in a
+                  date for something they just did — and opens the box for what you made
+                  of them, which is the part worth having a month later. */}
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Zoom Interview</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={editForm.interview_done}
+                      onChange={e => setEditForm(f => ({
+                        ...f,
+                        interview_done: e.target.checked,
+                        interview_date: e.target.checked ? (f.interview_date || today()) : f.interview_date,
+                      }))}
+                      className="rounded" />
+                    Interviewed
+                  </label>
+                  {editForm.interview_done && (
+                    <DateInput value={editForm.interview_date}
+                      onChange={v => setEditForm(f => ({ ...f, interview_date: v }))} />
+                  )}
+                </div>
+                {editForm.interview_done && (
+                  <textarea value={editForm.interview_notes}
+                    onChange={e => setEditForm(f => ({ ...f, interview_notes: e.target.value }))}
+                    rows={3}
+                    placeholder="How did it go? Anything worth remembering — how they came across, what they're looking for, anything to watch."
+                    className="w-full mt-2 border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                )}
+              </div>
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={saving}
@@ -960,6 +993,29 @@ export default function InstructorProfilePage() {
                     <SendContractButton instructor={instructor} />
                   </>
                 )}
+              </div>
+              <div className="flex gap-2">
+                <span className="text-gray-400 w-28 flex-shrink-0 text-xs pt-0.5">Zoom Interview</span>
+                <div className="min-w-0">
+                  {instructor.interview_done ? (
+                    <>
+                      <span className="text-green-700 font-medium text-xs">
+                        ✓ Done
+                        {instructor.interview_date && (
+                          <span className="text-gray-500 font-normal"> — {fmtDate(instructor.interview_date)}</span>
+                        )}
+                        {instructor.interview_by && (
+                          <span className="text-gray-400 font-normal"> · {instructor.interview_by}</span>
+                        )}
+                      </span>
+                      {instructor.interview_notes && (
+                        <p className="text-gray-700 text-xs whitespace-pre-wrap mt-0.5">{instructor.interview_notes}</p>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-gray-400 italic text-xs">Not yet</span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2 items-center">
                 <span className="text-gray-400 w-28 flex-shrink-0 text-xs">

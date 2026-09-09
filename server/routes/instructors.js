@@ -166,9 +166,11 @@ router.get('/:id', async (req, res) => {
   if (!ownRecordOrForbidden(req, res)) return;
   const row = await getInstructorRow(req.params.id);
   if (!row) return res.status(404).json({ error: 'Instructor not found' });
-  // Self-view: hide SSN and staff's internal feedback notes about them.
+  // Self-view: hide SSN, and anything staff wrote *about* them — the feedback notes and
+  // what whoever ran their interview made of them. The interview flag and date can stay;
+  // it's the impressions that were never meant for the person they're about.
   if (req.user.role === 'instructor') {
-    const { ssn, feedback_notes, ...safe } = row;
+    const { ssn, feedback_notes, interview_notes, interview_by, ...safe } = row;
     return res.json(safe);
   }
   res.json(row);
@@ -383,7 +385,7 @@ router.put('/:id', async (req, res) => {
       await pool.query('UPDATE users SET email=$1 WHERE id=$2', [email, req.user.id]);
     }
     const row = await getInstructorRow(req.params.id);
-    const { ssn, feedback_notes, ...safe } = row;
+    const { ssn, feedback_notes, interview_notes, interview_by, ...safe } = row;
     return res.json(safe);
   }
 
@@ -400,12 +402,33 @@ router.put('/:id', async (req, res) => {
     ? (existing.tax_id_type || 'ssn')
     : (tax_id_type === 'ein' ? 'ein' : 'ssn');
 
+  // The Zoom interview: whether it happened, when, and what whoever ran it made of them.
+  // Absent means leave alone — the same rule as tax_id_type, because the instructor's own
+  // profile form and any sync script don't send these and must not wipe them.
+  const { interview_done, interview_date, interview_notes } = req.body;
+  const nextInterviewDone = interview_done === undefined || interview_done === null
+    ? !!existing.interview_done
+    : !!interview_done;
+  const nextInterviewDate = interview_date === undefined
+    ? existing.interview_date
+    : (interview_date || null);
+  const nextInterviewNotes = interview_notes === undefined
+    ? existing.interview_notes
+    : (interview_notes || null);
+  // Who to ask about it later. Stamped the first time it's marked done and left alone
+  // after that, so an unrelated edit doesn't reassign somebody else's interview.
+  const nextInterviewBy = nextInterviewDone
+    ? (existing.interview_by || req.user.initials)
+    : null;
+
   await pool.query(
     `UPDATE instructors SET name=$1, phone=$2, email=$3, specialties=$4, style=$5, notes=$6, pay_rate=$7,
        mailing_address=$8, city=$9, state=$10, ssn=$11, tax_id_type=$12, contract_signed=$13, contract_signed_date=$14, neighborhood=$15, styles_taught=$16,
-       payout_method=$17, payout_handle=$18
+       payout_method=$17, payout_handle=$18,
+       interview_done=$20, interview_date=$21, interview_notes=$22, interview_by=$23
      WHERE id=$19`,
-    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, nextTaxIdType, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id]
+    [name, phone || null, email || null, specialties || null, style || null, notes || null, pay_rate || null, mailing_address || null, city || null, state || null, ssn || null, nextTaxIdType, contract_signed ? 1 : 0, contract_signed_date || null, neighborhood || null, styles_taught || null, payout_method || null, payout_handle || null, req.params.id,
+     nextInterviewDone, nextInterviewDate, nextInterviewNotes, nextInterviewBy]
   );
   res.json(await getInstructorRow(req.params.id));
 });
