@@ -16,6 +16,32 @@ const ALL_DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday',
 const WEEK_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 const DAYS = ALL_DAYS
 
+// Put a just-saved entry where it now belongs.
+//
+// An edit can move an entry to a different day — that's what adding a second day does,
+// since two days means Flexible. This used to look only in the day the entry was moving
+// TO, find nothing there to update, and leave the old copy sitting under the old day: the
+// change looked like it hadn't saved (it had) and the entry never appeared in Flex.
+//
+// So take it out of wherever it was, and put it where it now belongs.
+export function regroupEntry(grouped, updated) {
+  const next = {}
+  let knownNotes = null
+  ALL_DAYS.forEach(d => {
+    next[d] = (grouped[d] || []).filter(e => {
+      if (e.id !== updated.id) return true
+      knownNotes = e.notes
+      return false
+    })
+  })
+  const day = ALL_DAYS.includes(updated.day_of_week) ? updated.day_of_week : 'Flexible'
+  next[day] = [...next[day], { ...updated, notes: updated.notes ?? knownNotes ?? [] }]
+    // Same order the server uses, so a moved entry lands where a reload would put it.
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+  return next
+}
+
+
 const CLASS_TYPE_LABELS = {
   ala_carte:      'A la carte',
   ongoing_weekly: 'Ongoing weekly',
@@ -1607,14 +1633,13 @@ export default function RecruitingPage() {
     setShowArchived(v => !v)
   }
 
+  // An edit can move an entry to a different day — that's what adding a second day does,
+  // since two days means Flexible. This used to look only in the day it was moving TO,
+  // find nothing there to update, and leave the old copy sitting under the old day: the
+  // change looked like it hadn't saved (it had) and the entry never appeared in Flex.
+  // So: take it out of wherever it was, and put it where it now belongs.
   function handleEntryUpdated(updated) {
-    setGrouped(prev => {
-      const day = updated.day_of_week
-      const newDay = (prev[day] || []).map(e =>
-        e.id === updated.id ? { ...updated, notes: e.notes } : e
-      )
-      return { ...prev, [day]: newDay }
-    })
+    setGrouped(prev => regroupEntry(prev, updated))
   }
 
   function handleEntryDeleted(id) {
@@ -1634,10 +1659,9 @@ export default function RecruitingPage() {
   }
 
   function handleEntryCreated(entry) {
-    setGrouped(prev => ({
-      ...prev,
-      [entry.day_of_week]: [...(prev[entry.day_of_week] || []), entry],
-    }))
+    // A day we don't have a section for would drop the new entry off the page entirely.
+    const day = ALL_DAYS.includes(entry.day_of_week) ? entry.day_of_week : 'Flexible'
+    setGrouped(prev => ({ ...prev, [day]: [...(prev[day] || []), entry] }))
   }
 
   if (error) return <p className="text-red-600 text-sm">{error}</p>
