@@ -87,7 +87,9 @@ export default function InvoiceDetailPage() {
   const [refunding, setRefunding] = useState(false)
 
   function startPaymentForm() {
-    setPaymentForm({ amount: balanceDue ? balanceDue.toFixed(2) : '', paid_date: today(), method: 'cash', note: '' })
+    // Check first: of the payments recorded so far, every one that named a method was a
+    // check. Cash, Zelle and Venmo were offered and never used, so they're gone.
+    setPaymentForm({ amount: balanceDue ? balanceDue.toFixed(2) : '', paid_date: today(), method: 'check', note: '' })
     setShowPaymentForm(true)
   }
 
@@ -793,12 +795,9 @@ export default function InvoiceDetailPage() {
                 <select value={paymentForm.method}
                   onChange={e => setPaymentForm(f => ({ ...f, method: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
-                  <option value="cash">Cash</option>
                   <option value="check">Check</option>
-                  <option value="zelle">Zelle</option>
-                  <option value="venmo">Venmo</option>
+                  <option value="direct deposit">Direct Deposit</option>
                   <option value="card">Card</option>
-                  <option value="other">Other</option>
                 </select>
               </div>
               <div>
