@@ -13,7 +13,7 @@ import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { today } from '../utils/dates'
 import NoteBody from '../components/NoteBody'
 import MentionTextarea from '../components/MentionTextarea'
-import { NeighborhoodWarning } from '../utils/neighborhood'
+import NeighborhoodPicker from '../components/NeighborhoodPicker'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -630,25 +630,13 @@ export default function InstructorProfilePage() {
   const [classStyles, setClassStyles] = useState([])
   const [showStylesManager, setShowStylesManager] = useState(false)
   const [mentionableUsers, setMentionableUsers] = useState([])
-  const [neighborhoods, setNeighborhoods] = useState([])
-  const [regions, setRegions] = useState([])
 
   useEffect(() => {
     api.getMentionableUsers().then(setMentionableUsers).catch(() => {})
-    api.getSignupNeighborhoods()
-      .then(d => { setNeighborhoods(d.neighborhoods || []); setRegions(d.regions || []) })
-      .catch(() => {})
   }, [])
 
   // Same NY-only rule as the sign-up page and the instructor's own profile — the
   // canonical neighborhood list is NY-area, so only offer it to NY-based instructors.
-  const isNY = ['ny', 'new york'].includes((editForm.state || '').trim().toLowerCase())
-
-  async function handleAddNeighborhood(name, region) {
-    const row = await api.addSignupNeighborhood(name, region)
-    setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
-    return row
-  }
 
   async function handleAddClassStyle(name) {
     const row = await api.addSignupClassStyle(name)
@@ -812,24 +800,13 @@ export default function InstructorProfilePage() {
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  {isNY ? 'Neighborhoods They Can Teach In' : 'Neighborhood'}
+                  Neighborhoods They Can Teach In
                 </label>
-                {isNY ? (
-                  <SignupOptionPicker
-                    options={neighborhoods}
-                  regions={regions}
-                    value={editForm.neighborhood}
-                    onChange={v => setEditForm(f => ({ ...f, neighborhood: v }))}
-                    onAdd={handleAddNeighborhood}
-                    addLabel="neighborhood"
-                  />
-                ) : (
-                  <>
-                    <input value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
-                      placeholder="e.g. Park Slope" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
-                    <NeighborhoodWarning value={editForm.neighborhood} />
-                  </>
-                )}
+                <NeighborhoodPicker
+                  value={editForm.neighborhood}
+                  onChange={v => setEditForm(f => ({ ...f, neighborhood: v }))}
+                  state={editForm.state}
+                />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Mailing Address</label>

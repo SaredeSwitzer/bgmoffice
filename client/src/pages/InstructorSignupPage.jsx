@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import SignupOptionPicker from '../components/SignupOptionPicker'
-import { NeighborhoodWarning } from '../utils/neighborhood'
+import NeighborhoodPicker from '../components/NeighborhoodPicker'
 
 // Public, no-login page at /join — an instructor who heard about the new system (e.g. a
 // site-wide email to everyone in Shiftboard) opts in here. Staff review and approve/reject
@@ -31,29 +31,14 @@ export default function InstructorSignupPage() {
   const [submitted, setSubmitted] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
   const [maybeRegistered, setMaybeRegistered] = useState(false)
-  const [neighborhoods, setNeighborhoods] = useState([])
-  const [regions, setRegions] = useState([])
   const [classStyles, setClassStyles] = useState([])
 
   useEffect(() => {
-    api.getSignupNeighborhoods()
-      .then(d => { setNeighborhoods(d.neighborhoods || []); setRegions(d.regions || []) })
-      .catch(() => {})
     api.getSignupClassStyles().then(setClassStyles).catch(() => {})
   }, [])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
-  // The neighborhood multi-picker is for NY instructors only — everyone else keeps the
-  // plain free-text field, since the canonical list is NY-area and asking someone in
-  // New Jersey to pick from it (or worse, add their town to it) isn't useful.
-  const isNY = ['ny', 'new york'].includes(form.state.trim().toLowerCase())
-
-  async function handleAddNeighborhood(name, region) {
-    const row = await api.addSignupNeighborhood(name, region)
-    setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
-    return row
-  }
 
   async function handleAddClassStyle(name) {
     const row = await api.addSignupClassStyle(name)
@@ -181,29 +166,16 @@ export default function InstructorSignupPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              {isNY ? 'Neighborhoods you can teach in' : 'Neighborhood'}
+              Neighborhoods you can teach in
             </label>
-            {isNY ? (
-              <>
-                <p className="text-[11px] text-gray-400 mb-1.5">
-                  Tap all the ones you'd travel to. Not listed? Use “+ Other”.
-                </p>
-                <SignupOptionPicker
-                  options={neighborhoods}
-                  regions={regions}
-                  value={form.neighborhood}
-                  onChange={v => set('neighborhood', v)}
-                  onAdd={handleAddNeighborhood}
-                  addLabel="neighborhood"
-                />
-              </>
-            ) : (
-              <>
-                <input value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
-                <NeighborhoodWarning value={form.neighborhood} />
-              </>
-            )}
+            <p className="text-[11px] text-gray-400 mb-1.5">
+              Tap all the ones you'd travel to. Not listed? Use “+ Other”.
+            </p>
+            <NeighborhoodPicker
+              value={form.neighborhood}
+              onChange={v => set('neighborhood', v)}
+              state={form.state}
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Classes you teach</label>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, uploadsUrl } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import SignupOptionPicker from '../components/SignupOptionPicker'
-import { NeighborhoodWarning } from '../utils/neighborhood'
+import NeighborhoodPicker from '../components/NeighborhoodPicker'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -255,8 +255,6 @@ export default function InstructorMyProfilePage() {
   const [instructor, setInstructor] = useState(null)
   const [form, setForm] = useState(null)
   const [classStyles, setClassStyles] = useState([])
-  const [neighborhoods, setNeighborhoods] = useState([])
-  const [regions, setRegions] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -264,9 +262,6 @@ export default function InstructorMyProfilePage() {
 
   useEffect(() => {
     api.getSignupClassStyles().then(setClassStyles).catch(() => {})
-    api.getSignupNeighborhoods()
-      .then(d => { setNeighborhoods(d.neighborhoods || []); setRegions(d.regions || []) })
-      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -287,13 +282,6 @@ export default function InstructorMyProfilePage() {
 
   // Same NY-only rule as the public sign-up page: the canonical neighborhood list is
   // NY-area, so only offer the multi-picker to instructors actually based there.
-  const isNY = ['ny', 'new york'].includes((form?.state || '').trim().toLowerCase())
-
-  async function handleAddNeighborhood(name, region) {
-    const row = await api.addSignupNeighborhood(name, region)
-    setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
-    return row
-  }
 
   async function handleAddClassStyle(name) {
     const row = await api.addSignupClassStyle(name)
@@ -359,31 +347,18 @@ export default function InstructorMyProfilePage() {
             <input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
               placeholder="NY" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
           </div>
-          <div className={isNY ? 'sm:col-span-2' : undefined}>
+          <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              {isNY ? 'Neighborhoods You Can Teach In' : 'Neighborhood'}
+              Neighborhoods You Can Teach In
             </label>
-            {isNY ? (
-              <>
-                <p className="text-[11px] text-gray-400 mb-1.5">
-                  Tap all the ones you'd travel to. Not listed? Use “+ Other”.
-                </p>
-                <SignupOptionPicker
-                  options={neighborhoods}
-                  regions={regions}
-                  value={form.neighborhood}
-                  onChange={v => setForm(f => ({ ...f, neighborhood: v }))}
-                  onAdd={handleAddNeighborhood}
-                  addLabel="neighborhood"
-                />
-              </>
-            ) : (
-              <>
-                <input value={form.neighborhood} onChange={e => setForm(f => ({ ...f, neighborhood: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
-                <NeighborhoodWarning value={form.neighborhood} />
-              </>
-            )}
+            <p className="text-[11px] text-gray-400 mb-1.5">
+              Tap all the ones you'd travel to. Not listed? Use “+ Other”.
+            </p>
+            <NeighborhoodPicker
+              value={form.neighborhood}
+              onChange={v => setForm(f => ({ ...f, neighborhood: v }))}
+              state={form.state}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Classes You Can Teach</label>

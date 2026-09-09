@@ -6,6 +6,8 @@ import ContractInviteModal from '../components/ContractInviteModal'
 import SignupOptionPicker from '../components/SignupOptionPicker'
 import StylesManagerModal from '../components/StylesManagerModal'
 import PaperworkOutstanding from '../components/PaperworkOutstanding'
+import NeighborhoodPicker from '../components/NeighborhoodPicker'
+import { normalizeState, splitAreas, stateLabel } from '../utils/places'
 
 const BLANK_FORM = { name: '', phone: '', email: '', notes: '', pay_rate: '', neighborhood: '', styles_taught: '' }
 
@@ -160,6 +162,11 @@ export default function InstructorsPage() {
   const [showStylesManager, setShowStylesManager] = useState(false)
   const [query, setQuery] = useState('')
   const [styleFilter, setStyleFilter] = useState('')
+  // Where they teach, narrowed in three steps — a single flat list of every answer any
+  // instructor ever gave was unreadable, and matched the whole string, so picking
+  // "Park Slope" never found somebody listed as "Park Slope, Williamsburg".
+  const [stateFilter, setStateFilter] = useState('')
+  const [areaFilter, setAreaFilter] = useState('')
   const [locationFilter, setLocationFilter] = useState('')
   const [loginFilter, setLoginFilter] = useState('')
   const [loading, setLoading] = useState(true)
@@ -177,20 +184,14 @@ export default function InstructorsPage() {
   const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'paperwork' : 'instructors')
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [neighborhoods, setNeighborhoods] = useState([])
-  const [regions, setRegions] = useState([])
+  const [areasByState, setAreasByState] = useState({})
 
   useEffect(() => {
     api.getClassStyles().then(setClassStyles).catch(() => {})
     api.getSignupNeighborhoods()
-      .then(d => { setNeighborhoods(d.neighborhoods || []); setRegions(d.regions || []) })
+      .then(d => { setNeighborhoods(d.neighborhoods || []); setAreasByState(d.areas_by_state || {}) })
       .catch(() => {})
   }, [])
-
-  async function handleAddNeighborhood(name, region) {
-    const row = await api.addSignupNeighborhood(name, region)
-    setNeighborhoods(prev => prev.some(n => n.id === row.id) ? prev : [...prev, row])
-    return row
-  }
 
   async function handleAddClassStyle(name) {
     const row = await api.addSignupClassStyle(name)
@@ -239,7 +240,47 @@ export default function InstructorsPage() {
   const has = (hay, needle) => (hay || '').toLowerCase().includes(needle.toLowerCase())
 
   // Location options = the distinct neighborhoods present on instructors.
-  const locations = [...new Set(instructors.map(i => (i.neighborhood || '').trim()).filter(Boolean))].sort()
+  // What each instructor's neighborhood field actually holds: a comma-separated list.
+  const areasOf = inst => splitAreas(inst.neighborhood)
+
+  // Which state a name belongs to, from the canonical list.
+  const stateOfName = new Map(neighborhoods.map(n => [n.name.toLowerCase(), normalizeState(n.state) || 'NY']))
+  const areaOfName  = new Map(neighborhoods.map(n => [n.name.toLowerCase(), n.region || 'Other']))
+
+  // An instructor counts as being in a state if their own State field says so, or if any
+  // area they teach in belongs to it — 80 of them never had a State filled in, and
+  // dropping them from a New York search would make the filter useless.
+  const statesOf = inst => {
+    const own = normalizeState(inst.state)
+    const fromAreas = areasOf(inst).map(a => stateOfName.get(a.toLowerCase())).filter(Boolean)
+    return new Set([own, ...fromAreas].filter(Boolean))
+  }
+
+  const stateOptions = [...new Set([
+    ...neighborhoods.map(n => normalizeState(n.state) || 'NY'),
+    ...instructors.map(i => normalizeState(i.state)).filter(Boolean),
+  ])].sort()
+
+  // Areas offered for the chosen state (all of them when no state is picked).
+  const areaOptions = [...new Set(
+    neighborhoods
+      .filter(n => !stateFilter || (normalizeState(n.state) || 'NY') === stateFilter)
+      .map(n => n.region || 'Other')
+  )].sort()
+
+  // Neighborhood options: the canonical names for the chosen state and area, plus
+  // anything typed straight onto an instructor that isn't on the list — otherwise the
+  // people with a hand-typed area would be unreachable from the dropdown.
+  const canonical = neighborhoods
+    .filter(n => !stateFilter || (normalizeState(n.state) || 'NY') === stateFilter)
+    .filter(n => !areaFilter || (n.region || 'Other') === areaFilter)
+    .map(n => n.name)
+  const strays = instructors
+    .filter(i => !stateFilter || statesOf(i).has(stateFilter))
+    .flatMap(areasOf)
+    .filter(a => !stateOfName.has(a.toLowerCase()))
+  const locations = [...new Set([...canonical, ...(areaFilter ? [] : strays)])]
+    .sort((a, b) => a.localeCompare(b))
   // Style options = the canonical class styles, plus any styles already typed on
   // instructors that aren't in the canonical list.
   const styleNames = [...new Set([
@@ -251,7 +292,10 @@ export default function InstructorsPage() {
     if (query && !(has(inst.name, query) || has(inst.phone, query) || has(inst.email, query) ||
                    has(inst.specialties, query) || has(inst.styles_taught, query) || has(inst.neighborhood, query))) return false
     if (styleFilter && !has(inst.styles_taught || inst.specialties, styleFilter)) return false
-    if (locationFilter && (inst.neighborhood || '').trim() !== locationFilter) return false
+    if (stateFilter && !statesOf(inst).has(stateFilter)) return false
+    if (areaFilter && !areasOf(inst).some(a => areaOfName.get(a.toLowerCase()) === areaFilter)) return false
+    // Matches one of the areas they listed, not the whole answer.
+    if (locationFilter && !areasOf(inst).some(a => a.toLowerCase() === locationFilter.toLowerCase())) return false
     if (loginFilter && loginStatusOf(inst) !== loginFilter) return false
     return true
   })
@@ -419,13 +463,10 @@ export default function InstructorsPage() {
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Neighborhood(s)</label>
-              <SignupOptionPicker
-                options={neighborhoods}
-                  regions={regions}
+              <NeighborhoodPicker
                 value={form.neighborhood}
                 onChange={v => setForm(f => ({ ...f, neighborhood: v }))}
-                onAdd={handleAddNeighborhood}
-                addLabel="neighborhood"
+                state={form.state}
               />
             </div>
           </div>
@@ -460,9 +501,23 @@ export default function InstructorsPage() {
           <option value="">All styles</option>
           {styleNames.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+        {/* State → area → neighborhood. Each one narrows the next, and clearing a step
+            clears the narrower ones so the boxes can never contradict each other. */}
+        <select value={stateFilter}
+          onChange={e => { setStateFilter(e.target.value); setAreaFilter(''); setLocationFilter('') }}
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-36 focus:outline-none focus:ring-2 focus:ring-gray-300">
+          <option value="">All states</option>
+          {stateOptions.map(st => <option key={st} value={st}>{stateLabel(st)}</option>)}
+        </select>
+        <select value={areaFilter}
+          onChange={e => { setAreaFilter(e.target.value); setLocationFilter('') }}
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
+          <option value="">{stateFilter === 'NY' ? 'All boroughs & areas' : 'All areas'}</option>
+          {areaOptions.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
         <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)}
           className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 sm:w-44 focus:outline-none focus:ring-2 focus:ring-gray-300">
-          <option value="">All locations</option>
+          <option value="">All neighborhoods</option>
           {locations.map(l => <option key={l} value={l}>{l}</option>)}
         </select>
         <select value={loginFilter} onChange={e => setLoginFilter(e.target.value)}
@@ -482,7 +537,7 @@ export default function InstructorsPage() {
           <div className="flex items-center justify-between px-1 gap-2 flex-wrap">
             <p className="text-xs text-gray-400">
               {filtered.length} instructor{filtered.length === 1 ? '' : 's'}
-              {(query || styleFilter || locationFilter || loginFilter) && ` of ${instructors.length}`}
+              {(query || styleFilter || stateFilter || areaFilter || locationFilter || loginFilter) && ` of ${instructors.length}`}
             </p>
             <div className="flex items-center gap-3">
               {selected.size > 0 && (

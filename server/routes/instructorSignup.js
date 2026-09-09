@@ -5,6 +5,7 @@ const pool     = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { notifyCrew } = require('../lib/notifyCrew');
 const { looksLikeAddress, NEIGHBORHOOD_HELP } = require('../lib/neighborhood');
+const { NY_AREAS, normalizeState, areasFor } = require('../lib/places');
 const { findDuplicateInstructors, describeDuplicates } = require('../lib/findDuplicateInstructors');
 
 const router = express.Router();
@@ -43,16 +44,19 @@ async function queueOptionForApproval(kind, name, { targetId = null, region = nu
 // the current options; public POST so a name typed there that isn't in the list yet gets
 // added immediately (same "public write, staff notices after" trust level as the signup
 // itself) instead of only ever being free text nobody else's picker will ever offer.
-// The borough/area headings the picker groups under. Kept server-side so the sign-up
-// page, the instructor's own profile and the staff screens can't drift apart.
-const NEIGHBORHOOD_REGIONS = [
-  'Brooklyn', 'Manhattan', 'Queens', 'Bronx', 'Staten Island',
-  'Westchester & Upstate', 'Long Island', 'New Jersey', 'Other',
-];
+// The area headings the picker groups under live in lib/places.js, so the sign-up page,
+// an instructor's own profile, the staff screens and the search can't drift apart.
+// `New Jersey` used to be one of New York's headings, which is how a state ended up
+// filed as a borough; a state is now its own step above the area.
+const NEIGHBORHOOD_REGIONS = NY_AREAS;
 
 router.get('/neighborhoods', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM neighborhoods ORDER BY name');
-  res.json({ neighborhoods: rows, regions: NEIGHBORHOOD_REGIONS });
+  // States that already have areas on file, so a form can offer them without inventing
+  // a list of all fifty.
+  const states = [...new Set(rows.map(r => normalizeState(r.state)).filter(Boolean))].sort();
+  const areas_by_state = Object.fromEntries(states.map(st => [st, areasFor(st, rows)]));
+  res.json({ neighborhoods: rows, regions: NEIGHBORHOOD_REGIONS, states, areas_by_state });
 });
 
 router.post('/neighborhoods', async (req, res) => {
@@ -66,9 +70,15 @@ router.post('/neighborhoods', async (req, res) => {
   if (existing) return res.json(existing);
   // Anything not one of the known headings lands in "Other" rather than inventing a new
   // heading from whatever a stranger typed.
-  const safeRegion = NEIGHBORHOOD_REGIONS.includes(region) ? region : 'Other';
+  // A state has to be one we can name; the area only has to be one of that state's own
+  // headings, or it lands in "Other" rather than inventing a heading from what a stranger
+  // typed.
+  const state = normalizeState(req.body.state) || 'NY';
+  const { rows: allAreas } = await pool.query('SELECT state, region FROM neighborhoods');
+  const safeRegion = areasFor(state, allAreas).includes(region) ? region : 'Other';
   const { rows: [row] } = await pool.query(
-    'INSERT INTO neighborhoods (name, region) VALUES ($1,$2) RETURNING *', [trimmed, safeRegion]
+    'INSERT INTO neighborhoods (name, region, state) VALUES ($1,$2,$3) RETURNING *',
+    [trimmed, safeRegion, state]
   );
   await queueOptionForApproval('neighborhood', trimmed, { targetId: row.id, region: safeRegion, instructorName: req.body.instructor_name || null });
   res.status(201).json(row);
