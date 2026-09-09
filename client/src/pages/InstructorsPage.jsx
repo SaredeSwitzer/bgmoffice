@@ -515,8 +515,6 @@ export default function InstructorsPage() {
             onChange={v => { setAreaFilter(v); setLocationFilter([]) }}
             allLabel={stateFilter.length === 1 && stateFilter[0] === 'NY' ? 'All boroughs & areas' : 'All areas'}
             noun="areas" />
-          <MultiSelectFilter className="w-44" options={locations} values={locationFilter}
-            onChange={setLocationFilter} allLabel="All neighborhoods" noun="neighborhoods" />
           {(query || styleFilter.length || stateFilter.length || areaFilter.length || locationFilter.length) > 0 && (
             <button type="button"
               onClick={() => { setQuery(''); setStyleFilter([]); setStateFilter([]); setAreaFilter([]); setLocationFilter([]) }}
@@ -525,6 +523,19 @@ export default function InstructorsPage() {
             </button>
           )}
         </div>
+
+        {/* Neighborhoods only once an area is chosen. On its own it's a list of 37 names
+            with no shape to it; under "Brooklyn" it's the handful that could follow, and
+            it reads as the step it is. Clearing the areas takes it away again. */}
+        {areaFilter.length > 0 && (
+          <div className="flex items-center gap-2 pl-3">
+            <span className="text-gray-300 text-sm select-none">↳</span>
+            <MultiSelectFilter className="w-56" options={locations} values={locationFilter}
+              onChange={setLocationFilter}
+              allLabel={`All of ${areaFilter.join(', ')}`}
+              noun="neighborhoods" />
+          </div>
+        )}
       </div>
       )}
 
