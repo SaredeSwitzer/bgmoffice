@@ -653,7 +653,7 @@ export default function SchedulePage() {
                                 )}
                                 {s.instructor_id && (
                                   <button onClick={e => { e.stopPropagation(); setRescheduleAlertSession(s) }}
-                                    title="Email the instructor that this class's date/time changed"
+                                    title="Tell everyone this class moved — emails the instructor and texts them both"
                                     className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
                                       s.reschedule_alert_sent_at
                                         ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'

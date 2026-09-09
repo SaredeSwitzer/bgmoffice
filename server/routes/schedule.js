@@ -1312,12 +1312,27 @@ router.post('/sessions/:id/send-confirmation', (req, res) => sendConfirmationRou
 // editing (or drag-and-dropping) a session to a different date/time, so the instructor
 // doesn't find out by showing up at the old slot. Reuses confirmationContext for the
 // {placeholders}, since the "new" day/time IS whatever the session's current values are.
+async function getSmsTemplate(key, fallback) {
+  const { rows: [row] } = await pool.query('SELECT value FROM app_settings WHERE key = $1', [key]);
+  return row?.value || fallback;
+}
+
+// A change of time has to reach three places at once: the instructor's inbox (the full
+// version, with the address and the rate), and both their phones. Telling one and not the
+// others is how somebody turns up at the old time.
+//
+// Anyone without a mobile on file simply doesn't get that part — plenty of clients have
+// only a landline or nothing at all, and that's not a reason to stop the rest going out.
 async function buildRescheduleAlert(id) {
   const row = await getSessionRow(id);
   if (!row) return { error: 'Session not found', status: 404 };
+
   const { rows: [inst] } = row.instructor_id
-    ? await pool.query('SELECT name, email FROM instructors WHERE id=$1', [row.instructor_id])
+    ? await pool.query('SELECT name, email, phone FROM instructors WHERE id=$1', [row.instructor_id])
     : { rows: [] };
+  const { rows: [client] } = await pool.query(
+    'SELECT name, phone, client_type, contact_person_name FROM clients WHERE id = $1', [row.client_id]);
+
   const ctx = confirmationContext(row);
   const subject = `Class time updated — ${ctx.client_name}`;
   const body = `Hi ${ctx.instructor_name},\n\n`
@@ -1327,10 +1342,41 @@ async function buildRescheduleAlert(id) {
     + (ctx.style ? `Style of Class: ${ctx.style}\n` : '')
     + (ctx.rate ? `Rate: ${ctx.rate}\n` : '')
     + `\nLet us know if this doesn't work for you.\n\n— BGM Office`;
+
+  // The texts say the same thing in one line each, in the same voice as the confirmations.
+  const instructorPhone = inst?.phone ? toE164(inst.phone) : null;
+  const clientPhone     = client?.phone ? toE164(client.phone) : null;
+
+  const shared = {
+    ...ctx,
+    days_times: smsDaysTimes(row),
+    style_phrase: smsStylePhrase(ctx.style),
+    with_instructor: row.instructor_name ? `with ${row.instructor_name} ` : '',
+    where: row.neighborhood ? ` in ${row.neighborhood}` : '',
+  };
+  const clean = t => t.replace(/[ \t]+/g, ' ').replace(/ ([.,!?])/g, '$1').trim();
+
+  const clientText = clientPhone ? clean(renderTemplate(
+    await getSmsTemplate('reschedule_client_sms', ''),
+    { ...shared, client_name: smsGreetingName(client), intro: await introFor(clientPhone) }
+  )) : null;
+
+  const instructorText = instructorPhone ? clean(renderTemplate(
+    await getSmsTemplate('reschedule_instructor_sms', ''),
+    { ...shared, client_name: row.client_name || '',
+      instructor_name: firstNameOf(inst?.name) || 'there', intro: await introFor(instructorPhone) }
+  )) : null;
+
   return {
     to: inst?.email || null,
     instructor_name: ctx.instructor_name,
     subject, body,
+    instructor_phone: instructorPhone,
+    instructor_full_name: inst?.name || null,
+    instructor_text: instructorText,
+    client_phone: clientPhone,
+    client_name: row.client_name || null,
+    client_text: clientText,
     already_sent_at: row.reschedule_alert_sent_at || null,
     already_sent_to: row.reschedule_alert_sent_to || null,
   };
@@ -1342,18 +1388,73 @@ router.get('/sessions/:id/reschedule-alert-preview', async (req, res) => {
   res.json(r);
 });
 
+// One press, three notifications — and each result reported separately. A text failing
+// must not swallow an email that went out, or the next person re-sends everything to
+// people who already heard.
 router.post('/sessions/:id/send-reschedule-alert', async (req, res) => {
   const r = await buildRescheduleAlert(req.params.id);
   if (r.error) return res.status(r.status).json({ error: r.error });
-  if (!r.to) return res.status(400).json({ error: 'No email on file for this instructor' });
+
+  // Each part is on unless the caller turned it off, and can only run if there's an
+  // address or a number for it.
+  const wants = key => req.body[key] !== false;
+  const jobs = [];
+  if (wants('send_email') && r.to) jobs.push({ channel: 'email', to: r.to });
+  if (wants('text_instructor') && r.instructor_phone) {
+    jobs.push({ channel: 'instructor_text', to: r.instructor_phone,
+      text: String(req.body.instructor_text ?? (r.instructor_text || '')).trim(),
+      person_kind: 'instructor', person_name: r.instructor_full_name });
+  }
+  if (wants('text_client') && r.client_phone) {
+    jobs.push({ channel: 'client_text', to: r.client_phone,
+      text: String(req.body.client_text ?? (r.client_text || '')).trim(),
+      person_kind: 'client', person_name: r.client_name });
+  }
+  if (jobs.length === 0) {
+    return res.status(400).json({ error: 'Nothing to send — no email address and no mobile numbers on file.' });
+  }
+
   const subject = req.body.subject || r.subject;
-  const body = req.body.body || r.body;
-  await sendMail({ to: r.to, subject, text: body, html: bodyToHtml(body), cc: CONFIRMATION_CC, replyTo: CONFIRMATION_REPLY_TO });
-  await pool.query(
-    `UPDATE class_sessions SET reschedule_alert_sent_at=now(), reschedule_alert_sent_to=$1 WHERE id=$2`,
-    [r.to, req.params.id]
-  );
-  res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
+  const body    = req.body.body || r.body;
+  const results = [];
+
+  for (const job of jobs) {
+    try {
+      if (job.channel === 'email') {
+        await sendMail({ to: job.to, subject, text: body, html: bodyToHtml(body),
+          cc: CONFIRMATION_CC, replyTo: CONFIRMATION_REPLY_TO });
+      } else {
+        if (!job.text) throw new Error('The message is empty.');
+        const sent = await sendSMS({ to: job.to, text: job.text });
+        await smsStore.logMessage({
+          direction: 'outbound', phone: job.to,
+          from_number: process.env.TELNYX_FROM_NUMBER || null, to_number: job.to,
+          body: job.text, telnyx_id: sent?.id || null,
+          status: sent?.to?.[0]?.status || 'queued',
+          person_kind: job.person_kind, person_name: job.person_name,
+        }).catch(e => console.error('[schedule] could not log the change text:', e.message));
+      }
+      results.push({ channel: job.channel, to: job.to, ok: true });
+    } catch (e) {
+      console.error(`[schedule] reschedule alert ${job.channel} failed:`, e.message);
+      results.push({ channel: job.channel, to: job.to, ok: false, error: e.message });
+    }
+  }
+
+  const done = results.filter(x => x.ok);
+  // Only stamped when something actually reached somebody.
+  if (done.length) {
+    await pool.query(
+      `UPDATE class_sessions SET reschedule_alert_sent_at=now(), reschedule_alert_sent_to=$1 WHERE id=$2`,
+      [done.map(x => x.to).join(', '), req.params.id]
+    );
+  }
+  res.json({
+    ok: done.length > 0,
+    sent_to: done.map(x => x.to).join(', ') || null,
+    sent_at: done.length ? new Date().toISOString() : null,
+    results,
+  });
 });
 
 // ── Notes & tasks on a class ───────────────────────────────────────────────────
