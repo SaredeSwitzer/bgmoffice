@@ -11,6 +11,8 @@ require('pg').types.setTypeParser(1082, (v) => v);
 
 const { findDrift, reconcile, adopt, dismissDrift, undismissDrift, listDismissed } = require('../lib/scheduleDrift');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { sendSMS, toE164 } = require('../lib/telnyxSend');
+const smsStore = require('../lib/smsStore');
 const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 
 const router = express.Router();
@@ -974,6 +976,159 @@ async function sendConfirmationRoute(kind, table, req, res) {
   );
   res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
 }
+
+// ── Client confirmation text ───────────────────────────────────────────────────
+// The short version of the instructor's confirmation email, sent to the client by text
+// instead: what was booked, with whom, and the 24-hour cancellation notice. Same rules as
+// the email — the app fills it in, staff reads it, staff presses send. Nothing goes on
+// its own.
+//
+// Texting is deliberately shorter than the email. A client needs the time, the style, who
+// is coming and how much notice to give; the rate, the address and the participant count
+// are ours to know, not theirs to be told again.
+
+const CLIENT_SMS_DEFAULT =
+  "Hi {client_name}! {intro} Your {style} class {with_instructor}is confirmed for " +
+  "{days_times}. Please give us at least 24 hours' notice to cancel a class. " +
+  "Reply here any time.";
+
+// We text from a number nobody has seen before, so the first message to someone has to say
+// who it is and invite them to save it. After that the greeting alone is enough — repeating
+// "this is our new number" to somebody already mid-conversation reads like a robot.
+async function introFor(phone) {
+  const { rows: [prior] } = await pool.query(
+    `SELECT 1 FROM sms_messages WHERE phone = $1 AND direction = 'outbound' LIMIT 1`, [phone]
+  );
+  return prior
+    ? 'This is Bring the Gym to Me.'
+    : 'This is Bring the Gym to Me — our texting number, feel free to save it.';
+}
+
+// How you'd actually greet them in a text. A person gets their first name; an
+// organization gets whoever we deal with there, because "Hi Shalom Center - Genya!" is
+// not how anybody talks.
+function smsGreetingName(client) {
+  if (!client) return 'there';
+  const firstNameOf = n => String(n || '').trim().split(/\s+/)[0] || '';
+  if (client.client_type === 'organization') {
+    return firstNameOf(client.contact_person_name) || client.name || 'there';
+  }
+  return firstNameOf(client.name) || 'there';
+}
+
+// The email spells the schedule out in a labelled line ("Day/Time: Tuesday, starting
+// Sep 15, 2026, then weekly at 6:30pm–7:15pm"). In a text that reads like a form. A
+// person wants "Tuesdays at 6:30pm, starting Sep 15" — the day they show up, the time
+// they start, and when it begins. No year, no end time: they know what year it is, and
+// how long the class runs isn't news to them.
+function smsDaysTimes(row) {
+  const start = fmtTime(row.start_time);
+  if (row.session_date) {
+    const [y, m, d] = row.session_date.split('-').map(Number);
+    const when = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    return `${when} at ${start}`;
+  }
+  if (row.weekday == null) return start ? `${start}` : '';
+  const from = row.start_date || nextWeekdayOnOrAfter(row.weekday, toDateStr(new Date()));
+  const [y, m, d] = from.split('-').map(Number);
+  const fromLabel = new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${WEEKDAY_NAMES[row.weekday]}s at ${start}, starting ${fromLabel}`;
+}
+
+async function getClientSmsTemplate() {
+  const { rows: [row] } = await pool.query("SELECT value FROM app_settings WHERE key = 'client_confirm_sms'");
+  return row?.value || CLIENT_SMS_DEFAULT;
+}
+
+// Same wording rules the instructor email uses (see buildConfirmation): a dated class
+// generated from a recurring one reads as the weekly pattern, not as a lone date.
+async function buildClientText(kind, id) {
+  const row = kind === 'session' ? await getSessionRow(id) : await getScheduleRow(id);
+  if (!row) return { error: `${kind === 'session' ? 'Session' : 'Schedule'} not found`, status: 404 };
+
+  let wordingRow = (kind === 'session' && row.schedule_id)
+    ? (await getScheduleRow(row.schedule_id)) || row
+    : row;
+  if (wordingRow.weekday != null && !wordingRow.start_date) {
+    const { rows: [{ min_date }] } = await pool.query(
+      'SELECT MIN(session_date)::text AS min_date FROM class_sessions WHERE schedule_id = $1', [wordingRow.id]
+    );
+    if (min_date) wordingRow = { ...wordingRow, start_date: min_date };
+  }
+
+  const { rows: [client] } = await pool.query(
+    'SELECT name, phone, client_type, contact_person_name FROM clients WHERE id = $1', [row.client_id]);
+  const phone = client?.phone ? toE164(client.phone) : null;
+
+  const ctx = confirmationContext(wordingRow);
+  ctx.client_name = smsGreetingName(client);
+  ctx.days_times = smsDaysTimes(wordingRow);
+  ctx.intro = phone ? await introFor(phone) : 'This is Bring the Gym to Me.';
+  // Its own placeholder rather than a bare {instructor_name}, so a class with nobody
+  // assigned yet reads "Your Pilates class is confirmed" instead of "with there".
+  ctx.with_instructor = row.instructor_name ? `with ${row.instructor_name} ` : '';
+  // A blank style or instructor leaves a double space behind; collapse rather than
+  // asking whoever edits the template to think about it.
+  const text = renderTemplate(await getClientSmsTemplate(), ctx)
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ([.,!?])/g, '$1')
+    .trim();
+
+  return {
+    to: phone,
+    client_name: client?.name || null,
+    has_instructor: !!row.instructor_name,
+    text,
+    already_sent_at: row.client_text_sent_at || null,
+    already_sent_to: row.client_text_sent_to || null,
+  };
+}
+
+async function clientTextPreviewRoute(kind, req, res) {
+  const r = await buildClientText(kind, req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  res.json(r);
+}
+
+async function sendClientTextRoute(kind, table, req, res) {
+  const r = await buildClientText(kind, req.params.id);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  if (!r.to) return res.status(400).json({ error: 'This client has no phone number on file. Add one on their profile first.' });
+  // Whatever staff read on screen is what goes out, edits included.
+  const text = String(req.body.text ?? r.text).trim();
+  if (!text) return res.status(400).json({ error: 'The message is empty.' });
+
+  let sent;
+  try {
+    sent = await sendSMS({ to: r.to, text });
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+  // Logged the same way a hand-typed text is, so it lands in the client's thread on the
+  // Texts screen and their reply comes back to the same conversation.
+  await smsStore.logMessage({
+    direction: 'outbound',
+    phone: r.to,
+    from_number: process.env.TELNYX_FROM_NUMBER || null,
+    to_number: r.to,
+    body: text,
+    telnyx_id: sent?.id || null,
+    status: sent?.to?.[0]?.status || 'queued',
+    person_kind: 'client',
+    person_name: r.client_name,
+  }).catch(e => console.error('[schedule] could not log the confirmation text:', e.message));
+
+  await pool.query(
+    `UPDATE ${table} SET client_text_sent_at = now(), client_text_sent_to = $1 WHERE id = $2`,
+    [r.to, req.params.id]
+  );
+  res.json({ ok: true, sent_to: r.to, sent_at: new Date().toISOString() });
+}
+
+router.get('/schedules/:id/client-text-preview', (req, res) => clientTextPreviewRoute('schedule', req, res));
+router.post('/schedules/:id/send-client-text', (req, res) => sendClientTextRoute('schedule', 'class_schedules', req, res));
+router.get('/sessions/:id/client-text-preview', (req, res) => clientTextPreviewRoute('session', req, res));
+router.post('/sessions/:id/send-client-text', (req, res) => sendClientTextRoute('session', 'class_sessions', req, res));
 
 router.get('/schedules/:id/confirmation-preview', async (req, res) => {
   const r = await buildConfirmation('schedule', req.params.id);

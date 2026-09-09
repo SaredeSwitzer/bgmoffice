@@ -613,6 +613,11 @@ export const api = {
   getCombinedSessionConfirmationPreview: (sessionIds) => request('/schedule/sessions/combined-confirmation-preview', { method: 'POST', body: JSON.stringify({ session_ids: sessionIds }) }),
   sendCombinedSessionConfirmation: (sessionIds, data = {}) => request('/schedule/sessions/combined-send-confirmation', { method: 'POST', body: JSON.stringify({ session_ids: sessionIds, ...data }) }),
   // Editable confirmation template (admin)
+  // The short client-facing confirmation text (see server/routes/schedule.js).
+  getClientTextPreview: (kind, id) => request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/client-text-preview`),
+  sendClientText: (kind, id, data = {}) =>
+    request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/send-client-text`, { method: 'POST', body: JSON.stringify(data) }),
+
   getConfirmationTemplate: () => request('/settings/confirmation-template'),
   saveConfirmationTemplate: (data) => request('/settings/confirmation-template', { method: 'POST', body: JSON.stringify(data) }),
 
