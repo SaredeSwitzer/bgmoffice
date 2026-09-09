@@ -23,6 +23,24 @@ router.get('/threads', async (req, res) => {
   }
 });
 
+// How many texts are sitting unread, for the bell in the top bar. Polled from every page,
+// so it stays one cheap count rather than loading the whole inbox.
+router.get('/unread-count', async (req, res) => {
+  try {
+    const { rows: [row] } = await pool.query(`
+      SELECT count(*)::int AS unread,
+             count(DISTINCT phone)::int AS threads,
+             max(created_at) AS latest
+        FROM sms_messages
+       WHERE direction = 'inbound' AND read_at IS NULL`);
+    res.json(row);
+  } catch (e) {
+    console.error('[sms] unread count failed:', e.message);
+    // A broken count must not put an error banner on every screen in the app.
+    res.json({ unread: 0, threads: 0, latest: null });
+  }
+});
+
 router.get('/thread/:phone', async (req, res) => {
   try {
     const phone = toE164(req.params.phone);

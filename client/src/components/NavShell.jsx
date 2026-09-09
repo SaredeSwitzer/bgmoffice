@@ -4,9 +4,35 @@ import PasskeyPrompt from './PasskeyPrompt'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { RemindersProvider, useRemindersContext } from '../context/RemindersContext'
+import { UnreadTextsProvider, useUnreadTexts } from '../context/UnreadTextsContext'
 import AmberChat from './AmberChat'
 import { isSaredeUser } from '../utils/saredeAccess'
 import { loadDirectory } from '../utils/directory'
+
+// The bell in the top bar: quiet when there's nothing, a red count when there is.
+function TextsBell({ count, onGo }) {
+  const has = count > 0
+  return (
+    <button
+      onClick={onGo}
+      title={has
+        ? `${count} unread text${count === 1 ? '' : 's'} — open the Texts inbox`
+        : 'No unread texts'}
+      aria-label={has ? `${count} unread texts` : 'Texts'}
+      className="relative p-2 rounded-lg text-white hover:bg-white/15 shrink-0 ml-auto sm:ml-0"
+    >
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round"
+          d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
+      </svg>
+      {has && (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </button>
+  )
+}
 
 function Shell() {
   const { user, logout } = useAuth()
@@ -15,6 +41,7 @@ function Shell() {
   // need its own copy.
   useEffect(() => { if (user) loadDirectory() }, [user])
   const { overdueCount } = useRemindersContext()
+  const { unread: unreadTexts } = useUnreadTexts()
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
@@ -34,7 +61,7 @@ function Shell() {
     { to: '/billing',    label: 'Billing' },
     ...(isSaredeUser(user) ? [{ to: '/sales', label: 'Sales' }] : []),
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
-    { to: '/sms',        label: 'Texts' },
+    { to: '/sms',        label: unreadTexts > 0 ? `Texts (${unreadTexts})` : 'Texts' },
     { to: '/recruiting', label: 'Recruiting' },
     { to: '/reference',  label: 'Reference' },
     ...(user?.role === 'admin' ? [{ to: '/settings', label: 'Settings' }] : []),
@@ -76,6 +103,10 @@ function Shell() {
               <NavLink key={to} to={to} className={desktopLinkClass}>{label}</NavLink>
             ))}
           </nav>
+
+          {/* Unread texts, from wherever you are. A reply used to arrive silently unless
+              you happened to be sitting on the Texts screen. */}
+          <TextsBell count={unreadTexts} onGo={() => { navigate('/sms'); setOpen(false) }} />
 
           {/* Desktop user info — hidden on mobile */}
           <div className="hidden sm:flex items-center gap-3 shrink-0">
@@ -147,7 +178,9 @@ function Shell() {
 export default function NavShell() {
   return (
     <RemindersProvider>
-      <Shell />
+      <UnreadTextsProvider>
+        <Shell />
+      </UnreadTextsProvider>
     </RemindersProvider>
   )
 }

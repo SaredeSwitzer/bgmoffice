@@ -118,7 +118,7 @@ function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact })
         className={`rounded-full border w-6 h-6 leading-none text-xs transition-colors disabled:cursor-default ${
           isWaiting
             ? 'bg-amber-100 border-amber-400'
-            : 'bg-white border-gray-200 text-transparent hover:text-gray-300 hover:border-amber-300'
+            : 'bg-white border-gray-200 opacity-25 hover:opacity-100 hover:border-amber-300'
         }`}
       >
         ⏳

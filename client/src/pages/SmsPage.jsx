@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { api } from '../api/client'
 import WeeklyRemindersPanel from '../components/WeeklyRemindersPanel'
+import { useUnreadTexts } from '../context/UnreadTextsContext'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -25,6 +26,7 @@ function fmtTime(ts) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 export default function SmsPage() {
+  const { refresh: refreshUnread } = useUnreadTexts()
   const [threads, setThreads] = useState([])
   const [active, setActive] = useState(null)       // phone string
   const [messages, setMessages] = useState([])
@@ -48,8 +50,11 @@ export default function SmsPage() {
       const { messages } = await api.smsThread(phone)
       setMessages(messages)
       setThreads((prev) => prev.map((t) => (t.phone === phone ? { ...t, unread: 0 } : t)))
+      // Reading a conversation marks it read on the server, so the bell in the top bar
+      // should drop straight away rather than waiting out its next poll.
+      refreshUnread()
     } catch (e) { setError(e.message || 'Could not load that conversation.') }
-  }, [])
+  }, [refreshUnread])
 
   useEffect(() => { loadThreads() }, [loadThreads])
 
