@@ -11,6 +11,7 @@ require('pg').types.setTypeParser(1082, (v) => v);
 
 const { findDrift, reconcile, adopt, dismissDrift, undismissDrift, listDismissed } = require('../lib/scheduleDrift');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -237,7 +238,13 @@ router.post('/schedules', async (req, res) => {
   // Fill the calendar for this schedule right away — otherwise it wouldn't show up
   // until the nightly cron runs, which can be up to 24h away.
   await generateUpcomingSessions(defaultHorizon(), { scheduleId: id });
-  res.status(201).json(await getScheduleRow(id));
+  // Anything typed here that the client's or instructor's profile is still missing gets
+  // copied up onto it — see lib/profileBackfill.js.
+  const profile_updates = await backfillProfilesFromClass({
+    client_id, instructor_id, charge_amount, charge_note, instructor_pay, payment_method,
+    style: filled.style, participant_count: filled.participant_count, participant_ages: filled.participant_ages,
+  });
+  res.status(201).json({ ...(await getScheduleRow(id)), profile_updates });
 });
 
 router.put('/schedules/:id', async (req, res) => {
@@ -333,10 +340,18 @@ router.put('/schedules/:id', async (req, res) => {
   // Same reasoning as POST /schedules — pick up a new weekday/reactivation/date change
   // immediately instead of waiting for the nightly cron.
   await generateUpcomingSessions(defaultHorizon(), { scheduleId: Number(req.params.id) });
+  const profile_updates = await backfillProfilesFromClass({
+    client_id: after.client_id, instructor_id: after.instructor_id,
+    charge_amount: after.charge_amount, charge_note: after.charge_note,
+    instructor_pay: after.instructor_pay, payment_method: after.payment_method,
+    style: after.style, participant_count: after.participant_count,
+    participant_ages: after.participant_ages,
+  });
   res.json({
     ...(await getScheduleRow(req.params.id)),
     sessions_updated: sessionsUpdated,
     sessions_regenerated: weekdayMoved,
+    profile_updates,
   });
 });
 
@@ -471,7 +486,14 @@ router.post('/sessions', async (req, res) => {
      filled.participant_count === '' ? null : filled.participant_count ?? null, filled.participant_ages || null,
      address_id || null]
   );
-  res.status(201).json(row);
+  const profile_updates = await backfillProfilesFromClass({
+    client_id, instructor_id,
+    charge_amount: inherited.charge_amount, charge_note,
+    instructor_pay: inherited.instructor_pay, payment_method: inherited.payment_method,
+    style: filled.style, participant_count: filled.participant_count,
+    participant_ages: filled.participant_ages,
+  });
+  res.status(201).json({ ...row, profile_updates });
 });
 
 // Ad hoc dated classes — a set of specific dates that don't fit a weekly recurring
@@ -511,6 +533,13 @@ router.post('/sessions/bulk', async (req, res) => {
     );
     created.push(row);
   }
+  // Shape kept as a plain array — Amber calls this endpoint too, so the backfill happens
+  // quietly here rather than being reported back the way the single-class routes do.
+  await backfillProfilesFromClass({
+    client_id, instructor_id, charge_amount, charge_note, instructor_pay,
+    payment_method: method, style: filled.style,
+    participant_count: filled.participant_count, participant_ages: filled.participant_ages,
+  });
   res.status(201).json(created);
 });
 
@@ -612,7 +641,14 @@ router.put('/sessions/:id', async (req, res) => {
   }
 
   const { rows: [row] } = await pool.query('SELECT * FROM class_sessions WHERE id=$1', [req.params.id]);
-  res.json({ ...row, series });
+  const profile_updates = await backfillProfilesFromClass({
+    client_id: row.client_id, instructor_id: row.instructor_id,
+    charge_amount: row.charge_amount, charge_note: row.charge_note,
+    instructor_pay: row.instructor_pay, payment_method: row.payment_method,
+    style: row.style, participant_count: row.participant_count,
+    participant_ages: row.participant_ages,
+  });
+  res.json({ ...row, series, profile_updates });
 });
 
 router.delete('/sessions/:id', async (req, res) => {

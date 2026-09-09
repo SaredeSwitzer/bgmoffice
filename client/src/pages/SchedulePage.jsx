@@ -14,6 +14,7 @@ import ClientAddressEditor from '../components/ClientAddressEditor'
 import { AddressPicker } from '../components/ClientAddresses'
 import PendingClassModal from '../components/PendingClassModal'
 import AddClassDatesModal from '../components/AddClassDatesModal'
+import ProfileUpdatesNotice from '../components/ProfileUpdatesNotice'
 import TimeInput from '../components/TimeInput'
 import DurationInput from '../components/DurationInput'
 import ChargeInput from '../components/ChargeInput'
@@ -22,6 +23,7 @@ import { fmtTime, fmtTimeRange } from '../utils/time'
 import ReportsPage from './ReportsPage'
 import ScheduleDrift from '../components/ScheduleDrift'
 import { useHashHighlight } from '../utils/hashHighlight'
+import { PAYMENT_METHODS } from '../utils/payments'
 
 // The horizontal line + time label shown between classes while dragging, so it's clear
 // exactly where a class will land (and what time it'll get) before you let go.
@@ -54,7 +56,6 @@ function NotesToggle({ open, noteCount = 0, openTasks = 0, onClick }) {
 }
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Other']
 
 // Local YYYY-MM-DD (never toISOString — that shifts the day off UTC).
 function ymd(d) {
@@ -167,6 +168,8 @@ export default function SchedulePage() {
 
   // Add/edit-class modal. { session: null, defaultDate } to add; { session } to edit.
   const [sessionModal, setSessionModal] = useState(null)
+  // What saving a class just filled in on a client's or instructor's profile.
+  const [profileUpdates, setProfileUpdates] = useState([])
   // The dated session currently being marked pending, if any.
   const [pendingModal, setPendingModal] = useState(null)
   // "+ Add Class Dates" — a batch of specific, possibly-irregular dates for one class.
@@ -398,8 +401,10 @@ export default function SchedulePage() {
         participant_ages: form.participant_ages || null,
         address_id: form.address_id || null,
       }
-      if (editingId) await api.updateClassSchedule(editingId, payload)
-      else await api.createClassSchedule(payload)
+      const saved = editingId
+        ? await api.updateClassSchedule(editingId, payload)
+        : await api.createClassSchedule(payload)
+      setProfileUpdates(saved?.profile_updates || [])
       setForm(BLANK_SCHEDULE); setShowNew(false); setEditingId(null); loadSchedules()
     } finally {
       setSaving(false)
@@ -486,6 +491,9 @@ export default function SchedulePage() {
           </div>
         </div>
       </div>
+
+      {/* What the class just filled in on a client's or instructor's profile. */}
+      <ProfileUpdatesNotice updates={profileUpdates} onDismiss={() => setProfileUpdates([])} />
 
       {/* Sits above the tabs' content on purpose: a class whose calendar has drifted
           bills wrong every week until someone notices, and nobody goes looking. */}
@@ -921,7 +929,7 @@ export default function SchedulePage() {
           defaultDate={sessionModal.defaultDate}
           duplicate={!!sessionModal.duplicate}
           onClose={() => setSessionModal(null)}
-          onSaved={() => { setSessionModal(null); loadWeek() }}
+          onSaved={(saved) => { setProfileUpdates(saved?.profile_updates || []); setSessionModal(null); loadWeek() }}
           onDeleted={(id) => {
             setSessions(prev => prev.filter(x => x.id !== id))
             setSessionModal(null)

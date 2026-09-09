@@ -3,8 +3,8 @@ import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
 import TimeInput from './TimeInput'
 import DurationInput from './DurationInput'
+import { PAYMENT_METHODS } from '../utils/payments'
 
-const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
 // Each field has its own "apply this change" checkbox, off by default — so picking a
 // new instructor doesn't accidentally also blank out everyone's time or rate. Only

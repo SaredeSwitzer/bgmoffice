@@ -7,8 +7,8 @@ import ClientAddressEditor from './ClientAddressEditor'
 import { AddressPicker } from './ClientAddresses'
 import DurationInput from './DurationInput'
 import ChargeInput from './ChargeInput'
+import { PAYMENT_METHODS } from '../utils/payments'
 
-const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
 // Add a set of specific dates at once — for a run of classes that doesn't fit a weekly
 // recurring pattern (e.g. "these 6 dates over the next two months"). Same fields as a

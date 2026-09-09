@@ -19,6 +19,7 @@ import ClientOrNameInput from '../components/ClientOrNameInput'
 import { WaitingSheetForPerson } from '../components/WaitingSheet'
 import { useHashHighlight } from '../utils/hashHighlight'
 import Byline from '../components/Byline'
+import { PAYMENT_METHODS } from '../utils/payments'
 import ClientAddresses from '../components/ClientAddresses'
 import { today } from '../utils/dates'
 
@@ -842,6 +843,7 @@ export default function ClientProfilePage() {
           preferred_contact: c.preferred_contact || '', notes: c.notes || '',
           phone_texting: c.phone_texting || '', phone_whatsapp: c.phone_whatsapp || '',
           rate_per_class: c.rate_per_class || '',
+          default_payment_method: c.default_payment_method || '',
           client_type: c.client_type === 'organization' ? 'organization' : 'individual',
           contact_person_name: c.contact_person_name || '',
           contact_person_phone: c.contact_person_phone || '',
@@ -993,6 +995,17 @@ export default function ClientProfilePage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Rate Per Class</label>
                 <input value={editForm.rate_per_class} onChange={e => setEditForm(f => ({ ...f, rate_per_class: e.target.value }))}
                   placeholder="e.g. $75" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              </div>
+              {/* How they normally pay. Filled in automatically the first time a class of
+                  theirs is given one, so it stops being a question nobody wrote down. */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Usual Payment Method</label>
+                <select value={editForm.default_payment_method}
+                  onChange={e => setEditForm(f => ({ ...f, default_payment_method: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-300">
+                  <option value="">Not set</option>
+                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
               </div>
               {/* Client type */}
               <div className="col-span-2">
@@ -1223,9 +1236,11 @@ export default function ClientProfilePage() {
                     </span>
                   )}
                 </div>
-                {client.rate_per_class && (
+                {(client.rate_per_class || client.default_payment_method) && (
                   <p className="text-sm font-semibold text-emerald-700 mt-1">
-                    💰 {client.rate_per_class} / class
+                    💰 {client.rate_per_class ? `${client.rate_per_class} / class` : ''}
+                    {client.rate_per_class && client.default_payment_method ? ' · ' : ''}
+                    {client.default_payment_method ? `pays by ${client.default_payment_method}` : ''}
                   </p>
                 )}
                 {client.notes && <p id={`note-client_notes-${client.id}`} className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{renderWithMentions(client.notes, mentionableUsers)}</p>}

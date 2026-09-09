@@ -12,10 +12,10 @@ import ChargeInput from './ChargeInput'
 import ClassNotes from './ClassNotes'
 import AdminNotes from './AdminNotes'
 import RescheduleAlertModal from './RescheduleAlertModal'
+import { PAYMENT_METHODS } from '../utils/payments'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-const PAYMENT_METHODS = ['Credit Card', 'Zelle', 'Check', 'Cash', 'Invoice', 'Package', 'Other']
 
 // Add, edit, or duplicate a single dated class on the calendar.
 //   session: null                    → create new, pre-filled with `defaultDate`

@@ -2,6 +2,7 @@ const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
+const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 const { sendMail } = require('../lib/mailer');
 const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync');
 const { recordIntake } = require('../lib/clientIntake');
@@ -490,11 +491,20 @@ router.post('/:id/schedule', async (req, res) => {
     }
   }
 
+  // Whatever was typed on the class fills in the gaps on the new client's and the
+  // instructor's profile — the same rule the Schedule page follows.
+  const profile_updates = await backfillProfilesFromClass({
+    client_id: clientId, instructor_id: instructorId,
+    charge_amount, instructor_pay, payment_method,
+    style: style || entry.style,
+    participant_count, participant_ages: participant_ages || entry.participants,
+  });
+
   // Point the entry at whatever client it ended up on, so the link isn't lost.
   await pool.query('UPDATE recruiting_entries SET client_id = $1 WHERE id = $2', [clientId, req.params.id]);
   if (archive) await pool.query('UPDATE recruiting_entries SET archived = 1 WHERE id = $1', [req.params.id]);
 
-  res.status(201).json({ ...created, client_id: clientId, archived: !!archive });
+  res.status(201).json({ ...created, client_id: clientId, archived: !!archive, profile_updates });
 });
 
 router.get('/styles', async (req, res) => {

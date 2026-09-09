@@ -88,7 +88,7 @@ router.post('/', async (req, res) => {
     name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
-    default_age, default_participants, default_style,
+    default_age, default_participants, default_style, default_payment_method,
     track_last_class, last_class_date, skip_weekly_reminder,
     referred_by, gender, referred_by_client_id, goals, health_notes, equipment,
   } = req.body;
@@ -116,10 +116,10 @@ router.post('/', async (req, res) => {
        (name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
         contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
         waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
-        default_age, default_participants, default_style,
+        default_age, default_participants, default_style, default_payment_method,
         track_last_class, last_class_date, skip_weekly_reminder, referred_by, gender,
         referred_by_client_id, goals, health_notes, equipment)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
      RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
@@ -130,6 +130,7 @@ router.post('/', async (req, res) => {
       street || (sig?.street ?? null), city || (sig?.city ?? null), state || null, zip || (sig?.zip ?? null), neighborhood || null,
       client_type === 'organization' ? 'organization' : 'individual',
       default_age || null, default_participants === '' ? null : default_participants ?? null, default_style || null,
+      default_payment_method || null,
       !!track_last_class, last_class_date || null, !!skip_weekly_reminder,
       referred_by || null, gender || null, referred_by_client_id || null,
       goals || null, health_notes || null, equipment || null,
@@ -148,7 +149,8 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query(
     `SELECT id, skip_weekly_reminder, referred_by, gender, referred_by_client_id,
-            goals, health_notes, equipment, phone_texting, phone_whatsapp
+            goals, health_notes, equipment, phone_texting, phone_whatsapp,
+            default_payment_method
        FROM clients WHERE id = $1`,
     [req.params.id]
   );
@@ -159,6 +161,7 @@ router.put('/:id', async (req, res) => {
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
     track_last_class, last_class_date, default_age, default_participants, default_style,
+    default_payment_method,
     skip_weekly_reminder, referred_by, gender, referred_by_client_id,
     goals, health_notes, equipment, phone_texting, phone_whatsapp,
   } = req.body;
@@ -185,6 +188,11 @@ router.put('/:id', async (req, res) => {
   // Same rule again: whether a number takes texts is asked at intake and not repeated on
   // every form that saves a client, and it is exactly the kind of answer that must not be
   // lost by someone correcting a postcode.
+  // Set on the client's profile, but also filled in automatically from a class (see
+  // lib/profileBackfill.js) — so a form that doesn't ask for it must leave it alone.
+  const nextPayMethod = default_payment_method === undefined
+    ? existing.default_payment_method
+    : (default_payment_method || null);
   const nextTexting  = phone_texting  === undefined ? existing.phone_texting  : (phone_texting  || null);
   const nextWhatsapp = phone_whatsapp === undefined ? existing.phone_whatsapp : (phone_whatsapp || null);
 
@@ -192,7 +200,7 @@ router.put('/:id', async (req, res) => {
     `UPDATE clients SET
        referred_by=$27, gender=$28, referred_by_client_id=$29,
        goals=$30, health_notes=$31, equipment=$32,
-       phone_texting=$33, phone_whatsapp=$34,
+       phone_texting=$33, phone_whatsapp=$34, default_payment_method=$35,
        name=$1, phone=$2, email=$3, invoice_email=$4, preferred_contact=$5, notes=$6, rate_per_class=$7,
        contact_person_name=$8, contact_person_phone=$9, contact_person_email=$10, contact_person_role=$11,
        waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
@@ -214,7 +222,7 @@ router.put('/:id', async (req, res) => {
       req.params.id,
       nextReferredBy, nextGender, nextReferrerId,
       nextGoals, nextHealth, nextEquipment,
-      nextTexting, nextWhatsapp,
+      nextTexting, nextWhatsapp, nextPayMethod,
     ]
   );
   await syncMentions({
