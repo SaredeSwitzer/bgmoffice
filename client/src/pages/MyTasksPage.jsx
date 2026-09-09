@@ -287,6 +287,11 @@ export default function MyTasksPage() {
     if ((hash || '').startsWith('#note-waiting_sheet_notes-')) setView('sheet')
   }, [hash])
   const [mentionableUsers, setMentionableUsers] = useState([])
+  // Whose open mentions we're peeking at, and what they are. A mention lives on the
+  // tagged person's own list, so tagging Maria used to be a one-way street — no way to
+  // tell whether it had landed or been dealt with.
+  const [peekPerson, setPeekPerson] = useState('')
+  const [peekMentions, setPeekMentions] = useState([])
   const [recruitingUnfilled, setRecruitingUnfilled] = useState(0)
   const [showRead, setShowRead] = useState(false)
 
@@ -315,6 +320,15 @@ export default function MyTasksPage() {
         t.source === item.source && t.id === item.id ? { ...t, starred: !starred } : t))
     }
   }
+
+  useEffect(() => {
+    if (!peekPerson) { setPeekMentions([]); return }
+    let cancelled = false
+    api.getOpenMentionsFor(peekPerson)
+      .then(rows => { if (!cancelled) setPeekMentions(rows) })
+      .catch(() => { if (!cancelled) setPeekMentions([]) })
+    return () => { cancelled = true }
+  }, [peekPerson])
 
   function handleAddOther(newTask) {
     setTasks(prev => [{ ...newTask, source: 'standalone', categories: ['other'] }, ...prev])
@@ -412,6 +426,10 @@ export default function MyTasksPage() {
   // server sorts the same way; doing it here too means starring something moves it to the
   // top of its section on the click, rather than on the next load.
   const byUrgency = list => [...list].sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
+
+  // Everyone but you — mentions tagged to you are already the list above.
+  const otherStaff = mentionableUsers.filter(u =>
+    u.name.toLowerCase() !== String(user?.name || '').split(' ')[0].toLowerCase())
 
   const reminderTasks = byUrgency(tasks.filter(t => t.source === 'reminder'))
   // Reminders now cover the whole team, so they split again inside their own section:
@@ -534,6 +552,52 @@ export default function MyTasksPage() {
             onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
             onToggleUrgent={handleToggleUrgent} isNew={isNew}
           />
+        )}
+
+        {/* Somebody else's mentions, read-only. Seeing them is the point; clearing them
+            is theirs to do — a mention disappears when the person tagged opens it. */}
+        {otherStaff.length > 0 && (
+          <div className="mt-3 border-t border-gray-100 pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-500">Mentions waiting on:</span>
+              {otherStaff.map(u => (
+                <button key={u.id} type="button"
+                  onClick={() => setPeekPerson(p => (p === u.name ? '' : u.name))}
+                  className={`text-xs rounded-full border px-2.5 py-1 transition-colors ${
+                    peekPerson === u.name
+                      ? 'border-purple-300 bg-purple-50 text-purple-700 font-semibold'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  {u.name}
+                </button>
+              ))}
+            </div>
+
+            {peekPerson && (
+              peekMentions.length === 0 ? (
+                <p className="text-xs text-gray-400 italic mt-2">
+                  Nothing outstanding for {peekPerson} — they've read everything they were tagged in.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-2 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+                    {peekMentions.map(m => (
+                      <button key={m.mention_id} type="button"
+                        onClick={() => m.link_path && navigate(m.link_path)}
+                        className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-gray-50">
+                        <span className="shrink-0 text-[11px] font-semibold text-gray-400">{m.author_initials}</span>
+                        <span className="min-w-0 flex-1 truncate text-xs text-gray-700">{m.snippet}</span>
+                        {m.link_path && <span className="shrink-0 text-[11px] text-blue-600">Open →</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Unread by {peekPerson} — they clear when {peekPerson} opens them.
+                  </p>
+                </>
+              )
+            )}
+          </div>
         )}
 
         {readMentions.length > 0 && (
