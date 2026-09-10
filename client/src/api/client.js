@@ -632,6 +632,10 @@ export const api = {
     request(`/schedule/${kind === 'session' ? 'sessions' : 'schedules'}/${id}/send-${who}-text`,
       { method: 'POST', body: JSON.stringify(data) }),
 
+  // Who signed in, when and how — see server/routes/settings.js.
+  getLoginHistory: (userId) =>
+    request(`/settings/login-history${userId ? `?user_id=${userId}` : ''}`),
+
   getConfirmationTemplate: () => request('/settings/confirmation-template'),
   saveConfirmationTemplate: (data) => request('/settings/confirmation-template', { method: 'POST', body: JSON.stringify(data) }),
 

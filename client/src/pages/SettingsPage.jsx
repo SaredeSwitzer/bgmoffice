@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import LoginHistory from '../components/LoginHistory'
 
 // ── Shared ─────────────────────────────────────────────────────────────────────
 
@@ -757,6 +758,7 @@ export default function SettingsPage() {
       <ActionTypesSection />
       <DelegatesSection />
       <UsersSection />
+      <LoginHistory />
     </div>
   )
 }

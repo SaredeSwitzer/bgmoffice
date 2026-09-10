@@ -21,9 +21,53 @@ const STALE_LOGIN_MS = 7 * 24 * 60 * 60 * 1000;
 // availability check-in nudge once for this sign-in. Computed from `prev` (the row as it
 // stood before this UPDATE), not looked up again later, since after this call
 // last_login_at is always "now" and the gap would be unrecoverable.
-async function recordLogin(user) {
+// Turns a browser's user-agent into something a person can read. Exact versions are
+// noise here — the question this answers is "was that Maria on her own laptop, or
+// somebody else?", and a browser and an operating system answer it.
+function describeDevice(ua = '') {
+  const s = String(ua);
+  const browser = /Edg\//.test(s) ? 'Edge'
+    : /OPR\//.test(s) ? 'Opera'
+    : /Chrome\//.test(s) ? 'Chrome'
+    : /Firefox\//.test(s) ? 'Firefox'
+    : /Safari\//.test(s) ? 'Safari'
+    : null;
+  const os = /iPhone/.test(s) ? 'iPhone'
+    : /iPad/.test(s) ? 'iPad'
+    : /Android/.test(s) ? 'Android'
+    : /Mac OS X|Macintosh/.test(s) ? 'Mac'
+    : /Windows/.test(s) ? 'Windows'
+    : /Linux/.test(s) ? 'Linux'
+    : null;
+  if (browser && os) return `${browser} on ${os}`;
+  return browser || os || null;
+}
+
+// Who signed in, when, and how — kept as a list rather than a single overwritten stamp.
+//
+// A sign-in code lands in whatever inbox the account points at, and where that inbox is
+// shared, the code can be used by anyone who opens it. That can't be undone by the app;
+// what the app can do is stop the question "who actually signed in as Claire on Tuesday?"
+// from being unanswerable. Never blocks a sign-in: a history that fails to write is not a
+// reason to keep somebody out of their own app.
+async function noteLoginEvent(user, method, req) {
+  try {
+    const ua = req?.headers?.['user-agent'] || null;
+    const ip = (req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim()
+      || req?.socket?.remoteAddress || null;
+    await pool.query(
+      `INSERT INTO login_events (user_id, method, ip, device, user_agent) VALUES ($1,$2,$3,$4,$5)`,
+      [user.id, method, ip, describeDevice(ua), ua]
+    );
+  } catch (e) {
+    console.error('[auth] could not record the sign-in:', e.message);
+  }
+}
+
+async function recordLogin(user, { method = 'unknown', req = null } = {}) {
   const { rows: [prev] } = await pool.query('SELECT last_login_at FROM users WHERE id = $1', [user.id]);
   await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
+  await noteLoginEvent(user, method, req);
   const staleLogin = user.role === 'instructor' &&
     (!prev?.last_login_at || Date.now() - new Date(prev.last_login_at).getTime() >= STALE_LOGIN_MS);
   if (!prev?.last_login_at && user.role === 'instructor') {
@@ -195,7 +239,7 @@ router.post('/verify-code', loginLimiter, async (req, res) => {
   }
 
   await pool.query('UPDATE login_codes SET consumed_at = now() WHERE id = $1', [record.id]);
-  const { staleLogin } = await recordLogin(user);
+  const { staleLogin } = await recordLogin(user, { method: 'code', req });
 
   res.json({ token: signToken(user), user: publicUser(user), stale_login: staleLogin });
 });
@@ -213,7 +257,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
-  const { staleLogin } = await recordLogin(user);
+  const { staleLogin } = await recordLogin(user, { method: 'password', req });
 
   res.json({ token: signToken(user), user: publicUser(user), stale_login: staleLogin });
 });
@@ -230,3 +274,4 @@ router.get('/me', requireAuth, async (req, res) => {
 
 module.exports = router;
 module.exports.recordLogin = recordLogin;
+module.exports.describeDevice = describeDevice;

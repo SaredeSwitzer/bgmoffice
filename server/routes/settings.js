@@ -111,6 +111,25 @@ async function resolveInstructorLink(role, instructor_id) {
 // @bgmoffice.com address is a real mailbox — the app only *sends* from login@bgmoffice.com
 // — so an account with no login_email can never receive a code, and is password-only
 // without saying so. Claire had exactly that for two months.
+// Who has signed in lately, and how. Admin-only, like the rest of this file.
+//
+// The single last_login_at stamp could only ever say "somebody signed in as Claire on
+// Tuesday". This says which way they came in and from what — enough to tell a routine
+// sign-in from one worth asking about.
+router.get('/login-history', async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 60, 200);
+  const { rows } = await pool.query(
+    `SELECT e.id, e.method, e.device, e.ip, e.created_at,
+            u.name, u.initials, u.email, u.role
+       FROM login_events e JOIN users u ON u.id = e.user_id
+      ${req.query.user_id ? 'WHERE e.user_id = $2' : ''}
+      ORDER BY e.created_at DESC
+      LIMIT $1`,
+    req.query.user_id ? [limit, req.query.user_id] : [limit]
+  );
+  res.json(rows);
+});
+
 router.post('/users', async (req, res) => {
   const { name, initials, email, password, role, instructor_id, login_email } = req.body;
   if (!name || !initials || !email || !password || !role)
