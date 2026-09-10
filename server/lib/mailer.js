@@ -15,8 +15,17 @@ const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 // Default "from" for everything except login codes and billing — those keep their own
 // dedicated addresses (login@, billing@) so the sender reads correctly for what it is.
 const OFFICE_FROM = 'Bring the Gym To Me <office@bgmoffice.com>';
-// office@ isn't a real inbox — route replies to Sarede so they don't disappear.
-const OFFICE_REPLY = 'sarede@bringthegymtome.com';
+
+// The one inbox the office reads. Maria, Claire and Erica all see it, each with her own
+// alias on it, so a client's reply reaches whoever is working rather than sitting unread
+// in the inbox of whoever happened to press send. Everything the app sends points here.
+//
+// Nothing @bgmoffice.com is a real mailbox — that domain only ever sends — so every
+// reply-to and CC has to be an address on the Workspace domain.
+const OFFICE_INBOX = 'admin@bringthegymtome.com';
+
+// office@ isn't a real inbox — route replies to the office so they don't disappear.
+const OFFICE_REPLY = OFFICE_INBOX;
 
 function isConfigured() {
   return Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
@@ -113,7 +122,7 @@ async function sendMail({ to, subject, text, html, replyTo, from, cc, attachment
 }
 
 const BILLING_FROM  = 'Bring the Gym To Me <billing@bgmoffice.com>';
-const BILLING_REPLY = 'sarede@bringthegymtome.com';
+const BILLING_REPLY = OFFICE_INBOX;
 
 // Receipt for a successful card charge — weekly recurring classes or a one-off invoice
 // payment. Best-effort: a receipt failing to send should never undo or block the charge
@@ -139,6 +148,8 @@ async function sendChargeReceipt({ to, clientName, amount, description }) {
   });
 }
 
+// A payment landing is Sarede's news first, but the office chases the ones that don't —
+// so they see it too rather than asking her.
 const OWNER_NOTIFY_EMAIL = 'sarede@bringthegymtome.com';
 
 // Owner-facing heads-up when a client pays an invoice — same event the "BGM IT Crew" Telegram
@@ -148,6 +159,7 @@ async function sendInvoicePaidAlert({ clientName, invoiceNumber, amount }) {
   const money = `$${Number(amount).toFixed(2)}`;
   await sendMail({
     to: OWNER_NOTIFY_EMAIL,
+    cc: OFFICE_INBOX,
     from: BILLING_FROM,
     subject: `Invoice ${invoiceNumber} paid — ${money} from ${clientName}`,
     text: `${clientName} just paid invoice ${invoiceNumber} (${money}) by card.\n\n— BGM Office`,
@@ -160,4 +172,4 @@ async function sendInvoicePaidAlert({ clientName, invoiceNumber, amount }) {
   });
 }
 
-module.exports = { sendLoginCode, sendMail, sendChargeReceipt, sendInvoicePaidAlert, isConfigured };
+module.exports = { sendLoginCode, sendMail, sendChargeReceipt, sendInvoicePaidAlert, isConfigured, OFFICE_INBOX };

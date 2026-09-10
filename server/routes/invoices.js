@@ -5,7 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const { today, daysFromToday } = require('../lib/dates');
 const { nextInvoiceNumber, calcTotals } = require('../lib/invoiceHelpers');
 const { syncMentions, deleteMentions, stripMentionsForPublic } = require('../lib/mentions');
-const { sendMail } = require('../lib/mailer');
+const { sendMail, OFFICE_INBOX } = require('../lib/mailer');
 const { buildInvoicePdf } = require('../lib/invoicePdf');
 
 const router = express.Router();
@@ -277,7 +277,9 @@ router.patch('/:id/status', async (req, res) => {
 
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://bgmoffice.com';
 const DUE_DATE_LEAD_DAYS = 7;
-const INVOICE_CC = 'sarede@bringthegymtome.com';
+// The office sees every invoice that goes out, and Sarede keeps her copy — she's the one
+// who notices when a familiar client is suddenly a month behind.
+const INVOICE_CC = [OFFICE_INBOX, 'sarede@bringthegymtome.com'];
 
 function fmtMoney(n) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0); }
 function fmtDate(iso) {

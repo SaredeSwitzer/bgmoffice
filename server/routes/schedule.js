@@ -1,7 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth, requireStaff, requireOwnerAccess } = require('../middleware/auth');
-const { sendMail } = require('../lib/mailer');
+const { sendMail, OFFICE_INBOX } = require('../lib/mailer');
 const { generateUpcomingSessions, defaultHorizon, adoptOrphanSessions } = require('../lib/dailySync');
 
 // Return DATE columns as plain 'YYYY-MM-DD' strings, not JS Date objects: a Date
@@ -737,8 +737,11 @@ const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', '
 // Confirmation emails send from office@bgmoffice.com (OFFICE_FROM) — an automated address
 // nobody reads. Route replies and a standing copy to Maria instead, so an instructor's
 // reply doesn't disappear into an inbox nobody checks.
-const CONFIRMATION_CC       = 'maria@bringthegymtome.com';
-const CONFIRMATION_REPLY_TO = 'maria@bringthegymtome.com';
+// Both were Maria's own address, so an instructor's reply to a confirmation reached one
+// person and sat there if she was off. It goes to the shared office inbox instead — all
+// three see it, and whoever is working can answer.
+const CONFIRMATION_CC       = OFFICE_INBOX;
+const CONFIRMATION_REPLY_TO = OFFICE_INBOX;
 
 function fmtTime(t) {
   if (!t) return '';
