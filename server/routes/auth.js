@@ -115,6 +115,17 @@ router.post('/request-code', loginLimiter, async (req, res) => {
 
   const destination = user.login_email || user.email;
 
+  // @bgmoffice.com is the app's own sending domain, not a set of mailboxes — nobody can
+  // open mail there. Without a sign-in address on the account the code would be posted
+  // into the void: Resend accepts it, we say "sent", and they sit watching an inbox that
+  // will never receive anything. Say so instead.
+  if (/@bgmoffice\.com$/i.test(destination)) {
+    return res.status(400).json({
+      error: 'This account has no sign-in address yet, so a code has nowhere to go. '
+           + 'Sign in with your password, and ask Sarede to add one in Settings.',
+    });
+  }
+
   const { rows: [{ count }] } = await pool.query(
     `SELECT count(*)::int AS count FROM login_codes
       WHERE user_id = $1 AND created_at > now() - interval '1 hour'`,
