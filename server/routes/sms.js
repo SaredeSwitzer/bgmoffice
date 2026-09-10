@@ -10,6 +10,7 @@ const store = require('../lib/smsStore');
 const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const { lookupPerson } = require('../lib/telnyxInbound');
 const { buildWeeklyReminders } = require('../lib/weeklyReminders');
+const { findPeopleInText } = require('../lib/detectPeopleInText');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -69,6 +70,29 @@ router.get('/contacts', async (req, res) => {
   } catch (e) {
     console.error('[sms] contacts failed:', e.message);
     res.status(500).json({ error: 'Failed to load contacts' });
+  }
+});
+
+// Who else this conversation is about — read out of the messages themselves.
+//
+// A Waiting On line is one thread of work and usually has two people on it: the person
+// being texted, and whoever the text is about. "Can you cover Etty's class Tuesday?" sent
+// to an instructor names the client right there. Only ever a suggestion; the screen shows
+// the name and lets it be changed or dropped.
+router.get('/thread/:phone/about', async (req, res) => {
+  try {
+    const phone = toE164(req.params.phone);
+    const messages = await store.listThread(phone);
+    // The recent end of the conversation — an old message is about old business.
+    const recent = messages.slice(-6).map(m => m.body || '').join('\n');
+    const kinds = req.query.exclude_kind === 'client' ? ['instructor']
+      : req.query.exclude_kind === 'instructor' ? ['client']
+      : ['client', 'instructor'];
+    const found = await findPeopleInText(recent, { kinds });
+    res.json(found.slice(0, 3));
+  } catch (e) {
+    console.error('[sms] could not read who a thread is about:', e.message);
+    res.json([]);   // a suggestion failing must never block texting
   }
 });
 

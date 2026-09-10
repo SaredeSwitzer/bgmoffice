@@ -196,6 +196,7 @@ export default function SmsPage() {
                 {lastSentAt > 0 && activeThread?.person_id && activeThread?.person_kind && (
                   <StartWaitingLinePrompt
                     person={{ id: activeThread.person_id, kind: activeThread.person_kind, name: activeName }}
+                    phone={active}
                     lastSent={lastSentAt}
                   />
                 )}

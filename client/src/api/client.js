@@ -85,6 +85,10 @@ export const api = {
   // SMS inbox (two-way texting)
   smsThreads: () => request('/sms/threads'),
   smsUnreadCount: () => request('/sms/unread-count'),
+  // Who else a conversation is about, read out of the messages — used to suggest the
+  // other half of a Waiting On line.
+  smsThreadAbout: (phone, excludeKind) =>
+    request(`/sms/thread/${encodeURIComponent(phone)}/about?exclude_kind=${encodeURIComponent(excludeKind || '')}`),
   smsContacts: () => request('/sms/contacts'),
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
