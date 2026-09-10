@@ -374,7 +374,7 @@ function UsersSection() {
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [showNew, setShowNew] = useState(false)
-  const [newForm, setNewForm] = useState({ name: '', initials: '', email: '', password: '', role: 'staff' })
+  const [newForm, setNewForm] = useState({ name: '', initials: '', email: '', login_email: '', password: '', role: 'staff' })
   const [saving, setSaving] = useState(false)
 
   function autoInitials(name) {
@@ -420,7 +420,7 @@ function UsersSection() {
       if (!payload.initials) payload.initials = autoInitials(payload.name) || 'XX'
       const created = await api.createUser(payload)
       setUsers(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
-      setNewForm({ name: '', initials: '', email: '', password: '', role: 'staff' })
+      setNewForm({ name: '', initials: '', email: '', login_email: '', password: '', role: 'staff' })
       setShowNew(false)
     } finally {
       setSaving(false)
@@ -467,6 +467,13 @@ function UsersSection() {
                       <option value="staff">Staff</option>
                       <option value="admin">Admin</option>
                     </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Where sign-in codes go <span className="text-gray-400 font-normal">(a real inbox they can open)</span>
+                    </label>
+                    <InlineInput value={editForm.login_email || ''} onChange={v => setEditForm(f => ({ ...f, login_email: v }))}
+                      placeholder="e.g. erica@bringthegymtome.com" className="w-full" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">New Password <span className="text-gray-400 font-normal">(leave blank to keep current)</span></label>
@@ -517,7 +524,7 @@ function UsersSection() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
-                    onClick={() => { setEditingId(user.id); setEditForm({ name: user.name, initials: user.initials, email: user.email, role: user.role, password: '' }) }}
+                    onClick={() => { setEditingId(user.id); setEditForm({ name: user.name, initials: user.initials, email: user.email, login_email: user.login_email || '', role: user.role, password: '' }) }}
                     className="text-xs text-gray-400 hover:text-gray-700"
                   >
                     Edit
@@ -553,6 +560,16 @@ function UsersSection() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
               <InlineInput required value={newForm.email} onChange={v => setNewForm(f => ({ ...f, email: v }))} placeholder="user@bgmoffice.com" className="w-full" />
+              <p className="text-[11px] text-gray-400 mt-1">Their name on the account — not a real mailbox.</p>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Where sign-in codes go</label>
+              <InlineInput value={newForm.login_email} onChange={v => setNewForm(f => ({ ...f, login_email: v }))}
+                placeholder="a real inbox they can open — e.g. erica@bringthegymtome.com" className="w-full" />
+              <p className="text-[11px] text-gray-400 mt-1">
+                An address they can actually read. Leave it blank and they can only sign in with the
+                password below — the emailed code would go to an inbox that doesn&rsquo;t exist.
+              </p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
@@ -572,7 +589,7 @@ function UsersSection() {
               className="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
               {saving ? 'Creating…' : 'Create User'}
             </button>
-            <button type="button" onClick={() => { setShowNew(false); setNewForm({ name: '', initials: '', email: '', password: '', role: 'staff' }) }}
+            <button type="button" onClick={() => { setShowNew(false); setNewForm({ name: '', initials: '', email: '', login_email: '', password: '', role: 'staff' }) }}
               className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">
               Cancel
             </button>

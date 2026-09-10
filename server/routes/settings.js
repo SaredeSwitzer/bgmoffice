@@ -77,7 +77,7 @@ router.delete('/delegates/:id', async (req, res) => {
 
 router.get('/users', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.id, u.name, u.initials, u.email, u.role, u.active, u.created_at, u.last_login_at,
+    `SELECT u.id, u.name, u.initials, u.email, u.login_email, u.role, u.active, u.created_at, u.last_login_at,
             u.instructor_id::int, i.name AS instructor_name,
             (i.photo_url IS NOT NULL) AS instructor_has_photo,
             (SELECT COUNT(*) FROM instructor_documents d WHERE d.instructor_id = i.id)::int AS instructor_doc_count
@@ -106,8 +106,13 @@ async function resolveInstructorLink(role, instructor_id) {
   return { value: id };
 }
 
+// `email` is the name on the account; `login_email` is where a sign-in code is posted.
+// They are not the same thing and the difference has bitten twice: nobody's
+// @bgmoffice.com address is a real mailbox — the app only *sends* from login@bgmoffice.com
+// — so an account with no login_email can never receive a code, and is password-only
+// without saying so. Claire had exactly that for two months.
 router.post('/users', async (req, res) => {
-  const { name, initials, email, password, role, instructor_id } = req.body;
+  const { name, initials, email, password, role, instructor_id, login_email } = req.body;
   if (!name || !initials || !email || !password || !role)
     return res.status(400).json({ error: 'name, initials, email, password, role required' });
 
@@ -116,10 +121,10 @@ router.post('/users', async (req, res) => {
 
   const password_hash = bcrypt.hashSync(password, 10);
   const { rows: [user] } = await pool.query(
-    `INSERT INTO users (name, initials, email, password_hash, role, instructor_id)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     RETURNING id, name, initials, email, role, active, instructor_id`,
-    [name, initials, email, password_hash, role, link.value]
+    `INSERT INTO users (name, initials, email, password_hash, role, instructor_id, login_email)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     RETURNING id, name, initials, email, login_email, role, active, instructor_id`,
+    [name, initials, email, password_hash, role, link.value, login_email?.trim() || null]
   );
   res.status(201).json(user);
 });
@@ -127,20 +132,24 @@ router.post('/users', async (req, res) => {
 router.put('/users/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query('SELECT id FROM users WHERE id = $1', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'User not found' });
-  const { name, initials, email, role, password, instructor_id } = req.body;
+  const { name, initials, email, role, password, instructor_id, login_email } = req.body;
+  // Absent means leave it alone — a form that doesn't ask must not silently cut somebody
+  // off from their sign-in codes.
+  const nextLoginEmail = login_email === undefined ? undefined : (login_email?.trim() || null);
 
   // Also covers switching an existing account to/from 'instructor': promoting without a link
   // would otherwise fail the DB constraint with a 500, and demoting has to clear the link.
   const link = await resolveInstructorLink(role, instructor_id);
   if (link.error) return res.status(400).json({ error: link.error });
 
-  if (password) {
-    const password_hash = bcrypt.hashSync(password, 10);
-    await pool.query('UPDATE users SET name=$1, initials=$2, email=$3, role=$4, password_hash=$5, instructor_id=$6 WHERE id=$7', [name, initials, email, role, password_hash, link.value, req.params.id]);
-  } else {
-    await pool.query('UPDATE users SET name=$1, initials=$2, email=$3, role=$4, instructor_id=$5 WHERE id=$6', [name, initials, email, role, link.value, req.params.id]);
-  }
-  const { rows: [user] } = await pool.query('SELECT id, name, initials, email, role, active, instructor_id FROM users WHERE id = $1', [req.params.id]);
+  const sets = ['name=$1', 'initials=$2', 'email=$3', 'role=$4', 'instructor_id=$5'];
+  const args = [name, initials, email, role, link.value];
+  if (password) { args.push(bcrypt.hashSync(password, 10)); sets.push(`password_hash=$${args.length}`); }
+  if (nextLoginEmail !== undefined) { args.push(nextLoginEmail); sets.push(`login_email=$${args.length}`); }
+  args.push(req.params.id);
+  await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE id=$${args.length}`, args);
+
+  const { rows: [user] } = await pool.query('SELECT id, name, initials, email, login_email, role, active, instructor_id FROM users WHERE id = $1', [req.params.id]);
   res.json(user);
 });
 
