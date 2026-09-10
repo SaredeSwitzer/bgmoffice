@@ -177,7 +177,59 @@ router.post('/clients/:id/setup-intent', async (req, res) => {
 // A client can have several: their own and a spouse's, a personal card and the school's.
 // Exactly one is the default — that's the one a weekly charge lands on.
 
+// A card saved before client_cards existed — or in the window while it was going out —
+// lives only in the mirror columns on `clients`. It is perfectly chargeable, and the weekly
+// billing has been charging it, but this screen reads client_cards and so showed "No card
+// saved". Baila Gutman's card, taken on 2026-09-04, sat like that.
+//
+// Rather than a one-off backfill that the next gap slips past, the list adopts any mirrored
+// card it doesn't already know about. Expiry comes from Stripe when it can be reached; the
+// brand and last four we already hold either way.
+async function adoptMirroredCard(clientId) {
+  const { rows: [client] } = await pool.query(
+    `SELECT stripe_payment_method_id, card_brand, card_last4, card_saved_at
+       FROM clients WHERE id = $1`, [clientId]
+  );
+  const pmId = client?.stripe_payment_method_id;
+  if (!pmId) return;
+
+  const { rows: [known] } = await pool.query(
+    'SELECT id FROM client_cards WHERE client_id = $1 AND stripe_payment_method_id = $2',
+    [clientId, pmId]
+  );
+  if (known) return;
+
+  let exp_month = null, exp_year = null, brand = client.card_brand, last4 = client.card_last4;
+  try {
+    const stripe = await getStripe();
+    if (stripe) {
+      const pm = await stripe.paymentMethods.retrieve(pmId);
+      if (pm?.card) {
+        ({ exp_month, exp_year } = pm.card);
+        brand = pm.card.brand || brand;
+        last4 = pm.card.last4 || last4;
+      }
+    }
+  } catch (e) {
+    // Stripe being unreachable is no reason to keep hiding a card we know about.
+    console.error('[billing] could not read the mirrored card from Stripe:', e.message);
+  }
+
+  const { rows: [existingDefault] } = await pool.query(
+    'SELECT id FROM client_cards WHERE client_id = $1 AND is_default', [clientId]
+  );
+  await pool.query(
+    `INSERT INTO client_cards
+       (client_id, stripe_payment_method_id, brand, last4, exp_month, exp_year, added_by, is_default, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,'saved before this screen existed',$7, COALESCE($8, now()))
+     ON CONFLICT (client_id, stripe_payment_method_id) DO NOTHING`,
+    [clientId, pmId, brand, last4, exp_month, exp_year, !existingDefault, client.card_saved_at]
+  );
+}
+
 router.get('/clients/:id/cards', async (req, res) => {
+  await adoptMirroredCard(req.params.id).catch(e =>
+    console.error('[billing] adopting a mirrored card failed:', e.message));
   const { rows } = await pool.query(
     `SELECT id, stripe_payment_method_id, brand, last4, exp_month, exp_year, label,
             is_default, added_by, created_at
