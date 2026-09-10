@@ -76,31 +76,9 @@ export function groupByClient(rows) {
   return blocks
 }
 
-// The band that carries the client's name over their lines. The name is the thing to
-// see — it's how you find your way down the sheet — so it's the only thing set large and
-// dark here, and the count sits quietly next to it.
-function GroupHeading({ client, rows, colSpan }) {
-  const waiting = rows.filter(r => (r.people || []).some(p => p.waiting)).length
-  const urgent  = rows.some(r => r.urgent)
-  return (
-    <tr className="bg-gray-50 border-t-2 border-gray-200">
-      <td colSpan={colSpan} className="px-3 pt-2 pb-1">
-        {urgent && <span className="text-red-500 mr-1">★</span>}
-        <span className="text-sm font-bold text-gray-900">
-          <ClientLink id={client.person_id} name={client.name} />
-        </span>
-        <span className="text-[11px] text-gray-400 ml-2">
-          {rows.length} things open
-          {waiting > 0 && ` · waiting on someone on ${waiting}`}
-        </span>
-      </td>
-    </tr>
-  )
-}
-
-// `compact` is how a client's chip renders underneath their own heading: the name comes
-// off (the heading already says it) and what's left is the hourglass on its own, so the
-// lines read as a bullet list under the name rather than four copies of it.
+// `compact` is how a client's chip renders on the second and later lines of their own
+// block: the name came off (the line above it says it) and what's left is the hourglass,
+// which still has to be there because the flag is per line, not per person.
 function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact }) {
   // Read-only and not flagged: there is nothing to say and nothing to click, and the
   // heading above already carries the name.
@@ -185,7 +163,7 @@ function AddPerson({ kind, options, onAdd }) {
   )
 }
 
-function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [], openNoteId, groupedUnder = null }) {
+function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [], openNoteId, groupedUnder = null, groupFirst = false }) {
   const [busy, setBusy] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const replyRef = useRef(null)
@@ -213,13 +191,19 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
 
   // The flag sits on each person, so any number of them can carry it — often we're waiting
   // on the instructor for one thing and the client for another on the same line.
-  const grouped = groupedUnder != null
+  // In a block, but not the first line of it: the name is on the line above.
+  const continuation = groupedUnder != null && !groupFirst
   const isWaitingOn = p => !!p.waiting
   const toggleWaiting = p => act(() =>
     api.setWaitingOnPerson(row.id, p.id, !isWaitingOn(p)))
 
   return (
-    <tr className={row.urgent ? 'bg-red-50/60' : ''}>
+    <tr className={[
+      row.urgent ? 'bg-red-50/60' : '',
+      // One client's lines hang together and stop where the stripe stops, so you can see
+      // at a glance where their block ends and the next client starts.
+      groupedUnder != null ? 'border-l-4 border-l-blue-200' : '',
+    ].filter(Boolean).join(' ')}>
       <td className="align-top px-3 py-2.5 w-8">
         {!readOnly && (
           <button
@@ -232,15 +216,15 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
         {readOnly && row.urgent && <span className="text-red-500">★</span>}
       </td>
 
-      {/* Client first: it's the one you scan the sheet by. Under a client's own heading
-          the cell becomes a bullet and the hourglass, so their lines read as a list
-          beneath the name instead of repeating it. */}
-      <td className={`align-top px-3 py-2.5 ${grouped ? 'pl-8' : ''}`}>
+      {/* Client first: it's the one you scan the sheet by, so a client with several lines
+          still has their name here, in this column, on the first of them — same as anybody
+          with one line. Their other lines indent underneath it. */}
+      <td className={`align-top px-3 py-2.5 ${continuation ? 'pl-9' : ''}`}>
         <div className="flex flex-wrap gap-1.5 items-center">
-          {grouped && <span className="text-gray-300 select-none">&bull;</span>}
+          {continuation && <span className="text-gray-300 select-none text-xs">&#8627;</span>}
           {clientsOn.map(p => (
             <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
-              compact={groupedUnder != null && personKey(p) === groupedUnder}
+              compact={continuation && personKey(p) === groupedUnder}
               onClick={() => toggleWaiting(p)} readOnly={readOnly}
               onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
           ))}
@@ -484,11 +468,10 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
                     mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
                 ) : (
                   <Fragment key={block.key}>
-                    <GroupHeading client={block.client} rows={block.rows} colSpan={5} />
-                    {block.rows.map(row => (
+                    {block.rows.map((row, i) => (
                       <Row key={row.id} row={row} clients={clients} instructors={instructors}
                         mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load}
-                        groupedUnder={block.key} />
+                        groupedUnder={block.key} groupFirst={i === 0} />
                     ))}
                   </Fragment>
                 )
@@ -634,11 +617,10 @@ export default function WaitingSheet() {
                     mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
                 ) : (
                   <Fragment key={block.key}>
-                    <GroupHeading client={block.client} rows={block.rows} colSpan={5} />
-                    {block.rows.map(row => (
+                    {block.rows.map((row, i) => (
                       <Row key={row.id} row={row} clients={clients} instructors={instructors}
                         mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load}
-                        groupedUnder={block.key} />
+                        groupedUnder={block.key} groupFirst={i === 0} />
                     ))}
                   </Fragment>
                 )

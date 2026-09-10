@@ -165,6 +165,18 @@ router.patch('/:id/people/:personId/waiting', async (req, res) => {
 router.post('/:id/people', async (req, res) => {
   const { kind, person_id, name } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Pick or type a name' });
+  // Adding somebody who's already on the line is a slip, not an instruction. Row 38 carried
+  // Etty Silberstein twice, which showed as two hourglasses on one line and left you toggling
+  // a flag that had a twin.
+  const { rows: [already] } = await pool.query(
+    `SELECT id FROM waiting_sheet_people
+      WHERE row_id = $1 AND kind = $2
+        AND (($3::bigint IS NOT NULL AND person_id = $3) OR LOWER(name) = LOWER($4))
+      LIMIT 1`,
+    [req.params.id, kind === 'instructor' ? 'instructor' : 'client', person_id || null, name.trim()]
+  );
+  if (already) return res.json(await getRow(req.params.id));
+
   const { rows: [added] } = await pool.query(
     `INSERT INTO waiting_sheet_people (row_id, kind, person_id, name) VALUES ($1,$2,$3,$4)
      RETURNING id, kind`,
