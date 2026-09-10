@@ -18,6 +18,7 @@ const crypto = require('crypto');
 const pool = require('../db/pg');
 const { notifyCrew } = require('./notifyCrew');
 const smsStore = require('./smsStore');
+const { noteReplyOnWaitingRows } = require('./waitingFromTexts');
 
 // Wrap a raw 32-byte Ed25519 public key in DER/SPKI so Node's crypto can use it.
 function ed25519KeyFromBase64(b64) {
@@ -159,6 +160,9 @@ async function handleWebhook(req, res) {
           to_number: payload.to?.[0]?.phone_number || null, body: text, telnyx_id: payload.id,
           status: 'received', person_id: person?.id, person_kind: person?.kind, person_name: person?.name });
       } catch (e) { console.error('[telnyx inbound] sms log failed:', e.message); }
+      // A reply is an answer to something we're waiting on — put it on that line rather
+      // than leaving the sheet to be updated by hand. See lib/waitingFromTexts.js.
+      await noteReplyOnWaitingRows({ person, text });
       await notifyCrew(buildReplyNotice({ from, text, person, sessions }));
     } else if (type === 'message.finalized' || type === 'message.sent') {
       // Outbound: reminders sent via Amber AND replies from the Texts UI both flow through this

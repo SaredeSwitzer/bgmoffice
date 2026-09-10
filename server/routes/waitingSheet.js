@@ -158,7 +158,21 @@ router.patch('/:id/people/:personId/waiting', async (req, res) => {
     [!!req.body.waiting, req.params.personId, req.params.id]
   );
   if (!p) return res.status(404).json({ error: 'That person is not on this row' });
-  await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [req.params.id]);
+  // Taking the hourglass off is her saying she's seen where things stand, so a "they
+  // replied" marker has done its job and shouldn't keep shouting.
+  const clearReply = req.body.waiting ? '' : ', reply_at = NULL, reply_from = NULL, reply_text = NULL';
+  await pool.query(
+    `UPDATE waiting_sheet_rows SET updated_at = now()${clearReply} WHERE id = $1`, [req.params.id]);
+  res.json(await getRow(req.params.id));
+});
+
+// "Seen it" — for a line where nobody carried the hourglass, so there was nothing to click.
+router.patch('/:id/reply-seen', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    `UPDATE waiting_sheet_rows SET reply_at = NULL, reply_from = NULL, reply_text = NULL
+      WHERE id = $1 RETURNING id`, [req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(await getRow(req.params.id));
 });
 

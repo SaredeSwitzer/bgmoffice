@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { api } from '../api/client'
 import WeeklyRemindersPanel from '../components/WeeklyRemindersPanel'
 import { useUnreadTexts } from '../context/UnreadTextsContext'
+import StartWaitingLinePrompt from '../components/StartWaitingLinePrompt'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -32,6 +33,8 @@ export default function SmsPage() {
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  // Bumped on every send, so the Waiting On offer re-asks per message rather than once.
+  const [lastSentAt, setLastSentAt] = useState(0)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [composeOpen, setComposeOpen] = useState(false)
@@ -81,6 +84,8 @@ export default function SmsPage() {
     try {
       await api.smsSend(active, body)
       setDraft('')
+      // Having just texted them is the moment to ask whether we're waiting on a reply.
+      setLastSentAt(Date.now())
       await loadThread(active)
       loadThreads()
     } catch (e) { setError(e.message || 'Failed to send.') }
@@ -185,6 +190,15 @@ export default function SmsPage() {
                 </div>
 
                 {error && <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>}
+
+                {/* Only after you've sent something, only for someone the app recognises,
+                    and only when they have no open line already. */}
+                {lastSentAt > 0 && activeThread?.person_id && activeThread?.person_kind && (
+                  <StartWaitingLinePrompt
+                    person={{ id: activeThread.person_id, kind: activeThread.person_kind, name: activeName }}
+                    lastSent={lastSentAt}
+                  />
+                )}
 
                 <form onSubmit={send} className="flex items-end gap-2 border-t border-gray-200 p-3">
                   <textarea

@@ -310,6 +310,7 @@ export const api = {
     request(`/waiting-sheet/${id}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   deleteWaitingRowNote: (id, noteId) =>
     request(`/waiting-sheet/${id}/notes/${noteId}`, { method: 'DELETE' }),
+  markWaitingRowReplySeen: (id) => request(`/waiting-sheet/${id}/reply-seen`, { method: 'PATCH' }),
   markWaitingRowDone: (id) => request(`/waiting-sheet/${id}/done`, { method: 'PATCH' }),
   reopenWaitingRow: (id) => request(`/waiting-sheet/${id}/reopen`, { method: 'PATCH' }),
   deleteWaitingRow: (id) => request(`/waiting-sheet/${id}`, { method: 'DELETE' }),

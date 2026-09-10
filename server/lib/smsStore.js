@@ -66,6 +66,9 @@ async function listThreads() {
            t.unread,
            t.person_name,
            t.person_kind,
+           -- Needed by the Texts screen to ask "start a Waiting On line for them?" — it
+           -- has to know who they are on the sheet, not just what they're called.
+           t.person_id,
            m.body      AS last_body,
            m.direction AS last_direction
       FROM (
@@ -73,7 +76,8 @@ async function listThreads() {
                max(created_at) AS last_at,
                count(*) FILTER (WHERE direction = 'inbound' AND read_at IS NULL) AS unread,
                max(person_name) AS person_name,
-               max(person_kind) AS person_kind
+               max(person_kind) AS person_kind,
+               max(person_id)   AS person_id
           FROM sms_messages
          GROUP BY phone
       ) t

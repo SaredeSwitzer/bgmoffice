@@ -1175,6 +1175,7 @@ async function buildClientText(kind, id) {
 
   return {
     to: phone,
+    client_id: row.client_id,
     client_name: client?.name || null,
     has_instructor: !!row.instructor_name,
     text,
@@ -1224,6 +1225,7 @@ async function buildInstructorText(kind, id) {
 
   return {
     to: phone,
+    instructor_id: row.instructor_id,
     person_name: inst?.name || null,
     text,
     already_sent_at: row.instructor_text_sent_at || null,
@@ -1267,6 +1269,7 @@ async function sendConfirmTextRoute({ who, kind, table, req, res }) {
     telnyx_id: sent?.id || null,
     status: sent?.to?.[0]?.status || 'queued',
     person_kind: who,
+    person_id: isClient ? r.client_id : r.instructor_id,
     person_name: isClient ? r.client_name : r.person_name,
   }).catch(e => console.error('[schedule] could not log the confirmation text:', e.message));
 

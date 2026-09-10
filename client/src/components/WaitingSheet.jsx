@@ -252,6 +252,26 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
       <td className="align-top px-3 py-2.5 text-sm text-gray-700">
         {row.what}
 
+        {/* They texted back. The sheet used to sit there saying we were waiting while the
+            answer was in the inbox. It says what they said and when — and deliberately
+            leaves the hourglass alone, because "let me check and get back to you" is a
+            reply too. Clearing their flag, or "Seen it", takes this away. */}
+        {row.reply_at && (
+          <div className="mt-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 print:hidden">
+            <p className="text-[11px] font-semibold text-emerald-800">
+              💬 {row.reply_from || 'They'} replied &middot; {noteTime(row.reply_at)}
+              {!readOnly && (
+                <button type="button"
+                  onClick={() => act(() => api.markWaitingRowReplySeen(row.id))}
+                  className="ml-2 font-normal text-emerald-600 hover:underline">Seen it</button>
+              )}
+            </p>
+            {row.reply_text && (
+              <p className="text-xs text-emerald-900 mt-0.5 whitespace-pre-wrap">{row.reply_text}</p>
+            )}
+          </div>
+        )}
+
         {/* Who started this line and when. Every note underneath says who wrote it; the
             line itself used to be anonymous, so the one entry that explains why the row
             exists was the one nobody could trace. */}
