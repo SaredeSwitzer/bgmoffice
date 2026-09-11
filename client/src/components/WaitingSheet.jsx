@@ -84,7 +84,7 @@ function firstNameOf(name) {
   return String(name || '').trim().split(/\s+/)[0] || name
 }
 
-function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact }) {
+function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact, lead }) {
   // Read-only and not flagged: there is nothing to say and nothing to click, and the
   // heading above already carries the name.
   if (compact && readOnly && !isWaiting) return null
@@ -109,12 +109,19 @@ function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact })
     )
   }
 
+  // `lead` is a client whose other lines are indented underneath this one. It is the name
+  // you scan the sheet by, and at the same size as every other chip it read as one row
+  // among four rather than as the heading of a block — so it's set larger and darker.
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-0.5 text-xs transition-colors ${
+      className={`inline-flex items-center gap-1 rounded-full border transition-colors ${
+        lead ? 'pl-3 pr-1.5 py-1 text-sm' : 'pl-2.5 pr-1 py-0.5 text-xs'
+      } ${
         isWaiting
           ? 'bg-amber-100 border-amber-400 text-amber-900 font-semibold'
-          : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'
+          : lead
+            ? 'bg-white border-gray-300 text-gray-900 font-semibold hover:border-amber-300'
+            : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'
       }`}
     >
       <button
@@ -238,6 +245,7 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
           {clientsOn.map(p => (
             <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
               compact={continuation && personKey(p) === groupedUnder}
+              lead={groupFirst && personKey(p) === groupedUnder}
               onClick={() => toggleWaiting(p)} readOnly={readOnly}
               onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
           ))}
