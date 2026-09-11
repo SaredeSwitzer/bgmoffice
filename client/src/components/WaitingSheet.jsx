@@ -212,6 +212,15 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
   // Who sent the reply, if they're still flagged. Matched by name because that's all an
   // inbound text carries — the phone resolves to a person, and their name is what gets
   // stored on the row. No match (or already unflagged) means no button, not a wrong one.
+  // A client with several lines gets them stacked under their name, and a stack of four
+  // fully-detailed rows buried the fact that they belonged together. Collapsed, each line
+  // is its title and who owes us an answer; the rest opens on a click. Only lines inside a
+  // block do this — a client with one line has nothing to group under and is left alone.
+  const collapsible = groupedUnder != null
+  const [open, setOpen] = useState(false)
+  const collapsed = collapsible && !open
+  const pad = collapsed ? 'py-1' : 'py-2.5'
+
   const replier = (row.people || []).find(
     p => p.waiting && p.name && row.reply_from
       && p.name.trim().toLowerCase() === String(row.reply_from).trim().toLowerCase()
@@ -239,7 +248,7 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
       {/* Client first: it's the one you scan the sheet by, so a client with several lines
           still has their name here, in this column, on the first of them — same as anybody
           with one line. Their other lines indent underneath it. */}
-      <td className={`align-top px-3 py-2.5 ${continuation ? 'pl-10 sm:pl-16' : ''}`}>
+      <td className={`align-top px-3 ${pad} ${continuation ? 'pl-10 sm:pl-16' : ''}`}>
         <div className="flex flex-wrap gap-1.5 items-center">
           {continuation && <span className="text-gray-400 select-none text-xs">&#8627;</span>}
           {clientsOn.map(p => (
@@ -249,30 +258,39 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
               onClick={() => toggleWaiting(p)} readOnly={readOnly}
               onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
           ))}
-          {!readOnly && (
+          {!readOnly && !collapsed && (
             <AddPerson kind="client" options={clients}
               onAdd={p => act(() => api.addWaitingRowPerson(row.id, p))} />
           )}
         </div>
       </td>
 
-      <td className="align-top px-3 py-2.5">
+      <td className={`align-top px-3 ${pad}`}>
         <div className="flex flex-wrap gap-1.5 items-center">
           {instructorsOn.map(p => (
             <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
               onClick={() => toggleWaiting(p)} readOnly={readOnly}
               onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
           ))}
-          {!readOnly && (
+          {!readOnly && !collapsed && (
             <AddPerson kind="instructor" options={instructors}
               onAdd={p => act(() => api.addWaitingRowPerson(row.id, p))} />
           )}
         </div>
       </td>
 
-      <td className="align-top px-3 py-2.5 text-sm text-gray-700">
-        {row.what}
+      <td className={`align-top px-3 ${pad} text-sm text-gray-700`}>
+        {collapsible ? (
+          <button type="button" onClick={() => setOpen(v => !v)}
+            className="text-left hover:underline decoration-gray-300">
+            {row.what}
+            {collapsed && notes.length > 0 && (
+              <span className="ml-1.5 text-[11px] text-gray-400">({notes.length})</span>
+            )}
+          </button>
+        ) : row.what}
 
+        {!collapsed && (<>
         {/* They texted back. The sheet used to sit there saying we were waiting while the
             answer was in the inbox. It says what they said and when — and deliberately
             leaves the hourglass alone, because "let me check and get back to you" is a
@@ -409,9 +427,10 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
             </form>
           </div>
         )}
+        </>)}
       </td>
 
-      <td className="align-top px-2 py-2.5 w-20 text-right whitespace-nowrap print:hidden">
+      <td className={`align-top px-2 ${pad} w-20 text-right whitespace-nowrap print:hidden`}>
         {!readOnly && (
           <button type="button" disabled={busy}
             onClick={() => act(() => api.markWaitingRowDone(row.id))}
