@@ -612,7 +612,7 @@ export default function SchedulePage() {
                                   <div className="flex items-center gap-1">
                                     {canSeeAdminNotes && (
                                       <button onClick={e => { e.stopPropagation(); toggleAdminNotes(`session-${s.id}`) }}
-                                        title="Admin notes (Sarede/Claire/Maria only)"
+                                        title="Admin notes — office staff only, never instructors"
                                         className={`text-xs rounded-lg px-1.5 py-1 border transition-colors ${
                                           openAdminNotes === `session-${s.id}` ? 'ring-1 ring-amber-400 border-amber-300 bg-amber-50' : 'border-amber-200 text-amber-600 hover:bg-amber-50'
                                         }`}>
@@ -915,7 +915,7 @@ export default function SchedulePage() {
                     )}
                     {canSeeAdminNotes && (
                       <button onClick={() => toggleAdminNotes(`schedule-${s.id}`)}
-                        title="Admin notes (Sarede/Claire/Maria only)"
+                        title="Admin notes — office staff only, never instructors"
                         className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
                           openAdminNotes === `schedule-${s.id}` ? 'ring-1 ring-amber-400 border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-200 text-amber-600 hover:bg-amber-50'
                         }`}>

@@ -453,7 +453,7 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
             {canSeeAdminNotes && (
               <div className="bg-amber-50/60 border-t border-amber-100 px-4 py-3 space-y-1.5">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-                  🔒 Admin note — Sarede, Claire &amp; Maria only
+                  🔒 Admin note — office staff only, never instructors
                 </p>
                 <textarea value={newAdminNote} onChange={e => setNewAdminNote(e.target.value)} rows={2}
                   placeholder="Not visible to the instructor"

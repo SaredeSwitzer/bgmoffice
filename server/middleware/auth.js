@@ -30,11 +30,21 @@ function requireStaff(req, res, next) {
   next();
 }
 
-// The three named office staff (Sarede, Claire, Maria) plus Sarede's generic Admin
-// login (she signs in as either depending on device) — deliberately narrower than
-// requireStaff/requireAdmin, and NOT auto-extended by adding someone with role='staff'
-// or role='admin' later. Used for admin_notes, which must stay off-limits to anyone else.
-const OWNER_EMAILS = ['admin@bgmoffice.com', 'sarede@bgmoffice.com', 'claire@bgmoffice.com', 'maria@bgmoffice.com'];
+// The named office staff (Sarede, Claire, Maria, and Erica from 2026-09-10) plus Sarede's
+// generic Admin login, which she signs into on some devices. Deliberately a list of people
+// rather than a role test: it must NOT widen on its own the next time somebody is given
+// role='staff' or role='admin'. Used for admin_notes, which stay off-limits to everyone
+// else — including every instructor login.
+//
+// Adding a colleague here is a decision, not a formality. Erica was added because Sarede
+// said she should see everything Claire and Maria see.
+const OWNER_EMAILS = [
+  'admin@bgmoffice.com',
+  'sarede@bgmoffice.com',
+  'claire@bgmoffice.com',
+  'maria@bgmoffice.com',
+  'erica@bgmoffice.com',
+];
 
 function requireOwnerAccess(req, res, next) {
   if (!OWNER_EMAILS.includes(req.user?.email)) {

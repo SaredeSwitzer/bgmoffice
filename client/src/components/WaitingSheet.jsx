@@ -80,6 +80,13 @@ export function groupByClient(rows) {
 // lines sits indented underneath it. Sharing the first line — name on the left, first
 // question on the right — read as "Etty's question", plus two orphans below it, rather than
 // as one client with three questions.
+// A gap between one client and the next. With every line collapsed the sheet is a dense
+// list, and Etty's three lines ran straight into Gitty Lax's one — the block had an inside
+// but no outside. A row of air is enough to say where one client ends.
+function BlockGap() {
+  return <tr aria-hidden="true"><td colSpan={5} className="h-3 p-0" /></tr>
+}
+
 function GroupHeading({ client, count }) {
   return (
     <tr className="bg-gray-50/70">
@@ -217,15 +224,18 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
   const toggleWaiting = p => act(() =>
     api.setWaitingOnPerson(row.id, p.id, !isWaitingOn(p)))
 
-  // One of several lines belonging to one client. Their name is on the heading row above,
-  // so this line is indented, their chip shrinks to the hourglass alone, and the detail —
-  // reply, byline, need-by, notes — folds away until the title is clicked. Four fully
-  // detailed rows buried the fact that Etty's three questions were one client's three
-  // questions. A client with a single line has nothing to group under and is left alone.
-  const continuation = groupedUnder != null
+  // Every line is a title until you open it. The detail — reply, byline, need-by, notes —
+  // folds away, because a sheet you scan is a list of questions, not a wall of their
+  // answers. Collapsing only the lines inside a client's block made that block look like a
+  // different kind of thing from the lines around it; folding everything gives one rhythm
+  // down the page, and the blocks read as blocks because of the heading and the indent.
   const [open, setOpen] = useState(false)
-  const collapsed = continuation && !open
-  const pad = collapsed ? 'py-1' : 'py-2.5'
+  const collapsed = !open
+  const pad = collapsed ? 'py-1.5' : 'py-2.5'
+
+  // In a client's block: indented under the heading row that carries their name, so their
+  // own chip shrinks to the hourglass alone.
+  const continuation = groupedUnder != null
 
   // Who sent the reply, if they're still flagged. Matched by name because that's all an
   // inbound text carries — the phone resolves to a person, and their name is what gets
@@ -288,15 +298,13 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
       </td>
 
       <td className={`align-top px-3 ${pad} text-sm text-gray-700`}>
-        {continuation ? (
-          <button type="button" onClick={() => setOpen(v => !v)}
-            className="text-left hover:underline decoration-gray-300">
-            {row.what}
-            {collapsed && notes.length > 0 && (
-              <span className="ml-1.5 text-[11px] text-gray-400">({notes.length})</span>
-            )}
-          </button>
-        ) : row.what}
+        <button type="button" onClick={() => setOpen(v => !v)}
+          className="text-left hover:underline decoration-gray-300">
+          {row.what}
+          {collapsed && notes.length > 0 && (
+            <span className="ml-1.5 text-[11px] text-gray-400">({notes.length})</span>
+          )}
+        </button>
 
         {!collapsed && (<>
         {/* They texted back. The sheet used to sit there saying we were waiting while the
@@ -542,12 +550,16 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {(kind === 'client' ? rows.map(row => ({ kind: 'row', row })) : groupByClient(rows)).map(block => (
+              {(kind === 'client' ? rows.map(row => ({ kind: 'row', row })) : groupByClient(rows)).map((block, i) => (
                 block.kind === 'row' ? (
-                  <Row key={block.row.id} row={block.row} clients={clients} instructors={instructors}
-                    mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
+                  <Fragment key={block.row.id}>
+                    {i > 0 && <BlockGap />}
+                    <Row row={block.row} clients={clients} instructors={instructors}
+                      mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
+                  </Fragment>
                 ) : (
                   <Fragment key={block.key}>
+                    {i > 0 && <BlockGap />}
                     <GroupHeading client={block.client} count={block.rows.length} />
                     {block.rows.map(row => (
                       <Row key={row.id} row={row} clients={clients} instructors={instructors}
@@ -692,12 +704,16 @@ export default function WaitingSheet() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {groupByClient(rows).map(block => (
+              {groupByClient(rows).map((block, i) => (
                 block.kind === 'row' ? (
-                  <Row key={block.row.id} row={block.row} clients={clients} instructors={instructors}
-                    mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
+                  <Fragment key={block.row.id}>
+                    {i > 0 && <BlockGap />}
+                    <Row row={block.row} clients={clients} instructors={instructors}
+                      mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
+                  </Fragment>
                 ) : (
                   <Fragment key={block.key}>
+                    {i > 0 && <BlockGap />}
                     <GroupHeading client={block.client} count={block.rows.length} />
                     {block.rows.map(row => (
                       <Row key={row.id} row={row} clients={clients} instructors={instructors}

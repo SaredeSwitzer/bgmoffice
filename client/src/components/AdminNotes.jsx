@@ -62,7 +62,7 @@ export default function AdminNotes({ kind, id, onCountChange }) {
   return (
     <div className="bg-amber-50 border-t border-amber-100 px-4 py-3 space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700 flex items-center gap-1">
-        🔒 Admin notes — Sarede, Claire &amp; Maria only
+        🔒 Admin notes — office staff only, never instructors
       </p>
       {loading ? (
         <p className="text-xs text-amber-700/60">Loading…</p>
