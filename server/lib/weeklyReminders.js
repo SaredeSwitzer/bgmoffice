@@ -10,6 +10,10 @@ const pool = require('../db/pg');
 //   • Organisations are greeted by full name, individuals by first name only.
 //   • A session note saying "no 24hr"/"no texting for 24 hour" holds that client's
 //     reminder (some clients have asked not to be texted the day before).
+// Added since: someone with no phone but an email on file gets the same reminder by email
+// rather than being dropped. That used to be a flag staff had to chase by hand every week,
+// and the weeks nobody chased it, those people simply got no reminder. Text stays the
+// default — email is only the fallback, so nobody gets both.
 // Two things did NOT carry over, on purpose: the hardcoded SKIP_CLIENTS list is now the
 // clients.skip_weekly_reminder column, and the PHONE_OVERRIDE map is gone — those numbers
 // were fixed on the records themselves (see migration 023).
@@ -62,6 +66,21 @@ function greetName(full) {
   return ORG_HINT.test(name) ? name : name.split(/\s+/)[0];
 }
 
+// Text if there's a number, email if there isn't, nothing if neither. Returning the whole
+// shape (channel + the address to use) keeps the two branches below from each having to
+// decide again — they just spread it onto the recipient.
+function routeFor(phone, email) {
+  const p = digits(phone);
+  if (p) return { channel: 'sms', phone: p, email: null };
+  const e = String(email || '').trim();
+  if (e) return { channel: 'email', phone: null, email: e };
+  return null;
+}
+
+function buildSubject(label) {
+  return `Your classes this week (${label}) — Bring the Gym to Me`;
+}
+
 function buildMessage(name, lines, label) {
   return `Hi ${greetName(name)}! This is a reminder from Bring the Gym to Me of your upcoming session(s) this week (${label}):\n` +
     `${lines.join('\n')}\n` +
@@ -79,8 +98,9 @@ async function buildWeeklyReminders({ start, end } = {}) {
   const { rows: sessions } = await pool.query(
     `SELECT s.session_date::text AS session_date, s.start_time::text AS start_time, s.notes,
             c.id AS client_id, c.name AS client_name, c.phone AS client_phone,
-            c.skip_weekly_reminder,
-            i.id AS instructor_id, i.name AS instructor_name, i.phone AS instructor_phone
+            c.email AS client_email, c.skip_weekly_reminder,
+            i.id AS instructor_id, i.name AS instructor_name, i.phone AS instructor_phone,
+            i.email AS instructor_email
        FROM class_sessions s
        JOIN clients c      ON c.id = s.client_id
        LEFT JOIN instructors i ON i.id = s.instructor_id
@@ -101,12 +121,15 @@ async function buildWeeklyReminders({ start, end } = {}) {
     if (!s.instructor_id) {
       flags.push(`No instructor assigned — ${day}${time ? `, ${time}` : ''} with ${s.client_name}.`);
     } else {
-      const phone = digits(s.instructor_phone);
-      if (!phone) {
-        flags.push(`No phone on file for ${s.instructor_name} — can't send their reminder.`);
+      const route = routeFor(s.instructor_phone, s.instructor_email);
+      if (!route) {
+        flags.push(`No phone or email on file for ${s.instructor_name} — can't send their reminder.`);
       } else {
         if (!instructors.has(s.instructor_id)) {
-          instructors.set(s.instructor_id, { kind: 'instructor', id: s.instructor_id, name: s.instructor_name, phone, lines: [] });
+          instructors.set(s.instructor_id, { kind: 'instructor', id: s.instructor_id, name: s.instructor_name, ...route, lines: [] });
+          if (route.channel === 'email') {
+            flags.push(`${s.instructor_name} has no phone on file — emailing their reminder to ${route.email} instead.`);
+          }
         }
         instructors.get(s.instructor_id).lines.push(`${day}, ${time}: with ${s.client_name}`);
       }
@@ -118,19 +141,27 @@ async function buildWeeklyReminders({ start, end } = {}) {
       flags.push(`Held ${s.client_name}'s reminder for ${day} — note says "${String(s.notes).trim()}".`);
       continue;
     }
-    const cPhone = digits(s.client_phone);
-    if (!cPhone) {
-      flags.push(`No phone on file for ${s.client_name} — can't send their reminder (${day}${time ? `, ${time}` : ''}).`);
+    const cRoute = routeFor(s.client_phone, s.client_email);
+    if (!cRoute) {
+      flags.push(`No phone or email on file for ${s.client_name} — can't send their reminder (${day}${time ? `, ${time}` : ''}).`);
       continue;
     }
     if (!clients.has(s.client_id)) {
-      clients.set(s.client_id, { kind: 'client', id: s.client_id, name: s.client_name, phone: cPhone, lines: [] });
+      clients.set(s.client_id, { kind: 'client', id: s.client_id, name: s.client_name, ...cRoute, lines: [] });
+      if (cRoute.channel === 'email') {
+        flags.push(`${s.client_name} has no phone on file — emailing their reminder to ${cRoute.email} instead.`);
+      }
     }
     clients.get(s.client_id).lines.push(`${day}, ${time}: with ${s.instructor_name || 'your instructor'}`);
   }
 
   const recipients = [...instructors.values(), ...clients.values()]
-    .map(e => ({ ...e, message: buildMessage(e.name, e.lines, label), class_count: e.lines.length }))
+    .map(e => ({
+      ...e,
+      message: buildMessage(e.name, e.lines, label),
+      subject: e.channel === 'email' ? buildSubject(label) : null,
+      class_count: e.lines.length,
+    }))
     .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
 
   return { ...week, label, recipients, flags };

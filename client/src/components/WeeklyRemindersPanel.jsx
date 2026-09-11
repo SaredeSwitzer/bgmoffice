@@ -5,6 +5,9 @@ import { api } from '../api/client'
 // Deliberately preview-first: nothing sends until staff has seen every message and the
 // list of who's being skipped. Amber's version once reported success while delivering
 // zero texts for weeks, so per-person results are shown after sending too.
+//
+// Most people are texted; anyone with no phone on file is emailed instead, and the row
+// says which so nobody has to guess why one went out a different way.
 export default function WeeklyRemindersPanel({ onClose, onSent }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -37,14 +40,29 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
   }
 
   const included = (data?.recipients || []).filter(r => !excluded.has(keyOf(r)))
+  const emailCount = included.filter(r => r.channel === 'email').length
+  const textCount = included.length - emailCount
+
+  // "12 texts and 2 emails" rather than "14 reminders" — the two go out different ways and
+  // staff is confirming both at once.
+  function sendSummary(n, texts, emails) {
+    if (n === 0) return 'reminders'
+    if (emails === 0) return `${texts} text${texts === 1 ? '' : 's'}`
+    if (texts === 0) return `${emails} email${emails === 1 ? '' : 's'}`
+    return `${texts} text${texts === 1 ? '' : 's'} and ${emails} email${emails === 1 ? '' : 's'}`
+  }
 
   async function handleSend() {
     if (included.length === 0) return
-    if (!confirm(`Send ${included.length} text${included.length === 1 ? '' : 's'} for ${data.label}?`)) return
+    if (!confirm(`Send ${sendSummary(included.length, textCount, emailCount)} for ${data.label}?`)) return
     setSending(true); setError('')
     try {
       const res = await api.sendWeeklyReminders(included.map(r => ({
-        to: r.phone, name: r.name, body: edits[keyOf(r)] ?? r.message,
+        to: r.channel === 'email' ? r.email : r.phone,
+        channel: r.channel,
+        subject: r.subject,
+        name: r.name,
+        body: edits[keyOf(r)] ?? r.message,
       })))
       setResults(res)
       onSent?.()
@@ -77,7 +95,10 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
               </ul>
             </div>
           )}
-          <p className="text-xs text-gray-500">Replies land in the Texts inbox.</p>
+          <p className="text-xs text-gray-500">
+            Replies to a text land in the Texts inbox; replies to an email go to
+            admin@bringthegymtome.com.
+          </p>
         </div>
       </div>
     )
@@ -118,8 +139,8 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
         )}
 
         <p className="text-xs text-gray-500">
-          {included.length} of {data.recipients.length} will be texted. Untick anyone you want to skip, or click a
-          name to read and edit their message.
+          {sendSummary(included.length, textCount, emailCount)} will go out, of {data.recipients.length} people.
+          Untick anyone you want to skip, or click a name to read and edit their message.
         </p>
 
         {['instructor', 'client'].map(kind => {
@@ -145,6 +166,11 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
                           <span className="ml-1.5 text-[11px] text-gray-400">
                             {r.class_count} class{r.class_count === 1 ? '' : 'es'}
                           </span>
+                          {r.channel === 'email' && (
+                            <span className="ml-1.5 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                              email · {r.email}
+                            </span>
+                          )}
                         </button>
                       </div>
                       {isOpen && (
@@ -169,7 +195,7 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
       <footer className="border-t border-gray-200 p-3">
         <button onClick={handleSend} disabled={sending || included.length === 0}
           className="w-full rounded-lg bg-gray-900 py-2 text-sm font-semibold text-white disabled:opacity-50 hover:bg-gray-700 transition-colors">
-          {sending ? 'Sending…' : `Send ${included.length} reminder${included.length === 1 ? '' : 's'}`}
+          {sending ? 'Sending…' : `Send ${sendSummary(included.length, textCount, emailCount)}`}
         </button>
       </footer>
     </div>

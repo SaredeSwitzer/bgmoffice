@@ -11,6 +11,7 @@ const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const { lookupPerson } = require('../lib/telnyxInbound');
 const { buildWeeklyReminders } = require('../lib/weeklyReminders');
 const { findPeopleInText } = require('../lib/detectPeopleInText');
+const { sendMail } = require('../lib/mailer');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -128,6 +129,29 @@ router.post('/send', async (req, res) => {
 // ── Weekly class reminders ───────────────────────────────────────────────────────────
 // Preview is read-only and safe to call repeatedly; sending is a separate explicit step
 // so staff always sees exactly who gets what before anything leaves.
+//
+// Most reminders go by text. People with no phone on file go by email instead (the builder
+// decides which, and says so in the preview) — before that they were flagged and dropped,
+// which meant the ones nobody chased by hand got no reminder at all.
+
+// The reminder body is plain text written for a text message. In an email it still reads
+// naturally, but the line breaks have to be turned into real ones or the whole schedule
+// collapses into one paragraph.
+function reminderHtml(body) {
+  const esc = String(body)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:24px;` +
+         `font-size:14px;line-height:1.6;color:#374151;white-space:pre-wrap">${esc}</div>`;
+}
+
+async function sendReminderEmail(m) {
+  await sendMail({
+    to: m.to,
+    subject: m.subject?.trim() || 'Your classes this week — Bring the Gym to Me',
+    text: m.body.trim(),
+    html: reminderHtml(m.body.trim()),
+  });
+}
 
 router.get('/weekly-reminders', async (req, res) => {
   try {
@@ -150,10 +174,17 @@ router.post('/weekly-reminders/send', async (req, res) => {
   const results = [];
   for (const m of messages) {
     if (!m?.to || !m?.body?.trim()) {
-      results.push({ to: m?.to || null, name: m?.name || null, ok: false, error: 'Missing number or message' });
+      results.push({ to: m?.to || null, name: m?.name || null, ok: false, error: 'Missing address or message' });
       continue;
     }
     try {
+      // Email recipients never touch the SMS path — no E.164, no Telnyx, and nothing
+      // written to the Texts inbox, which only holds actual texts.
+      if (m.channel === 'email') {
+        await sendReminderEmail(m);
+        results.push({ to: m.to, name: m.name || null, ok: true, channel: 'email' });
+        continue;
+      }
       const phone = toE164(m.to);
       const person = await lookupPerson(phone);
       const sent = await sendSMS({ to: phone, text: m.body.trim() });
@@ -169,10 +200,10 @@ router.post('/weekly-reminders/send', async (req, res) => {
         person_kind: person?.kind,
         person_name: person?.name || m.name,
       });
-      results.push({ to: phone, name: m.name || person?.name || null, ok: true });
+      results.push({ to: phone, name: m.name || person?.name || null, ok: true, channel: 'sms' });
     } catch (e) {
       console.error(`[sms] weekly reminder to ${m.to} failed:`, e.message);
-      results.push({ to: m.to, name: m.name || null, ok: false, error: e.message });
+      results.push({ to: m.to, name: m.name || null, ok: false, error: e.message, channel: m.channel === 'email' ? 'email' : 'sms' });
     }
   }
   const sent = results.filter(r => r.ok).length;
