@@ -58,7 +58,7 @@ function Shell() {
     { to: '/clients',     label: 'Clients' },
     { to: '/instructors', label: 'Instructors' },
     { to: '/schedule',   label: 'Schedule' },
-    { to: '/billing',    label: 'Billing' },
+    ...(isSaredeUser(user) ? [{ to: '/billing', label: 'Billing' }] : []),
     ...(isSaredeUser(user) ? [{ to: '/sales', label: 'Sales' }] : []),
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
     { to: '/sms',        label: unreadTexts > 0 ? `Texts (${unreadTexts})` : 'Texts' },

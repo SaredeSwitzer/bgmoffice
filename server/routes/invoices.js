@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto  = require('crypto');
 const pool    = require('../db/pg');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireSaredeOnly } = require('../middleware/auth');
 const { today, daysFromToday } = require('../lib/dates');
 const { nextInvoiceNumber, calcTotals } = require('../lib/invoiceHelpers');
 const { syncMentions, deleteMentions, stripMentionsForPublic } = require('../lib/mentions');
@@ -132,7 +132,7 @@ router.get('/', async (req, res) => {
 // month's are still building up class by class, past months' are done and just waiting on
 // a send. Approving an invoice (on the invoice page itself) drops it off this list; nothing
 // gets sent on its own.
-router.get('/ready-to-send', async (req, res) => {
+router.get('/ready-to-send', requireSaredeOnly, async (req, res) => {
   const currentPeriod = new Date().toISOString().slice(0, 7);
   const { rows } = await pool.query(
     `${INVOICE_JOIN} WHERE i.auto_generated = true AND i.status = 'draft' AND i.approved_at IS NULL

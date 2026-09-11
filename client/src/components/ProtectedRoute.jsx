@@ -1,11 +1,13 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { isSaredeUser } from '../utils/saredeAccess'
 
 export default function ProtectedRoute({
   children,
   adminOnly = false,
   staffOnly = false,
   instructorOnly = false,
+  saredeOnly = false,
 }) {
   const { user, loading } = useAuth()
 
@@ -26,6 +28,10 @@ export default function ProtectedRoute({
   if (instructorOnly && user.role !== 'instructor') return <Navigate to="/" replace />
 
   if (adminOnly && user.role !== 'admin') return <Navigate to="/" replace />
+
+  // Money screens are Sarede's alone — not Claire, Maria, or Erica. Sending them home
+  // rather than showing a locked page; the server refuses the data either way.
+  if (saredeOnly && !isSaredeUser(user)) return <Navigate to="/" replace />
 
   return children
 }

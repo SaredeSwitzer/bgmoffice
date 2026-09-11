@@ -2,7 +2,7 @@ const express = require('express');
 const crypto  = require('crypto');
 const pool    = require('../db/pg');
 const { ymd } = require('../lib/dates');
-const { requireAuth, requireStaff } = require('../middleware/auth');
+const { requireAuth, requireStaff, requireSaredeOnly } = require('../middleware/auth');
 const { notifyCrew } = require('../lib/notifyCrew');
 const { sendChargeReceipt } = require('../lib/mailer');
 const { syncDateRange } = require('../lib/dailySync');
@@ -149,6 +149,10 @@ router.post('/save-card/:token/confirm', async (req, res) => {
 // ── Protected (staff/admin only — includes client charge amounts and everyone's pay) ──
 router.use(requireAuth);
 router.use(requireStaff);
+
+// Everything from here that is the Billing screen itself — the week's charges, the
+// revenue report, the payments list, the charge button — is Sarede's alone. Saving and
+// listing a client's cards stays open to staff, because that lives on a client profile.
 
 // Lazily mint (or return) the client's save-card token so staff can copy the link.
 router.post('/clients/:id/save-link', async (req, res) => {
@@ -318,7 +322,7 @@ router.delete('/clients/:id/card', async (req, res) => {
 
 // ── Weekly review: who has CC classes this week, and how much ─────────────────
 // Computed live from class_sessions every time — updating the schedule updates this.
-router.get('/week', async (req, res) => {
+router.get('/week', requireSaredeOnly, async (req, res) => {
   const { start } = req.query;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '')) {
     return res.status(400).json({ error: 'start (YYYY-MM-DD, the week Sunday) is required' });
@@ -366,7 +370,7 @@ router.get('/week', async (req, res) => {
 // Everything on the calendar for the week — every payment method, not just CC — so
 // this is the accounting/payroll view, distinct from /week above (which is only the
 // classes about to be charged off-session).
-router.get('/report', async (req, res) => {
+router.get('/report', requireSaredeOnly, async (req, res) => {
   const { start } = req.query;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '')) {
     return res.status(400).json({ error: 'start (YYYY-MM-DD, the week Sunday) is required' });
@@ -457,7 +461,7 @@ router.get('/report', async (req, res) => {
 // For clients: a status independent of the Stripe off-session flow above — covers a
 // declined card, a client who pays by other means, or "haven't gotten to it yet".
 // Upserts on (client_id, week_start) so re-marking the same week just updates it.
-router.patch('/client-status', async (req, res) => {
+router.patch('/client-status', requireSaredeOnly, async (req, res) => {
   const { client_id, week_start, status, amount, note } = req.body;
   if (!client_id || !/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {
     return res.status(400).json({ error: 'client_id and week_start (YYYY-MM-DD) required' });
@@ -475,7 +479,7 @@ router.patch('/client-status', async (req, res) => {
 });
 
 // Same idea for instructor pay — has this instructor been paid for this week's classes.
-router.patch('/instructor-status', async (req, res) => {
+router.patch('/instructor-status', requireSaredeOnly, async (req, res) => {
   const { instructor_id, week_start, status, amount, note } = req.body;
   if (!instructor_id || !/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {
     return res.status(400).json({ error: 'instructor_id and week_start (YYYY-MM-DD) required' });
@@ -493,7 +497,7 @@ router.patch('/instructor-status', async (req, res) => {
 });
 
 // ── Charge the approved list off-session ──────────────────────────────────────
-router.post('/charge', async (req, res) => {
+router.post('/charge', requireSaredeOnly, async (req, res) => {
   const { week_start, items } = req.body;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) return res.status(400).json({ error: 'week_start required' });
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items required' });
@@ -576,7 +580,7 @@ router.post('/charge', async (req, res) => {
 // ── Recent Stripe charges (for a "what got charged" report, like the old USAePay one) ──
 // Pulls straight from Stripe (not our local tables) so it reflects every charge —
 // weekly recurring, one-off invoice payments, in-app keyed cards, all of it.
-router.get('/stripe-charges', async (req, res) => {
+router.get('/stripe-charges', requireSaredeOnly, async (req, res) => {
   const { start, end } = req.query;
   const stripe = await getStripe();
   if (!stripe) return res.status(503).json({ error: 'Payment processing is not configured.' });
@@ -669,7 +673,7 @@ router.get('/stripe-charges', async (req, res) => {
 // money is recorded: Stripe (the weekly card run and pay-link charges, which are only
 // ever written to Stripe) and invoice_payments (checks, cash, Zelle — logged in the app).
 // Neither alone answers "was this client charged, and when".
-router.get('/payments', async (req, res) => {
+router.get('/payments', requireSaredeOnly, async (req, res) => {
   const { start, end } = req.query;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '') || !/^\d{4}-\d{2}-\d{2}$/.test(end || '')) {
     return res.status(400).json({ error: 'start and end (YYYY-MM-DD) are required' });
@@ -754,7 +758,7 @@ router.get('/payments', async (req, res) => {
   });
 });
 
-router.post('/sync-week', async (req, res) => {
+router.post('/sync-week', requireSaredeOnly, async (req, res) => {
   const { week_start, dry_run, client_id } = req.body;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {
     return res.status(400).json({ error: 'week_start (YYYY-MM-DD, the week Sunday) is required' });

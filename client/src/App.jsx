@@ -83,7 +83,14 @@ export default function App() {
             <Route path="instructors/:id" element={<InstructorProfilePage />} />
             <Route path="schedule" element={<SchedulePage />} />
             <Route path="reports" element={<ReportsPage />} />
-            <Route path="billing" element={<BillingPage />} />
+            <Route
+              path="billing"
+              element={
+                <ProtectedRoute saredeOnly>
+                  <BillingPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="sales" element={<SalesPage />} />
             <Route
               path="settings"

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { isSaredeUser } from '../utils/saredeAccess'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar, { FILTER_ALL, FILTER_ANYONE, FILTER_STARRED, CATEGORY_FILTERS } from '../components/DashboardFilterBar'
 import { navClick } from '../utils/nav'
@@ -321,15 +322,19 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    // Invoices are Sarede's alone — Claire, Maria and Erica don't see the list, so
+    // don't even ask for it (the server refuses them anyway).
+    const invoicesP = isSaredeUser(user) ? api.getReadyToSendInvoices() : Promise.resolve([])
     Promise.all([
       api.dashboard(), api.getDelegates(), api.getRecentlyCompletedPackages(),
-      api.getReadyToSendInvoices(), api.getClients(), api.getInstructors(),
+      invoicesP, api.getClients(), api.getInstructors(),
     ])
       .then(([d, dels, pkgs, invs, cl, ins]) => {
         setData(d); setDelegates(dels); setCompletedPackages(pkgs)
         setReadyInvoices(invs); setClients(cl); setInstructors(ins)
       })
       .catch(e => setError(e.message))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleAddTask(form) {
