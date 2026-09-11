@@ -329,6 +329,10 @@ export const api = {
   getHandoffHistory: () => request('/waiting-sheet/handoff/history'),
   getHandoffDraft: () => request('/waiting-sheet/handoff/draft'),
   saveHandoff: (data) => request('/waiting-sheet/handoff', { method: 'POST', body: JSON.stringify(data) }),
+  // Correcting a handoff you already saved. Stamps edited_at so a reader who's seen it
+  // is told it changed.
+  updateHandoff: (id, data) =>
+    request(`/waiting-sheet/handoff/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   markHandoffRead: (id) => request(`/waiting-sheet/handoff/${id}/read`, { method: 'PATCH' }),
   getMyLastHandoff: () => request('/waiting-sheet/handoff/mine'),
   setHandoffRecipient: (id, handedTo) =>

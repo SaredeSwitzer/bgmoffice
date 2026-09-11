@@ -6,8 +6,9 @@ import { api } from '../api/client'
 // list of who's being skipped. Amber's version once reported success while delivering
 // zero texts for weeks, so per-person results are shown after sending too.
 //
-// Most people are texted; anyone with no phone on file is emailed instead, and the row
-// says which so nobody has to guess why one went out a different way.
+// A reminder always tries a phone first — the client's own, then the person who books for
+// them — and only falls back to email when there's no number anywhere. The row says when
+// it's going somewhere other than the client's own number, so nobody has to guess why.
 export default function WeeklyRemindersPanel({ onClose, onSent }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -166,6 +167,11 @@ export default function WeeklyRemindersPanel({ onClose, onSent }) {
                           <span className="ml-1.5 text-[11px] text-gray-400">
                             {r.class_count} class{r.class_count === 1 ? '' : 'es'}
                           </span>
+                          {r.via && (
+                            <span className="ml-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">
+                              to {r.via}
+                            </span>
+                          )}
                           {r.channel === 'email' && (
                             <span className="ml-1.5 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
                               email · {r.email}

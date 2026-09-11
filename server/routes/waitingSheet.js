@@ -375,6 +375,29 @@ router.post('/handoff', async (req, res) => {
   res.status(201).json(row);
 });
 
+// Changing a handoff after saving it. "I forgot to mention Libby's husband" shouldn't
+// mean writing a second handoff that contradicts the first, so the one that was sent is
+// the one that gets corrected.
+//
+// Only the person who wrote it, and `edited_at` is stamped rather than hidden: if the next
+// person already read it, they are told it changed underneath them. A handoff that can be
+// quietly rewritten after being read is worse than one that can't be edited at all.
+router.put('/handoff/:id', async (req, res) => {
+  const { urgent, follow_up, waiting, notes } = req.body;
+  const { rows: [existing] } = await pool.query('SELECT author FROM shift_handoffs WHERE id = $1', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  if (existing.author !== req.user.initials) {
+    return res.status(403).json({ error: 'Only the person who wrote a handoff can change it.' });
+  }
+  const { rows: [row] } = await pool.query(
+    `UPDATE shift_handoffs
+        SET urgent = $1, follow_up = $2, waiting = $3, notes = $4, edited_at = now()
+      WHERE id = $5 RETURNING *`,
+    [urgent || null, follow_up || null, waiting || null, notes || null, req.params.id]
+  );
+  res.json(row);
+});
+
 router.patch('/handoff/:id/read', async (req, res) => {
   const { rows: [row] } = await pool.query(
     `UPDATE shift_handoffs SET read_by = $1, read_at = now() WHERE id = $2 RETURNING *`,

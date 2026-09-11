@@ -157,6 +157,16 @@ export function LatestHandoff() {
             Handoff from {row.author}
           </span>
           <span className="text-xs text-gray-400 truncate">{fmtWhen(row.created_at)}</span>
+          {/* Corrected after you'd read it — the one case where "edited" actually matters,
+              because you may have acted on the version before the change. */}
+          {row.edited_at && row.read_at && new Date(row.edited_at) > new Date(row.read_at) && (
+            <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">
+              changed since you read it
+            </span>
+          )}
+          {row.edited_at && !row.read_at && (
+            <span className="shrink-0 text-[10px] text-gray-400">edited</span>
+          )}
           {row.handed_to && (
             <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
               for {row.handed_to}
@@ -214,6 +224,9 @@ export function WriteHandoff() {
   const [staff, setStaff] = useState([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(null)     // the saved row, so it can still be re-addressed
+  // Set when the form was opened to correct a handoff already written, rather than to
+  // write a new one — saving then changes that one instead of leaving two that disagree.
+  const [editingId, setEditingId] = useState(null)
   const [error, setError] = useState('')
 
   const [mine, setMine] = useState(null)   // the last handoff I wrote, if any
@@ -230,6 +243,7 @@ export function WriteHandoff() {
 
   async function start() {
     setError('')
+    setEditingId(null)   // "Write the handoff" is always a new one, never a correction
     try {
       const draft = await api.getHandoffDraft()
       setForm({ urgent: bulletize(draft.urgent || ''), follow_up: draft.follow_up || '', waiting: draft.waiting || '', notes: '' })
@@ -244,12 +258,31 @@ export function WriteHandoff() {
     setSaving(true)
     setError('')
     try {
-      const row = await api.saveHandoff({ ...form, urgent: trimBullets(form.urgent), handed_to: handedTo })
+      const body = { ...form, urgent: trimBullets(form.urgent) }
+      const row = editingId
+        ? await api.updateHandoff(editingId, body)
+        : await api.saveHandoff({ ...body, handed_to: handedTo })
       setSaved(row)
+      setMine(row)
       setForm(null)
+      setEditingId(null)
     } catch (e) {
       setError(e.message || 'That didn’t save.')
     } finally { setSaving(false) }
+  }
+
+  // Reopen one already written. Its own words come back, not a fresh draft off the sheet —
+  // the sheet has moved on since, and regenerating would throw away what was typed.
+  function edit(row) {
+    setError('')
+    setEditingId(row.id)
+    setHandedTo(row.handed_to || null)
+    setForm({
+      urgent: bulletize(row.urgent || ''),
+      follow_up: row.follow_up || '',
+      waiting: row.waiting || '',
+      notes: row.notes || '',
+    })
   }
 
   async function rehand(name) {
@@ -270,7 +303,16 @@ export function WriteHandoff() {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] text-green-800">Change who it&rsquo;s for:</span>
           <RecipientPicker value={saved.handed_to} onChange={rehand} staff={staff} />
+          <button type="button" onClick={() => { edit(saved); setSaved(null) }}
+            className="text-[11px] font-semibold text-green-800 hover:underline">
+            Edit what it says
+          </button>
         </div>
+        {saved.read_at && (
+          <p className="text-[11px] text-green-700">
+            {saved.read_by} has already read this — editing it now tells them it changed.
+          </p>
+        )}
       </div>
     )
   }
@@ -295,6 +337,10 @@ export function WriteHandoff() {
               staff={staff}
               onChange={async name => setMine(await api.setHandoffRecipient(mine.id, name))}
             />
+            <button type="button" onClick={() => edit(mine)}
+              className="font-semibold text-blue-600 hover:underline">
+              Edit it
+            </button>
           </div>
         )}
       </div>
@@ -304,10 +350,13 @@ export function WriteHandoff() {
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-3">
       <div>
-        <p className="text-sm font-bold text-gray-900">Handoff for the next shift</p>
+        <p className="text-sm font-bold text-gray-900">
+          {editingId ? 'Correcting the handoff you already wrote' : 'Handoff for the next shift'}
+        </p>
         <p className="text-xs text-gray-500 mt-0.5">
-          Filled in from your sheet. Edit it, add anything the sheet can&rsquo;t know, then save.
-          Write it for somebody who has no idea what you did today.
+          {editingId
+            ? 'Your own words, as you left them — this replaces what you sent rather than adding a second handoff.'
+            : 'Filled in from your sheet. Edit it, add anything the sheet can’t know, then save. Write it for somebody who has no idea what you did today.'}
         </p>
       </div>
 
@@ -363,9 +412,9 @@ export function WriteHandoff() {
       <div className="flex gap-2">
         <button onClick={save} disabled={saving}
           className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 hover:bg-blue-700">
-          {saving ? 'Saving…' : 'Save handoff'}
+          {saving ? 'Saving…' : editingId ? 'Save changes' : 'Save handoff'}
         </button>
-        <button onClick={() => setForm(null)}
+        <button onClick={() => { setForm(null); setEditingId(null) }}
           className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs rounded-lg">Cancel</button>
       </div>
     </div>
