@@ -232,9 +232,9 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
       {/* Client first: it's the one you scan the sheet by, so a client with several lines
           still has their name here, in this column, on the first of them — same as anybody
           with one line. Their other lines indent underneath it. */}
-      <td className={`align-top px-3 py-2.5 ${continuation ? 'pl-9' : ''}`}>
+      <td className={`align-top px-3 py-2.5 ${continuation ? 'pl-10 sm:pl-16' : ''}`}>
         <div className="flex flex-wrap gap-1.5 items-center">
-          {continuation && <span className="text-gray-300 select-none text-xs">&#8627;</span>}
+          {continuation && <span className="text-gray-400 select-none text-xs">&#8627;</span>}
           {clientsOn.map(p => (
             <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
               compact={continuation && personKey(p) === groupedUnder}
