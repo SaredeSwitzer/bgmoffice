@@ -463,7 +463,17 @@ async function syncDateRange(startDate, endDate, { dryRun = false, clientId = nu
        JOIN clients c ON c.id = s.client_id
        LEFT JOIN class_schedules sch ON sch.id = s.schedule_id
       WHERE s.session_date BETWEEN $1 AND $2
-        AND ($3::bigint IS NULL OR s.client_id = $3::bigint)`,
+        AND ($3::bigint IS NULL OR s.client_id = $3::bigint)
+        -- A class that didn't happen isn't billed and doesn't come off a package. This
+        -- was missing, so Etty Silberstein's cancelled 11 Sep class took the twelfth
+        -- class off her package and left her a class short. The weekly report has always
+        -- excluded cancelled classes (see server/routes/billing.js), which is how the
+        -- mismatch showed up: two package classes that week, one of them counted.
+        --
+        -- If a late cancellation should still cost the client a class, that's a judgement
+        -- about that client on that day — the "+ Log" button on their package makes it,
+        -- and a person makes it deliberately.
+        AND s.status <> 'cancelled'`,
     [startDate, endDate, clientId]
   );
 
