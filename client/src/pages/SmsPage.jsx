@@ -35,6 +35,9 @@ export default function SmsPage() {
   const [sending, setSending] = useState(false)
   // Bumped on every send, so the Waiting On offer re-asks per message rather than once.
   const [lastSentAt, setLastSentAt] = useState(0)
+  // What was just sent, so the Waiting On prompt can offer to file the actual words
+  // rather than making her retype them.
+  const [lastSentText, setLastSentText] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [composeOpen, setComposeOpen] = useState(false)
@@ -85,6 +88,7 @@ export default function SmsPage() {
       await api.smsSend(active, body)
       setDraft('')
       // Having just texted them is the moment to ask whether we're waiting on a reply.
+      setLastSentText(body)
       setLastSentAt(Date.now())
       await loadThread(active)
       loadThreads()
@@ -198,6 +202,7 @@ export default function SmsPage() {
                     person={{ id: activeThread.person_id, kind: activeThread.person_kind, name: activeName }}
                     phone={active}
                     lastSent={lastSentAt}
+                    lastText={lastSentText}
                   />
                 )}
 

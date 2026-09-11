@@ -22,8 +22,15 @@ import SearchSelect from './SearchSelect'
 // client is checked too: if the one this message is about already has a line open, joining
 // it is the first thing offered. Starting a fresh line is still there, one click away, for
 // when it really is a new thread.
-export default function StartWaitingLinePrompt({ person, phone, lastSent, onOpened }) {
-  const [state, setState] = useState('checking')   // checking | join | offer | writing | hidden
+//
+// AND IT USED TO GO SILENT ON THE PEOPLE IT MATTERED MOST FOR. Having a line already meant
+// showing nothing at all — but on a busy evening nearly everyone being texted is on the
+// sheet, so the prompt disappeared exactly when the sheet was in use. Now a line of their
+// own is the most useful case, not the dead one: the text just sent is offered as a note on
+// it, in her words, and texting them puts the hourglass back on them, because a question
+// asked is a question we're waiting on an answer to.
+export default function StartWaitingLinePrompt({ person, phone, lastSent, lastText, onOpened }) {
+  const [state, setState] = useState('checking')   // checking | note | join | offer | writing | hidden
   const [what, setWhat] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -33,6 +40,7 @@ export default function StartWaitingLinePrompt({ person, phone, lastSent, onOpen
   const [other, setOther] = useState(null)
   const [about, setAbout] = useState(null)         // who the message named, for the label
   const [aboutRows, setAboutRows] = useState([])   // lines they already have open
+  const [ownRows, setOwnRows] = useState([])       // lines the person texted is already on
 
   const key = person ? `${person.kind}-${person.id}` : null
 
@@ -40,14 +48,15 @@ export default function StartWaitingLinePrompt({ person, phone, lastSent, onOpen
     if (!person?.id || !person?.kind) { setState('hidden'); return }
     let cancelled = false
     setState('checking')
-    setAbout(null); setAboutRows([]); setOther(null)
+    setAbout(null); setAboutRows([]); setOwnRows([]); setOther(null)
 
     ;(async () => {
-      // Already on the sheet themselves? Then there's nothing to offer.
+      // Already on the sheet themselves? Then the line they're on is where this text
+      // belongs — offer to file it there rather than showing nothing.
       let mine = []
       try { mine = await api.getWaitingSheetFor(person.kind, person.id) } catch { /* offer anyway */ }
       if (cancelled) return
-      if (mine.length) { setState('hidden'); return }
+      if (mine.length) { setOwnRows(mine); setState('note'); return }
 
       // Read the conversation before showing anything, not after. The earlier version put
       // this off until she opened the form, to save a lookup on an offer she might wave
@@ -104,6 +113,24 @@ export default function StartWaitingLinePrompt({ person, phone, lastSent, onOpen
     }
   }
 
+  // Filing the text on a line they're already on. Their chip gets the hourglass back: we
+  // have just asked them something, so the ball is with them again.
+  async function fileOn(row) {
+    setSaving(true)
+    try {
+      const words = (lastText || '').trim()
+      if (words) await api.addWaitingRowNote(row.id, words)
+      const me = (row.people || []).find(
+        p => p.kind === person.kind && String(p.person_id) === String(person.id)
+      )
+      if (me && !me.waiting) await api.setWaitingOnPerson(row.id, me.id, true)
+      setState('hidden')
+      onOpened?.()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function create() {
     const text = what.trim()
     if (!text) return
@@ -125,7 +152,32 @@ export default function StartWaitingLinePrompt({ person, phone, lastSent, onOpen
 
   return (
     <div className="mx-3 mb-2 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-2">
-      {state === 'join' ? (
+      {state === 'note' ? (
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-blue-900">
+              {person.name} is already on the sheet — add what you just sent to
+              {ownRows.length > 1 ? ' one of their lines?' : ' it?'}
+            </span>
+            <button type="button" onClick={() => setState('hidden')}
+              className="ml-auto text-xs text-blue-400 hover:text-blue-700">No thanks</button>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {ownRows.map(row => (
+              <button key={row.id} type="button" disabled={saving} onClick={() => fileOn(row)}
+                className="max-w-full truncate rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 hover:bg-blue-700">
+                {saving ? 'Adding…' : `Add to “${row.what}”`}
+              </button>
+            ))}
+          </div>
+
+          <button type="button" onClick={() => setState('writing')}
+            className="text-xs font-semibold text-blue-700 hover:underline">
+            Start a separate line instead
+          </button>
+        </div>
+      ) : state === 'join' ? (
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-blue-900">
