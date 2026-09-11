@@ -79,6 +79,11 @@ export function groupByClient(rows) {
 // `compact` is how a client's chip renders on the second and later lines of their own
 // block: the name came off (the line above it says it) and what's left is the hourglass,
 // which still has to be there because the flag is per line, not per person.
+// "Not waiting on Rachel any more" reads better than the full name on a crowded line.
+function firstNameOf(name) {
+  return String(name || '').trim().split(/\s+/)[0] || name
+}
+
 function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact }) {
   // Read-only and not flagged: there is nothing to say and nothing to click, and the
   // heading above already carries the name.
@@ -197,6 +202,14 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
   const toggleWaiting = p => act(() =>
     api.setWaitingOnPerson(row.id, p.id, !isWaitingOn(p)))
 
+  // Who sent the reply, if they're still flagged. Matched by name because that's all an
+  // inbound text carries — the phone resolves to a person, and their name is what gets
+  // stored on the row. No match (or already unflagged) means no button, not a wrong one.
+  const replier = (row.people || []).find(
+    p => p.waiting && p.name && row.reply_from
+      && p.name.trim().toLowerCase() === String(row.reply_from).trim().toLowerCase()
+  )
+
   return (
     <tr className={[
       row.urgent ? 'bg-red-50/60' : '',
@@ -255,11 +268,23 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
         {/* They texted back. The sheet used to sit there saying we were waiting while the
             answer was in the inbox. It says what they said and when — and deliberately
             leaves the hourglass alone, because "let me check and get back to you" is a
-            reply too. Clearing their flag, or "Seen it", takes this away. */}
+            reply too. Clearing their flag, or "Seen it", takes this away.
+
+            Whether a reply settles the question is a judgement the app can't make: "I'm on
+            a contract in Connecticut" ends it, "let me look" doesn't. So it isn't guessed
+            — the answer is put next to the words that decide it, one click away, instead of
+            making her find the right chip among several and remember which one replied. */}
         {row.reply_at && (
           <div className="mt-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 print:hidden">
             <p className="text-[11px] font-semibold text-emerald-800">
               💬 {row.reply_from || 'They'} replied &middot; {noteTime(row.reply_at)}
+              {!readOnly && replier && (
+                <button type="button"
+                  onClick={() => act(() => api.setWaitingOnPerson(row.id, replier.id, false))}
+                  className="ml-2 font-normal text-emerald-600 hover:underline">
+                  Not waiting on {firstNameOf(replier.name)} any more
+                </button>
+              )}
               {!readOnly && (
                 <button type="button"
                   onClick={() => act(() => api.markWaitingRowReplySeen(row.id))}

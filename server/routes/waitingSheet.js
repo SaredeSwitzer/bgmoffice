@@ -42,9 +42,9 @@ async function getRow(id) {
   return row || null;
 }
 
-// Put the hourglass on a person if nobody on the row has it yet. Used when a row is created
-// and when a name is added to a row nobody's flagged on, so the common case (one name, we're
-// waiting on them) needs no extra click.
+// Put the hourglass on a person if nobody on the row has it yet. Used when a row is created,
+// so the common case (one name, we're waiting on them) needs no extra click. Names added to
+// an existing line are flagged outright — see POST /:id/people.
 async function flagIfFirst(rowId, person) {
   const { rows: [any] } = await pool.query(
     'SELECT 1 FROM waiting_sheet_people WHERE row_id = $1 AND waiting LIMIT 1', [rowId]
@@ -196,7 +196,13 @@ router.post('/:id/people', async (req, res) => {
      RETURNING id, kind`,
     [req.params.id, kind === 'instructor' ? 'instructor' : 'client', person_id || null, name.trim()]
   );
-  await flagIfFirst(req.params.id, added);
+  // A name added to a line that already has names on it is nearly always somebody we've
+  // just asked something — the third instructor rung about the same class. Shadea went onto
+  // Chaya Retek's line unflagged because Hannah and Rachel already carried the hourglass,
+  // so the sheet showed us waiting on two people who had already said no. Flag whoever was
+  // just added; clicking their chip takes it off if this one was only for context.
+  await pool.query('UPDATE waiting_sheet_people SET waiting = true WHERE id = $1', [added.id]);
+  await pool.query('UPDATE waiting_sheet_rows SET updated_at = now() WHERE id = $1', [req.params.id]);
   res.status(201).json(await getRow(req.params.id));
 });
 
