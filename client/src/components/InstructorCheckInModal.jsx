@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import SearchSelect from './SearchSelect'
+import { useDelegates } from '../utils/delegates'
 
 const REASONS = [
   'Away/Unavailable',
@@ -9,9 +10,9 @@ const REASONS = [
   'Other',
 ]
 
-const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
 export default function InstructorCheckInModal({ onClose }) {
+  const DELEGATES = useDelegates()
   const [instructors, setInstructors] = useState([])
   const today = new Date().toLocaleDateString('en-CA')
   const [form, setForm] = useState({

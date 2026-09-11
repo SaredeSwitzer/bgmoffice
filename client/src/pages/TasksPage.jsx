@@ -11,8 +11,8 @@ import { renderWithMentions } from '../utils/mentions'
 import NoteBody from '../components/NoteBody'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { today } from '../utils/dates'
+import { useDelegates } from '../utils/delegates'
 
-const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
 function fmtDate(iso) {
   if (!iso) return ''
@@ -27,6 +27,7 @@ function fmtTs(iso) {
 
 // ── Task form (inline create or edit) ────────────────────────────────────────
 export function TaskForm({ initial, onSave, onCancel, saving, clients = [], instructors = [] }) {
+  const DELEGATES = useDelegates()
   const [form, setForm] = useState(initial || {
     title: '', description: '', assigned_to: '', due_date: '', priority: 'normal', notes: '', task_type: 'task',
     client: null, instructor: null,
@@ -116,6 +117,7 @@ export function TaskForm({ initial, onSave, onCancel, saving, clients = [], inst
 
 // ── Task card ─────────────────────────────────────────────────────────────────
 function TaskCard({ task, onUpdate, onDelete, onDone, isNew, actionTypes, clients = [], instructors = [], mentionableUsers = [] }) {
+  const DELEGATES = useDelegates()
   const { user } = useAuth()
   const [editing,         setEditing]         = useState(false)
   const [saving,          setSaving]          = useState(false)
@@ -398,6 +400,7 @@ const TYPE_META = {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function TasksPage() {
+  const DELEGATES = useDelegates()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   // Kept as a string — task ids come back from Postgres as bigint strings, and

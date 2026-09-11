@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { officePeopleSql } = require('../lib/mentions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -469,7 +470,7 @@ router.get('/mentions/open', async (req, res) => {
        FROM mentions m
        JOIN users u ON u.id = m.mentioned_user_id
       WHERE m.resolved_at IS NULL
-        AND u.role = 'staff'
+        AND ${officePeopleSql('u')}
         AND (LOWER(u.name) = LOWER($1) OR LOWER(split_part(u.name, ' ', 1)) = LOWER($1))
       ORDER BY m.created_at DESC`,
     [person]

@@ -16,10 +16,11 @@ import ShiftChecklist from '../components/ShiftChecklist'
 import ShiftSummaries from '../components/ShiftSummaries'
 import { isSaredeUser } from '../utils/saredeAccess'
 import { LatestHandoff, WriteHandoff } from '../components/ShiftHandoff'
+import { useDelegates } from '../utils/delegates'
 
-const DELEGATES = ['Sarede', 'Maria', 'Claire', 'Anyone']
 
 function QuickAddOther({ onAdd }) {
+  const DELEGATES = useDelegates()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')

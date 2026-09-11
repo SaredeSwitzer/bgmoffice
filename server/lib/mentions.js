@@ -1,11 +1,27 @@
 const pool = require('../db/pg');
 
-// Mentionable = office staff only (Sarede/Maria/Claire today), not the 70+ instructor
-// logins or the generic Admin account — @mentioning an instructor wouldn't reach anyone
-// who's actually watching My Tasks. Shown/matched by first name only ("Sarede", not
-// "Sarede S") since that's how the office actually refers to each other.
+// Who counts as "someone in the office" — the people worth @mentioning, and the only
+// people a mention is shown for. Not the 70+ instructor logins, who never open My Tasks,
+// and not the shared `admin@bgmoffice.com` account, which is Sarede's second login rather
+// than a person: @Admin would reach nobody new and read as a fourth colleague.
+//
+// This used to say role = 'staff' alone, which quietly excluded anyone given admin rights.
+// Erica was hired as an admin and simply never appeared in the @ list — no error, no empty
+// state, just a name that wasn't there. Role is about permissions; it was never meant to
+// decide who your colleagues are.
+// Takes the table alias so it can be dropped into any query over `users`.
+function officePeopleSql(a = 'users') {
+  return `${a}.active = 1
+      AND ${a}.role IN ('staff', 'admin')
+      AND LOWER(COALESCE(${a}.email, '')) <> 'admin@bgmoffice.com'`;
+}
+
+// Shown and matched by first name only ("Sarede", not "Sarede S") since that's how the
+// office actually refers to each other.
 async function getMentionableUsers() {
-  const { rows } = await pool.query("SELECT id, name FROM users WHERE active = 1 AND role = 'staff' ORDER BY name");
+  const { rows } = await pool.query(
+    `SELECT u.id, u.name FROM users u WHERE ${officePeopleSql('u')} ORDER BY u.name`
+  );
   return rows.map(u => ({ id: u.id, name: u.name.split(' ')[0] }));
 }
 
@@ -149,5 +165,5 @@ async function resolveMentionsForParent(kind, parentId) {
 module.exports = {
   resolveMentionsForParent,
   getMentionableUsers, findMentionedUserIds, syncMentions, deleteMentions,
-  stripMentions, stripMentionsForPublic,
+  stripMentions, stripMentionsForPublic, officePeopleSql,
 };
