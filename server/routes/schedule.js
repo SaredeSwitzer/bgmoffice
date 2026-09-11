@@ -898,6 +898,15 @@ async function getSessionRow(id) {
   return row || null;
 }
 
+// Is this dated class still the class its recurring pattern describes? Session 8327 was
+// Eleanor's Friday 10:30 until Sharon picked it up at 12:00, and the confirmation went out
+// addressed to Sharon, greeting Eleanor, quoting 10:30 — one cover class, three wrong facts.
+function matchesPattern(row, pattern) {
+  return String(row.instructor_id ?? '') === String(pattern.instructor_id ?? '')
+      && String(row.start_time ?? '') === String(pattern.start_time ?? '')
+      && String(row.duration_minutes ?? '') === String(pattern.duration_minutes ?? '');
+}
+
 async function buildConfirmation(kind, id) {
   const row = kind === 'session' ? await getSessionRow(id) : await getScheduleRow(id);
   if (!row) return { error: `${kind === 'session' ? 'Session' : 'Schedule'} not found`, status: 404 };
@@ -923,7 +932,25 @@ async function buildConfirmation(kind, id) {
     ? await pool.query('SELECT name, email FROM instructors WHERE id=$1', [row.instructor_id])
     : { rows: [] };
   const tpl = await getTemplate();
-  const ctx = confirmationContext(wordingRow);
+  // Describing a class by its parent pattern is right only while the class still IS the
+  // pattern. Session 8327 was Eleanor's Thursday 10:30 until Sharon picked it up at 12:00
+  // — and the email went out addressed to Sharon, greeting Eleanor, quoting 10:30. One
+  // cover class produced three wrong facts at once.
+  //
+  // So the pattern's wording is used only when this class still matches it. The moment
+  // somebody is covering, or the time has moved, it isn't the series any more — it's a
+  // one-off, and its own date and time are what the instructor needs to read.
+  const ctx = confirmationContext(row);
+  if (wordingRow !== row && matchesPattern(row, wordingRow)) {
+    const pattern = confirmationContext(wordingRow);
+    ctx.day = pattern.day;
+    ctx.date = pattern.date;
+    ctx.time = pattern.time;
+    ctx.days_times = pattern.days_times;
+  }
+  // The instructor on the class, straight from the record the email is being sent to —
+  // never a name carried along from anywhere else.
+  if (inst?.name) ctx.instructor_name = inst.name;
   return {
     to: inst?.email || null,
     instructor_name: inst?.name || null,
@@ -1138,10 +1165,15 @@ async function getClientSmsTemplate() {
 // generated from a recurring one reads as the weekly pattern, not as a lone date.
 // A dated class generated from a recurring one is described by the pattern it belongs to
 // ("Tuesdays at 6:30pm"), not as a lone date — same rule the confirmation email follows.
+// The recurring pattern a dated class belongs to, when describing it as the pattern is
+// still honest — see the note in buildConfirmation. A class somebody is covering, or one
+// that has been moved to another time, is no longer the series: it's a one-off, and its
+// own date and time are what the person reading needs.
 async function wordingRowFor(kind, row) {
   let wordingRow = (kind === 'session' && row.schedule_id)
     ? (await getScheduleRow(row.schedule_id)) || row
     : row;
+  if (wordingRow !== row && !matchesPattern(row, wordingRow)) return row;
   if (wordingRow.weekday != null && !wordingRow.start_date) {
     const { rows: [{ min_date }] } = await pool.query(
       'SELECT MIN(session_date)::text AS min_date FROM class_sessions WHERE schedule_id = $1', [wordingRow.id]
