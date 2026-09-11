@@ -419,6 +419,13 @@ router.get('/report', async (req, res) => {
 
   // Every individual class for the week — the raw rows behind all the totals above, for
   // whatever ad-hoc question the summaries don't answer.
+  //
+  // "Behind the totals above" is the whole contract, so this has to exclude cancelled
+  // classes exactly as they do. It didn't, and the CSV export is built from these rows:
+  // the week of 6 Sep exported 21 classes totalling $1,955 against a page showing 18 and
+  // $1,605, and Faigy Fried's and Miriam Klein's cancelled 8 Sep classes sat in the
+  // spreadsheet looking exactly like classes that had happened. Anyone charging from that
+  // file would have billed $250 for two classes nobody taught.
   const { rows: sessions } = await pool.query(
     `SELECT s.id, s.session_date::text AS session_date, s.start_time::text AS start_time,
             s.duration_minutes,
@@ -428,7 +435,7 @@ router.get('/report', async (req, res) => {
        FROM class_sessions s
        JOIN clients c            ON c.id = s.client_id
        LEFT JOIN instructors i   ON i.id = s.instructor_id
-      WHERE s.session_date BETWEEN $1::date AND (${end})
+      WHERE s.session_date BETWEEN $1::date AND (${end}) AND s.status <> 'cancelled'
       ORDER BY s.session_date, s.start_time NULLS LAST, c.name`,
     [start]
   );

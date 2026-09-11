@@ -246,6 +246,18 @@ export default function ReportsPage({ embedded = false }) {
         </div>
       </form>
 
+      {/* The export has no status column, so a cancelled class in it looks exactly like one
+          that happened — and these files get billed from. Rather than drop them (this page
+          is a query tool, and "show me what got cancelled" is a fair question), say so. */}
+      {results && results.some(s => s.status === 'cancelled') && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          {results.filter(s => s.status === 'cancelled').length} of these{' '}
+          {results.length} classes {results.filter(s => s.status === 'cancelled').length === 1 ? 'was' : 'were'}{' '}
+          cancelled, and the export doesn&rsquo;t say which. Set Status to
+          &ldquo;scheduled&rdquo; above if you&rsquo;re exporting this to bill from.
+        </p>
+      )}
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {results && (
