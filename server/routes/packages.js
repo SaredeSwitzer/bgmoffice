@@ -1,6 +1,9 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { sendSMS, toE164 } = require('../lib/telnyxSend');
+const smsStore = require('../lib/smsStore');
+const { loadPackage, classesLeft, buildRenewalText } = require('../lib/packageRenewal');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -108,6 +111,63 @@ router.delete('/:id/sessions/:sessionId', async (req, res) => {
 
   const { rows: [row] } = await pool.query(`${PKG_JOIN} WHERE cp.id = $1`, [req.params.id]);
   res.json(await enrichPackage(row));
+});
+
+// ── "One class left — do you want another package?" ───────────────────────────
+// The app writes it, she reads it, she presses send. Same contract as every other message
+// the app composes: what's on screen is exactly what goes out.
+
+router.get('/:id/renewal-text', async (req, res) => {
+  const pkg = await loadPackage(req.params.id);
+  if (!pkg) return res.status(404).json({ error: 'Package not found' });
+  res.json({
+    to: pkg.phone ? toE164(pkg.phone) : null,
+    client_name: pkg.client_name,
+    classes_left: classesLeft(pkg),
+    text: buildRenewalText(pkg),
+    already_sent_at: pkg.renewal_text_sent_at || null,
+  });
+});
+
+router.post('/:id/renewal-text', async (req, res) => {
+  const pkg = await loadPackage(req.params.id);
+  if (!pkg) return res.status(404).json({ error: 'Package not found' });
+
+  const to = pkg.phone ? toE164(pkg.phone) : null;
+  if (!to) {
+    return res.status(400).json({
+      error: 'This client has no mobile number on file. Add one on their profile first.',
+    });
+  }
+  const text = String(req.body.text ?? buildRenewalText(pkg)).trim();
+  if (!text) return res.status(400).json({ error: 'The message is empty.' });
+
+  let sent;
+  try {
+    sent = await sendSMS({ to, text });
+  } catch (e) {
+    return res.status(502).json({ error: `Could not send: ${e.message}` });
+  }
+
+  // Logged like any hand-typed text, so it lands in their thread on the Texts screen and
+  // their reply — which is the whole point of asking — comes back to the same place.
+  await smsStore.logMessage({
+    direction: 'outbound',
+    phone: to,
+    from_number: process.env.TELNYX_FROM_NUMBER || null,
+    to_number: to,
+    body: text,
+    telnyx_id: sent?.id || null,
+    status: sent?.to?.[0]?.status || 'queued',
+    person_kind: 'client',
+    person_id: pkg.client_id,
+    person_name: pkg.client_name,
+  }).catch(e => console.error('[packages] could not log the renewal text:', e.message));
+
+  await pool.query(
+    'UPDATE client_packages SET renewal_text_sent_at = now()::text WHERE id = $1', [pkg.id]);
+
+  res.json({ ok: true, sent_to: to, text });
 });
 
 module.exports = router;

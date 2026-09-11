@@ -20,7 +20,12 @@ function segments(text) {
   return n <= 160 ? 1 : Math.ceil(n / 153)
 }
 
-export default function TextConfirmModal({ who = 'client', classRow, kind = 'schedule', onClose, onSent }) {
+// `loadPreview`/`doSend` let something other than a class drive this — the package renewal
+// nudge uses it. Without them it behaves exactly as it always has.
+export default function TextConfirmModal({
+  who = 'client', classRow, kind = 'schedule', onClose, onSent,
+  title, loadPreview, doSend,
+}) {
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(null)
   const [text, setText] = useState('')
@@ -30,17 +35,18 @@ export default function TextConfirmModal({ who = 'client', classRow, kind = 'sch
   useEffect(() => {
     let cancelled = false
     setLoading(true); setError(null)
-    api.getConfirmTextPreview(who, kind, classRow.id)
+    const load = loadPreview ? loadPreview() : api.getConfirmTextPreview(who, kind, classRow.id)
+    load
       .then(p => { if (cancelled) return; setPreview(p); setText(p.text) })
       .catch(e => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [classRow.id, kind, who])
+  }, [classRow?.id, kind, who])
 
   async function send() {
     setSending(true); setError(null)
     try {
-      const r = await api.sendConfirmText(who, kind, classRow.id, { text })
+      const r = doSend ? await doSend(text) : await api.sendConfirmText(who, kind, classRow.id, { text })
       onSent?.(r)
       onClose()
     } catch (e) {
@@ -57,7 +63,7 @@ export default function TextConfirmModal({ who = 'client', classRow, kind = 'sch
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="px-5 pt-5 pb-3 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 text-base">
-            Text {preview?.client_name || preview?.person_name || `the ${who}`}
+            {title || `Text ${preview?.client_name || preview?.person_name || `the ${who}`}`}
           </h3>
           {preview?.to && <p className="text-xs text-gray-400 mt-0.5">To {preview.to}</p>}
         </div>
@@ -74,8 +80,7 @@ export default function TextConfirmModal({ who = 'client', classRow, kind = 'sch
             <>
               {preview.already_sent_at && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  A confirmation text already went out for this class. Sending again is fine — it just
-                  sends another one.
+                  A text already went out about this. Sending again is fine — it just sends another one.
                 </p>
               )}
               {who === 'client' && preview.has_instructor === false && (

@@ -406,6 +406,11 @@ export const api = {
   getDelegates: () => request('/delegates'),
   getUsers: () => request('/users'),
   getMentionableUsers: () => request('/mentionable-users'),
+
+  // "One class left — another package?" The app writes it; staff read it and send it.
+  getPackageRenewalText: (id) => request(`/packages/${id}/renewal-text`),
+  sendPackageRenewalText: (id, body) =>
+    request(`/packages/${id}/renewal-text`, { method: 'POST', body: JSON.stringify(body) }),
   createActionTypeUser: (data) =>
     request('/action-types', { method: 'POST', body: JSON.stringify(data) }),
   updateActionTypeUser: (id, data) =>

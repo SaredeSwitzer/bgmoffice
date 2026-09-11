@@ -568,6 +568,33 @@ async function syncWaitingOnReminders(today = ymd(new Date())) {
 
 // Runs nightly: syncs the day that just fully completed ("yesterday" relative to `now`).
 // Classes get picked up the next morning rather than waiting for the end of the week.
+// A package down to its last class gets a reminder, once. See server/lib/packageRenewal.js
+// for why this raises a reminder rather than texting the client by itself.
+async function syncPackageRenewalReminders(today = ymd(new Date())) {
+  const { packagesNeedingNudge } = require('./packageRenewal');
+  const due = await packagesNeedingNudge();
+
+  let created = 0;
+  for (const pkg of due) {
+    const left = Number(pkg.total_classes) - Number(pkg.classes_used);
+    await pool.query(
+      `INSERT INTO reminders (title, notes, remind_on, client_id, created_by)
+       VALUES ($1,$2,$3,$4,'daily-sync')`,
+      [
+        `${pkg.client_name} has ${left === 1 ? 'one class' : `${left} classes`} left on their package`,
+        'Ask whether they want another package once it runs out. Their profile has a '
+          + '"Text about renewing" button with the message already written.',
+        today, pkg.client_id,
+      ]
+    );
+    // Stamped whether or not she ever sends the text: the job here is to ask once, and a
+    // package that sits at one class for a fortnight shouldn't raise a reminder a night.
+    await pool.query('UPDATE client_packages SET renewal_nudge_at = $1 WHERE id = $2', [today, pkg.id]);
+    created++;
+  }
+  return { package_renewal_reminders_created: created };
+}
+
 async function runDailySync(now = new Date()) {
   const yesterday = ymd(addDays(now, -1));
   const sync = await syncDateRange(yesterday, yesterday);
@@ -577,7 +604,8 @@ async function runDailySync(now = new Date()) {
   const generation = await generateUpcomingSessions(horizon);
   const invoiceReminders = await syncInvoiceSendReminders(ymd(now));
   const waitingOnReminders = await syncWaitingOnReminders(ymd(now));
-  return { ...sync, calendar_generation: generation, ...invoiceReminders, ...waitingOnReminders };
+  const packageReminders = await syncPackageRenewalReminders(ymd(now));
+  return { ...sync, calendar_generation: generation, ...invoiceReminders, ...waitingOnReminders, ...packageReminders };
 }
 
 // Same 2-year lookahead the nightly cron uses (see runDailySync) — exposed so a schedule
@@ -587,4 +615,4 @@ function defaultHorizon() {
   return ymd(addDays(new Date(), 730));
 }
 
-module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, adoptOrphanSessions, syncInvoiceSendReminders, syncWaitingOnReminders, defaultHorizon };
+module.exports = { syncDateRange, runDailySync, generateUpcomingSessions, adoptOrphanSessions, syncInvoiceSendReminders, syncWaitingOnReminders, syncPackageRenewalReminders, defaultHorizon };

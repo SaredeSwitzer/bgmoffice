@@ -23,6 +23,7 @@ import { PAYMENT_METHODS } from '../utils/payments'
 import ClientAddresses from '../components/ClientAddresses'
 import { today } from '../utils/dates'
 import { NeighborhoodWarning } from '../utils/neighborhood'
+import TextConfirmModal from '../components/TextConfirmModal'
 
 // Opens the waiver/contract invite modal pre-filled for this client — only shown next
 // to "Waiver Not Signed". Links the signature to them up front so their waiver flips
@@ -172,10 +173,11 @@ function PackageCard({
   isLogging, onStartLog, onCancelLog,
   logDate, onSetDate,
   isSaving, onSave,
-  onDelete, onDeleteSession,
+  onDelete, onDeleteSession, onChanged,
 }) {
   // Notes lives in local state so typing never triggers a parent re-render
   const [notes, setNotes] = useState('')
+  const [texting, setTexting] = useState(false)
 
   // Reset notes whenever the log form is opened or closed
   useEffect(() => {
@@ -194,6 +196,16 @@ function PackageCard({
     : 'bg-blue-500'
 
   return (
+    <>
+    {texting && (
+      <TextConfirmModal
+        title="Text about renewing their package"
+        loadPreview={() => api.getPackageRenewalText(pkg.id)}
+        doSend={text => api.sendPackageRenewalText(pkg.id, { text })}
+        onClose={() => setTexting(false)}
+        onSent={() => onChanged?.()}
+      />
+    )}
     <div className={`rounded-xl border px-4 py-3 ${statusColor}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -231,6 +243,24 @@ function PackageCard({
               <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
             </div>
           </div>
+
+          {/* Running out is the moment to ask whether they want another one — while there's
+              still a class on the books, so it's a question rather than an apology. The
+              nightly run raises a reminder; this is where the message actually gets sent. */}
+          {pkg.status === 'active' && remaining <= 1 && remaining > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5">
+              <span className="text-xs text-amber-900">
+                Last class of this package.
+              </span>
+              <button type="button" onClick={() => setTexting(true)}
+                className="text-xs font-semibold text-amber-800 hover:underline">
+                Text about renewing
+              </button>
+              {pkg.renewal_text_sent_at && (
+                <span className="text-[11px] text-amber-600">· already asked</span>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           {pkg.status === 'active' && (
@@ -304,6 +334,7 @@ function PackageCard({
         </div>
       )}
     </div>
+    </>
   )
 }
 
@@ -369,6 +400,10 @@ function PackagesSection({ clientId, instructors }) {
   const [logDates, setLogDates] = useState({})   // packageId -> session_date string
   const [logSaving, setLogSaving] = useState({}) // packageId -> bool
   const [justCompleted, setJustCompleted] = useState(null)
+
+  const reload = useCallback(() => {
+    api.getClientPackages(clientId).then(setPackages).catch(() => {})
+  }, [clientId])
 
   useEffect(() => {
     api.getClientPackages(clientId)
@@ -522,6 +557,7 @@ function PackagesSection({ clientId, instructors }) {
               onSave={notes => handleLogSession(pkg.id, notes)}
               onDelete={() => handleDeletePackage(pkg.id)}
               onDeleteSession={sessionId => handleDeleteSession(pkg.id, sessionId)}
+              onChanged={reload}
             />
           ))}
         </div>
