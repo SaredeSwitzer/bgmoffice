@@ -76,6 +76,23 @@ export function groupByClient(rows) {
   return blocks
 }
 
+// A client with several lines gets their name on a row of its own, and every one of their
+// lines sits indented underneath it. Sharing the first line — name on the left, first
+// question on the right — read as "Etty's question", plus two orphans below it, rather than
+// as one client with three questions.
+function GroupHeading({ client, count }) {
+  return (
+    <tr className="bg-gray-50/70">
+      <td className="w-8" />
+      <td colSpan={4} className="px-3 pt-2 pb-1">
+        <ClientLink id={client.person_id} name={client.name}
+          className="text-sm font-semibold text-gray-900 hover:underline" />
+        <span className="ml-2 text-[11px] text-gray-400">{count} lines</span>
+      </td>
+    </tr>
+  )
+}
+
 // `compact` is how a client's chip renders on the second and later lines of their own
 // block: the name came off (the line above it says it) and what's left is the hourglass,
 // which still has to be there because the flag is per line, not per person.
@@ -84,7 +101,7 @@ function firstNameOf(name) {
   return String(name || '').trim().split(/\s+/)[0] || name
 }
 
-function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact, lead }) {
+function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact }) {
   // Read-only and not flagged: there is nothing to say and nothing to click, and the
   // heading above already carries the name.
   if (compact && readOnly && !isWaiting) return null
@@ -109,19 +126,12 @@ function PersonChip({ person, isWaiting, onClick, onRemove, readOnly, compact, l
     )
   }
 
-  // `lead` is a client whose other lines are indented underneath this one. It is the name
-  // you scan the sheet by, and at the same size as every other chip it read as one row
-  // among four rather than as the heading of a block — so it's set larger and darker.
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border transition-colors ${
-        lead ? 'pl-3 pr-1.5 py-1 text-sm' : 'pl-2.5 pr-1 py-0.5 text-xs'
-      } ${
+      className={`inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-0.5 text-xs transition-colors ${
         isWaiting
           ? 'bg-amber-100 border-amber-400 text-amber-900 font-semibold'
-          : lead
-            ? 'bg-white border-gray-300 text-gray-900 font-semibold hover:border-amber-300'
-            : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'
+          : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'
       }`}
     >
       <button
@@ -175,7 +185,7 @@ function AddPerson({ kind, options, onAdd }) {
   )
 }
 
-function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [], openNoteId, groupedUnder = null, groupFirst = false }) {
+function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers = [], openNoteId, groupedUnder = null }) {
   const [busy, setBusy] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const replyRef = useRef(null)
@@ -203,24 +213,23 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
 
   // The flag sits on each person, so any number of them can carry it — often we're waiting
   // on the instructor for one thing and the client for another on the same line.
-  // In a block, but not the first line of it: the name is on the line above.
-  const continuation = groupedUnder != null && !groupFirst
   const isWaitingOn = p => !!p.waiting
   const toggleWaiting = p => act(() =>
     api.setWaitingOnPerson(row.id, p.id, !isWaitingOn(p)))
 
+  // One of several lines belonging to one client. Their name is on the heading row above,
+  // so this line is indented, their chip shrinks to the hourglass alone, and the detail —
+  // reply, byline, need-by, notes — folds away until the title is clicked. Four fully
+  // detailed rows buried the fact that Etty's three questions were one client's three
+  // questions. A client with a single line has nothing to group under and is left alone.
+  const continuation = groupedUnder != null
+  const [open, setOpen] = useState(false)
+  const collapsed = continuation && !open
+  const pad = collapsed ? 'py-1' : 'py-2.5'
+
   // Who sent the reply, if they're still flagged. Matched by name because that's all an
   // inbound text carries — the phone resolves to a person, and their name is what gets
   // stored on the row. No match (or already unflagged) means no button, not a wrong one.
-  // A client with several lines gets them stacked under their name, and a stack of four
-  // fully-detailed rows buried the fact that they belonged together. Collapsed, each line
-  // is its title and who owes us an answer; the rest opens on a click. Only lines inside a
-  // block do this — a client with one line has nothing to group under and is left alone.
-  const collapsible = groupedUnder != null
-  const [open, setOpen] = useState(false)
-  const collapsed = collapsible && !open
-  const pad = collapsed ? 'py-1' : 'py-2.5'
-
   const replier = (row.people || []).find(
     p => p.waiting && p.name && row.reply_from
       && p.name.trim().toLowerCase() === String(row.reply_from).trim().toLowerCase()
@@ -254,7 +263,6 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
           {clientsOn.map(p => (
             <PersonChip key={p.id} person={p} isWaiting={isWaitingOn(p)}
               compact={continuation && personKey(p) === groupedUnder}
-              lead={groupFirst && personKey(p) === groupedUnder}
               onClick={() => toggleWaiting(p)} readOnly={readOnly}
               onRemove={() => act(() => api.removeWaitingRowPerson(row.id, p.id))} />
           ))}
@@ -280,7 +288,7 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
       </td>
 
       <td className={`align-top px-3 ${pad} text-sm text-gray-700`}>
-        {collapsible ? (
+        {continuation ? (
           <button type="button" onClick={() => setOpen(v => !v)}
             className="text-left hover:underline decoration-gray-300">
             {row.what}
@@ -540,10 +548,11 @@ export function WaitingSheetForPerson({ kind, personId, personName }) {
                     mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
                 ) : (
                   <Fragment key={block.key}>
-                    {block.rows.map((row, i) => (
+                    <GroupHeading client={block.client} count={block.rows.length} />
+                    {block.rows.map(row => (
                       <Row key={row.id} row={row} clients={clients} instructors={instructors}
                         mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load}
-                        groupedUnder={block.key} groupFirst={i === 0} />
+                        groupedUnder={block.key} />
                     ))}
                   </Fragment>
                 )
@@ -689,10 +698,11 @@ export default function WaitingSheet() {
                     mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load} />
                 ) : (
                   <Fragment key={block.key}>
-                    {block.rows.map((row, i) => (
+                    <GroupHeading client={block.client} count={block.rows.length} />
+                    {block.rows.map(row => (
                       <Row key={row.id} row={row} clients={clients} instructors={instructors}
                         mentionableUsers={mentionableUsers} openNoteId={openNoteId} onChanged={load}
-                        groupedUnder={block.key} groupFirst={i === 0} />
+                        groupedUnder={block.key} />
                     ))}
                   </Fragment>
                 )
