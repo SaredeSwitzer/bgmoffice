@@ -65,37 +65,61 @@ async function updateStatusByTelnyxId(telnyxId, status) {
   await pool.query('UPDATE sms_messages SET status = $1 WHERE telnyx_id = $2', [status, telnyxId]);
 }
 
-// One row per phone thread: latest message preview + unread count + best-known person name.
+// One row per person on this line — built from texts AND calls together.
+//
+// It used to read from texts alone, which meant somebody you had only ever spoken to
+// simply was not in the list. A client rings, you take the call, and the conversation
+// list shows no sign of them. It also meant the list ordered by last text rather than by
+// last contact, so a person who rang an hour ago sat below one who texted yesterday.
 async function listThreads() {
   await ensureSchema();
   const { rows } = await pool.query(`
-    SELECT t.phone,
-           t.last_at,
-           t.unread,
-           t.person_name,
-           t.person_kind,
-           -- Needed by the Texts screen to ask "start a Waiting On line for them?" — it
-           -- has to know who they are on the sheet, not just what they're called.
-           t.person_id,
-           m.body      AS last_body,
-           m.direction AS last_direction
-      FROM (
-        SELECT phone,
-               max(created_at) AS last_at,
-               count(*) FILTER (WHERE direction = 'inbound' AND read_at IS NULL) AS unread,
-               max(person_name) AS person_name,
-               max(person_kind) AS person_kind,
-               max(person_id)   AS person_id
-          FROM sms_messages
-         GROUP BY phone
-      ) t
+    WITH ev AS (
+      SELECT phone, created_at AS at, body AS preview, direction,
+             CASE WHEN direction = 'inbound' AND read_at IS NULL THEN 1 ELSE 0 END AS unread,
+             person_name, person_kind, person_id, 'text' AS kind
+        FROM sms_messages
+      UNION ALL
+      -- A call needs words to show in a list of conversations, so it gets the same
+      -- description the thread itself uses.
+      SELECT phone, started_at,
+             CASE
+               WHEN status = 'voicemail' THEN 'Left a message'
+               WHEN status = 'missed' THEN
+                 CASE WHEN direction = 'inbound' THEN 'Missed call' ELSE 'No answer' END
+               WHEN direction = 'inbound' THEN 'Incoming call'
+               ELSE 'Outgoing call'
+             END,
+             direction,
+             -- A voicemail nobody has played is the call equivalent of an unread text.
+             CASE WHEN voicemail_url IS NOT NULL AND voicemail_heard_at IS NULL THEN 1 ELSE 0 END,
+             person_name, person_kind, person_id, 'call'
+        FROM voice_calls
+       WHERE leg = 'primary' AND coalesce(phone, '') <> ''
+    ),
+    agg AS (
+      SELECT phone,
+             max(at) AS last_at,
+             sum(unread)::int AS unread,
+             max(person_name) AS person_name,
+             max(person_kind) AS person_kind,
+             max(person_id)   AS person_id
+        FROM ev
+       GROUP BY phone
+    )
+    SELECT agg.phone, agg.last_at, agg.unread,
+           agg.person_name, agg.person_kind, agg.person_id,
+           last.preview   AS last_body,
+           last.direction AS last_direction,
+           last.kind      AS last_kind
+      FROM agg
       JOIN LATERAL (
-        SELECT body, direction FROM sms_messages s
-         WHERE s.phone = t.phone
-         ORDER BY created_at DESC
+        SELECT preview, direction, kind FROM ev
+         WHERE ev.phone = agg.phone
+         ORDER BY at DESC
          LIMIT 1
-      ) m ON true
-     ORDER BY t.last_at DESC
+      ) last ON true
+     ORDER BY agg.last_at DESC
   `);
   return rows;
 }

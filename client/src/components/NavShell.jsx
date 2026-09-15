@@ -21,7 +21,7 @@ function TextsBell({ count, onGo }) {
         ? `${count} unread text${count === 1 ? '' : 's'} — open the Texts inbox`
         : 'No unread texts'}
       aria-label={has ? `${count} unread texts` : 'Texts'}
-      className="relative p-2 rounded-lg text-white hover:bg-white/15 shrink-0 ml-auto sm:ml-0"
+      className="relative p-2 rounded-lg text-white hover:bg-white/15 shrink-0 ml-auto"
     >
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round"
@@ -113,7 +113,7 @@ function Shell() {
 
       {/* Header */}
       <header className="bg-brand-bar border-b border-brand-bar-edge shadow-sm sticky top-0 z-40">
-        <div className="px-4 h-14 flex items-center justify-between max-w-7xl mx-auto">
+        <div className="px-4 h-14 flex items-center gap-2 max-w-7xl mx-auto">{/* gap + ml-auto on the right-hand cluster, not justify-between: with fewer tabs in the bar, space-between pushed a wide gap between the logo and the first tab. */}
 
           {/* Logo — always visible, and the way home. It replaces a Dashboard tab: the
               bar had run out of room, and the logo is where people already click to get
@@ -131,7 +131,7 @@ function Shell() {
           {/* Desktop nav — hidden on mobile */}
           {/* min-w-0 + scroll rather than letting the tabs push everything along: adding
               one more tab shoved "Sign out" off the right-hand edge of the bar. */}
-          <nav className="hidden sm:flex items-center gap-0.5 mx-2 min-w-0 overflow-x-auto scrollbar-none">
+          <nav className="hidden sm:flex items-center gap-0.5 min-w-0 overflow-x-auto scrollbar-none">
             {navLinks.map(({ to, label, alsoActiveOn }) => (
               <NavLink
                 key={to}

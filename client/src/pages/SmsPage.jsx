@@ -294,7 +294,12 @@ export default function SmsPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm text-gray-500">
-                      {t.last_direction === 'outbound' ? 'You: ' : ''}{t.last_body || '(no text)'}
+                      {/* A call in the list reads as a call, not as a message someone
+                          typed — so it gets the arrow instead of the "You:" prefix. */}
+                      {t.last_kind === 'call'
+                        ? <span className="text-gray-400">{t.last_direction === 'inbound' ? '↙ ' : '↗ '}</span>
+                        : (t.last_direction === 'outbound' ? 'You: ' : '')}
+                      {t.last_body || '(no text)'}
                     </span>
                     {Number(t.unread) > 0 && (
                       <span className="shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">{t.unread}</span>
