@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { RemindersProvider, useRemindersContext } from '../context/RemindersContext'
 import { UnreadTextsProvider, useUnreadTexts } from '../context/UnreadTextsContext'
-import { VoiceProvider } from '../context/VoiceContext'
+import { VoiceProvider, useVoice } from '../context/VoiceContext'
 import Softphone from './Softphone'
 import AmberChat from './AmberChat'
 import { isSaredeUser } from '../utils/saredeAccess'
@@ -64,6 +64,7 @@ function Shell() {
   useEffect(() => { if (user) loadDirectory() }, [user])
   const { overdueCount } = useRemindersContext()
   const { unread: unreadTexts, soundOn, toggleSound } = useUnreadTexts()
+  const voice = useVoice()
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
@@ -99,7 +100,7 @@ function Shell() {
   // On the blue bar the selected tab is a white chip — the one bright thing up
   // there, so where you are reads at a glance.
   const desktopLinkClass = ({ isActive }) =>
-    `px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap transition-colors ${
+    `px-2.5 py-1.5 rounded text-sm font-medium whitespace-nowrap transition-colors ${
       isActive
         ? 'bg-white text-blue-700 font-semibold shadow-sm'
         : 'text-blue-50 hover:text-white hover:bg-white/15'
@@ -129,7 +130,7 @@ function Shell() {
           {/* Desktop nav — hidden on mobile */}
           {/* min-w-0 + scroll rather than letting the tabs push everything along: adding
               one more tab shoved "Sign out" off the right-hand edge of the bar. */}
-          <nav className="hidden sm:flex items-center gap-1 mx-2 min-w-0 overflow-x-auto scrollbar-none">
+          <nav className="hidden sm:flex items-center gap-0.5 mx-2 min-w-0 overflow-x-auto scrollbar-none">
             {navLinks.map(({ to, label }) => (
               <NavLink key={to} to={to} className={desktopLinkClass}>{label}</NavLink>
             ))}
@@ -142,11 +143,11 @@ function Shell() {
 
           {/* Desktop user info — hidden on mobile */}
           <div className="hidden sm:flex items-center gap-3 shrink-0">
-            <span className="text-xs text-blue-50 flex items-center gap-1.5">
+            <span className="text-xs text-blue-50 flex items-center gap-1.5" title={user?.name}>
               <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/20 text-white font-bold text-xs">
                 {user?.initials}
               </span>
-              {user?.name}
+              <span className="hidden lg:inline">{user?.name}</span>
             </span>
             <button onClick={handleLogout} className="text-xs text-blue-100 hover:text-white">
               Sign out
@@ -173,12 +174,31 @@ function Shell() {
 
         {/* Mobile dropdown — all nav links + sign out */}
         {open && (
-          <div className="sm:hidden border-t border-gray-100 bg-white px-3 py-2 space-y-1">
+          <div className="sm:hidden border-t border-gray-100 bg-white px-3 py-2 pb-20 space-y-1">{/* pb-20: Amber floats over the bottom-right corner and was sitting on top of Sign out, the last row in this menu. */}
             {navLinks.map(({ to, label }) => (
               <NavLink key={to} to={to} className={linkClass} onClick={() => setOpen(false)}>
                 {label}
               </NavLink>
             ))}
+            {/* The phone lives here on mobile. Its floating pill is hidden on small
+                screens because it sat on top of the reply box in a conversation, so
+                without this there would be no way to turn the phone on from a phone. */}
+            <button
+              onClick={() => voice?.toggle(!voice.enabled)}
+              className="flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              <span className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${
+                  voice?.status === 'ready' ? 'bg-green-500'
+                  : voice?.status === 'error' ? 'bg-red-500' : 'bg-gray-300'}`} />
+                {voice?.status === 'ready' ? 'Phone on — calls ring here'
+                  : voice?.status === 'connecting' ? 'Phone connecting…'
+                  : voice?.status === 'error' ? 'Phone problem'
+                  : 'Phone off'}
+              </span>
+              <span className="text-xs text-blue-600">{voice?.enabled ? 'Turn off' : 'Turn on'}</span>
+            </button>
+
             <div className="border-t border-gray-100 mt-2 pt-2 flex items-center justify-between px-4 py-2">
               <span className="text-xs text-gray-500 flex items-center gap-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 font-bold text-xs">

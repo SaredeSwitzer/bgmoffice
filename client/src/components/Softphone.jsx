@@ -100,7 +100,10 @@ export default function Softphone() {
   return (
     // Column, not a row: the settings panel opens ABOVE the pill. Beside it, the panel
     // shoved the pill into the middle of the screen every time it was opened.
-    <div className="fixed bottom-4 left-4 z-40 flex flex-col items-start gap-1">
+    // Desktop only. On a phone this pill sits exactly on top of the reply box in a text
+    // conversation — the one thing you are there to use. The same control lives in the
+    // mobile menu instead, where it blocks nothing.
+    <div className="fixed bottom-4 left-4 z-40 hidden flex-col items-start gap-1 sm:flex">
       {settingsOpen && <PhoneSettings onClose={() => setSettingsOpen(false)} />}
       {/* Silence with no explanation is the worst version of this, so say it outright. */}
       {v.enabled && v.micBlocked && (

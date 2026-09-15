@@ -184,8 +184,8 @@ export default function SmsPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Texts</h1>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h1 className="mr-auto text-xl font-bold text-gray-900">Texts</h1>
         <button
           onClick={() => { setComposeOpen(true); setActive(null) }}
           className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
@@ -246,7 +246,7 @@ export default function SmsPage() {
         </div>
       )}
 
-      <div className="flex h-[70vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex h-[62vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:h-[70vh]">
         {/* Conversation list */}
         <aside className={`${active || composeOpen || remindersOpen ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-gray-200 md:w-80`}>
           <div className="shrink-0 border-b border-gray-200 p-2">
