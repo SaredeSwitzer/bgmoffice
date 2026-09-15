@@ -42,6 +42,14 @@ export default function SmsPage() {
   const [loading, setLoading] = useState(true)
   const [composeOpen, setComposeOpen] = useState(false)
   const [remindersOpen, setRemindersOpen] = useState(false)
+  // Search: the query, what came back, and the message we were sent here to read.
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState(null)   // null = not searching
+  const [searching, setSearching] = useState(false)
+  const [highlightId, setHighlightId] = useState(null)
+  // Who the open thread is, when it was opened from search rather than from the list —
+  // someone she has never texted has no row in `threads` to read a name off.
+  const [activeMeta, setActiveMeta] = useState(null)
   const scrollRef = useRef(null)
 
   const loadThreads = useCallback(async () => {
@@ -64,6 +72,20 @@ export default function SmsPage() {
 
   useEffect(() => { loadThreads() }, [loadThreads])
 
+  // Search as she types, a beat behind so it isn't a request per keystroke.
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) { setResults(null); setSearching(false); return }
+    setSearching(true)
+    const id = setTimeout(() => {
+      api.smsSearch(q)
+        .then((r) => setResults(r))
+        .catch(() => setResults({ people: [], messages: [] }))
+        .finally(() => setSearching(false))
+    }, 250)
+    return () => clearTimeout(id)
+  }, [query])
+
   useEffect(() => {
     const id = setInterval(() => {
       loadThreads()
@@ -74,9 +96,24 @@ export default function SmsPage() {
 
   useEffect(() => { if (active) loadThread(active) }, [active, loadThread])
 
+  // Normally park at the newest message. But when a search sent us to one message in
+  // particular, go to that one instead — being dumped at the bottom of a two-year-old
+  // conversation is the same as not having found it.
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages])
+    if (!scrollRef.current) return
+    if (highlightId) {
+      const el = scrollRef.current.querySelector(`[data-msg="${highlightId}"]`)
+      if (el) { el.scrollIntoView({ block: 'center' }); return }
+    }
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [messages, highlightId])
+
+  // The highlight is a "here it is" flash, not a permanent mark.
+  useEffect(() => {
+    if (!highlightId) return
+    const id = setTimeout(() => setHighlightId(null), 4000)
+    return () => clearTimeout(id)
+  }, [highlightId])
 
   async function send(e) {
     e.preventDefault()
@@ -99,11 +136,34 @@ export default function SmsPage() {
   function openThread(phone) {
     setComposeOpen(false)
     setActive(phone)
+    setActiveMeta(null)
     loadThreads()
   }
 
+  // Opening something a search found. `meta` carries the name for people with no history
+  // yet; `messageId` is the message to land on rather than the bottom of the thread.
+  function openFromSearch(phone, meta, messageId) {
+    setComposeOpen(false)
+    setRemindersOpen(false)
+    setActiveMeta(meta || null)
+    setHighlightId(messageId || null)
+    if (phone === active) {
+      // Same conversation, different message — the thread won't reload, so nudge the
+      // scroll effect by hand.
+      setMessages((m) => [...m])
+    } else {
+      setActive(phone)
+    }
+  }
+
+  function clearSearch() {
+    setQuery('')
+    setResults(null)
+  }
+
   const activeThread = threads.find((t) => t.phone === active)
-  const activeName = activeThread?.person_name || (active ? fmtPhone(active) : '')
+  const activeName = activeThread?.person_name || activeMeta?.name || (active ? fmtPhone(active) : '')
+  const activeKind = activeThread?.person_kind || activeMeta?.kind || ''
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-4">
@@ -125,33 +185,59 @@ export default function SmsPage() {
 
       <div className="flex h-[70vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         {/* Conversation list */}
-        <aside className={`${active || composeOpen || remindersOpen ? 'hidden md:block' : 'block'} w-full shrink-0 overflow-y-auto border-r border-gray-200 md:w-72`}>
-          {loading ? (
-            <p className="p-4 text-sm text-gray-400">Loading…</p>
-          ) : threads.length === 0 ? (
-            <p className="p-4 text-sm text-gray-400">No texts yet.</p>
-          ) : (
-            threads.map((t) => (
-              <button
-                key={t.phone}
-                onClick={() => { setComposeOpen(false); setActive(t.phone) }}
-                className={`flex w-full flex-col gap-0.5 border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 ${active === t.phone && !composeOpen ? 'bg-blue-50' : ''}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium text-gray-900">{t.person_name || fmtPhone(t.phone)}</span>
-                  <span className="shrink-0 text-xs text-gray-400">{fmtTime(t.last_at)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm text-gray-500">
-                    {t.last_direction === 'outbound' ? 'You: ' : ''}{t.last_body || '(no text)'}
-                  </span>
-                  {Number(t.unread) > 0 && (
-                    <span className="shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">{t.unread}</span>
-                  )}
-                </div>
-              </button>
-            ))
-          )}
+        <aside className={`${active || composeOpen || remindersOpen ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-gray-200 md:w-80`}>
+          <div className="shrink-0 border-b border-gray-200 p-2">
+            <div className="relative">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search texts and contacts"
+                className="w-full rounded-lg border border-gray-300 bg-gray-50 py-2 pl-8 pr-8 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+              />
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">⌕</span>
+              {query && (
+                <button onClick={clearSearch} aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">×</button>
+              )}
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {results ? (
+              <SearchResults
+                results={results}
+                searching={searching}
+                query={query}
+                active={active}
+                onOpen={openFromSearch}
+              />
+            ) : loading ? (
+              <p className="p-4 text-sm text-gray-400">Loading…</p>
+            ) : threads.length === 0 ? (
+              <p className="p-4 text-sm text-gray-400">No texts yet.</p>
+            ) : (
+              threads.map((t) => (
+                <button
+                  key={t.phone}
+                  onClick={() => { setComposeOpen(false); setActiveMeta(null); setHighlightId(null); setActive(t.phone) }}
+                  className={`flex w-full flex-col gap-0.5 border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 ${active === t.phone && !composeOpen ? 'bg-blue-50' : ''}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-medium text-gray-900">{t.person_name || fmtPhone(t.phone)}</span>
+                    <span className="shrink-0 text-xs text-gray-400">{fmtTime(t.last_at)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm text-gray-500">
+                      {t.last_direction === 'outbound' ? 'You: ' : ''}{t.last_body || '(no text)'}
+                    </span>
+                    {Number(t.unread) > 0 && (
+                      <span className="shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">{t.unread}</span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
         </aside>
 
         {/* Right pane: compose OR conversation */}
@@ -174,16 +260,17 @@ export default function SmsPage() {
                   <div className="min-w-0">
                     <div className="truncate font-medium text-gray-900">{activeName}</div>
                     <div className="text-xs text-gray-400">
-                      {fmtPhone(active)}{activeThread?.person_kind ? ` · ${activeThread.person_kind}` : ''}
+                      {fmtPhone(active)}{activeKind ? ` · ${activeKind}` : ''}
                     </div>
                   </div>
                 </header>
 
                 <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-gray-50 px-4 py-3">
                   {messages.map((m) => (
-                    <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                    <div key={m.id} data-msg={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${
-                        m.direction === 'outbound' ? 'bg-blue-600 text-white' : 'border border-gray-200 bg-white text-gray-900'}`}>
+                        m.direction === 'outbound' ? 'bg-blue-600 text-white' : 'border border-gray-200 bg-white text-gray-900'} ${
+                        highlightId === m.id ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-gray-50' : ''}`}>
                         {m.body || '(no text)'}
                         <div className={`mt-1 text-[10px] ${m.direction === 'outbound' ? 'text-blue-100' : 'text-gray-400'}`}>
                           {fmtTime(m.created_at)}{m.direction === 'outbound' && m.status ? ` · ${m.status}` : ''}
@@ -225,6 +312,102 @@ export default function SmsPage() {
           </section>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Search results ────────────────────────────────────────────────────────────────────
+// Two answers to two different questions, kept apart. "People" is everyone whose name or
+// number matches — including people never texted before, so she can start one from here.
+// "Messages" is the words themselves, newest first, each one a jump straight to that spot
+// in the conversation.
+
+// Show the matched words in bold inside the preview, so a hit in a long text is findable
+// by eye. Split on the query rather than rebuilding the string, so nothing is dropped.
+function Highlighted({ text, query }) {
+  const q = String(query || '').trim()
+  const body = String(text || '')
+  if (!q) return body
+  const i = body.toLowerCase().indexOf(q.toLowerCase())
+  if (i === -1) return body
+  // Keep some of what came before the match, so the snippet has context rather than
+  // starting mid-sentence on the word she searched for.
+  const from = Math.max(0, i - 40)
+  return (
+    <>
+      {from > 0 && '…'}
+      {body.slice(from, i)}
+      <mark className="rounded bg-amber-200 px-0.5 text-gray-900">{body.slice(i, i + q.length)}</mark>
+      {body.slice(i + q.length)}
+    </>
+  )
+}
+
+function SearchResults({ results, searching, query, active, onOpen }) {
+  const people = results.people || []
+  const messages = results.messages || []
+
+  if (!searching && people.length === 0 && messages.length === 0) {
+    return <p className="p-4 text-sm text-gray-400">Nothing found for “{query.trim()}”.</p>
+  }
+
+  return (
+    <div>
+      {searching && <p className="px-4 pt-3 text-xs text-gray-400">Searching…</p>}
+
+      {people.length > 0 && (
+        <>
+          <h2 className="sticky top-0 bg-gray-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            People
+          </h2>
+          {people.map((p) => (
+            <button
+              key={p.norm_phone}
+              onClick={() => onOpen(p.phone, { name: p.name, kind: p.person_kind, id: p.person_id })}
+              className={`flex w-full flex-col gap-0.5 border-b border-gray-100 px-4 py-2.5 text-left hover:bg-gray-50 ${
+                active === p.phone ? 'bg-blue-50' : ''}`}
+            >
+              <span className="truncate font-medium text-gray-900">{p.name || fmtPhone(p.phone)}</span>
+              <span className="truncate text-xs text-gray-500">
+                {fmtPhone(p.phone)}
+                {p.person_kind ? ` · ${p.person_kind}` : ''}
+                {' · '}
+                {p.message_count > 0
+                  ? `${p.message_count} ${p.message_count === 1 ? 'text' : 'texts'}`
+                  : 'no texts yet'}
+              </span>
+            </button>
+          ))}
+        </>
+      )}
+
+      {messages.length > 0 && (
+        <>
+          <h2 className="sticky top-0 bg-gray-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Messages
+          </h2>
+          {messages.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => onOpen(m.phone, { name: m.person_name, kind: m.person_kind, id: m.person_id }, m.id)}
+              className="flex w-full flex-col gap-0.5 border-b border-gray-100 px-4 py-2.5 text-left hover:bg-gray-50"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-sm font-medium text-gray-900">
+                  {m.person_name || fmtPhone(m.phone)}
+                </span>
+                <span className="shrink-0 text-xs text-gray-400">
+                  {new Date(m.created_at).toLocaleDateString([], { month: 'numeric', day: 'numeric', year: '2-digit' })}
+                </span>
+              </div>
+              <span className="line-clamp-2 text-sm text-gray-600">
+                {m.direction === 'outbound' ? 'You: ' : ''}
+                <Highlighted text={m.body} query={query} />
+              </span>
+            </button>
+          ))}
+        </>
+      )}
     </div>
   )
 }

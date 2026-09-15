@@ -97,6 +97,27 @@ router.get('/thread/:phone/about', async (req, res) => {
   }
 });
 
+// Search the text archive — by words, or by who you texted.
+//
+// Google Voice's search is the model she asked for: one box, and it finds both the
+// conversation and the message inside it. Kept as two labelled lists rather than one
+// blended one, because "Chaya Retek" the person and a message that happens to mention
+// Chaya are different answers and you usually know which one you came for.
+router.get('/search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ q, people: [], messages: [] });
+  try {
+    const [people, messages] = await Promise.all([
+      store.searchPeople(q),
+      store.searchMessages(q),
+    ]);
+    res.json({ q, people, messages });
+  } catch (e) {
+    console.error('[sms] search failed:', e.message);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
 router.post('/send', async (req, res) => {
   const { to, body } = req.body || {};
   if (!to || !body || !String(body).trim()) {

@@ -128,4 +128,118 @@ async function logOutboundFromWebhook(m) {
   return logMessage({ ...m, direction: 'outbound' });
 }
 
-module.exports = { ensureSchema, logMessage, updateStatusByTelnyxId, logOutboundFromWebhook, listThreads, listThread, markRead };
+
+// ── Search ───────────────────────────────────────────────────────────────────────────
+// Two questions get asked of a text archive, and they are not the same question:
+// "who have I texted about this?" (search the words) and "what did I say to her?"
+// (find the person, then read the thread). Both are answered here, and the screen
+// shows them as two lists, because a name match and a message match mean different
+// things and collapsing them loses that.
+
+// Matching a phone number typed any way a person types one — "917 719 2201",
+// "(917) 719-2201", "7192201" — against numbers stored as +19177192201.
+function digitsOf(q) {
+  return String(q || '').replace(/\D/g, '');
+}
+
+// Messages whose words match. Newest first: a conversation from last week is almost
+// always the one being looked for, not one from a year ago.
+async function searchMessages(q, limit = 100) {
+  await ensureSchema();
+  const { rows } = await pool.query(
+    `SELECT id, phone, direction, body, created_at, person_name, person_kind, person_id
+       FROM sms_messages
+      WHERE body ILIKE '%' || $1 || '%'
+      ORDER BY created_at DESC
+      LIMIT $2`,
+    [q, limit]
+  );
+  return rows;
+}
+
+// People whose name or number matches — whether or not we have ever texted them.
+// Someone she has never texted still has to be findable here, or "search your
+// contacts" quietly means "search the people you already texted", which is the
+// one case where you least need searching.
+//
+// Note the doubled backslash in '\\D' below: this SQL lives in a JS template literal,
+// where a lone \D is not an escape sequence and silently collapses to D. That version
+// stripped the letter D out of phone numbers instead of stripping punctuation, so a
+// number stored as "(646) 942-6829" matched nothing and showed up as a second, empty
+// copy of a contact she had in fact been texting for months.
+async function searchPeople(q, limit = 40) {
+  await ensureSchema();
+  const raw = digitsOf(q);
+  // "1 347 598 1140" and "347-598-1140" are one number, and contacts are stored both
+  // ways. Everything below matches on the last ten digits so the two line up.
+  const digits = raw.length > 10 ? raw.slice(-10) : raw;
+  // A 3-digit "917" is an area code, not a number — only treat input as a phone
+  // number search once there is enough of it to mean one person.
+  const phoneDigits = digits.length >= 4 ? digits : null;
+
+  const { rows } = await pool.query(
+    `WITH people AS (
+       SELECT id, name, phone, 'client' AS kind FROM clients WHERE coalesce(phone,'') <> ''
+       UNION ALL
+       SELECT id, name, phone, 'instructor' AS kind FROM instructors WHERE coalesce(phone,'') <> ''
+     ),
+     threads AS (
+       SELECT phone,
+              right(regexp_replace(phone, '\\D', '', 'g'), 10) AS key,
+              max(created_at)   AS last_at,
+              max(person_name)  AS person_name,
+              max(person_kind)  AS person_kind,
+              max(person_id)    AS person_id,
+              count(*)::int     AS message_count
+         FROM sms_messages
+        GROUP BY phone
+     ),
+     matched_people AS (
+       SELECT p.id, p.name, p.phone, p.kind,
+              right(regexp_replace(p.phone, '\\D', '', 'g'), 10) AS key
+         FROM people p
+        WHERE p.name ILIKE '%' || $1 || '%'
+           OR ($2::text IS NOT NULL
+               AND right(regexp_replace(p.phone, '\\D', '', 'g'), 10) LIKE '%' || $2 || '%')
+     ),
+     -- Numbers with a history but no profile behind them: an unknown caller, a short
+     -- code, a parent texting from a second phone. Searchable by the name we recorded
+     -- at the time, or by the number itself.
+     matched_threads AS (
+       SELECT t.phone, t.key, t.person_name, t.person_kind, t.person_id,
+              t.last_at, t.message_count
+         FROM threads t
+        WHERE coalesce(t.person_name,'') ILIKE '%' || $1 || '%'
+           OR ($2::text IS NOT NULL AND t.key LIKE '%' || $2 || '%')
+     )
+     SELECT DISTINCT ON (norm_phone) *
+       FROM (
+         SELECT mp.key AS norm_phone,
+                mp.id AS person_id, mp.name AS name, mp.phone AS phone, mp.kind AS person_kind,
+                t.last_at, coalesce(t.message_count, 0) AS message_count
+           FROM matched_people mp
+           LEFT JOIN threads t ON t.key = mp.key
+         UNION ALL
+         SELECT mt.key AS norm_phone,
+                mt.person_id, mt.person_name AS name, mt.phone, mt.person_kind,
+                mt.last_at, mt.message_count
+           FROM matched_threads mt
+       ) u
+      -- One row per person. Where a contact is on file twice under two spellings of
+      -- the same number, keep the one that has the conversation attached to it.
+      ORDER BY norm_phone, message_count DESC, last_at DESC NULLS LAST, phone DESC
+      LIMIT $3`,
+    [q, phoneDigits, limit]
+  );
+
+  // Ordering had to be by norm_phone for the DISTINCT ON; put it back into the order a
+  // person expects — people you actually talk to first, then everyone else by name.
+  return rows.sort((a, b) => {
+    if (a.last_at && b.last_at) return new Date(b.last_at) - new Date(a.last_at);
+    if (a.last_at) return -1;
+    if (b.last_at) return 1;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+}
+
+module.exports = { ensureSchema, searchMessages, searchPeople, logMessage, updateStatusByTelnyxId, logOutboundFromWebhook, listThreads, listThread, markRead };

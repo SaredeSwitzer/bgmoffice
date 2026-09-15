@@ -90,6 +90,7 @@ export const api = {
   smsThreadAbout: (phone, excludeKind) =>
     request(`/sms/thread/${encodeURIComponent(phone)}/about?exclude_kind=${encodeURIComponent(excludeKind || '')}`),
   smsContacts: () => request('/sms/contacts'),
+  smsSearch: (q) => request(`/sms/search?q=${encodeURIComponent(q)}`),
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
   getWeeklyReminders: (params) => {
