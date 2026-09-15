@@ -12,6 +12,10 @@
 
 const express = require('express');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const store = require('../lib/voiceStore');
+const { placeBridgedCall } = require('../lib/voiceCalls');
+const { lookupPerson } = require('../lib/telnyxInbound');
+const { toE164 } = require('../lib/telnyxSend');
 
 const router = express.Router();
 // requireAdmin only inspects req.user — without requireAuth ahead of it there is no
@@ -119,6 +123,9 @@ router.get('/status', requireAdmin, async (req, res) => {
 // setting on the same number, and it is left exactly as it is.
 const PROFILE_NAME = 'BGM Office outbound';
 const APP_NAME = 'BGM Office calling';
+// The SIP connection every staff browser signs in under. One connection, one credential
+// per person beneath it, so an incoming call can ring one named person's browser.
+const SOFTPHONE_NAME = 'BGM Office softphone';
 
 router.post('/setup', requireAdmin, async (req, res) => {
   const steps = [];
@@ -165,7 +172,28 @@ router.post('/setup', requireAdmin, async (req, res) => {
       steps.push({ step: 'call control application', action: 'created', id: app.id });
     }
 
-    // 3. Point the number at it. Reversible: setting connection_id back to '' puts the
+    // 3. The SIP connection the browsers sign in under. Separate from the call control
+    //    application because they are different kinds of thing to Telnyx: one receives
+    //    calls from the outside world, the other is where our own softphones live.
+    const conns = await telnyx('/credential_connections?page[size]=50');
+    let softphone = (conns.data || []).find(c => c.connection_name === SOFTPHONE_NAME);
+    if (softphone) {
+      steps.push({ step: 'softphone connection', action: 'already existed', id: softphone.id });
+    } else {
+      softphone = await telnyxWrite('/credential_connections', 'POST', {
+        connection_name: SOFTPHONE_NAME,
+        // Only ever used to create the connection; nobody signs in with it. Each person
+        // gets their own short-lived credential minted under it instead.
+        user_name: `bgmoffice${Date.now().toString(36)}`,
+        password: require('crypto').randomBytes(18).toString('base64url'),
+        webhook_event_url: webhook,
+        webhook_api_version: '2',
+        outbound: { outbound_voice_profile_id: profile.id },
+      });
+      steps.push({ step: 'softphone connection', action: 'created', id: softphone.id });
+    }
+
+    // 4. Point the number at it. Reversible: setting connection_id back to '' puts the
     //    number back in exactly the state it is in now.
     //
     // Deliberately opt-in, and deliberately last. Steps 1 and 2 are invisible — they create
@@ -179,7 +207,8 @@ router.post('/setup', requireAdmin, async (req, res) => {
       });
       return res.json({
         ok: true, webhook, assigned: false,
-        outbound_voice_profile_id: profile.id, call_control_application_id: app.id, steps,
+        outbound_voice_profile_id: profile.id, call_control_application_id: app.id,
+        softphone_connection_id: softphone.id, steps,
       });
     }
 
@@ -203,6 +232,7 @@ router.post('/setup', requireAdmin, async (req, res) => {
       webhook,
       outbound_voice_profile_id: profile.id,
       call_control_application_id: app.id,
+      softphone_connection_id: softphone.id,
       steps,
     });
   } catch (e) {
@@ -210,6 +240,118 @@ router.post('/setup', requireAdmin, async (req, res) => {
     // Report what did succeed. A half-finished setup is re-runnable, but only if it is
     // clear which half finished.
     res.status(500).json({ error: e.message, steps });
+  }
+});
+
+// ── Each person's own phone settings ─────────────────────────────────────────────────
+// Not admin-only: every assistant decides for herself whether her computer rings, whether
+// her cell rings, and what her cell number is. Nobody should have to ask to go off duty.
+
+router.get('/me', async (req, res) => {
+  try {
+    const row = await store.getVoiceUser(req.user.id);
+    res.json(row || { user_id: req.user.id, cell_phone: null, ring_browser: true, ring_cell: false });
+  } catch (e) {
+    console.error('[voice] could not read phone settings:', e.message);
+    res.status(500).json({ error: 'Could not load your phone settings' });
+  }
+});
+
+router.put('/me', async (req, res) => {
+  try {
+    const { cell_phone, ring_browser, ring_cell } = req.body || {};
+    // Ringing a cell that is not on file would silently never ring. Say so instead.
+    if (ring_cell && !cell_phone) {
+      const existing = await store.getVoiceUser(req.user.id);
+      if (!existing?.cell_phone) {
+        return res.status(400).json({ error: 'Add your cell number first, then it can ring.' });
+      }
+    }
+    res.json(await store.upsertVoiceUser(req.user.id, { cell_phone, ring_browser, ring_cell }, req.user.initials));
+  } catch (e) {
+    console.error('[voice] could not save phone settings:', e.message);
+    res.status(500).json({ error: 'Could not save your phone settings' });
+  }
+});
+
+// ── Signing this browser in as a phone ───────────────────────────────────────────────
+// Mints a short-lived Telnyx credential for whoever is logged in. The browser uses it to
+// register as a phone, which is what lets it both place calls and be rung.
+router.post('/token', async (req, res) => {
+  try {
+    const conns = await telnyx('/credential_connections?page[size]=50');
+    const softphone = (conns.data || []).find(c => c.connection_name === SOFTPHONE_NAME);
+    if (!softphone) {
+      return res.status(503).json({ error: 'Calling has not been set up on the phone account yet.' });
+    }
+
+    let row = await store.getVoiceUser(req.user.id);
+
+    // One credential per person, reused. A new one per sign-in would change their SIP
+    // name, and an incoming call rings a name — so it would stop reaching them.
+    if (!row?.telnyx_credential_id) {
+      const cred = await telnyxWrite('/telephony_credentials', 'POST', {
+        connection_id: softphone.id,
+        name: `BGM ${req.user.initials || req.user.id}`,
+      });
+      await store.saveCredential(req.user.id, cred.id, cred.sip_username);
+      row = await store.getVoiceUser(req.user.id);
+    }
+
+    const token = await telnyxWrite(`/telephony_credentials/${row.telnyx_credential_id}/token`, 'POST', {});
+    res.json({
+      // Telnyx returns the token either as a bare string or wrapped, depending on path.
+      token: typeof token === 'string' ? token : (token?.token || token),
+      sip_username: row.sip_username,
+      caller_number: process.env.TELNYX_FROM_NUMBER,
+    });
+  } catch (e) {
+    console.error('[voice] could not mint a browser phone token:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Calling someone without the browser ──────────────────────────────────────────────
+// Rings the caller's own phone first; when they pick up, dials whoever they asked for and
+// puts the two together. This is the path that works from a cell with nothing open.
+router.post('/call', async (req, res) => {
+  const { to } = req.body || {};
+  if (!to) return res.status(400).json({ error: 'Who should we call?' });
+  try {
+    const me = await store.getVoiceUser(req.user.id);
+    if (!me?.cell_phone) {
+      return res.status(400).json({ error: 'Add your cell number in your phone settings first — that is the phone we ring.' });
+    }
+
+    const apps = await telnyx('/call_control_applications?page[size]=50');
+    const app = (apps.data || []).find(a => a.application_name === APP_NAME);
+    if (!app) return res.status(503).json({ error: 'Calling has not been set up on the phone account yet.' });
+
+    const person = await lookupPerson(toE164(to)).catch(() => null);
+    const leg = await placeBridgedCall({
+      staffNumber: me.cell_phone,
+      toNumber: to,
+      connectionId: app.id,
+      who: req.user.initials,
+      person,
+    });
+    res.json({ ok: true, call_control_id: leg.call_control_id, ringing: me.cell_phone });
+  } catch (e) {
+    console.error('[voice] could not place the call:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── The call log ─────────────────────────────────────────────────────────────────────
+
+router.get('/calls', async (req, res) => {
+  try {
+    res.json(req.query.phone
+      ? await store.listCallsFor(req.query.phone)
+      : await store.listCalls());
+  } catch (e) {
+    console.error('[voice] could not load the call log:', e.message);
+    res.status(500).json({ error: 'Could not load calls' });
   }
 });
 

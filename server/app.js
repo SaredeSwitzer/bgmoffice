@@ -114,6 +114,8 @@ app.post('/api/invoices/webhook', express.raw({ type: 'application/json' }), asy
 
 // Telnyx inbound SMS webhook — raw body, registered BEFORE express.json() (Ed25519 verify needs exact bytes)
 app.post('/api/telnyx/webhook', express.raw({ type: 'application/json' }), require('./lib/telnyxInbound').handleWebhook);
+// Telnyx call events, for the same reason and with the same raw-body requirement.
+app.post('/api/voice/webhook', express.raw({ type: 'application/json' }), require('./lib/voiceCalls').handleWebhook);
 
 app.use(express.json());
 
