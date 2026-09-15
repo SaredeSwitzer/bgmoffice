@@ -36,43 +36,61 @@ export default function Softphone() {
 
   if (!v) return null
 
-  // Someone is calling. This is the one state allowed to be loud.
+  // Someone is calling. Across the top of the screen, above everything, on whatever page
+  // you happen to be on.
+  //
+  // This used to be a small box in the bottom-left corner. It was on every page — it has
+  // always been mounted outside the routed content — but a 288px card in the corner of a
+  // long scrolling page is something you can genuinely fail to notice while a client waits
+  // on the line. A ringing phone is the one thing in this app entitled to interrupt.
+  // z-[100] clears the sticky page header, which sits at z-40.
   if (v.incoming) {
     return (
-      <div className="fixed bottom-4 left-4 z-50 w-72 animate-pulse rounded-2xl border-2 border-green-500 bg-white p-4 shadow-2xl">
-        <p className="text-xs font-semibold uppercase tracking-wide text-green-700">Incoming call</p>
-        <p className="mt-1 truncate text-lg font-bold text-gray-900">{fmtPhone(v.remoteNumber)}</p>
-        <div className="mt-3 flex gap-2">
-          <button onClick={v.answer}
-            className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
-            Answer
-          </button>
-          <button onClick={v.reject}
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-            Decline
-          </button>
+      <div className="fixed inset-x-0 top-0 z-[100] border-b-4 border-green-600 bg-green-50 shadow-2xl">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3 px-4 py-3">
+          <span className="flex h-3 w-3 shrink-0 animate-ping rounded-full bg-green-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-green-800">Incoming call</p>
+            <p className="truncate text-lg font-bold text-gray-900">{fmtPhone(v.remoteNumber)}</p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button onClick={v.answer}
+              className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-green-700">
+              Answer
+            </button>
+            <button onClick={v.reject}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+              Decline
+            </button>
+          </div>
         </div>
       </div>
     )
   }
 
+  // A live call stays across the top too, so hanging up never means hunting for the
+  // window you started the call from.
   if (v.call) {
     return (
-      <div className="fixed bottom-4 left-4 z-50 w-72 rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          {onCall ? `On a call · ${elapsed}` : 'Calling…'}
-        </p>
-        <p className="mt-1 truncate text-lg font-bold text-gray-900">{fmtPhone(v.remoteNumber)}</p>
-        <div className="mt-3 flex gap-2">
-          <button onClick={() => { v.toggleMute(); setMuted((m) => !m) }}
-            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold ${
-              muted ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
-            {muted ? 'Unmute' : 'Mute'}
-          </button>
-          <button onClick={v.hangup}
-            className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">
-            Hang up
-          </button>
+      <div className="fixed inset-x-0 top-0 z-[100] border-b-2 border-gray-300 bg-white shadow-lg">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3 px-4 py-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {onCall ? `On a call · ${elapsed}` : 'Calling…'}
+            </p>
+            <p className="truncate font-bold text-gray-900">{fmtPhone(v.remoteNumber)}</p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button onClick={() => { v.toggleMute(); setMuted((m) => !m) }}
+              className={`rounded-lg border px-4 py-2 text-sm font-semibold ${
+                muted ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+              {muted ? 'Unmute' : 'Mute'}
+            </button>
+            <button onClick={v.hangup}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+              Hang up
+            </button>
+          </div>
         </div>
       </div>
     )

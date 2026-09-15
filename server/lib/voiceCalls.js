@@ -82,7 +82,11 @@ async function ringEveryone(parentCcid, callerNumber, connectionId) {
   // Last ten digits, so a cell stored as +1214… still matches a caller id of 214….
   const callerKey = String(callerNumber || '').replace(/\D/g, '').slice(-10);
 
-  let rung = 0;
+  // Every phone is dialled at once. Dialling them one after another meant each waited on
+  // the round trip before it — the second phone started nearly a second after the first,
+  // which is the opposite of "everyone rings together".
+  const dials = [];
+
   for (const t of targets) {
     // A person can have both on, and then both ring — that is the point of it.
     const destinations = [];
@@ -97,7 +101,7 @@ async function ringEveryone(parentCcid, callerNumber, connectionId) {
     if (t.ring_cell && t.cell_phone && !isTheCaller) destinations.push(toE164(t.cell_phone));
 
     for (const to of destinations) {
-      try {
+      dials.push((async () => {
         const leg = await dial({
           connection_id: connectionId,
           to,
@@ -121,14 +125,17 @@ async function ringEveryone(parentCcid, callerNumber, connectionId) {
           from_number: callerNumber,
           status: 'ringing',
         });
-        rung += 1;
-      } catch (e) {
+        return true;
+      })().catch((e) => {
         // One person's phone being unreachable must not stop the others ringing.
         console.error(`[voice] could not ring ${to}:`, e.message);
-      }
+        return false;
+      }));
     }
   }
-  return rung;
+
+  const results = await Promise.all(dials);
+  return results.filter(Boolean).length;
 }
 
 // ── Outgoing: call someone from the office line ──────────────────────────────────────
@@ -287,8 +294,17 @@ async function route(type, p) {
       }
 
       const caller = toE164(p.from);
-      const person = await lookupPerson(caller).catch(() => null);
 
+      // Answer FIRST, before any database work. Every second between the call arriving
+      // and the phones ringing is a second the caller spends listening to ringing that
+      // has not reached anybody — they hang up thinking nobody is there. Looking up who
+      // is calling and writing the log entry are worth doing, but not worth doing before
+      // picking up: on a real call this ordering cost four and a half seconds.
+      const answered = command(ccid, 'answer', {
+        client_state: encodeState({ role: 'inbound' }),
+      });
+
+      const person = await lookupPerson(caller).catch(() => null);
       await store.startCall({
         call_control_id: ccid,
         call_session_id: p.call_session_id,
@@ -303,9 +319,7 @@ async function route(type, p) {
         status: 'ringing',
       });
 
-      await command(ccid, 'answer', {
-        client_state: encodeState({ role: 'inbound' }),
-      });
+      await answered;
       return;
     }
 
@@ -323,7 +337,9 @@ async function route(type, p) {
         // on an open, silent line for a few seconds — that dead air is what a caller
         // hears as "something is wrong with this number". Give them a normal ringing
         // tone while we hunt, and stop it the moment somebody picks up.
-        await command(ccid, 'playback_start', {
+        // Started, not awaited. The ring tone is for the caller's comfort; making the
+        // phones wait on it just delays the thing that actually matters.
+        command(ccid, 'playback_start', {
           audio_url: `${process.env.PUBLIC_URL || 'https://bgmoffice.com'}/ringback.wav`,
           loop: 'infinity',
         }).catch((e) => console.error('[voice] no ringback:', e.message));
