@@ -105,7 +105,7 @@ async function markAnswered(ccid, answeredBy) {
 
 // A call that ends without ever having been answered is a missed call, and has to read as
 // one in the log — not as a zero-second conversation.
-async function markEnded(ccid, status) {
+async function markEnded(ccid, status, hangupCause, sipHangupCause) {
   await pool.query(
     `UPDATE voice_calls
         SET status = CASE
@@ -113,6 +113,8 @@ async function markEnded(ccid, status) {
               WHEN answered_at IS NOT NULL THEN 'completed'
               ELSE 'missed'
             END,
+            hangup_cause     = coalesce($3, hangup_cause),
+            sip_hangup_cause = coalesce($4, sip_hangup_cause),
             ended_at = now(),
             duration_seconds = CASE
               WHEN answered_at IS NOT NULL
@@ -120,7 +122,7 @@ async function markEnded(ccid, status) {
               ELSE 0
             END
       WHERE call_control_id = $1`,
-    [ccid, status || null]);
+    [ccid, status || null, hangupCause || null, sipHangupCause || null]);
 }
 
 // The call history for the Calls screen: only the real calls, not the individual phones

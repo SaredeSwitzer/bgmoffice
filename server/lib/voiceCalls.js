@@ -100,9 +100,13 @@ async function ringEveryone(parentCcid, callerNumber, connectionId) {
         const leg = await dial({
           connection_id: connectionId,
           to,
-          // The caller's own number, so a cell shows who is actually calling rather than
-          // showing the office calling itself.
-          from: callerNumber,
+          // Must be a number this Telnyx account owns. Putting the caller's own number
+          // here — so a staff cell would show who was really calling — looks reasonable
+          // and is rejected outright: every leg was hung up within milliseconds, which
+          // read like "nobody answered" rather than "this was never allowed".
+          from: process.env.TELNYX_FROM_NUMBER,
+          // The caller's identity still travels, just as a display name instead.
+          from_display_name: String(callerNumber || '').slice(0, 128) || undefined,
           timeout_secs: RING_SECONDS,
           client_state: encodeState({ role: 'ring', parent: parentCcid, user_id: t.user_id, who: t.initials }),
         });
@@ -235,6 +239,15 @@ async function route(type, p) {
     case 'call.answered': {
       // Our inbound leg just picked up — now go find a human for it.
       if (state.role === 'inbound') {
+        // We answer first and only then go looking for a human, which leaves the caller
+        // on an open, silent line for a few seconds — that dead air is what a caller
+        // hears as "something is wrong with this number". Give them a normal ringing
+        // tone while we hunt, and stop it the moment somebody picks up.
+        await command(ccid, 'playback_start', {
+          audio_url: `${process.env.PUBLIC_URL || 'https://bgmoffice.com'}/ringback.wav`,
+          loop: 'infinity',
+        }).catch((e) => console.error('[voice] no ringback:', e.message));
+
         const rung = await ringEveryone(ccid, toE164(p.from), p.connection_id);
         if (rung === 0) {
           // Nobody to ring. Better to end the call than leave someone on a silent line.
@@ -247,6 +260,9 @@ async function route(type, p) {
       if (state.role === 'ring') {
         await store.markAnswered(ccid, state.who);
         await store.markAnswered(state.parent, state.who);
+        // Stop the ringing tone before connecting them, or the caller hears it over the
+        // top of the person who just picked up.
+        await command(state.parent, 'playback_stop', {}).catch(() => {});
         await command(ccid, 'bridge', { call_control_id: state.parent });
 
         const others = await store.siblingLegs(state.parent, ccid);
@@ -289,7 +305,15 @@ async function route(type, p) {
     }
 
     case 'call.hangup': {
-      await store.markEnded(ccid, null);
+      // Why a leg ended is the whole diagnosis when a call does not connect, and it is
+      // only ever on this event. Without it, a leg rejected outright and a phone nobody
+      // picked up look identical in the log — both just "missed".
+      if (p.hangup_cause && p.hangup_cause !== 'normal_clearing') {
+        console.error(`[voice] leg ${ccid} ended: ${p.hangup_cause}` +
+          `${p.sip_hangup_cause ? ` (SIP ${p.sip_hangup_cause})` : ''}` +
+          `${state.role ? ` [${state.role}]` : ''}`);
+      }
+      await store.markEnded(ccid, null, p.hangup_cause, p.sip_hangup_cause);
 
       // When the caller gives up, every phone still ringing for them should stop.
       if (state.role === 'inbound') {
