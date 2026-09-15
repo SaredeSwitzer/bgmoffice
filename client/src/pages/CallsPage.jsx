@@ -45,19 +45,30 @@ export default function CallsPage() {
   const [calls, setCalls] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+  const [dialOpen, setDialOpen] = useState(false)
 
-  const load = useCallback(async () => {
-    try { setCalls(await api.voiceCalls()) }
+  const load = useCallback(async (q) => {
+    try {
+      const term = (q ?? '').trim()
+      setCalls(term.length >= 2 ? await api.voiceCallSearch(term) : await api.voiceCalls())
+    }
     catch (e) { setError(e.message || 'Could not load calls.') }
     finally { setLoading(false) }
   }, [])
 
+  // Search as she types, a beat behind, the same as the text inbox.
   useEffect(() => {
-    load()
-    // A call finishing while this page is open should appear without a refresh.
-    const id = setInterval(load, 20000)
+    const id = setTimeout(() => load(query), 250)
+    return () => clearTimeout(id)
+  }, [query, load])
+
+  useEffect(() => {
+    // A call finishing while this page is open should appear without a refresh — but not
+    // while a search is on screen, or the results would be replaced by the full list.
+    const id = setInterval(() => { if (!query.trim()) load('') }, 20000)
     return () => clearInterval(id)
-  }, [load])
+  }, [load, query])
 
   async function markHeard(c) {
     if (c.voicemail_heard_at) return
@@ -69,14 +80,37 @@ export default function CallsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-3 py-4">
-      <div className="mb-3 flex items-baseline justify-between">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <h1 className="text-xl font-bold text-gray-900">Calls</h1>
         {newMessages > 0 && (
           <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
             {newMessages} new {newMessages === 1 ? 'message' : 'messages'}
           </span>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="relative">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search calls"
+              className="w-48 rounded-lg border border-gray-300 bg-gray-50 py-1.5 pl-8 pr-8 text-sm focus:border-blue-500 focus:bg-white focus:outline-none sm:w-64"
+            />
+            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">⌕</span>
+            {query && (
+              <button onClick={() => setQuery('')} aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">×</button>
+            )}
+          </div>
+          <button
+            onClick={() => setDialOpen((o) => !o)}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            New call
+          </button>
+        </div>
       </div>
+
+      {dialOpen && <Dialer onClose={() => setDialOpen(false)} />}
 
       {error && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
 
@@ -85,7 +119,9 @@ export default function CallsPage() {
           <p className="p-4 text-sm text-gray-400">Loading…</p>
         ) : calls.length === 0 ? (
           <p className="p-6 text-center text-sm text-gray-400">
-            No calls yet. They’ll appear here as soon as the phone rings.
+            {query.trim()
+              ? `Nothing found for “${query.trim()}”.`
+              : 'No calls yet. They’ll appear here as soon as the phone rings.'}
           </p>
         ) : (
           calls.map((c) => {
@@ -133,6 +169,77 @@ export default function CallsPage() {
           })
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Calling a number we don't have on file ───────────────────────────────────────────
+// A new client rings, or somebody leaves a number on a voicemail, and there is no contact
+// to click. Type the number and call it. Known contacts are offered too, so this doubles
+// as "call anyone" rather than being a second-class path for strangers only.
+function Dialer({ onClose }) {
+  const [value, setValue] = useState('')
+  const [contacts, setContacts] = useState([])
+
+  useEffect(() => {
+    // The same list the text composer uses — everyone with a phone on file.
+    api.smsContacts().then(setContacts).catch(() => setContacts([]))
+  }, [])
+
+  // Accepts a raw typed number, or "Name — (xxx) xxx-xxxx" picked from the suggestions.
+  const match = contacts.find((c) => `${c.name} — ${fmtPhone(c.phone)}` === value.trim())
+  const phone = match ? match.phone : value.trim()
+  const digits = phone.replace(/\D/g, '')
+  const usable = digits.length >= 10
+
+  return (
+    <div className="mb-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-semibold text-gray-900">New call</span>
+        <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">×</button>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            Number, or a name already on file
+          </label>
+          <input
+            list="dial-contacts"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="(917) 555-0100"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
+          <datalist id="dial-contacts">
+            {contacts.map((c) => (
+              <option key={`${c.kind}-${c.id}`} value={`${c.name} — ${fmtPhone(c.phone)}`} />
+            ))}
+          </datalist>
+        </div>
+
+        {/* The same button used everywhere else, so a call placed from here behaves
+            identically — through the computer if the phone is on, otherwise by ringing
+            your own phone first.
+            In a list, CallButton hides itself when there is no number to call, which is
+            right there and wrong here: an empty box beside a field you have not filled in
+            yet reads as broken. So a dead button stands in until the number is usable. */}
+        {usable ? (
+          <CallButton phone={phone} name={match?.name} className="shrink-0 pb-0.5" />
+        ) : (
+          <button disabled
+            className="shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-400">
+            📞 Call
+          </button>
+        )}
+      </div>
+
+      {value.trim() && !usable && (
+        <p className="mt-2 text-xs text-gray-500">That needs to be a full 10-digit number.</p>
+      )}
+      <p className="mt-2 text-xs text-gray-400">
+        They’ll see the BGM number, never your own.
+      </p>
     </div>
   )
 }

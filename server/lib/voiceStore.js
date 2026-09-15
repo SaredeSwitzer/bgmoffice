@@ -127,12 +127,31 @@ async function markEnded(ccid, status, hangupCause, sipHangupCause) {
 
 // The call history for the Calls screen: only the real calls, not the individual phones
 // that were rung trying to find someone to answer them.
-async function listCalls(limit = 100) {
+//
+// Searchable the same way texts are — by who it was or by the number, typed however a
+// person types a number. Note the doubled backslash in '\\D': this SQL is a JS template
+// literal, where a lone \D collapses to D and would strip the letter D out of phone
+// numbers instead of the punctuation.
+async function listCalls(limit = 100, q = null) {
+  const term = String(q || '').trim();
+  const raw = term.replace(/\D/g, '');
+  // A number typed with a country code is the same number; match on the last ten digits.
+  const digits = raw.length > 10 ? raw.slice(-10) : raw;
+  // Three digits is an area code, not a person.
+  const phoneDigits = digits.length >= 4 ? digits : null;
+
   const { rows } = await pool.query(
     `SELECT * FROM voice_calls
       WHERE leg = 'primary'
+        AND ($2::text IS NULL
+             OR person_name ILIKE '%' || $2 || '%'
+             OR answered_by  ILIKE '%' || $2 || '%'
+             OR ($3::text IS NOT NULL
+                 AND right(regexp_replace(coalesce(phone,''), '\\D', '', 'g'), 10)
+                     LIKE '%' || $3 || '%'))
       ORDER BY started_at DESC
-      LIMIT $1`, [limit]);
+      LIMIT $1`,
+    [limit, term || null, phoneDigits]);
   return rows;
 }
 

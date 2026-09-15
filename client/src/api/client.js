@@ -100,6 +100,8 @@ export const api = {
   // The no-browser path: rings your own phone, then connects you to them.
   voiceCall: (to) => request('/voice/call', { method: 'POST', body: JSON.stringify({ to }) }),
   voiceCalls: (phone) => request(`/voice/calls${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`),
+  // Searching the call log the same way the text inbox is searched.
+  voiceCallSearch: (q) => request(`/voice/calls?q=${encodeURIComponent(q || '')}`),
   markVoicemailHeard: (id) => request(`/voice/calls/${id}/heard`, { method: 'POST' }),
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),

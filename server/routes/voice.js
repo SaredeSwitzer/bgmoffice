@@ -397,7 +397,7 @@ router.get('/calls', async (req, res) => {
   try {
     res.json(req.query.phone
       ? await store.listCallsFor(req.query.phone)
-      : await store.listCalls());
+      : await store.listCalls(100, req.query.q));
   } catch (e) {
     console.error('[voice] could not load the call log:', e.message);
     res.status(500).json({ error: 'Could not load calls' });
