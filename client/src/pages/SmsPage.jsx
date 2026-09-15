@@ -202,15 +202,30 @@ export default function SmsPage() {
 
       {failures.length > 0 && (
         <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <button
-            onClick={() => setFailuresOpen((o) => !o)}
-            className="flex w-full items-center justify-between gap-2 text-left"
-          >
-            <span className="text-sm font-semibold text-red-800">
-              {failures.length} {failures.length === 1 ? 'text never arrived' : 'texts never arrived'}
-            </span>
-            <span className="text-xs text-red-700">{failuresOpen ? 'Hide' : 'Show'}</span>
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => setFailuresOpen((o) => !o)}
+              className="min-w-0 flex-1 text-left"
+            >
+              <span className="text-sm font-semibold text-red-800">
+                {failures.length} {failures.length === 1 ? 'text never arrived' : 'texts never arrived'}
+              </span>
+            </button>
+            <div className="flex shrink-0 items-center gap-3">
+              <button onClick={() => setFailuresOpen((o) => !o)} className="text-xs text-red-700 underline">
+                {failuresOpen ? 'Hide' : 'Show'}
+              </button>
+              {/* Clears the banner only. The message keeps its "not delivered" panel in
+                  the conversation, and a new failure brings this straight back. */}
+              <button
+                onClick={async () => { await api.smsDismissFailures().catch(() => {}); setFailures([]) }}
+                title="Clears this banner. The failure stays on the message in the conversation."
+                className="rounded-md border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+              >
+                Seen it
+              </button>
+            </div>
+          </div>
 
           {failuresOpen && (
             <ul className="mt-2 space-y-2">

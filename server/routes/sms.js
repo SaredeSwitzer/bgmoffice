@@ -145,6 +145,18 @@ router.get('/failures', async (req, res) => {
   }
 });
 
+// "I've seen these." Clears the banner without erasing anything: the failure stays on the
+// message in the conversation, and a NEW failure brings the banner straight back.
+router.post('/failures/dismiss', async (req, res) => {
+  try {
+    const cleared = await store.acknowledgeFailures(req.user.initials);
+    res.json({ cleared });
+  } catch (e) {
+    console.error('[sms] could not dismiss failed texts:', e.message);
+    res.status(500).json({ error: 'Could not dismiss those' });
+  }
+});
+
 // Go back and ask Telnyx why the older failures failed.
 //
 // Failures before 2026-09-15 were announced and then forgotten — the reason was never

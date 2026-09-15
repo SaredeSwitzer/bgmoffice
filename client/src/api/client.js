@@ -93,6 +93,8 @@ export const api = {
   smsSearch: (q) => request(`/sms/search?q=${encodeURIComponent(q)}`),
   // Texts that never arrived, with a plain-English reason.
   smsFailures: () => request('/sms/failures'),
+  // "Seen it" — clears the banner; the failure stays on the message itself.
+  smsDismissFailures: () => request('/sms/failures/dismiss', { method: 'POST' }),
 
   // Phone calls on the same BGM line
   voiceMe: () => request('/voice/me'),

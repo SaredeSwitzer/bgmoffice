@@ -265,8 +265,12 @@ async function saveFailure(telnyxId, code, detail) {
     [telnyxId, code || null, detail || null]);
 }
 
-// Texts that never arrived and have not been dealt with. Ordered newest first and capped:
-// this drives a banner, and a banner listing forty things is a banner nobody reads.
+// Texts that never arrived and have not been dealt with yet. Ordered newest first and
+// capped: this drives a banner, and a banner listing forty things is a banner nobody reads.
+//
+// Acknowledged failures drop out of here but are NOT deleted or hidden — the red panel on
+// the message itself stays for good. Dismissing means "I've seen this", not "forget it
+// happened"; six months from now the question is still "did she ever get that?".
 async function recentFailures(limit = 20) {
   await ensureSchema();
   const { rows } = await pool.query(
@@ -274,10 +278,24 @@ async function recentFailures(limit = 20) {
             error_code, error_detail, created_at
        FROM sms_messages
       WHERE direction = 'outbound' AND status = 'delivery_failed'
+        AND failure_ack_at IS NULL
       ORDER BY created_at DESC
       LIMIT $1`, [limit]);
   return rows;
 }
 
+// Mark every failure currently showing as seen. Office-wide rather than per-person: the
+// inbox is shared, so if one of them has dealt with it, it is dealt with.
+async function acknowledgeFailures(initials) {
+  await ensureSchema();
+  const { rowCount } = await pool.query(
+    `UPDATE sms_messages
+        SET failure_ack_at = now(), failure_ack_by = $1
+      WHERE direction = 'outbound' AND status = 'delivery_failed'
+        AND failure_ack_at IS NULL`,
+    [initials || null]);
+  return rowCount;
+}
+
 module.exports = {
-  saveFailure, recentFailures, ensureSchema, searchMessages, searchPeople, logMessage, updateStatusByTelnyxId, logOutboundFromWebhook, listThreads, listThread, markRead };
+  saveFailure, recentFailures, acknowledgeFailures, ensureSchema, searchMessages, searchPeople, logMessage, updateStatusByTelnyxId, logOutboundFromWebhook, listThreads, listThread, markRead };
