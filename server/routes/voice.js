@@ -202,7 +202,26 @@ router.post('/setup', requireAdmin, async (req, res) => {
     const conns = await telnyx('/credential_connections?page[size]=50');
     let softphone = (conns.data || []).find(c => c.connection_name === SOFTPHONE_NAME);
     if (softphone) {
-      steps.push({ step: 'softphone connection', action: 'already existed', id: softphone.id });
+      // A browser is reached by dialling its SIP address, and a connection refuses that
+      // outright unless SIP URI calling is switched on — which is not the default. Every
+      // attempt to ring a browser was rejected in milliseconds until this was set.
+      //
+      // "internal" and not "unrestricted": it lets our own call control application ring
+      // a staff browser, because both live in this same Telnyx account, without also
+      // letting anyone on the internet dial a staff member's SIP address directly.
+      if (softphone.sip_uri_calling_preference !== 'internal') {
+        softphone = await telnyxWrite(`/credential_connections/${softphone.id}`, 'PATCH', {
+          connection_name: SOFTPHONE_NAME,
+          sip_uri_calling_preference: 'internal',
+        });
+        steps.push({
+          step: 'softphone connection',
+          action: 'SIP URI calling turned on (this is what stopped browsers ringing)',
+          id: softphone.id,
+        });
+      } else {
+        steps.push({ step: 'softphone connection', action: 'already existed', id: softphone.id });
+      }
     } else {
       softphone = await telnyxWrite('/credential_connections', 'POST', {
         connection_name: SOFTPHONE_NAME,
@@ -212,6 +231,8 @@ router.post('/setup', requireAdmin, async (req, res) => {
         password: require('crypto').randomBytes(18).toString('base64url'),
         webhook_event_url: webhook,
         webhook_api_version: '2',
+        // Without this a browser cannot be rung at all — see the note above.
+        sip_uri_calling_preference: 'internal',
         outbound: { outbound_voice_profile_id: profile.id },
       });
       steps.push({ step: 'softphone connection', action: 'created', id: softphone.id });
