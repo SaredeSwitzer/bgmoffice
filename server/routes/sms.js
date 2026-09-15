@@ -104,6 +104,13 @@ router.get('/thread/:phone/timeline', async (req, res) => {
       })),
     ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
+    // Reactions in the same round trip — one query for the conversation rather than one
+    // per message.
+    const reactions = await store.reactionsForThread(phone);
+    for (const it of items) {
+      if (it.kind === 'text' && reactions[it.id]) it.reactions = reactions[it.id];
+    }
+
     await store.markRead(phone);
     res.json({ phone, items });
   } catch (e) {
@@ -263,6 +270,21 @@ router.get('/payout-reminders', async (req, res) => {
   } catch (e) {
     console.error('[sms] payout reminder preview failed:', e.message);
     res.status(500).json({ error: 'Could not work out who is still owed' });
+  }
+});
+
+
+// Reacting to a message. Toggles: reacting again with the same thing takes it back.
+// Never sent anywhere — see the note in smsStore.
+router.post('/messages/:id/react', async (req, res) => {
+  const emoji = String(req.body?.emoji || '').trim();
+  if (!emoji) return res.status(400).json({ error: 'Which reaction?' });
+  try {
+    const r = await store.toggleReaction(req.params.id, emoji, req.user.initials || '??');
+    res.json(r);
+  } catch (e) {
+    console.error('[sms] could not react:', e.message);
+    res.status(500).json({ error: 'Could not add that reaction' });
   }
 });
 
