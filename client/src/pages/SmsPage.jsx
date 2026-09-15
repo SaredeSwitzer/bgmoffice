@@ -125,6 +125,11 @@ export default function SmsPage() {
     try {
       await api.smsSend(active, body)
       setDraft('')
+      // Searching was how you got to this person; once you've written to them it has done
+      // its job, and leaving the term in the box keeps the normal conversation list hidden
+      // behind a set of results you're finished with. The conversation itself stays open —
+      // and now sits at the top of the list, because you just wrote in it.
+      clearSearch()
       // Having just texted them is the moment to ask whether we're waiting on a reply.
       setLastSentText(body)
       setLastSentAt(Date.now())
