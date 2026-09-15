@@ -212,19 +212,21 @@ router.post('/setup', requireAdmin, async (req, res) => {
       // "internal" and not "unrestricted": it lets our own call control application ring
       // a staff browser, because both live in this same Telnyx account, without also
       // letting anyone on the internet dial a staff member's SIP address directly.
-      if (softphone.sip_uri_calling_preference !== 'internal') {
-        softphone = await telnyxWrite(`/credential_connections/${softphone.id}`, 'PATCH', {
-          connection_name: SOFTPHONE_NAME,
-          sip_uri_calling_preference: 'internal',
-        });
-        steps.push({
-          step: 'softphone connection',
-          action: 'SIP URI calling turned on (this is what stopped browsers ringing)',
-          id: softphone.id,
-        });
-      } else {
-        steps.push({ step: 'softphone connection', action: 'already existed', id: softphone.id });
-      }
+      // Applied every run rather than only when it looks wrong. The list endpoint does
+      // not return sip_uri_calling_preference at all, so "looks wrong" cannot be told
+      // from "cannot see it" — and quietly skipping the fix on a field you cannot read
+      // is how this stayed broken through a whole test call. The PATCH is idempotent.
+      softphone = await telnyxWrite(`/credential_connections/${softphone.id}`, 'PATCH', {
+        connection_name: SOFTPHONE_NAME,
+        sip_uri_calling_preference: 'internal',
+      });
+      steps.push({
+        step: 'softphone connection',
+        action: 'SIP URI calling set',
+        id: softphone.id,
+        // Read back from Telnyx's own response, so this is what is really stored.
+        sip_uri_calling_preference: softphone.sip_uri_calling_preference,
+      });
     } else {
       softphone = await telnyxWrite('/credential_connections', 'POST', {
         connection_name: SOFTPHONE_NAME,
