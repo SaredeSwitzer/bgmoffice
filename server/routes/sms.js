@@ -5,7 +5,7 @@
 
 const express = require('express');
 const pool = require('../db/pg');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const store = require('../lib/smsStore');
 const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const { lookupPerson } = require('../lib/telnyxInbound');
@@ -142,6 +142,55 @@ router.get('/failures', async (req, res) => {
   } catch (e) {
     console.error('[sms] could not load failed texts:', e.message);
     res.status(500).json({ error: 'Could not load failed texts' });
+  }
+});
+
+// Go back and ask Telnyx why the older failures failed.
+//
+// Failures before 2026-09-15 were announced and then forgotten — the reason was never
+// written down, so they all read as the generic "the carrier wouldn't deliver this".
+// Telnyx still holds the record against the message id we stored, so the real reason is
+// recoverable rather than lost. Admin-only and read-then-write; it fills in blanks and
+// never overwrites a reason we already have.
+router.post('/failures/recover', requireAdmin, async (req, res) => {
+  const key = process.env.TELNYX_API_KEY;
+  if (!key) return res.status(503).json({ error: 'TELNYX_API_KEY is not set' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, telnyx_id, phone, person_name FROM sms_messages
+        WHERE direction = 'outbound' AND status = 'delivery_failed'
+          AND coalesce(error_detail,'') = '' AND telnyx_id IS NOT NULL`);
+
+    const results = [];
+    for (const m of rows) {
+      try {
+        const r = await fetch(`https://api.telnyx.com/v2/messages/${m.telnyx_id}`, {
+          headers: { Authorization: `Bearer ${key}` },
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { results.push({ id: m.id, ok: false, error: `Telnyx ${r.status}` }); continue; }
+
+        const d = data?.data || {};
+        const errs = d.errors || d.to?.[0]?.errors || [];
+        const detail = Array.isArray(errs) && errs.length
+          ? errs.map(e => e.detail || e.title || e.code).join('; ')
+          : null;
+        const code = Array.isArray(errs) && errs.length ? String(errs[0].code || '') : null;
+
+        if (!detail) { results.push({ id: m.id, ok: false, error: 'Telnyx kept no reason for this one' }); continue; }
+        await pool.query(
+          'UPDATE sms_messages SET error_code = $2, error_detail = $3 WHERE id = $1',
+          [m.id, code, detail]);
+        const { plain } = explainSmsFailure(detail, code);
+        results.push({ id: m.id, ok: true, who: m.person_name || m.phone, detail, reason: plain });
+      } catch (e) {
+        results.push({ id: m.id, ok: false, error: e.message });
+      }
+    }
+    res.json({ checked: rows.length, recovered: results.filter(r => r.ok).length, results });
+  } catch (e) {
+    console.error('[sms] failure recovery failed:', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 
