@@ -56,6 +56,30 @@ async function telnyxWrite(path, method, body) {
   return data.data;
 }
 
+// The sign-in token for a browser phone is the one Telnyx endpoint that answers with the
+// bare JWT as plain text rather than the usual {data: …} envelope. Parsing it as JSON
+// yields nothing, quietly, with a 200 — so the browser got a token of `undefined` and
+// simply failed to register with no error to show for it.
+async function mintCredentialToken(credentialId) {
+  const key = process.env.TELNYX_API_KEY;
+  if (!key) throw new Error('TELNYX_API_KEY is not set');
+  const res = await fetch(`${TELNYX}/telephony_credentials/${credentialId}/token`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  const text = (await res.text()).trim();
+  if (!res.ok) throw new Error(`Telnyx would not issue a phone token (${res.status})`);
+  // Belt and braces, in case it is ever wrapped after all.
+  if (text.startsWith('{')) {
+    try {
+      const j = JSON.parse(text);
+      return j?.data?.token || j?.token || j?.data || text;
+    } catch { /* fall through to the raw body */ }
+  }
+  if (!text) throw new Error('Telnyx returned an empty phone token');
+  return text;
+}
+
 // Read-only. Admin-only because it describes the whole phone account, not one conversation.
 router.get('/status', requireAdmin, async (req, res) => {
   try {
@@ -298,10 +322,9 @@ router.post('/token', async (req, res) => {
       row = await store.getVoiceUser(req.user.id);
     }
 
-    const token = await telnyxWrite(`/telephony_credentials/${row.telnyx_credential_id}/token`, 'POST', {});
+    const token = await mintCredentialToken(row.telnyx_credential_id);
     res.json({
-      // Telnyx returns the token either as a bare string or wrapped, depending on path.
-      token: typeof token === 'string' ? token : (token?.token || token),
+      token,
       sip_username: row.sip_username,
       caller_number: process.env.TELNYX_FROM_NUMBER,
     });
