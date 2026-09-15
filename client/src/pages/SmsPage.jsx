@@ -51,6 +51,10 @@ export default function SmsPage() {
   // Who the open thread is, when it was opened from search rather than from the list —
   // someone she has never texted has no row in `threads` to read a name off.
   const [activeMeta, setActiveMeta] = useState(null)
+  // Texts that never arrived — shown as a banner, because a failure that only exists
+  // inside one conversation is a failure nobody finds.
+  const [failures, setFailures] = useState([])
+  const [failuresOpen, setFailuresOpen] = useState(false)
   const scrollRef = useRef(null)
 
   const loadThreads = useCallback(async () => {
@@ -72,6 +76,13 @@ export default function SmsPage() {
   }, [refreshUnread])
 
   useEffect(() => { loadThreads() }, [loadThreads])
+
+  useEffect(() => {
+    const load = () => api.smsFailures().then(setFailures).catch(() => {})
+    load()
+    const id = setInterval(load, 60000)
+    return () => clearInterval(id)
+  }, [])
 
   // Search as she types, a beat behind so it isn't a request per keystroke.
   useEffect(() => {
@@ -189,6 +200,37 @@ export default function SmsPage() {
         </button>
       </div>
 
+      {failures.length > 0 && (
+        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <button
+            onClick={() => setFailuresOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <span className="text-sm font-semibold text-red-800">
+              {failures.length} {failures.length === 1 ? 'text never arrived' : 'texts never arrived'}
+            </span>
+            <span className="text-xs text-red-700">{failuresOpen ? 'Hide' : 'Show'}</span>
+          </button>
+
+          {failuresOpen && (
+            <ul className="mt-2 space-y-2">
+              {failures.map((f) => (
+                <li key={f.id} className="text-sm">
+                  <button
+                    onClick={() => { clearSearch(); setActiveMeta({ name: f.person_name, kind: f.person_kind, id: f.person_id }); setActive(f.phone) }}
+                    className="font-medium text-red-900 underline underline-offset-2"
+                  >
+                    {f.person_name || fmtPhone(f.phone)}
+                  </button>
+                  <span className="text-red-700"> — {f.reason}</span>
+                  {f.suggestion && <span className="block text-xs text-red-600">{f.suggestion}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="flex h-[70vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         {/* Conversation list */}
         <aside className={`${active || composeOpen || remindersOpen ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-gray-200 md:w-80`}>
@@ -284,6 +326,15 @@ export default function SmsPage() {
                         <div className={`mt-1 text-[10px] ${m.direction === 'outbound' ? 'text-blue-100' : 'text-gray-400'}`}>
                           {fmtTime(m.created_at)}{m.direction === 'outbound' && m.status ? ` · ${m.status}` : ''}
                         </div>
+                        {/* A text that never arrived has to look different from one that
+                            did. "delivery_failed" in grey at 10px is not a difference. */}
+                        {m.status === 'delivery_failed' && (
+                          <div className="mt-1.5 rounded-lg bg-red-50 px-2 py-1.5 text-[11px] leading-snug text-red-700">
+                            <span className="font-semibold">Not delivered.</span>{' '}
+                            {m.reason || 'The carrier wouldn’t deliver this one.'}
+                            {m.suggestion ? <span className="block text-red-600">{m.suggestion}</span> : null}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

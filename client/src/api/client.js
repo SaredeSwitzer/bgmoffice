@@ -91,6 +91,8 @@ export const api = {
     request(`/sms/thread/${encodeURIComponent(phone)}/about?exclude_kind=${encodeURIComponent(excludeKind || '')}`),
   smsContacts: () => request('/sms/contacts'),
   smsSearch: (q) => request(`/sms/search?q=${encodeURIComponent(q)}`),
+  // Texts that never arrived, with a plain-English reason.
+  smsFailures: () => request('/sms/failures'),
 
   // Phone calls on the same BGM line
   voiceMe: () => request('/voice/me'),

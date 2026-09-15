@@ -103,7 +103,8 @@ async function listThreads() {
 async function listThread(phone) {
   await ensureSchema();
   const { rows } = await pool.query(
-    `SELECT id, direction, from_number, to_number, body, status, person_name, person_kind, created_at
+    `SELECT id, direction, from_number, to_number, body, status, person_name, person_kind,
+            error_code, error_detail, created_at
        FROM sms_messages
       WHERE phone = $1
       ORDER BY created_at ASC`,
@@ -250,4 +251,33 @@ async function searchPeople(q, limit = 40) {
   });
 }
 
-module.exports = { ensureSchema, searchMessages, searchPeople, logMessage, updateStatusByTelnyxId, logOutboundFromWebhook, listThreads, listThread, markRead };
+
+// Why a text did not arrive, kept on the message itself.
+async function saveFailure(telnyxId, code, detail) {
+  if (!telnyxId) return;
+  await ensureSchema();
+  await pool.query(
+    `UPDATE sms_messages
+        SET status = 'delivery_failed',
+            error_code = coalesce($2, error_code),
+            error_detail = coalesce($3, error_detail)
+      WHERE telnyx_id = $1`,
+    [telnyxId, code || null, detail || null]);
+}
+
+// Texts that never arrived and have not been dealt with. Ordered newest first and capped:
+// this drives a banner, and a banner listing forty things is a banner nobody reads.
+async function recentFailures(limit = 20) {
+  await ensureSchema();
+  const { rows } = await pool.query(
+    `SELECT id, phone, person_id, person_kind, person_name, body,
+            error_code, error_detail, created_at
+       FROM sms_messages
+      WHERE direction = 'outbound' AND status = 'delivery_failed'
+      ORDER BY created_at DESC
+      LIMIT $1`, [limit]);
+  return rows;
+}
+
+module.exports = {
+  saveFailure, recentFailures, ensureSchema, searchMessages, searchPeople, logMessage, updateStatusByTelnyxId, logOutboundFromWebhook, listThreads, listThread, markRead };

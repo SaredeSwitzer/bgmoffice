@@ -187,6 +187,13 @@ async function handleWebhook(req, res) {
         const detail = Array.isArray(errs) && errs.length
           ? errs.map(e => e.detail || e.title || e.code).join('; ')
           : (to?.status || 'unknown');
+        const code = Array.isArray(errs) && errs.length ? String(errs[0].code || '') : null;
+        // Recorded against the message, not only announced. A notification is gone the
+        // moment it scrolls past; this has to still be answerable tomorrow when somebody
+        // asks "did she ever get that?".
+        try {
+          await smsStore.saveFailure(payload.id, code, detail);
+        } catch (e) { console.error('[telnyx inbound] could not record the failure:', e.message); }
         await notifyCrew(`⚠️ SMS to ${to?.phone_number || 'unknown'} failed: ${detail}`);
       }
     }

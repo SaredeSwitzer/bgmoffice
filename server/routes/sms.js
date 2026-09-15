@@ -12,6 +12,7 @@ const { lookupPerson } = require('../lib/telnyxInbound');
 const { buildWeeklyReminders } = require('../lib/weeklyReminders');
 const { findPeopleInText } = require('../lib/detectPeopleInText');
 const { sendMail } = require('../lib/mailer');
+const { explainSmsFailure } = require('../lib/smsFailureReason');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -48,7 +49,17 @@ router.get('/thread/:phone', async (req, res) => {
     const phone = toE164(req.params.phone);
     const messages = await store.listThread(phone);
     await store.markRead(phone);
-    res.json({ phone, messages });
+    // A failed message carries the carrier's own wording, which is written for a
+    // developer. Explain it in the thread, where the question "did she get this?"
+    // actually gets asked.
+    res.json({
+      phone,
+      messages: messages.map(m => {
+        if (m.status !== 'delivery_failed') return m;
+        const { plain, fix } = explainSmsFailure(m.error_detail, m.error_code);
+        return { ...m, reason: plain, suggestion: fix };
+      }),
+    });
   } catch (e) {
     console.error('[sms] thread failed:', e.message);
     res.status(500).json({ error: 'Failed to load conversation' });
@@ -115,6 +126,22 @@ router.get('/search', async (req, res) => {
   } catch (e) {
     console.error('[sms] search failed:', e.message);
     res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+
+// Texts that never arrived, with a plain-English reason. Drives the banner on the Texts
+// screen — a failure that only exists inside one conversation is a failure nobody sees.
+router.get('/failures', async (req, res) => {
+  try {
+    const rows = await store.recentFailures();
+    res.json(rows.map(r => {
+      const { plain, fix } = explainSmsFailure(r.error_detail, r.error_code);
+      return { ...r, reason: plain, suggestion: fix };
+    }));
+  } catch (e) {
+    console.error('[sms] could not load failed texts:', e.message);
+    res.status(500).json({ error: 'Could not load failed texts' });
   }
 });
 
