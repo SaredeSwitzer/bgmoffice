@@ -119,6 +119,9 @@ router.get('/status', requireAdmin, async (req, res) => {
       })),
       connections: connections.error ? connections : (connections.data || []).map(c => ({
         id: c.id, name: c.connection_name, type: c.record_type, active: c.active,
+        // Reported because a browser cannot be rung at all unless this is on, and the
+        // failure looks like "nobody answered" rather than like a setting being off.
+        sip_uri_calling_preference: c.sip_uri_calling_preference,
       })),
       outbound_voice_profiles: outbound.error ? outbound : (outbound.data || []).map(o => ({
         id: o.id, name: o.name, enabled: o.enabled,
