@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import DateInput from './DateInput'
 import SearchSelect from './SearchSelect'
+import { readRate } from '../utils/rates'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -30,6 +31,10 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
     participant_count: (entry.participants || '').trim().match(/^(\d+)/)?.[1] || '',
     participant_ages: '',
   })
+  // What happened when a rate was filled in — said out loud, because a number appearing
+  // in a money box on its own is the kind of thing you either miss or don't trust.
+  const [payNote, setPayNote] = useState(null)
+  const [chargeNote, setChargeNote] = useState(null)
   const [dates, setDates] = useState([''])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -37,6 +42,30 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
   useEffect(() => {
     api.getClients().then(setClients).catch(() => {})
   }, [])
+
+  // Picking the client fills what they're charged.
+  //
+  // The rate discussed on THIS recruiting call wins over the rate on their profile: the
+  // entry is the more recent conversation, and it is the number they were actually quoted.
+  // Only ever fills an empty box, so nothing typed for this class is overwritten.
+  function pickClient(c) {
+    setClient(c)
+    // SearchSelect calls this with null on every keystroke while you type, not only when
+    // you clear a choice. Without this guard the charge box fills itself from the rate
+    // discussed on the entry the moment you touch the search field — before you have
+    // picked anybody — and the note claims a client you have not chosen.
+    if (!c) { setChargeNote(null); return }
+
+    const discussed = readRate(entry.client_rate)
+    const onFile = readRate(c?.rate_per_class)
+    const amount = discussed.amount ?? onFile.amount
+    setForm(f => ({ ...f, charge_amount: f.charge_amount || amount || '' }))
+    setChargeNote(discussed.amount ? { kind: 'set',  text: `Charge set from the rate discussed ($${discussed.amount})` }
+      : onFile.amount    ? { kind: 'set',  text: `Charge set from ${c.name}'s rate ($${onFile.amount})` }
+      : (discussed.note || onFile.note)
+                         ? { kind: 'note', text: `Rate is recorded as \u201c${discussed.note || onFile.note}\u201d \u2014 set the charge by hand` }
+      :                    { kind: 'none', text: `No rate on file for ${c.name} \u2014 charge left as it was` })
+  }
 
   useEffect(() => {
     if (entry.client_id && clients.length) {
@@ -102,7 +131,7 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Client</label>
             {entry.client_id || client ? (
-              <SearchSelect options={clients} value={client} onChange={setClient} placeholder="Search clients…" />
+              <SearchSelect options={clients} value={client} onChange={pickClient} placeholder="Search clients…" />
             ) : (
               <>
                 <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -111,7 +140,7 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
                 </label>
                 {!makeClient && (
                   <div className="mt-2">
-                    <SearchSelect options={clients} value={client} onChange={setClient} placeholder="…or pick an existing client" />
+                    <SearchSelect options={clients} value={client} onChange={pickClient} placeholder="…or pick an existing client" />
                   </div>
                 )}
               </>
@@ -120,11 +149,28 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">Instructor</label>
-            <select value={form.instructor_id} onChange={e => set('instructor_id', e.target.value)}
+            <select value={form.instructor_id} onChange={e => {
+              const id = e.target.value
+              // Pay follows whoever is actually teaching. This was the one class-creation
+              // path that did not do it, so every class booked out of Recruiting had its
+              // pay typed in by hand — or left blank, which is how somebody ends up unpaid.
+              const who = instructors.find(i => String(i.id) === String(id))
+              const { amount, note } = readRate(who?.pay_rate)
+              setForm(f => ({ ...f, instructor_id: id, instructor_pay: amount ?? f.instructor_pay }))
+              setPayNote(!who ? null
+                : amount ? { kind: 'set',  text: `Pay set from ${who.name}'s rate ($${amount})` }
+                : note   ? { kind: 'note', text: `${who.name}'s rate is recorded as \u201c${note}\u201d \u2014 set the pay by hand` }
+                :          { kind: 'none', text: `No rate on file for ${who.name} \u2014 pay left as it was` })
+            }}
               className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
               <option value="">— none yet —</option>
               {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
+            {payNote && (
+              <p className={`mt-1 text-xs ${payNote.kind === 'set' ? 'text-green-700' : payNote.kind === 'note' ? 'text-amber-700' : 'text-gray-500'}`}>
+                {payNote.text}
+              </p>
+            )}
           </div>
 
           <div className="inline-flex rounded-lg border border-gray-300 p-0.5 text-xs">
@@ -195,6 +241,11 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
               <label className="mb-1 block text-xs font-medium text-gray-600">Charge client</label>
               <input type="number" value={form.charge_amount} onChange={e => set('charge_amount', e.target.value)}
                 placeholder="$" className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              {chargeNote && (
+                <p className={`mt-1 text-xs ${chargeNote.kind === 'set' ? 'text-green-700' : chargeNote.kind === 'note' ? 'text-amber-700' : 'text-gray-500'}`}>
+                  {chargeNote.text}
+                </p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Pay instructor</label>
