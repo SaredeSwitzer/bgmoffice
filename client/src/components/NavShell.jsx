@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { RemindersProvider, useRemindersContext } from '../context/RemindersContext'
 import { UnreadTextsProvider, useUnreadTexts } from '../context/UnreadTextsContext'
+import { VoiceProvider } from '../context/VoiceContext'
+import Softphone from './Softphone'
 import AmberChat from './AmberChat'
 import { isSaredeUser } from '../utils/saredeAccess'
 import { loadDirectory } from '../utils/directory'
@@ -179,7 +181,11 @@ export default function NavShell() {
   return (
     <RemindersProvider>
       <UnreadTextsProvider>
-        <Shell />
+        <VoiceProvider>
+          <Shell />
+          {/* Outside Shell so a ringing call survives moving between pages. */}
+          <Softphone />
+        </VoiceProvider>
       </UnreadTextsProvider>
     </RemindersProvider>
   )

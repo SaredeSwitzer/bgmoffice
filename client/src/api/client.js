@@ -91,6 +91,15 @@ export const api = {
     request(`/sms/thread/${encodeURIComponent(phone)}/about?exclude_kind=${encodeURIComponent(excludeKind || '')}`),
   smsContacts: () => request('/sms/contacts'),
   smsSearch: (q) => request(`/sms/search?q=${encodeURIComponent(q)}`),
+
+  // Phone calls on the same BGM line
+  voiceMe: () => request('/voice/me'),
+  voiceUpdateMe: (data) => request('/voice/me', { method: 'PUT', body: JSON.stringify(data) }),
+  // Signs this browser in as a phone. Short-lived, so it is fetched each time.
+  voiceToken: () => request('/voice/token', { method: 'POST' }),
+  // The no-browser path: rings your own phone, then connects you to them.
+  voiceCall: (to) => request('/voice/call', { method: 'POST', body: JSON.stringify({ to }) }),
+  voiceCalls: (phone) => request(`/voice/calls${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`),
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
   getWeeklyReminders: (params) => {

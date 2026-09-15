@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import WeeklyRemindersPanel from '../components/WeeklyRemindersPanel'
 import { useUnreadTexts } from '../context/UnreadTextsContext'
 import StartWaitingLinePrompt from '../components/StartWaitingLinePrompt'
+import CallButton from '../components/CallButton'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -257,12 +258,15 @@ export default function SmsPage() {
               <>
                 <header className="flex items-center gap-2 border-b border-gray-200 px-4 py-3">
                   <button className="text-blue-600 md:hidden" onClick={() => setActive(null)}>← </button>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="truncate font-medium text-gray-900">{activeName}</div>
                     <div className="text-xs text-gray-400">
                       {fmtPhone(active)}{activeKind ? ` · ${activeKind}` : ''}
                     </div>
                   </div>
+                  {/* Texting someone and calling them are the same errand; the button for
+                      it belongs where you already are, not on another screen. */}
+                  <CallButton phone={active} name={activeName} className="shrink-0" />
                 </header>
 
                 <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-gray-50 px-4 py-3">
