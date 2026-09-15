@@ -37,6 +37,35 @@ export function VoiceProvider({ children }) {
     audioRef.current = el
   }
 
+  // The sound this computer makes when somebody rings. Separate from the audio element
+  // above, which carries the other person's voice — a ringing phone has to be audible
+  // before there is any call audio to play at all, and without this the only sign of an
+  // incoming call was a box appearing in the corner of a screen nobody was looking at.
+  //
+  // Reuses the ring tone already served for callers, so there is one sound and one file.
+  const ringRef = useRef(null)
+  if (!ringRef.current && typeof document !== 'undefined') {
+    const el = document.createElement('audio')
+    el.src = '/ringback.wav'
+    el.loop = true
+    el.preload = 'auto'
+    ringRef.current = el
+  }
+
+  const startRinging = useCallback(() => {
+    const el = ringRef.current
+    if (!el) return
+    el.currentTime = 0
+    el.play().catch(() => { /* blocked until the page has been clicked; box still shows */ })
+  }, [])
+
+  const stopRinging = useCallback(() => {
+    const el = ringRef.current
+    if (!el) return
+    el.pause()
+    el.currentTime = 0
+  }, [])
+
   // Attach the far end's audio as soon as there is any. Called on every call update
   // because the stream is not always present the instant the call object appears.
   const attachAudio = useCallback((c) => {
@@ -109,6 +138,15 @@ export function VoiceProvider({ children }) {
 
     return () => { cancelled = true; teardown() }
   }, [enabled, teardown])
+
+  // Ring while a call is waiting to be picked up, and stop the moment it is answered,
+  // declined, or the caller gives up. Driven off `incoming` rather than started and
+  // stopped by hand at each call site, so there is no path that leaves it ringing.
+  useEffect(() => {
+    if (incoming) startRinging()
+    else stopRinging()
+    return stopRinging
+  }, [incoming, startRinging, stopRinging])
 
   const toggle = useCallback((on) => {
     localStorage.setItem(ON_KEY, on ? '1' : '0')
