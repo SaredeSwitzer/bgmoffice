@@ -75,7 +75,6 @@ function Shell() {
   }
 
   const navLinks = [
-    { to: '/dashboard',   label: 'Dashboard' },
     { to: '/my-tasks',    label: 'My Tasks' },
     { to: '/clients',     label: 'Clients' },
     { to: '/instructors', label: 'Instructors' },
@@ -114,11 +113,18 @@ function Shell() {
       <header className="bg-brand-bar border-b border-brand-bar-edge shadow-sm sticky top-0 z-40">
         <div className="px-4 h-14 flex items-center justify-between max-w-7xl mx-auto">
 
-          {/* Logo — always visible */}
-          <span className="font-display font-bold text-white text-base tracking-tight shrink-0 flex items-center gap-2">
+          {/* Logo — always visible, and the way home. It replaces a Dashboard tab: the
+              bar had run out of room, and the logo is where people already click to get
+              back to the start. Points at "/" rather than /dashboard so RoleHome decides
+              where this account belongs. */}
+          <NavLink
+            to="/"
+            title="Dashboard"
+            className="font-display font-bold text-white text-base tracking-tight shrink-0 flex items-center gap-2 rounded px-1 py-0.5 hover:bg-white/15"
+          >
             <img src="/logo-mark.svg" alt="" aria-hidden="true" className="w-[18px] h-[18px]" />
             BGM Office
-          </span>
+          </NavLink>
 
           {/* Desktop nav — hidden on mobile */}
           {/* min-w-0 + scroll rather than letting the tabs push everything along: adding
