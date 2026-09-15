@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import CallButton from '../components/CallButton'
+import PhoneTabs from '../components/PhoneTabs'
 
 // Every call on the BGM line — in, out, missed, and any message left.
 //
@@ -81,7 +82,7 @@ export default function CallsPage() {
   return (
     <div className="mx-auto max-w-4xl px-3 py-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h1 className="text-xl font-bold text-gray-900">Calls</h1>
+        <div><PhoneTabs voicemailCount={newMessages} /></div>
         {newMessages > 0 && (
           <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
             {newMessages} new {newMessages === 1 ? 'message' : 'messages'}

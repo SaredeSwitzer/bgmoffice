@@ -83,8 +83,10 @@ function Shell() {
     ...(isSaredeUser(user) ? [{ to: '/billing', label: 'Billing' }] : []),
     ...(isSaredeUser(user) ? [{ to: '/sales', label: 'Sales' }] : []),
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
-    { to: '/sms',        label: unreadTexts > 0 ? `Texts (${unreadTexts})` : 'Texts' },
-    { to: '/calls',      label: 'Calls' },
+    // Texts and calls are one heading. They are the same conversation with the same
+    // person on the same number; two tabs inside the page keep them apart without
+    // spending two slots in the bar. `end: false` so it stays lit on either one.
+    { to: '/sms', label: unreadTexts > 0 ? `Phone (${unreadTexts})` : 'Phone', alsoActiveOn: ['/calls'] },
     { to: '/recruiting', label: 'Recruiting' },
     { to: '/reference',  label: 'Reference' },
     ...(user?.role === 'admin' ? [{ to: '/settings', label: 'Settings' }] : []),
@@ -131,8 +133,15 @@ function Shell() {
           {/* min-w-0 + scroll rather than letting the tabs push everything along: adding
               one more tab shoved "Sign out" off the right-hand edge of the bar. */}
           <nav className="hidden sm:flex items-center gap-0.5 mx-2 min-w-0 overflow-x-auto scrollbar-none">
-            {navLinks.map(({ to, label }) => (
-              <NavLink key={to} to={to} className={desktopLinkClass}>{label}</NavLink>
+            {navLinks.map(({ to, label, alsoActiveOn }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  desktopLinkClass({ isActive: isActive || (alsoActiveOn || []).includes(location.pathname) })}
+              >
+                {label}
+              </NavLink>
             ))}
           </nav>
 
@@ -175,8 +184,14 @@ function Shell() {
         {/* Mobile dropdown — all nav links + sign out */}
         {open && (
           <div className="sm:hidden border-t border-gray-100 bg-white px-3 py-2 pb-20 space-y-1">{/* pb-20: Amber floats over the bottom-right corner and was sitting on top of Sign out, the last row in this menu. */}
-            {navLinks.map(({ to, label }) => (
-              <NavLink key={to} to={to} className={linkClass} onClick={() => setOpen(false)}>
+            {navLinks.map(({ to, label, alsoActiveOn }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  linkClass({ isActive: isActive || (alsoActiveOn || []).includes(location.pathname) })}
+                onClick={() => setOpen(false)}
+              >
                 {label}
               </NavLink>
             ))}

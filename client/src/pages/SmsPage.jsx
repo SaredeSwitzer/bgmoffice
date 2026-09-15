@@ -4,6 +4,7 @@ import WeeklyRemindersPanel from '../components/WeeklyRemindersPanel'
 import { useUnreadTexts } from '../context/UnreadTextsContext'
 import StartWaitingLinePrompt from '../components/StartWaitingLinePrompt'
 import CallButton from '../components/CallButton'
+import PhoneTabs from '../components/PhoneTabs'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -184,8 +185,10 @@ export default function SmsPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-4">
+      {/* The tabs say which screen this is, so a heading repeating it is just a third
+          "Texts" on the same screen. Actions share the row and save the space. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-xl font-bold text-gray-900">Texts</h1>
+        <div className="mr-auto"><PhoneTabs /></div>
         <button
           onClick={() => { setComposeOpen(true); setActive(null) }}
           className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
