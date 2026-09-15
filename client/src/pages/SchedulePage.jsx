@@ -478,7 +478,11 @@ export default function SchedulePage() {
   for (const s of sessions) (byDay[s.session_date] ||= []).push(s)
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    // The week grid needs 980px for seven days; at max-w-4xl (896px) Saturday fell off
+    // the right edge and had to be scrolled to. The recurring form and the reports live
+    // on other tabs and never show at the same time, so only the week view widens —
+    // a two-column form stretched to 1152px reads worse, not better.
+    <div className={`mx-auto space-y-5 ${tab === 'week' ? 'max-w-6xl' : 'max-w-4xl'}`}>
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-xl font-bold text-gray-900">Schedule</h1>
         <div className="flex items-center gap-2">

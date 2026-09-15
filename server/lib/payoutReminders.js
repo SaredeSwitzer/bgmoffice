@@ -85,10 +85,11 @@ async function buildPayoutReminders({ start, end } = {}) {
         classes: r.classes,
         amount: Number(r.amount),
         payment_status: r.payment_status || 'no record',
-        // Taught, but the app has no idea what she is owed. Chasing her for a payment
-        // request is the wrong move — the rate is what needs fixing, and asking her to
-        // invoice for an amount nobody has set just produces a confused reply.
-        needs_rate: Number(r.amount) <= 0,
+        // Taught, but nothing is owed for it. Do NOT read this as a mistake: a zero is
+        // often deliberate — Trippy agreed to no pay for a week as compensation for a
+        // no-show. Either way there is nothing to ask them to invoice for, so they are
+        // left out of the chase; whether the zero is right is Sarede's call, not ours.
+        nothing_owed: Number(r.amount) <= 0,
         // Texted where possible, emailed where not — the same rule the weekly class
         // reminders follow, so nobody is silently skipped for lacking a mobile.
         channel: hasPhone ? 'sms' : (r.email ? 'email' : 'none'),

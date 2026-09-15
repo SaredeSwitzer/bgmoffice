@@ -49,8 +49,8 @@ export default function PayoutRemindersPanel({ onClose, onSent }) {
   const reachable = people.filter((p) => p.channel !== 'none')
   const unreachable = people.filter((p) => p.channel === 'none')
   // Anyone with no pay recorded starts unticked: the fix there is the rate, not a text.
-  const toSend = reachable.filter((p) => !excluded.has(p.instructor_id) && !p.needs_rate)
-  const needRate = people.filter((p) => p.needs_rate)
+  const toSend = reachable.filter((p) => !excluded.has(p.instructor_id) && !p.nothing_owed)
+  const nothingOwed = people.filter((p) => p.nothing_owed)
   const owed = toSend.reduce((sum, p) => sum + p.amount, 0)
 
   function toggle(id) {
@@ -123,7 +123,7 @@ export default function PayoutRemindersPanel({ onClose, onSent }) {
             </p>
 
             {people.map((p) => {
-              const off = excluded.has(p.instructor_id) || p.channel === 'none' || p.needs_rate
+              const off = excluded.has(p.instructor_id) || p.channel === 'none' || p.nothing_owed
               return (
                 <div key={p.instructor_id}
                      className={`rounded-lg border px-3 py-2 ${off ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-gray-200 bg-white'}`}>
@@ -131,7 +131,7 @@ export default function PayoutRemindersPanel({ onClose, onSent }) {
                     <input
                       type="checkbox"
                       checked={!off}
-                      disabled={p.channel === 'none' || p.needs_rate}
+                      disabled={p.channel === 'none' || p.nothing_owed}
                       onChange={() => toggle(p.instructor_id)}
                     />
                     <button
@@ -141,7 +141,7 @@ export default function PayoutRemindersPanel({ onClose, onSent }) {
                       <span className="font-medium text-gray-900">{p.name}</span>
                       <span className="ml-2 text-xs text-gray-500">
                         {p.classes} {p.classes === 1 ? 'class' : 'classes'}
-                        {p.needs_rate ? ' · no pay recorded' : ` · ${money(p.amount)}`}
+                        {p.nothing_owed ? ' · nothing owed' : ` · ${money(p.amount)}`}
                         {p.channel === 'email' ? ' · by email' : ''}
                         {p.channel === 'none' ? ' · no phone or email on file' : ''}
                       </span>
@@ -160,12 +160,12 @@ export default function PayoutRemindersPanel({ onClose, onSent }) {
               )
             })}
 
-            {needRate.length > 0 && (
-              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                {needRate.length === 1
-                  ? `${needRate[0].name} taught that week but has no pay recorded for it, so there is nothing to ask her to invoice for.`
-                  : `${needRate.length} of them taught that week with no pay recorded, so there is nothing to ask them to invoice for.`}
-                {' '}Set the rate on the class first — they are left out until you do.
+            {nothingOwed.length > 0 && (
+              <p className="rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600">
+                {nothingOwed.length === 1
+                  ? `${nothingOwed[0].name} taught that week with nothing owed for it, so there's nothing to ask for.`
+                  : `${nothingOwed.length} of them taught that week with nothing owed, so there's nothing to ask them for.`}
+                {' '}Left out of the chase. If that's not right, the pay is set on the class.
               </p>
             )}
 
