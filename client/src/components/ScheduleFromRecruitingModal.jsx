@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import DateInput from './DateInput'
 import SearchSelect from './SearchSelect'
@@ -43,35 +43,53 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
     api.getClients().then(setClients).catch(() => {})
   }, [])
 
-  // Picking the client fills what they're charged.
+  // What this client is charged, filled into an empty box and explained.
   //
   // The rate discussed on THIS recruiting call wins over the rate on their profile: the
   // entry is the more recent conversation, and it is the number they were actually quoted.
   // Only ever fills an empty box, so nothing typed for this class is overwritten.
-  function pickClient(c) {
-    setClient(c)
-    // SearchSelect calls this with null on every keystroke while you type, not only when
-    // you clear a choice. Without this guard the charge box fills itself from the rate
-    // discussed on the entry the moment you touch the search field — before you have
-    // picked anybody — and the note claims a client you have not chosen.
-    if (!c) { setChargeNote(null); return }
-
+  //
+  // Deliberately separate from pickClient, because most of the time nobody picks: 42 of
+  // 57 recruiting entries already have a client attached, so the client is chosen for you
+  // when the window opens. Hanging this off the picker alone meant the charge stayed
+  // blank in exactly the common case.
+  const applyClientRate = useCallback((c) => {
     const discussed = readRate(entry.client_rate)
     const onFile = readRate(c?.rate_per_class)
     const amount = discussed.amount ?? onFile.amount
     setForm(f => ({ ...f, charge_amount: f.charge_amount || amount || '' }))
+
+    const who = c?.name || 'this client'
     setChargeNote(discussed.amount ? { kind: 'set',  text: `Charge set from the rate discussed ($${discussed.amount})` }
-      : onFile.amount    ? { kind: 'set',  text: `Charge set from ${c.name}'s rate ($${onFile.amount})` }
+      : onFile.amount    ? { kind: 'set',  text: `Charge set from ${who}'s rate ($${onFile.amount})` }
       : (discussed.note || onFile.note)
                          ? { kind: 'note', text: `Rate is recorded as \u201c${discussed.note || onFile.note}\u201d \u2014 set the charge by hand` }
-      :                    { kind: 'none', text: `No rate on file for ${c.name} \u2014 charge left as it was` })
+      :                    { kind: 'none', text: `No rate on file for ${who} \u2014 set the charge by hand` })
+  }, [entry.client_rate])
+
+  function pickClient(c) {
+    setClient(c)
+    // SearchSelect calls this with null on every keystroke while you type, not only when
+    // you clear a choice. Without this guard the charge box fills itself the moment you
+    // touch the search field, before you have picked anybody.
+    if (!c) { setChargeNote(null); return }
+    applyClientRate(c)
   }
 
+  // The client that came attached to the entry — chosen for you, so fill the rate for you.
   useEffect(() => {
     if (entry.client_id && clients.length) {
-      setClient(clients.find(c => String(c.id) === String(entry.client_id)) || null)
+      const c = clients.find(x => String(x.id) === String(entry.client_id)) || null
+      setClient(c)
+      if (c) applyClientRate(c)
     }
-  }, [entry.client_id, clients])
+  }, [entry.client_id, clients, applyClientRate])
+
+  // A brand-new client has no profile to read a rate from, but the call that created this
+  // entry usually settled on a number — so use it rather than leaving the box empty.
+  useEffect(() => {
+    if (!entry.client_id && makeClient) applyClientRate(null)
+  }, [entry.client_id, makeClient, applyClientRate])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const cleanDates = dates.filter(Boolean)
