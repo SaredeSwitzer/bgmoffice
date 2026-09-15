@@ -84,6 +84,7 @@ function Shell() {
     ...(isSaredeUser(user) ? [{ to: '/sales', label: 'Sales' }] : []),
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
     { to: '/sms',        label: unreadTexts > 0 ? `Texts (${unreadTexts})` : 'Texts' },
+    { to: '/calls',      label: 'Calls' },
     { to: '/recruiting', label: 'Recruiting' },
     { to: '/reference',  label: 'Reference' },
     ...(user?.role === 'admin' ? [{ to: '/settings', label: 'Settings' }] : []),
@@ -120,7 +121,9 @@ function Shell() {
           </span>
 
           {/* Desktop nav — hidden on mobile */}
-          <nav className="hidden sm:flex items-center gap-1 mx-4">
+          {/* min-w-0 + scroll rather than letting the tabs push everything along: adding
+              one more tab shoved "Sign out" off the right-hand edge of the bar. */}
+          <nav className="hidden sm:flex items-center gap-1 mx-2 min-w-0 overflow-x-auto scrollbar-none">
             {navLinks.map(({ to, label }) => (
               <NavLink key={to} to={to} className={desktopLinkClass}>{label}</NavLink>
             ))}

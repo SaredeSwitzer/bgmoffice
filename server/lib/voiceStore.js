@@ -145,7 +145,24 @@ async function listCallsFor(phone, limit = 50) {
   return rows;
 }
 
+
+// A message left when nobody picked up. Stored against the call itself.
+async function saveVoicemail(ccid, url, seconds) {
+  await pool.query(
+    `UPDATE voice_calls
+        SET voicemail_url = $2,
+            voicemail_seconds = coalesce($3, voicemail_seconds),
+            status = 'voicemail'
+      WHERE call_control_id = $1`,
+    [ccid, url, seconds || null]);
+}
+
+async function markVoicemailHeard(id) {
+  await pool.query('UPDATE voice_calls SET voicemail_heard_at = now() WHERE id = $1', [id]);
+}
+
 module.exports = {
+  saveVoicemail, markVoicemailHeard,
   getVoiceUser, ringTargets, upsertVoiceUser, saveCredential,
   startCall, findByCallControlId, siblingLegs, markAnswered, markEnded,
   listCalls, listCallsFor,

@@ -53,3 +53,8 @@ h1 {
   font-family: var(--font-display);
   letter-spacing: -0.005em;
 }
+
+/* The top-bar tabs scroll rather than pushing "Sign out" off the edge when there are a
+   lot of them. Hide the scrollbar itself — it is a nav bar, not a list. */
+.scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }

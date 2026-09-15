@@ -17,6 +17,7 @@ import InstructorProfilePage from './pages/InstructorProfilePage'
 import SettingsPage from './pages/SettingsPage'
 import RemindersPage from './pages/RemindersPage'
 import SmsPage from './pages/SmsPage'
+import CallsPage from './pages/CallsPage'
 import ReferencePage from './pages/ReferencePage'
 import RecruitingPage from './pages/RecruitingPage'
 import TasksPage from './pages/TasksPage'
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="my-tasks" element={<MyTasksPage />} />
             <Route path="reminders" element={<RemindersPage />} />
             <Route path="sms" element={<SmsPage />} />
+            <Route path="calls" element={<CallsPage />} />
             <Route path="reference" element={<ReferencePage />} />
             <Route path="recruiting" element={<RecruitingPage />} />
             <Route path="tasks" element={<TasksPage />} />

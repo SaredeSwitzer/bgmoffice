@@ -18,6 +18,7 @@
 // ranking of three assistants, and a sequence means the caller waits through each one
 // timing out before the next phone even starts.
 
+const pool = require('../db/pg');
 const { verifySignature, lookupPerson } = require('./telnyxInbound');
 const { toE164 } = require('./telnyxSend');
 const store = require('./voiceStore');
@@ -164,6 +165,40 @@ async function placeBridgedCall({ staffNumber, toNumber, connectionId, who, pers
   return leg;
 }
 
+// ── Voicemail ────────────────────────────────────────────────────────────────────────
+// When every phone has stopped ringing and nobody took the call, ask the caller to leave
+// a message rather than hanging up on them. A client who rings the business and is simply
+// cut off has no idea whether they reached the right place at all.
+//
+// The greeting is editable — it is a thing customers hear, so it should not be locked
+// inside the code. Falls back to a plain one if nothing has been set.
+const DEFAULT_GREETING =
+  "Thanks for calling Bring the Gym to Me. We can't take your call right now, " +
+  'so please leave a message after the tone and we\'ll get back to you as soon as we can.';
+
+async function voicemailGreeting() {
+  try {
+    const { rows } = await pool.query(
+      "SELECT value FROM app_settings WHERE key = 'voicemail_greeting'");
+    if (rows[0]?.value?.trim()) return rows[0].value.trim();
+  } catch { /* the greeting must never be the reason a call fails */ }
+  return DEFAULT_GREETING;
+}
+
+async function sendToVoicemail(parentCcid) {
+  // Stop the ringing tone first, or the greeting plays underneath it.
+  await command(parentCcid, 'playback_stop', {}).catch(() => {});
+  const payload = await voicemailGreeting();
+  await command(parentCcid, 'speak', {
+    payload,
+    voice: 'female',
+    language: 'en-US',
+    // Recording starts when the greeting finishes, not before — otherwise the greeting
+    // is the first thing on the recording.
+    client_state: encodeState({ role: 'voicemail_greeting' }),
+  });
+}
+
 // ── The webhook ──────────────────────────────────────────────────────────────────────
 
 async function handleWebhook(req, res) {
@@ -209,6 +244,31 @@ async function route(type, p) {
 
   switch (type) {
     case 'call.initiated': {
+      // A call placed from somebody's browser. It goes straight out through the softphone
+      // connection rather than through us, so this event is the only chance to record it —
+      // without this, calls made from the app were simply absent from the call log.
+      //
+      // Legs we dial ourselves are also "outgoing"; they carry a client_state and are
+      // logged where they are created, so having none is what marks this as the browser's.
+      if (p.direction === 'outgoing' && !p.client_state) {
+        const dialled = toE164(p.to);
+        const person = await lookupPerson(dialled).catch(() => null);
+        await store.startCall({
+          call_control_id: ccid,
+          call_session_id: p.call_session_id,
+          direction: 'outbound',
+          leg: 'primary',
+          from_number: p.from,
+          to_number: dialled,
+          phone: dialled,
+          person_id: person?.id,
+          person_kind: person?.kind,
+          person_name: person?.name,
+          status: 'ringing',
+        });
+        return;
+      }
+
       // Only inbound calls need answering here. Legs we dialled ourselves report
       // call.initiated too, and answering those would be answering our own phone.
       if (p.direction !== 'incoming') return;
@@ -250,6 +310,13 @@ async function route(type, p) {
     }
 
     case 'call.answered': {
+      // A browser-placed call being picked up at the far end. No role of ours, but it is
+      // in the log and should show as answered rather than sitting on "ringing" forever.
+      if (!state.role) {
+        await store.markAnswered(ccid, null);
+        return;
+      }
+
       // Our inbound leg just picked up — now go find a human for it.
       if (state.role === 'inbound') {
         // We answer first and only then go looking for a human, which leaves the caller
@@ -328,6 +395,21 @@ async function route(type, p) {
       }
       await store.markEnded(ccid, null, p.hangup_cause, p.sip_hangup_cause);
 
+      // The last phone we were ringing has given up. If the caller is still holding and
+      // nobody took the call, offer voicemail instead of dropping them.
+      if (state.role === 'ring' && state.parent) {
+        const stillRinging = await store.siblingLegs(state.parent, ccid);
+        if (stillRinging.length === 0) {
+          const parent = await store.findByCallControlId(state.parent);
+          // Only if they are still on the line and it was never picked up — a call that
+          // was answered and has now ended must not be sent to voicemail.
+          if (parent && !parent.answered_at && !parent.ended_at) {
+            await sendToVoicemail(state.parent)
+              .catch((e) => console.error('[voice] could not offer voicemail:', e.message));
+          }
+        }
+      }
+
       // When the caller gives up, every phone still ringing for them should stop.
       if (state.role === 'inbound') {
         const others = await store.siblingLegs(ccid, null);
@@ -343,6 +425,36 @@ async function route(type, p) {
           await command(leg.call_control_id, 'hangup', {}).catch(() => {});
         }
       }
+      return;
+    }
+
+    // The greeting has finished playing — now actually take the message.
+    case 'call.speak.ended': {
+      if (state.role !== 'voicemail_greeting') return;
+      await command(ccid, 'record_start', {
+        format: 'mp3',
+        channels: 'single',
+        play_beep: true,
+        // Long enough for a real message, short enough that an open line left off the
+        // hook does not record for an hour.
+        max_length: 180,
+        client_state: encodeState({ role: 'voicemail_recording' }),
+      }).catch((e) => console.error('[voice] could not start recording:', e.message));
+      return;
+    }
+
+    case 'call.recording.saved': {
+      const url = p.public_recording_urls?.mp3 || p.recording_urls?.mp3
+        || p.public_recording_urls?.wav || p.recording_urls?.wav || null;
+      if (!url) {
+        console.error('[voice] a recording was saved but carried no url');
+        return;
+      }
+      // Recorded against the call it belongs to, so it reads as "she rang and left this"
+      // rather than as a loose audio file with a number attached.
+      await store.saveVoicemail(ccid, url, p.recording_ended_at && p.recording_started_at
+        ? Math.max(0, Math.round((new Date(p.recording_ended_at) - new Date(p.recording_started_at)) / 1000))
+        : null);
       return;
     }
 

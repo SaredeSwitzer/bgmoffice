@@ -404,4 +404,15 @@ router.get('/calls', async (req, res) => {
   }
 });
 
+// Marking a voicemail as heard, so a message nobody has listened to still stands out.
+router.post('/calls/:id/heard', async (req, res) => {
+  try {
+    await store.markVoicemailHeard(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[voice] could not mark a voicemail heard:', e.message);
+    res.status(500).json({ error: 'Could not update that message' });
+  }
+});
+
 module.exports = router;

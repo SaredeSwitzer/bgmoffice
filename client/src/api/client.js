@@ -100,6 +100,7 @@ export const api = {
   // The no-browser path: rings your own phone, then connects you to them.
   voiceCall: (to) => request('/voice/call', { method: 'POST', body: JSON.stringify({ to }) }),
   voiceCalls: (phone) => request(`/voice/calls${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`),
+  markVoicemailHeard: (id) => request(`/voice/calls/${id}/heard`, { method: 'POST' }),
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
   getWeeklyReminders: (params) => {
