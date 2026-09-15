@@ -218,6 +218,7 @@ app.use('/api/billing',      require('./routes/billing'));
 app.use('/api/payout-requests', require('./routes/payoutRequests'));
 app.use('/api/sales',        require('./routes/sales'));
 app.use('/api/sms',          require('./routes/sms'));
+app.use('/api/voice',        require('./routes/voice'));
 app.use('/api/cron',         require('./routes/cron'));
 
 // Action type lookups (any authenticated user)
