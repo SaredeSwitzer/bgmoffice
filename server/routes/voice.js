@@ -11,9 +11,12 @@
 // server; there is no way to look any of this up from a laptop.
 
 const express = require('express');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
+// requireAdmin only inspects req.user — without requireAuth ahead of it there is no
+// user to inspect, and every request is refused as if it came from a stranger.
+router.use(requireAuth);
 
 const TELNYX = 'https://api.telnyx.com/v2';
 
