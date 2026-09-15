@@ -213,6 +213,19 @@ async function route(type, p) {
       // call.initiated too, and answering those would be answering our own phone.
       if (p.direction !== 'incoming') return;
 
+      // And it must be a call to the office number, not one of our own legs on its way
+      // to a staff browser.
+      //
+      // A leg we dial to sip:gencred…@sip.telnyx.com arrives at the softphone connection,
+      // whose webhook is also this endpoint — so Telnyx reports it as an *incoming* call
+      // too. Treating that as a fresh office call meant answering it and ringing everyone
+      // again, and each of those legs came back round as another incoming call. One real
+      // call from a cell turned into six, and only stopped because the browsers refused
+      // the extras. Left alone it is a loop that dials in circles and bills for it.
+      if (toE164(p.to) !== toE164(process.env.TELNYX_FROM_NUMBER)) {
+        return;
+      }
+
       const caller = toE164(p.from);
       const person = await lookupPerson(caller).catch(() => null);
 
