@@ -108,6 +108,8 @@ export const api = {
   voiceCallSearch: (q) => request(`/voice/calls?q=${encodeURIComponent(q || '')}`),
   markVoicemailHeard: (id) => request(`/voice/calls/${id}/heard`, { method: 'POST' }),
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
+  // One person's texts and calls together, in order.
+  smsTimeline: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}/timeline`),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
   getWeeklyReminders: (params) => {
     const qs = params?.start && params?.end ? `?start=${params.start}&end=${params.end}` : ''

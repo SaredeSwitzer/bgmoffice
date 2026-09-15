@@ -67,8 +67,8 @@ export default function SmsPage() {
   const loadThread = useCallback(async (phone) => {
     if (!phone) return
     try {
-      const { messages } = await api.smsThread(phone)
-      setMessages(messages)
+      const { items } = await api.smsTimeline(phone)
+      setMessages(items)
       setThreads((prev) => prev.map((t) => (t.phone === phone ? { ...t, unread: 0 } : t)))
       // Reading a conversation marks it read on the server, so the bell in the top bar
       // should drop straight away rather than waiting out its next poll.
@@ -335,7 +335,9 @@ export default function SmsPage() {
                 </header>
 
                 <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-gray-50 px-4 py-3">
-                  {messages.map((m) => (
+                  {messages.map((m) => (m.kind === 'call' ? (
+                    <CallEvent key={m.id} call={m} />
+                  ) : (
                     <div key={m.id} data-msg={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${
                         m.direction === 'outbound' ? 'bg-blue-600 text-white' : 'border border-gray-200 bg-white text-gray-900'} ${
@@ -355,7 +357,7 @@ export default function SmsPage() {
                         )}
                       </div>
                     </div>
-                  ))}
+                  )))}
                 </div>
 
                 {error && <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>}
@@ -390,6 +392,40 @@ export default function SmsPage() {
           </section>
         )}
       </div>
+    </div>
+  )
+}
+
+
+// A call, shown inside the conversation rather than on a separate screen.
+//
+// Deliberately not a bubble: a call is an event that happened, not something somebody
+// said. Centred and quiet so the words in the thread stay the thing you read, with the
+// two that matter — a missed call and a message left — given colour.
+function CallEvent({ call }) {
+  const inbound = call.direction === 'inbound'
+  const missed = call.status === 'missed'
+  const voicemail = call.status === 'voicemail'
+
+  const label =
+    voicemail ? 'Left a message'
+    : missed ? (inbound ? 'Missed call' : 'No answer')
+    : inbound ? 'Incoming call' : 'Outgoing call'
+
+  const tone = voicemail ? 'text-amber-700' : missed ? 'text-red-600' : 'text-gray-500'
+
+  return (
+    <div className="flex flex-col items-center py-1">
+      <div className={`flex items-center gap-1.5 text-xs ${tone}`}>
+        <span>{inbound ? '↙' : '↗'}</span>
+        <span className="font-medium">{label}</span>
+        {call.duration_seconds ? <span>· {call.duration_seconds}s</span> : null}
+        {call.answered_by ? <span>· {call.answered_by}</span> : null}
+        <span className="text-gray-400">· {fmtTime(call.at)}</span>
+      </div>
+      {call.voicemail_url && (
+        <audio controls preload="none" src={call.voicemail_url} className="mt-1 h-8 w-64 max-w-full" />
+      )}
     </div>
   )
 }

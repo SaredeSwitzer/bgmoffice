@@ -13,6 +13,8 @@ const { buildWeeklyReminders } = require('../lib/weeklyReminders');
 const { findPeopleInText } = require('../lib/detectPeopleInText');
 const { sendMail } = require('../lib/mailer');
 const { explainSmsFailure } = require('../lib/smsFailureReason');
+// Calls share the same phone key texts use, which is what lets the two be shown together.
+const voiceStore = require('../lib/voiceStore');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -63,6 +65,49 @@ router.get('/thread/:phone', async (req, res) => {
   } catch (e) {
     console.error('[sms] thread failed:', e.message);
     res.status(500).json({ error: 'Failed to load conversation' });
+  }
+});
+
+// One person's whole history on this line — texts and calls together, in order.
+//
+// A client texts, then rings, then leaves a message. Kept in separate lists that reads as
+// three unrelated events; in one timeline it reads as what it is, one person trying to
+// reach you. Calls come from the same `phone` key texts use, which is what makes them
+// line up at all.
+router.get('/thread/:phone/timeline', async (req, res) => {
+  try {
+    const phone = toE164(req.params.phone);
+    const [messages, calls] = await Promise.all([
+      store.listThread(phone),
+      voiceStore.listCallsFor(phone, 100),
+    ]);
+
+    const items = [
+      ...messages.map(m => {
+        const failed = m.status === 'delivery_failed';
+        const { plain, fix } = failed ? explainSmsFailure(m.error_detail, m.error_code) : {};
+        return { kind: 'text', at: m.created_at, ...m, reason: plain, suggestion: fix };
+      }),
+      ...calls.map(c => ({
+        kind: 'call',
+        at: c.started_at,
+        id: `call-${c.id}`,
+        call_id: c.id,
+        direction: c.direction,
+        status: c.status,
+        duration_seconds: c.duration_seconds,
+        answered_by: c.answered_by,
+        voicemail_url: c.voicemail_url,
+        voicemail_seconds: c.voicemail_seconds,
+        voicemail_heard_at: c.voicemail_heard_at,
+      })),
+    ].sort((a, b) => new Date(a.at) - new Date(b.at));
+
+    await store.markRead(phone);
+    res.json({ phone, items });
+  } catch (e) {
+    console.error('[sms] timeline failed:', e.message);
+    res.status(500).json({ error: 'Failed to load that history' });
   }
 });
 
