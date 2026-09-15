@@ -30,6 +30,14 @@ function ensureSchema() {
         created_at   timestamptz NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS sms_messages_phone_idx ON sms_messages (phone, created_at);
+      -- Not optional, and easy to forget precisely because this table is created here
+      -- rather than in a migration. Without it the table is readable and writable through
+      -- Supabase's public REST API by anyone holding the anon key — a key that ships
+      -- inside browsers and is not a secret. That was live for this table until
+      -- 2026-09-15: every text the business had sent or received could be read by anyone
+      -- who knew the project URL. Enabling RLS with no policy means "owner only", and the
+      -- app is unaffected because it connects as the postgres owner, which bypasses RLS.
+      ALTER TABLE sms_messages ENABLE ROW LEVEL SECURITY;
     `).catch((e) => { _ready = null; throw e; });
   }
   return _ready;

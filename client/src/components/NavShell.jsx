@@ -36,6 +36,26 @@ function TextsBell({ count, onGo }) {
   )
 }
 
+// Whether a new text makes a sound. Sits next to the bell because that is where someone
+// goes when the noise is the thing they want to stop.
+function TextsSoundToggle({ on, onToggle }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={on ? 'New texts make a sound — click to silence' : 'New texts are silent — click to turn the sound on'}
+      aria-label={on ? 'Silence new text sound' : 'Turn on new text sound'}
+      className="p-2 rounded-lg text-white/70 hover:bg-white/15 hover:text-white shrink-0"
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5L6 9H3v6h3l5 4V5z" />
+        {on
+          ? <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 8.5a5 5 0 010 7M18 6a8 8 0 010 12" />
+          : <path strokeLinecap="round" strokeLinejoin="round" d="M16 9l5 6m0-6l-5 6" />}
+      </svg>
+    </button>
+  )
+}
+
 function Shell() {
   const { user, logout } = useAuth()
   // Fetched once behind the whole signed-in app: note text renders client/instructor
@@ -43,7 +63,7 @@ function Shell() {
   // need its own copy.
   useEffect(() => { if (user) loadDirectory() }, [user])
   const { overdueCount } = useRemindersContext()
-  const { unread: unreadTexts } = useUnreadTexts()
+  const { unread: unreadTexts, soundOn, toggleSound } = useUnreadTexts()
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
@@ -109,6 +129,7 @@ function Shell() {
           {/* Unread texts, from wherever you are. A reply used to arrive silently unless
               you happened to be sitting on the Texts screen. */}
           <TextsBell count={unreadTexts} onGo={() => { navigate('/sms'); setOpen(false) }} />
+          <TextsSoundToggle on={soundOn} onToggle={toggleSound} />
 
           {/* Desktop user info — hidden on mobile */}
           <div className="hidden sm:flex items-center gap-3 shrink-0">

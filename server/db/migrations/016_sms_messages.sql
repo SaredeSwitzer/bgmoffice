@@ -17,3 +17,10 @@ CREATE TABLE IF NOT EXISTS sms_messages (
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS sms_messages_phone_idx ON sms_messages (phone, created_at);
+
+-- Added 2026-09-15. Its absence meant this table was reachable through Supabase's public
+-- REST API with the anon key — the key that ships in browsers and is not a secret — so
+-- every text the business had sent or received was readable by anyone with the project
+-- URL. Every other table had this; this one was missed because it is also created at
+-- runtime by server/lib/smsStore.js rather than only here.
+ALTER TABLE sms_messages ENABLE ROW LEVEL SECURITY;
