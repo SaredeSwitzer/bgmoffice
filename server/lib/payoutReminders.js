@@ -41,9 +41,12 @@ function buildMessage({ name, classes, amount, start, end }) {
   const forWeek = `${pretty(start)}–${pretty(end)}`;
   const worked = `${classes} ${classes === 1 ? 'class' : 'classes'}`;
   const sum = owed > 0 ? `, $${owed.toFixed(2)} by our records` : '';
-  return `Hi ${first}! This is Bring the Gym to Me. We don't have your payment request for `
-       + `the week of ${forWeek} yet (${worked}${sum}). Please send it through Venmo to `
-       + `@bringthegymtome when you get a chance and we'll get you paid. Thanks!`;
+  // No "This is Bring the Gym to Me" here, unlike the client-facing messages. These go to
+  // instructors who work for her and know exactly who is asking; introducing ourselves to
+  // our own staff every week reads like a form letter.
+  return `Hi ${first}! We don't have your payment request for the week of ${forWeek} yet `
+       + `(${worked}${sum}). Please send it through Venmo to @bringthegymtome when you get `
+       + `a chance and we'll get you paid. Thanks!`;
 }
 
 // Everyone who taught in the given week and has not been recorded as paid for it.
