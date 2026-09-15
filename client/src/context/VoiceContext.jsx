@@ -23,7 +23,29 @@ export function VoiceProvider({ children }) {
   const [callState, setCallState] = useState(null) // ringing | active | held | done
   const [remoteNumber, setRemoteNumber] = useState('')
   const [incoming, setIncoming] = useState(false)
+  const [micBlocked, setMicBlocked] = useState(false)
   const clientRef = useRef(null)
+  // Where the other person's voice actually comes out. WebRTC hands us a MediaStream and
+  // nothing plays it on its own — without an audio element attached to that stream the
+  // call connects perfectly and is completely silent, which is exactly how this first
+  // went wrong. Created once, in code, so it cannot be lost on a re-render.
+  const audioRef = useRef(null)
+  if (!audioRef.current && typeof document !== 'undefined') {
+    const el = document.createElement('audio')
+    el.autoplay = true
+    el.setAttribute('playsinline', '')   // iOS Safari plays inline rather than full-screen
+    audioRef.current = el
+  }
+
+  // Attach the far end's audio as soon as there is any. Called on every call update
+  // because the stream is not always present the instant the call object appears.
+  const attachAudio = useCallback((c) => {
+    const el = audioRef.current
+    const stream = c?.remoteStream
+    if (!el || !stream) return
+    if (el.srcObject !== stream) el.srcObject = stream
+    el.play().catch(() => { /* autoplay rules; the call still works once clicked */ })
+  }, [])
 
   const teardown = useCallback(() => {
     try { clientRef.current?.disconnect() } catch { /* already gone */ }
@@ -36,7 +58,16 @@ export function VoiceProvider({ children }) {
     let cancelled = false
     if (!enabled) { teardown(); setStatus('off'); setError(''); return }
 
-    setStatus('connecting'); setError('')
+    setStatus('connecting'); setError(''); setMicBlocked(false)
+
+    // Ask for the microphone when the phone is switched on, not when a call arrives.
+    // Answering a ringing call and only then meeting a permission box is how you lose
+    // the call — and if it was denied once, the box never appears again and the call is
+    // simply silent with nothing to explain why. Checked here so it can be said plainly.
+    navigator.mediaDevices?.getUserMedia({ audio: true })
+      .then((stream) => stream.getTracks().forEach((t) => t.stop()))
+      .catch(() => { if (!cancelled) setMicBlocked(true) })
+
     api.voiceToken()
       .then(({ token, caller_number }) => {
         if (cancelled) return
@@ -53,16 +84,21 @@ export function VoiceProvider({ children }) {
         client.on('telnyx.notification', (n) => {
           if (cancelled || n.type !== 'callUpdate' || !n.call) return
           const c = n.call
+          attachAudio(c)
           setCall(c)
           setCallState(c.state)
           setRemoteNumber(c.options?.remoteCallerNumber || c.options?.destinationNumber || '')
           setIncoming(c.state === 'ringing' && c.direction === 'inbound')
           if (['hangup', 'destroy'].includes(c.state)) {
+            // Let go of the stream, or the next call can inherit a dead one.
+            if (audioRef.current) audioRef.current.srcObject = null
             setCall(null); setCallState(null); setIncoming(false); setRemoteNumber('')
           }
         })
 
         client.callerNumber = caller_number
+        // Belt and braces: the SDK will also place remote audio here if it prefers to.
+        client.remoteElement = audioRef.current
         client.connect()
       })
       .catch((e) => {
@@ -102,7 +138,7 @@ export function VoiceProvider({ children }) {
 
   return (
     <VoiceContext.Provider value={{
-      enabled, toggle, status, error,
+      enabled, toggle, status, error, micBlocked,
       call, callState, incoming, remoteNumber,
       dial, answer, hangup, reject, toggleMute,
     }}>

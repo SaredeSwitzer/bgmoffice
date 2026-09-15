@@ -84,6 +84,13 @@ export default function Softphone() {
     // shoved the pill into the middle of the screen every time it was opened.
     <div className="fixed bottom-4 left-4 z-40 flex flex-col items-start gap-1">
       {settingsOpen && <PhoneSettings onClose={() => setSettingsOpen(false)} />}
+      {/* Silence with no explanation is the worst version of this, so say it outright. */}
+      {v.enabled && v.micBlocked && (
+        <div className="mb-1 max-w-xs rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow">
+          Your browser is blocking the microphone, so people won’t hear you. Click the
+          padlock or microphone icon in the address bar and allow the microphone for this site.
+        </div>
+      )}
       <div className="flex items-center gap-1">
       <button
         onClick={() => v.toggle(!v.enabled)}
