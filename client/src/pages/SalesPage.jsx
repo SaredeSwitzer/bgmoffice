@@ -9,6 +9,7 @@ import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { noteTime } from '../utils/dates'
 import NoteBody from '../components/NoteBody'
+import MyTasksTabs from '../components/MyTasksTabs'
 
 function fmt(iso) {
   if (!iso) return ''
@@ -215,6 +216,7 @@ export default function SalesPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      <MyTasksTabs />
       <div>
         <h1 className="text-xl font-bold text-gray-900">Sales</h1>
         <p className="text-sm text-gray-500 mt-0.5">Clients and leads you're planning to reach out to about buying more/new classes.</p>

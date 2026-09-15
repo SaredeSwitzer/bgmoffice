@@ -17,6 +17,7 @@ import ShiftSummaries from '../components/ShiftSummaries'
 import { isSaredeUser } from '../utils/saredeAccess'
 import { LatestHandoff, WriteHandoff } from '../components/ShiftHandoff'
 import { useDelegates } from '../utils/delegates'
+import MyTasksTabs from '../components/MyTasksTabs'
 
 
 function QuickAddOther({ onAdd }) {
@@ -467,6 +468,7 @@ export default function MyTasksPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <MyTasksTabs />
       <div className="flex items-start justify-between gap-3">
         <div>
         <h1 className="text-xl font-bold text-gray-900">My Tasks</h1>

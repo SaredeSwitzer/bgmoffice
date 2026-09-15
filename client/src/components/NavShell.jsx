@@ -81,7 +81,6 @@ function Shell() {
     { to: '/instructors', label: 'Instructors' },
     { to: '/schedule',   label: 'Schedule' },
     ...(isSaredeUser(user) ? [{ to: '/billing', label: 'Billing' }] : []),
-    ...(isSaredeUser(user) ? [{ to: '/sales', label: 'Sales' }] : []),
     { to: '/reminders',  label: overdueCount > 0 ? `Reminders (${overdueCount})` : 'Reminders' },
     // Texts and calls are one heading. They are the same conversation with the same
     // person on the same number; two tabs inside the page keep them apart without

@@ -12,7 +12,11 @@ router.use(requireAuth, requireSaredeOnly);
 
 const LEAD_JOIN = `
   SELECT sl.*, c.name AS linked_client_name,
-    (SELECT COUNT(*) FROM sales_lead_notes n WHERE n.sales_lead_id = sl.id)::int AS note_count
+    (SELECT COUNT(*) FROM sales_lead_notes n WHERE n.sales_lead_id = sl.id)::int AS note_count,
+    -- When this lead was last actually worked. Drives the "needs a call" count on the
+    -- Sales tab: a lead nobody has written on in a week is one going quietly cold, and
+    -- the whole point of putting Sales next to My Tasks is to be reminded to ring them.
+    (SELECT MAX(n.created_at) FROM sales_lead_notes n WHERE n.sales_lead_id = sl.id) AS last_note_at
   FROM sales_leads sl
   LEFT JOIN clients c ON c.id = sl.client_id
 `;
