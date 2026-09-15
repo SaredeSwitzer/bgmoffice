@@ -78,12 +78,22 @@ async function ringEveryone(parentCcid, callerNumber, connectionId) {
     return 0;
   }
 
+  // Last ten digits, so a cell stored as +1214… still matches a caller id of 214….
+  const callerKey = String(callerNumber || '').replace(/\D/g, '').slice(-10);
+
   let rung = 0;
   for (const t of targets) {
     // A person can have both on, and then both ring — that is the point of it.
     const destinations = [];
     if (t.ring_browser && t.sip_username) destinations.push(`sip:${t.sip_username}@sip.telnyx.com`);
-    if (t.ring_cell && t.cell_phone) destinations.push(toE164(t.cell_phone));
+
+    // Never ring the phone the call is coming FROM. Staff do call the office line from
+    // their own cells, and dialling that cell back gets them a call-waiting beep from
+    // themselves — or nothing, since carriers tend to refuse a call that claims to come
+    // from the number it is calling. Their browser still rings, which is the point.
+    const cellKey = String(t.cell_phone || '').replace(/\D/g, '').slice(-10);
+    const isTheCaller = callerKey && cellKey && callerKey === cellKey;
+    if (t.ring_cell && t.cell_phone && !isTheCaller) destinations.push(toE164(t.cell_phone));
 
     for (const to of destinations) {
       try {
