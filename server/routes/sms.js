@@ -10,6 +10,7 @@ const store = require('../lib/smsStore');
 const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const { lookupPerson } = require('../lib/telnyxInbound');
 const { buildWeeklyReminders } = require('../lib/weeklyReminders');
+const { buildPayoutReminders } = require('../lib/payoutReminders');
 const { findPeopleInText } = require('../lib/detectPeopleInText');
 const { sendMail } = require('../lib/mailer');
 const { explainSmsFailure } = require('../lib/smsFailureReason');
@@ -251,6 +252,20 @@ router.post('/failures/recover', requireAdmin, async (req, res) => {
   }
 });
 
+
+// ── Payout reminders ─────────────────────────────────────────────────────────────────
+// "Who taught last week that I haven't paid, and nudge them to send their request."
+// Preview-first like the class reminders: nothing sends until she has read the list.
+router.get('/payout-reminders', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    res.json(await buildPayoutReminders(start && end ? { start, end } : {}));
+  } catch (e) {
+    console.error('[sms] payout reminder preview failed:', e.message);
+    res.status(500).json({ error: 'Could not work out who is still owed' });
+  }
+});
+
 router.post('/send', async (req, res) => {
   const { to, body } = req.body || {};
   if (!to || !body || !String(body).trim()) {
@@ -317,7 +332,10 @@ router.get('/weekly-reminders', async (req, res) => {
   }
 });
 
-router.post('/weekly-reminders/send', async (req, res) => {
+// Sends a prepared batch of messages, each already addressed and worded by whichever
+// preview built it. Named for the class reminders because they came first; the payout
+// reminders send through the very same path, which is why it also answers to /send-batch.
+async function sendPreparedBatch(req, res) {
   const { messages } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Nothing to send.' });
@@ -362,6 +380,9 @@ router.post('/weekly-reminders/send', async (req, res) => {
   }
   const sent = results.filter(r => r.ok).length;
   res.json({ sent, failed: results.length - sent, results });
-});
+}
+
+router.post('/weekly-reminders/send', sendPreparedBatch);
+router.post('/send-batch', sendPreparedBatch);
 
 module.exports = router;

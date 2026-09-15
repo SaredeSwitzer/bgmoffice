@@ -117,6 +117,14 @@ export const api = {
   },
   sendWeeklyReminders: (messages) =>
     request('/sms/weekly-reminders/send', { method: 'POST', body: JSON.stringify({ messages }) }),
+  // Who taught last week and has not been paid, with a drafted nudge for each.
+  getPayoutReminders: (params) => {
+    const qs = params?.start && params?.end ? `?start=${params.start}&end=${params.end}` : ''
+    return request(`/sms/payout-reminders${qs}`)
+  },
+  // The shared batch sender — the class reminders and the payout nudges both go through it.
+  sendPreparedMessages: (messages) =>
+    request('/sms/send-batch', { method: 'POST', body: JSON.stringify({ messages }) }),
 
   // Standalone Tasks
   getTasks: (status) => request(`/tasks${status ? `?status=${status}` : ''}`),

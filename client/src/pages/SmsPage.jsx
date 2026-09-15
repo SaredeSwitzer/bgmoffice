@@ -4,6 +4,7 @@ import WeeklyRemindersPanel from '../components/WeeklyRemindersPanel'
 import { useUnreadTexts } from '../context/UnreadTextsContext'
 import StartWaitingLinePrompt from '../components/StartWaitingLinePrompt'
 import CallButton from '../components/CallButton'
+import PayoutRemindersPanel from '../components/PayoutRemindersPanel'
 import PhoneTabs from '../components/PhoneTabs'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
@@ -44,6 +45,7 @@ export default function SmsPage() {
   const [loading, setLoading] = useState(true)
   const [composeOpen, setComposeOpen] = useState(false)
   const [remindersOpen, setRemindersOpen] = useState(false)
+  const [payoutOpen, setPayoutOpen] = useState(false)
   // Search: the query, what came back, and the message we were sent here to read.
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)   // null = not searching
@@ -196,10 +198,16 @@ export default function SmsPage() {
           New message
         </button>
         <button
-          onClick={() => { setRemindersOpen(true); setComposeOpen(false); setActive(null) }}
+          onClick={() => { setRemindersOpen(true); setPayoutOpen(false); setComposeOpen(false); setActive(null) }}
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           Weekly reminders
+        </button>
+        <button
+          onClick={() => { setPayoutOpen(true); setRemindersOpen(false); setComposeOpen(false); setActive(null) }}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Payment requests
         </button>
       </div>
 
@@ -251,7 +259,7 @@ export default function SmsPage() {
 
       <div className="flex h-[62vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:h-[70vh]">
         {/* Conversation list */}
-        <aside className={`${active || composeOpen || remindersOpen ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-gray-200 md:w-80`}>
+        <aside className={`${active || composeOpen || remindersOpen || payoutOpen ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-gray-200 md:w-80`}>
           <div className="shrink-0 border-b border-gray-200 p-2">
             <div className="relative">
               <input
@@ -316,6 +324,8 @@ export default function SmsPage() {
           <section className="min-w-0 flex-1">
             <WeeklyRemindersPanel onClose={() => setRemindersOpen(false)} onSent={loadThreads} />
           </section>
+        ) : payoutOpen ? (
+          <PayoutRemindersPanel onClose={() => setPayoutOpen(false)} onSent={loadThreads} />
         ) : composeOpen ? (
           <ComposePanel onClose={() => setComposeOpen(false)} onOpenThread={openThread} onSent={loadThreads} />
         ) : (
