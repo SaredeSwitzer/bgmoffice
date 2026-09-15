@@ -110,9 +110,6 @@ export const api = {
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
   // One person's texts and calls together, in order.
   smsTimeline: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}/timeline`),
-  // Toggles: the same reaction twice takes it back. Internal to the office — never sent.
-  smsReact: (messageId, emoji) =>
-    request(`/sms/messages/${messageId}/react`, { method: 'POST', body: JSON.stringify({ emoji }) }),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
   getWeeklyReminders: (params) => {
     const qs = params?.start && params?.end ? `?start=${params.start}&end=${params.end}` : ''

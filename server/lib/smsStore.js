@@ -321,43 +321,5 @@ async function acknowledgeFailures(initials) {
   return rowCount;
 }
 
-
-// ── Reactions ────────────────────────────────────────────────────────────────────────
-// A reaction is a note between the people working this inbox, not something the client
-// ever sees. Nothing is sent: over plain SMS a "reaction" arrives as a separate text
-// reading 'Liked "..."', which is exactly the thing everyone finds irritating. Here it
-// means "I've seen this" or "I'll take it" so three people sharing one inbox aren't all
-// answering the same message.
-async function toggleReaction(messageId, emoji, initials) {
-  await ensureSchema();
-  const { rowCount } = await pool.query(
-    'DELETE FROM sms_reactions WHERE message_id = $1 AND emoji = $2 AND created_by = $3',
-    [messageId, emoji, initials]);
-  if (rowCount > 0) return { on: false };
-  await pool.query(
-    'INSERT INTO sms_reactions (message_id, emoji, created_by) VALUES ($1,$2,$3)',
-    [messageId, emoji, initials]);
-  return { on: true };
-}
-
-// Reactions for a whole conversation in one query, so the thread does not fire one
-// request per message.
-async function reactionsForThread(phone) {
-  await ensureSchema();
-  const { rows } = await pool.query(
-    `SELECT r.message_id, r.emoji, r.created_by
-       FROM sms_reactions r
-       JOIN sms_messages m ON m.id = r.message_id
-      WHERE m.phone = $1
-      ORDER BY r.created_at`,
-    [phone]);
-  const byMessage = {};
-  for (const r of rows) {
-    (byMessage[r.message_id] ||= []).push({ emoji: r.emoji, by: r.created_by });
-  }
-  return byMessage;
-}
-
 module.exports = {
-  toggleReaction, reactionsForThread,
   saveFailure, recentFailures, acknowledgeFailures, ensureSchema, searchMessages, searchPeople, logMessage, updateStatusByTelnyxId, logOutboundFromWebhook, listThreads, listThread, markRead };

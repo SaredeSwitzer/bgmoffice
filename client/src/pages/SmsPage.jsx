@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { api } from '../api/client'
-import { useAuth } from '../context/AuthContext'
 import WeeklyRemindersPanel from '../components/WeeklyRemindersPanel'
 import { useUnreadTexts } from '../context/UnreadTextsContext'
 import StartWaitingLinePrompt from '../components/StartWaitingLinePrompt'
@@ -32,7 +31,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 export default function SmsPage() {
   const { refresh: refreshUnread } = useUnreadTexts()
-  const { user } = useAuth()
   const [threads, setThreads] = useState([])
   const [active, setActive] = useState(null)       // phone string
   const [messages, setMessages] = useState([])
@@ -176,25 +174,6 @@ export default function SmsPage() {
     } else {
       setActive(phone)
     }
-  }
-
-  // Optimistic: a reaction should feel instant. The server is the truth, so a failure
-  // reloads the thread rather than leaving a reaction on screen that isn't really there.
-  async function react(messageId, emoji) {
-    const me = user?.initials || '??'
-    setMessages((prev) => prev.map((m) => {
-      if (m.id !== messageId) return m
-      const list = m.reactions || []
-      const mine = list.find((r) => r.emoji === emoji && r.by === me)
-      return {
-        ...m,
-        reactions: mine
-          ? list.filter((r) => !(r.emoji === emoji && r.by === me))
-          : [...list, { emoji, by: me }],
-      }
-    }))
-    try { await api.smsReact(messageId, emoji) }
-    catch { loadThread(active) }
   }
 
   function clearSearch() {
@@ -384,12 +363,6 @@ export default function SmsPage() {
                         </div>
                         {/* A text that never arrived has to look different from one that
                             did. "delivery_failed" in grey at 10px is not a difference. */}
-                        <Reactions
-                          list={m.reactions}
-                          me={user?.initials}
-                          outbound={m.direction === 'outbound'}
-                          onReact={(emoji) => react(m.id, emoji)}
-                        />
                         {m.status === 'delivery_failed' && (
                           <div className="mt-1.5 rounded-lg bg-red-50 px-2 py-1.5 text-[11px] leading-snug text-red-700">
                             <span className="font-semibold">Not delivered.</span>{' '}
@@ -468,65 +441,6 @@ function CallEvent({ call }) {
       {call.voicemail_url && (
         <audio controls preload="none" src={call.voicemail_url} className="mt-1 h-8 w-64 max-w-full" />
       )}
-    </div>
-  )
-}
-
-
-// Reactions on a message — a note between whoever is working this inbox, never sent to
-// the client. Three people share this screen; this is how one of them says "seen it" or
-// "I'll take it" without three replies going out.
-const REACTIONS = ['👍', '✅', '👀', '❤️', '❓']
-
-function Reactions({ list = [], me, outbound, onReact }) {
-  const [open, setOpen] = useState(false)
-
-  // Same emoji from two people shows once with a count, the way every chat app does it.
-  const grouped = []
-  for (const r of list) {
-    const found = grouped.find((g) => g.emoji === r.emoji)
-    if (found) { found.by.push(r.by) } else { grouped.push({ emoji: r.emoji, by: [r.by] }) }
-  }
-
-  return (
-    <div className={`mt-1 flex items-center gap-1 ${outbound ? 'justify-end' : ''}`}>
-      {grouped.map((g) => (
-        <button
-          key={g.emoji}
-          onClick={() => onReact(g.emoji)}
-          title={g.by.join(', ')}
-          className={`rounded-full border px-1.5 py-0.5 text-[11px] leading-none ${
-            g.by.includes(me)
-              ? 'border-blue-300 bg-blue-50 text-blue-700'
-              : 'border-gray-200 bg-white text-gray-600'}`}
-        >
-          {g.emoji}{g.by.length > 1 ? ` ${g.by.length}` : ''}
-        </button>
-      ))}
-
-      <div className="relative">
-        <button
-          onClick={() => setOpen((o) => !o)}
-          aria-label="React to this message"
-          className={`rounded-full px-1 text-[11px] leading-none ${
-            outbound ? 'text-blue-200 hover:text-white' : 'text-gray-300 hover:text-gray-600'}`}
-        >
-          ☺
-        </button>
-        {/* Beside the button, not above it: opening upward put the picker on top of the
-            very message you are reacting to, hiding the words you were reading. */}
-        {open && (
-          <div className={`absolute bottom-0 z-20 flex gap-0.5 rounded-full border border-gray-200 bg-white px-1.5 py-1 shadow-lg ${
-            outbound ? 'right-full mr-1' : 'left-full ml-1'}`}>
-            {REACTIONS.map((e) => (
-              <button key={e} onClick={() => { onReact(e); setOpen(false) }}
-                className="rounded-full px-1 text-sm hover:bg-gray-100">
-                {e}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   )
 }
