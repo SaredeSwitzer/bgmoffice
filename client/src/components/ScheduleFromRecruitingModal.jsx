@@ -6,6 +6,31 @@ import { readRate } from '../utils/rates'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+// "participants" on a recruiting entry is a phone note, not a field: "1, 28 years old",
+// "Grades 1-5", "10-15 people ages 20-45", "5 groups as well (3-5y/o, 5-7y/o…)".
+//
+// Only the count used to be lifted and the ages were left blank, so the age was retyped
+// from the note sitting right above the form every single time. The count box is a number
+// and has to stay clean; the ages box is free text — its own placeholder is "e.g. 24, or
+// 3-5y/o" — so a phrase is exactly what belongs there.
+export function readParticipants(raw) {
+  const s = String(raw || '').trim()
+  if (!s) return { count: '', ages: '' }
+
+  // No leading headcount at all — "Grades 1-5", "PreK3 - Kindergarten". The whole note
+  // describes who attends, so it all belongs in the ages box rather than being dropped.
+  if (!/^\d/.test(s)) return { count: '', ages: s }
+
+  // "10-15 people ages 20-45" is a RANGE of people, not a count then an age. The tell is
+  // no space around the hyphen — "5- 35-41" is five people aged 35-41.
+  const range = /^(\d+)-\d+\s*(.*)$/.exec(s)
+  if (range) return { count: range[1], ages: range[2].trim() }
+
+  // The ordinary shape: a count, whatever separator somebody happened to type, the ages.
+  const m = /^(\d+)\s*[,;.\-\u2013:]?\s*(.*)$/.exec(s)
+  return { count: m[1], ages: (m[2] || '').trim() }
+}
+
 // Turn a recruiting entry into real calendar classes once an instructor is lined up,
 // instead of retyping it all into the Schedule screen. Prefilled from the entry, but
 // everything stays editable — the entry's free-text fields ("$75 for 30 min (30-45 min)",
@@ -25,11 +50,10 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
     instructor_pay: '',
     payment_method: '',
     style: entry.style || '',
-    // The entry's "participants" is a phone note ("1 - going to be 24 in september",
-    // "5 groups as well (3-5y/o, 5-7y/o…)"), so only a leading count is safe to lift —
-    // the rest stays visible above for whoever's filling this in.
-    participant_count: (entry.participants || '').trim().match(/^(\d+)/)?.[1] || '',
-    participant_ages: '',
+    // Both halves of the phone note, not just the headcount — see readParticipants.
+    // The raw note still shows above, so anything it got wrong is obvious and editable.
+    participant_count: readParticipants(entry.participants).count,
+    participant_ages: readParticipants(entry.participants).ages,
   })
   // What happened when a rate was filled in — said out loud, because a number appearing
   // in a money box on its own is the kind of thing you either miss or don't trust.
