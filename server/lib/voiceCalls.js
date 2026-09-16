@@ -235,6 +235,29 @@ async function transcribeCallsEnabled() {
   } catch { return false; }
 }
 
+// How calls get turned into words.
+//
+// Was Telnyx's own engine (the legacy "B"), which is Whisper-based, and on real calls it
+// did not merely mishear — it INVENTED. One 59-second call about scheduling an instructor
+// came back with "Russians You are my children", "I reaching 6 months in Greece" and a
+// stray <|ta|> token; another rendered a greeting as "I'm in tears that day" and dropped
+// Japanese into the middle of it. Whisper does this on silence and hold music, and a
+// transcript that fabricates is worse than no transcript at all when the point of it is
+// remembering what somebody agreed to.
+//
+// Deepgram nova-3 fails the other way — it drops words it cannot hear rather than filling
+// the gap with fluent nonsense, which is the failure we want. smart_format is on because
+// these calls are full of times, dates and phone numbers.
+const TRANSCRIBE = {
+  transcription_engine: 'Deepgram',
+  transcription_engine_config: {
+    transcription_engine: 'Deepgram',
+    transcription_model: 'deepgram/nova-3',
+    language: 'en',
+    smart_format: true,
+  },
+};
+
 // Start recording and transcribing an outgoing call, if she has it switched on and the
 // number is one we may record without announcing it. Never awaited — nothing here is
 // allowed to come between two people mid-call.
@@ -247,7 +270,7 @@ async function recordOutgoing(ccid, otherNumber) {
   }
   const st = encodeState({ role: 'outbound', t: 'call' });
   command(ccid, 'transcription_start', {
-    transcription_engine: 'B', language: 'en', transcription_tracks: 'both', client_state: st,
+    ...TRANSCRIBE, transcription_tracks: 'both', client_state: st,
   }).catch((e) => {
     console.error('[voice] no outgoing transcription:', e.message);
     store.noteRecordingError(ccid, `transcription: ${e.message}`).catch(() => {});
@@ -436,8 +459,7 @@ async function route(type, p) {
         // between two people who are mid-call.
         if (await transcribeCallsEnabled()) {
           command(state.parent, 'transcription_start', {
-            transcription_engine: 'B',
-            language: 'en',
+            ...TRANSCRIBE,
             transcription_tracks: 'both',
             client_state: encodeState({ role: 'inbound', t: 'call' }),
           }).catch((e) => {
@@ -568,8 +590,7 @@ async function route(type, p) {
       // played. Engine B is Telnyx's own — more accurate and cheaper than the default.
       // Not awaited: a transcription that fails must never cost us the recording itself.
       command(ccid, 'transcription_start', {
-        transcription_engine: 'B',
-        language: 'en',
+        ...TRANSCRIBE,
         transcription_tracks: 'inbound',
         client_state: encodeState({ role: 'voicemail_recording', t: 'voicemail' }),
       }).catch((e) => console.error('[voice] no voicemail transcription:', e.message));
