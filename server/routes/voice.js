@@ -279,6 +279,24 @@ router.post('/setup', requireAdmin, async (req, res) => {
       });
     }
 
+    // What people see when we ring them. Without this the number shows as a bare
+    // "917-719-2201" on a mobile — which is what Sarede saw on her test call. The name
+    // itself lives in the carrier CNAM databases, so switching this on is necessary but
+    // not instant: propagation across carriers takes days, and some never show a name for
+    // a number they do not recognise.
+    try {
+      const number = (await telnyx('/phone_numbers?page[size]=50')).data
+        ?.find(n => n.phone_number === process.env.TELNYX_FROM_NUMBER);
+      if (number) {
+        await telnyxWrite(`/phone_numbers/${number.id}/voice`, 'PATCH', {
+          caller_id_name_enabled: true,
+        });
+        steps.push({ step: 'caller ID name', action: 'enabled on the number' });
+      }
+    } catch (e) {
+      steps.push({ step: 'caller ID name', action: `could not enable — ${e.message}` });
+    }
+
     res.json({
       ok: true,
       webhook,
