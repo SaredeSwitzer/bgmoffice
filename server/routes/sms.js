@@ -101,6 +101,8 @@ router.get('/thread/:phone/timeline', async (req, res) => {
         voicemail_url: c.voicemail_url,
         voicemail_seconds: c.voicemail_seconds,
         voicemail_heard_at: c.voicemail_heard_at,
+        transcript: c.transcript,
+        transcript_kind: c.transcript_kind,
       })),
     ].sort((a, b) => new Date(a.at) - new Date(b.at));
 

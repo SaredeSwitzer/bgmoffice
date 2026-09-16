@@ -441,6 +441,9 @@ function CallEvent({ call }) {
       {call.voicemail_url && (
         <audio controls preload="none" src={call.voicemail_url} className="mt-1 h-8 w-64 max-w-full" />
       )}
+      {call.transcript && (
+        <p className="mt-1 max-w-md text-center text-xs italic text-gray-500">“{call.transcript}”</p>
+      )}
     </div>
   )
 }

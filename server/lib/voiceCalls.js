@@ -206,6 +206,18 @@ async function sendToVoicemail(parentCcid) {
   });
 }
 
+// Whether live conversations get transcribed. OFF unless switched on, and deliberately
+// not decided here: a voicemail is a message somebody chose to leave us, but a call is a
+// conversation with a client who has not been told anything is being written down. That
+// is a business decision, so it lives in settings rather than in code.
+async function transcribeCallsEnabled() {
+  try {
+    const { rows } = await pool.query(
+      "SELECT value FROM app_settings WHERE key = 'transcribe_calls'");
+    return String(rows[0]?.value || '').toLowerCase() === 'on';
+  } catch { return false; }
+}
+
 // ── The webhook ──────────────────────────────────────────────────────────────────────
 
 async function handleWebhook(req, res) {
@@ -361,6 +373,18 @@ async function route(type, p) {
         await command(state.parent, 'playback_stop', {}).catch(() => {});
         await command(ccid, 'bridge', { call_control_id: state.parent });
 
+        // Both sides of the conversation, once they are actually connected — and only if
+        // she has turned it on. Not awaited: a transcription problem must never come
+        // between two people who are mid-call.
+        if (await transcribeCallsEnabled()) {
+          command(state.parent, 'transcription_start', {
+            transcription_engine: 'B',
+            language: 'en',
+            transcription_tracks: 'both',
+            client_state: encodeState({ role: 'inbound', t: 'call' }),
+          }).catch((e) => console.error('[voice] no call transcription:', e.message));
+        }
+
         const others = await store.siblingLegs(state.parent, ccid);
         for (const leg of others) {
           await command(leg.call_control_id, 'hangup', {}).catch(() => {});
@@ -456,6 +480,16 @@ async function route(type, p) {
         max_length: 180,
         client_state: encodeState({ role: 'voicemail_recording' }),
       }).catch((e) => console.error('[voice] could not start recording:', e.message));
+
+      // Transcribe it as they speak, so the message can be read at a glance rather than
+      // played. Engine B is Telnyx's own — more accurate and cheaper than the default.
+      // Not awaited: a transcription that fails must never cost us the recording itself.
+      command(ccid, 'transcription_start', {
+        transcription_engine: 'B',
+        language: 'en',
+        transcription_tracks: 'inbound',
+        client_state: encodeState({ role: 'voicemail_recording', t: 'voicemail' }),
+      }).catch((e) => console.error('[voice] no voicemail transcription:', e.message));
       return;
     }
 
@@ -471,6 +505,18 @@ async function route(type, p) {
       await store.saveVoicemail(ccid, url, p.recording_ended_at && p.recording_started_at
         ? Math.max(0, Math.round((new Date(p.recording_ended_at) - new Date(p.recording_started_at)) / 1000))
         : null);
+      return;
+    }
+
+    // Words as they are spoken. Only the settled ones are kept: interim results are the
+    // engine thinking out loud and change from one event to the next, so storing them
+    // leaves half-corrected words in the middle of the text.
+    case 'call.transcription': {
+      const t = p.transcription_data || p;
+      const isFinal = t.is_final !== false;
+      const text = t.transcript ?? t.text ?? '';
+      if (!isFinal || !String(text).trim()) return;
+      await store.appendTranscript(ccid, text, state.t || 'call');
       return;
     }
 

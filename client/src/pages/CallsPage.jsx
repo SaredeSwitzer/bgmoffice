@@ -154,6 +154,8 @@ export default function CallsPage() {
 
                 <CallButton phone={c.phone} name={c.person_name} className="shrink-0" />
 
+                <Transcript text={c.transcript} kind={c.transcript_kind} />
+
                 {c.voicemail_url && (
                   <div className="w-full">
                     <audio
@@ -170,6 +172,42 @@ export default function CallsPage() {
           })
         )}
       </div>
+    </div>
+  )
+}
+
+
+// What was said, short by default.
+//
+// A transcript is often a paragraph, and a list of calls where every row is a paragraph
+// is a list you stop reading. So: one line, and the rest on a click. The preview is the
+// point — it answers "do I need to listen to this?" without playing anything.
+function Transcript({ text, kind }) {
+  const [open, setOpen] = useState(false)
+  if (!String(text || '').trim()) return null
+
+  const label = kind === 'voicemail' ? 'Message' : 'Call'
+  const long = text.length > 110
+
+  return (
+    <div className="mt-1 w-full rounded-lg bg-gray-50 px-3 py-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full text-left"
+        title={long ? (open ? 'Show less' : 'Read the whole thing') : undefined}
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+          {label}
+        </span>
+        <span className={`ml-2 text-sm text-gray-700 ${open ? '' : 'line-clamp-1'}`}>
+          “{text}”
+        </span>
+        {long && (
+          <span className="ml-1 text-xs font-medium text-blue-600">
+            {open ? 'less' : 'more'}
+          </span>
+        )}
+      </button>
     </div>
   )
 }

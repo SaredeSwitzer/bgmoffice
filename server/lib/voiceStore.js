@@ -180,7 +180,22 @@ async function markVoicemailHeard(id) {
   await pool.query('UPDATE voice_calls SET voicemail_heard_at = now() WHERE id = $1', [id]);
 }
 
+
+// Transcription arrives in pieces as the person speaks, so each final fragment is
+// appended rather than replacing what came before. Interim guesses are dropped by the
+// caller — keeping them would leave half-corrected words in the text.
+async function appendTranscript(ccid, text, kind) {
+  if (!String(text || '').trim()) return;
+  await pool.query(
+    `UPDATE voice_calls
+        SET transcript = trim(both ' ' from coalesce(transcript || ' ', '') || $2),
+            transcript_kind = coalesce(transcript_kind, $3)
+      WHERE call_control_id = $1`,
+    [ccid, String(text).trim(), kind || null]);
+}
+
 module.exports = {
+  appendTranscript,
   saveVoicemail, markVoicemailHeard,
   getVoiceUser, ringTargets, upsertVoiceUser, saveCredential,
   startCall, findByCallControlId, siblingLegs, markAnswered, markEnded,
