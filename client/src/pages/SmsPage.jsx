@@ -6,6 +6,7 @@ import StartWaitingLinePrompt from '../components/StartWaitingLinePrompt'
 import CallButton from '../components/CallButton'
 import PayoutRemindersPanel from '../components/PayoutRemindersPanel'
 import PhoneTabs from '../components/PhoneTabs'
+import DictateButton from '../components/DictateButton'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -35,6 +36,10 @@ export default function SmsPage() {
   const [active, setActive] = useState(null)       // phone string
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
+  // The committed draft, without whatever dictation is still revising. Speech engines
+  // rewrite the tail of a sentence as they listen, so the box shows draft + pending
+  // while only the settled part is kept.
+  const [pendingSpeech, setPendingSpeech] = useState('')
   const [sending, setSending] = useState(false)
   // Bumped on every send, so the Waiting On offer re-asks per message rather than once.
   const [lastSentAt, setLastSentAt] = useState(0)
@@ -139,6 +144,7 @@ export default function SmsPage() {
     try {
       await api.smsSend(active, body)
       setDraft('')
+      setPendingSpeech('')
       // Searching was how you got to this person; once you've written to them it has done
       // its job, and leaving the term in the box keeps the normal conversation list hidden
       // behind a set of results you're finished with. The conversation itself stays open —
@@ -390,12 +396,23 @@ export default function SmsPage() {
 
                 <form onSubmit={send} className="flex items-end gap-2 border-t border-gray-200 p-3">
                   <textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    value={pendingSpeech ? `${draft}${draft && !draft.endsWith(' ') ? ' ' : ''}${pendingSpeech}` : draft}
+                    onChange={(e) => { setPendingSpeech(''); setDraft(e.target.value) }}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e) } }}
                     rows={1}
                     placeholder="Type a reply…"
                     className="max-h-32 flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  />
+                  <DictateButton
+                    className="shrink-0"
+                    onText={(text, { final }) => {
+                      if (final) {
+                        setPendingSpeech('')
+                        setDraft((d) => (d ? `${d.replace(/\s+$/, '')} ${text.trim()}` : text.trim()))
+                      } else {
+                        setPendingSpeech(text.trim())
+                      }
+                    }}
                   />
                   <button type="submit" disabled={sending || !draft.trim()}
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
