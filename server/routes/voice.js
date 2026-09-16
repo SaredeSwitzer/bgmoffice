@@ -155,6 +155,14 @@ const APP_NAME = 'BGM Office calling';
 // The SIP connection every staff browser signs in under. One connection, one credential
 // per person beneath it, so an incoming call can ring one named person's browser.
 const SOFTPHONE_NAME = 'BGM Office softphone';
+// What the phone network shows when we ring somebody. Capped at 15 characters by the
+// caller-ID-name system, so the full "Bring the Gym to Me" does not fit.
+//
+// Worth knowing before anyone expects much of this: the caller-ID-name database is a
+// landline-era system that wireless carriers largely ignore, so most clients will never
+// see it. Asking people to save the number — which the texts already do — is what
+// actually works.
+const CALLER_ID_NAME = 'Bring the Gym';
 
 router.post('/setup', requireAdmin, async (req, res) => {
   const steps = [];
@@ -288,10 +296,15 @@ router.post('/setup', requireAdmin, async (req, res) => {
       const number = (await telnyx('/phone_numbers?page[size]=50')).data
         ?.find(n => n.phone_number === process.env.TELNYX_FROM_NUMBER);
       if (number) {
+        // 15 characters is the hard limit the caller-ID-name system allows, which is why
+        // this is "Bring the Gym" and not the full business name — Sarede picked the
+        // truncation. Registering the name is what carriers actually look up; the flag
+        // alone publishes nothing.
         await telnyxWrite(`/phone_numbers/${number.id}/voice`, 'PATCH', {
           caller_id_name_enabled: true,
+          cnam_listing: { cnam_listing_enabled: true, cnam_listing_details: CALLER_ID_NAME },
         });
-        steps.push({ step: 'caller ID name', action: 'enabled on the number' });
+        steps.push({ step: 'caller ID name', action: `registered as "${CALLER_ID_NAME}"` });
       }
     } catch (e) {
       steps.push({ step: 'caller ID name', action: `could not enable — ${e.message}` });
