@@ -388,6 +388,15 @@ async function route(type, p) {
             transcription_tracks: 'both',
             client_state: encodeState({ role: 'inbound', t: 'call' }),
           }).catch((e) => console.error('[voice] no call transcription:', e.message));
+
+          // And keep the audio. A transcript answers "what was said"; the recording
+          // answers "what did she actually say", which is the one that settles a
+          // disagreement. Dual channel so the two voices stay separable.
+          command(state.parent, 'record_start', {
+            format: 'mp3',
+            channels: 'dual',
+            client_state: encodeState({ role: 'inbound', t: 'call' }),
+          }).catch((e) => console.error('[voice] no call recording:', e.message));
         }
 
         const others = await store.siblingLegs(state.parent, ccid);
@@ -505,11 +514,20 @@ async function route(type, p) {
         console.error('[voice] a recording was saved but carried no url');
         return;
       }
-      // Recorded against the call it belongs to, so it reads as "she rang and left this"
-      // rather than as a loose audio file with a number attached.
-      await store.saveVoicemail(ccid, url, p.recording_ended_at && p.recording_started_at
+      const secs = p.recording_ended_at && p.recording_started_at
         ? Math.max(0, Math.round((new Date(p.recording_ended_at) - new Date(p.recording_started_at)) / 1000))
-        : null);
+        : null;
+
+      // A voicemail and a recorded conversation arrive on this same event, so they have to
+      // be told apart by what the leg was doing. Saving a call recording as a voicemail
+      // would stamp an answered call "Left a message" in the log.
+      if (state.role === 'voicemail_recording') {
+        // Recorded against the call it belongs to, so it reads as "she rang and left this"
+        // rather than as a loose audio file with a number attached.
+        await store.saveVoicemail(ccid, url, secs);
+      } else {
+        await store.saveCallRecording(ccid, url, secs);
+      }
       return;
     }
 

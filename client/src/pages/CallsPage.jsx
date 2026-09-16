@@ -170,6 +170,15 @@ export default function CallsPage() {
 
                 <Transcript text={c.transcript} kind={c.transcript_kind} />
 
+                {/* The recording of an answered call. Sits below the transcript because
+                    the words are what you scan; the audio is what you reach for when the
+                    words are not enough. */}
+                {c.recording_url && (
+                  <div className="w-full">
+                    <audio controls preload="none" src={c.recording_url} className="mt-1 h-9 w-full" />
+                  </div>
+                )}
+
                 {c.voicemail_url && (
                   <div className="w-full">
                     <audio

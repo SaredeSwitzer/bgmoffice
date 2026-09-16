@@ -103,6 +103,7 @@ router.get('/thread/:phone/timeline', async (req, res) => {
         voicemail_heard_at: c.voicemail_heard_at,
         transcript: c.transcript,
         transcript_kind: c.transcript_kind,
+        recording_url: c.recording_url,
       })),
     ].sort((a, b) => new Date(a.at) - new Date(b.at));
 

@@ -194,7 +194,22 @@ async function appendTranscript(ccid, text, kind) {
     [ccid, String(text).trim(), kind || null]);
 }
 
+
+// A recording of a conversation somebody actually had — distinct from a voicemail, which
+// is a message left for us. They arrive on the same Telnyx event, so the two must be told
+// apart by what the leg was doing; saving a call recording through saveVoicemail would
+// stamp an answered call as "Left a message" in the log.
+async function saveCallRecording(ccid, url, seconds) {
+  await pool.query(
+    `UPDATE voice_calls
+        SET recording_url = $2,
+            recording_seconds = coalesce($3, recording_seconds)
+      WHERE call_control_id = $1`,
+    [ccid, url, seconds || null]);
+}
+
 module.exports = {
+  saveCallRecording,
   appendTranscript,
   saveVoicemail, markVoicemailHeard,
   getVoiceUser, ringTargets, upsertVoiceUser, saveCredential,
