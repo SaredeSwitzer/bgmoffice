@@ -81,7 +81,12 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
     const discussed = readRate(entry.client_rate)
     const onFile = readRate(c?.rate_per_class)
     const amount = discussed.amount ?? onFile.amount
-    setForm(f => ({ ...f, charge_amount: f.charge_amount || amount || '' }))
+    // How they pay is on their profile too — one less box to fill by hand.
+    setForm(f => ({
+      ...f,
+      charge_amount: f.charge_amount || amount || '',
+      payment_method: f.payment_method || c?.default_payment_method || '',
+    }))
 
     const who = c?.name || 'this client'
     setChargeNote(discussed.amount ? { kind: 'set',  text: `Charge set from the rate discussed ($${discussed.amount})` }

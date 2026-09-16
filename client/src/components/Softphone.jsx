@@ -25,7 +25,19 @@ function useElapsed(running) {
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }
 
-export default function Softphone() {
+export default // What to put on screen for whoever is calling.
+//
+// The number on a ringing leg is always the BGM line — Telnyx will not dial from anything
+// else — so showing it alone makes every incoming call look like the office ringing
+// itself. The caller's real name or number travels as the display name; prefer it, and
+// fall back to the number only when there is nothing better.
+function callerLabel(name, number) {
+  const n = String(name || '').trim()
+  if (n && n !== String(number || '').trim()) return n
+  return fmtPhone(number)
+}
+
+function Softphone() {
   const v = useVoice()
   const [muted, setMuted] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -51,7 +63,7 @@ export default function Softphone() {
           <span className="flex h-3 w-3 shrink-0 animate-ping rounded-full bg-green-600" />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-green-800">Incoming call</p>
-            <p className="truncate text-lg font-bold text-gray-900">{fmtPhone(v.remoteNumber)}</p>
+            <p className="truncate text-lg font-bold text-gray-900">{callerLabel(v.remoteName, v.remoteNumber)}</p>
           </div>
           <div className="flex shrink-0 gap-2">
             <button onClick={v.answer}
@@ -78,7 +90,7 @@ export default function Softphone() {
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
               {onCall ? `On a call · ${elapsed}` : 'Calling…'}
             </p>
-            <p className="truncate font-bold text-gray-900">{fmtPhone(v.remoteNumber)}</p>
+            <p className="truncate font-bold text-gray-900">{callerLabel(v.remoteName, v.remoteNumber)}</p>
           </div>
           <div className="flex shrink-0 gap-2">
             <button onClick={() => { v.toggleMute(); setMuted((m) => !m) }}

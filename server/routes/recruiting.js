@@ -417,19 +417,6 @@ router.post('/:id/schedule', async (req, res) => {
     );
     if (existing) {
       clientId = existing.id;
-      // A client record already existed under this name — reuse it rather than creating a
-      // duplicate, but fill in anything the recruiting call captured that the record is
-      // still missing. COALESCE order matters: never overwrite what's already there.
-      await pool.query(
-        `UPDATE clients SET
-           phone          = COALESCE(NULLIF(TRIM(COALESCE(phone,'')),''), $2),
-           street         = COALESCE(NULLIF(TRIM(COALESCE(street,'')),''), $3),
-           neighborhood   = COALESCE(NULLIF(TRIM(COALESCE(neighborhood,'')),''), $4),
-           rate_per_class = COALESCE(NULLIF(TRIM(COALESCE(rate_per_class,'')),''), $5)
-         WHERE id = $1`,
-        [clientId, entry.phone || null, (entry.address || '').trim() || null,
-         entry.neighborhood || null, entry.client_rate || null]
-      );
     } else {
       const { rows: [created] } = await pool.query(
         `INSERT INTO clients (name, phone, street, neighborhood, rate_per_class, notes)
@@ -440,6 +427,27 @@ router.post('/:id/schedule', async (req, res) => {
       );
       clientId = created.id;
     }
+  }
+
+  // Fill in anything the recruiting call captured that the client record is still
+  // missing — whoever the client turned out to be, and however we got to them.
+  //
+  // This used to run only when a client had to be created or matched by name, so the
+  // common case skipped it entirely: 42 of 57 entries already carry a client_id, and for
+  // those nothing was ever copied across. Chaya Retek's entry knew her neighborhood was
+  // Bedford-Stuyvesant while her profile had none at all, and 39 clients are in that
+  // state. COALESCE order matters: only ever fills a blank, never overwrites.
+  if (clientId) {
+    await pool.query(
+      `UPDATE clients SET
+         phone          = COALESCE(NULLIF(TRIM(COALESCE(phone,'')),''), $2),
+         street         = COALESCE(NULLIF(TRIM(COALESCE(street,'')),''), $3),
+         neighborhood   = COALESCE(NULLIF(TRIM(COALESCE(neighborhood,'')),''), $4),
+         rate_per_class = COALESCE(NULLIF(TRIM(COALESCE(rate_per_class,'')),''), $5)
+       WHERE id = $1`,
+      [clientId, entry.phone || null, (entry.address || '').trim() || null,
+       entry.neighborhood || null, entry.client_rate || null]
+    );
   }
 
   const instructorId = instructor_id || entry.instructor_id || null;

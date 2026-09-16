@@ -22,6 +22,10 @@ export function VoiceProvider({ children }) {
   const [call, setCall] = useState(null)           // the live call object from the SDK
   const [callState, setCallState] = useState(null) // ringing | active | held | done
   const [remoteNumber, setRemoteNumber] = useState('')
+  // Who is really calling. Every ringing leg arrives FROM the BGM number, because
+  // Telnyx only dials from a number on the account — so the number alone reads as the
+  // office ringing itself. The caller's name or number is carried as the display name.
+  const [remoteName, setRemoteName] = useState('')
   const [incoming, setIncoming] = useState(false)
   const [micBlocked, setMicBlocked] = useState(false)
   const clientRef = useRef(null)
@@ -79,7 +83,7 @@ export function VoiceProvider({ children }) {
   const teardown = useCallback(() => {
     try { clientRef.current?.disconnect() } catch { /* already gone */ }
     clientRef.current = null
-    setCall(null); setCallState(null); setIncoming(false); setRemoteNumber('')
+    setCall(null); setCallState(null); setIncoming(false); setRemoteNumber(''); setRemoteName('')
   }, [])
 
   // Connect / disconnect as the switch is flipped.
@@ -117,11 +121,12 @@ export function VoiceProvider({ children }) {
           setCall(c)
           setCallState(c.state)
           setRemoteNumber(c.options?.remoteCallerNumber || c.options?.destinationNumber || '')
+          setRemoteName(c.options?.remoteCallerName || '')
           setIncoming(c.state === 'ringing' && c.direction === 'inbound')
           if (['hangup', 'destroy'].includes(c.state)) {
             // Let go of the stream, or the next call can inherit a dead one.
             if (audioRef.current) audioRef.current.srcObject = null
-            setCall(null); setCallState(null); setIncoming(false); setRemoteNumber('')
+            setCall(null); setCallState(null); setIncoming(false); setRemoteNumber(''); setRemoteName('')
           }
         })
 
@@ -177,7 +182,7 @@ export function VoiceProvider({ children }) {
   return (
     <VoiceContext.Provider value={{
       enabled, toggle, status, error, micBlocked,
-      call, callState, incoming, remoteNumber,
+      call, callState, incoming, remoteNumber, remoteName,
       dial, answer, hangup, reject, toggleMute,
     }}>
       {children}

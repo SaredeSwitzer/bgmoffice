@@ -72,7 +72,7 @@ function decodeState(s) {
 
 // One outbound leg per phone that should ring. Each leg carries the id of the call it is
 // trying to answer, so whoever picks up can be bridged to the right caller.
-async function ringEveryone(parentCcid, callerNumber, connectionId) {
+async function ringEveryone(parentCcid, callerNumber, connectionId, callerName) {
   const targets = await store.ringTargets();
   if (targets.length === 0) {
     console.warn('[voice] a call came in and nobody is set up to be rung');
@@ -110,8 +110,11 @@ async function ringEveryone(parentCcid, callerNumber, connectionId) {
           // and is rejected outright: every leg was hung up within milliseconds, which
           // read like "nobody answered" rather than "this was never allowed".
           from: process.env.TELNYX_FROM_NUMBER,
-          // The caller's identity still travels, just as a display name instead.
-          from_display_name: String(callerNumber || '').slice(0, 128) || undefined,
+          // Telnyx will only dial FROM a number on the account, so every ringing phone
+          // shows the BGM number — which reads as the office calling itself. The caller's
+          // real identity has to travel as the display name instead: their name if we
+          // know them, otherwise their number.
+          from_display_name: String(callerName || callerNumber || '').slice(0, 128) || undefined,
           timeout_secs: RING_SECONDS,
           client_state: encodeState({ role: 'ring', parent: parentCcid, user_id: t.user_id, who: t.initials }),
         });
@@ -356,7 +359,9 @@ async function route(type, p) {
           loop: 'infinity',
         }).catch((e) => console.error('[voice] no ringback:', e.message));
 
-        const rung = await ringEveryone(ccid, toE164(p.from), p.connection_id);
+        // Who is calling, as we already worked it out when the call came in.
+        const known = await store.findByCallControlId(ccid).catch(() => null);
+        const rung = await ringEveryone(ccid, toE164(p.from), p.connection_id, known?.person_name);
         if (rung === 0) {
           // Nobody to ring. Better to end the call than leave someone on a silent line.
           await command(ccid, 'hangup', {}).catch(() => {});
