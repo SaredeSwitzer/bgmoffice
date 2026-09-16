@@ -22,6 +22,7 @@ const pool = require('../db/pg');
 const { verifySignature, lookupPerson } = require('./telnyxInbound');
 const { toE164 } = require('./telnyxSend');
 const store = require('./voiceStore');
+const { mayRecordWithoutTelling } = require('./recordingConsent');
 
 const TELNYX = 'https://api.telnyx.com/v2';
 
@@ -234,6 +235,24 @@ async function transcribeCallsEnabled() {
   } catch { return false; }
 }
 
+// Start recording and transcribing an outgoing call, if she has it switched on and the
+// number is one we may record without announcing it. Never awaited — nothing here is
+// allowed to come between two people mid-call.
+async function recordOutgoing(ccid, otherNumber) {
+  if (!(await transcribeCallsEnabled())) return;
+  if (!mayRecordWithoutTelling(otherNumber)) {
+    console.log(`[voice] not recording ${otherNumber} — all-party-consent state`);
+    return;
+  }
+  const st = encodeState({ role: 'outbound', t: 'call' });
+  command(ccid, 'transcription_start', {
+    transcription_engine: 'B', language: 'en', transcription_tracks: 'both', client_state: st,
+  }).catch((e) => console.error('[voice] no outgoing transcription:', e.message));
+  command(ccid, 'record_start', {
+    format: 'mp3', channels: 'dual', client_state: st,
+  }).catch((e) => console.error('[voice] no outgoing recording:', e.message));
+}
+
 // ── The webhook ──────────────────────────────────────────────────────────────────────
 
 async function handleWebhook(req, res) {
@@ -356,6 +375,8 @@ async function route(type, p) {
       // in the log and should show as answered rather than sitting on "ringing" forever.
       if (!state.role) {
         await store.markAnswered(ccid, null);
+        const row = await store.findByCallControlId(ccid).catch(() => null);
+        recordOutgoing(ccid, row?.phone || p.to);
         return;
       }
 
@@ -458,6 +479,8 @@ async function route(type, p) {
       if (state.role === 'destination') {
         await store.markAnswered(ccid, null);
         await command(ccid, 'bridge', { call_control_id: state.parent });
+        // Recorded on the leg we placed to her, which carries both voices once bridged.
+        recordOutgoing(state.parent, p.to);
         return;
       }
       return;
