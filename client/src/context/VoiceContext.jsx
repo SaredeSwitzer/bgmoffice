@@ -149,6 +149,19 @@ export function VoiceProvider({ children }) {
     return () => { cancelled = true; teardown() }
   }, [enabled, teardown])
 
+  // The network can only tell this browser about the BGM number — every leg is dialled
+  // from it — so the name it carries describes the office, not the caller. That is how
+  // incoming calls ended up announcing themselves as "Bring the Gym". The server worked
+  // out who it was when the call arrived, so ask it, and let that win.
+  useEffect(() => {
+    if (!incoming) return
+    let cancelled = false
+    api.voiceRinging()
+      .then((r) => { if (!cancelled && r?.person_name) setRemoteName(r.person_name) })
+      .catch(() => { /* keep whatever the network gave; the box still rings */ })
+    return () => { cancelled = true }
+  }, [incoming])
+
   // Ring while a call is waiting to be picked up, and stop the moment it is answered,
   // declined, or the caller gives up. Driven off `incoming` rather than started and
   // stopped by hand at each call site, so there is no path that leaves it ringing.

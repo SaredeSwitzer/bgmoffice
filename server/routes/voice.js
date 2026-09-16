@@ -158,11 +158,19 @@ const SOFTPHONE_NAME = 'BGM Office softphone';
 // What the phone network shows when we ring somebody. Capped at 15 characters by the
 // caller-ID-name system, so the full "Bring the Gym to Me" does not fit.
 //
-// Worth knowing before anyone expects much of this: the caller-ID-name database is a
-// landline-era system that wireless carriers largely ignore, so most clients will never
-// see it. Asking people to save the number — which the texts already do — is what
-// actually works.
-const CALLER_ID_NAME = 'Bring the Gym';
+// It was registered as "Bring the Gym" on 2026-09-15 and REMOVED on 2026-09-16, because
+// the two things it was asked to do cannot both happen on one number.
+//
+// Every phone we ring on an incoming call is dialled FROM this number — Telnyx will not
+// dial from anything else — so the receiving carrier looks this number up and shows
+// whatever name is registered against it. With a name registered, every incoming call
+// announced itself as "Bring the Gym" instead of the person calling, on cells and in the
+// app alike. Sarede's call: knowing who is ringing her matters more than branding calls
+// she makes, especially as wireless carriers largely ignore caller-ID names anyway, so
+// most clients never saw it.
+//
+// Getting both back would take a second number: one to call clients from, one to ring
+// staff from. Don't re-enable this on the shared number without that.
 
 router.post('/setup', requireAdmin, async (req, res) => {
   const steps = [];
@@ -296,15 +304,14 @@ router.post('/setup', requireAdmin, async (req, res) => {
       const number = (await telnyx('/phone_numbers?page[size]=50')).data
         ?.find(n => n.phone_number === process.env.TELNYX_FROM_NUMBER);
       if (number) {
-        // 15 characters is the hard limit the caller-ID-name system allows, which is why
-        // this is "Bring the Gym" and not the full business name — Sarede picked the
-        // truncation. Registering the name is what carriers actually look up; the flag
-        // alone publishes nothing.
+        // Deliberately cleared, not merely left alone — see the note above. Setup is
+        // re-run from time to time, so it has to actively undo a listing that may still
+        // be registered from before rather than quietly leave it in place.
         await telnyxWrite(`/phone_numbers/${number.id}/voice`, 'PATCH', {
-          caller_id_name_enabled: true,
-          cnam_listing: { cnam_listing_enabled: true, cnam_listing_details: CALLER_ID_NAME },
+          caller_id_name_enabled: false,
+          cnam_listing: { cnam_listing_enabled: false, cnam_listing_details: '' },
         });
-        steps.push({ step: 'caller ID name', action: `registered as "${CALLER_ID_NAME}"` });
+        steps.push({ step: 'caller ID name', action: 'cleared, so incoming calls can show who is really calling' });
       }
     } catch (e) {
       steps.push({ step: 'caller ID name', action: `could not enable — ${e.message}` });
@@ -440,6 +447,19 @@ router.post('/calls/:ccid/hangup', async (req, res) => {
     if (gone) return res.json({ ok: true, already_ended: true });
     console.error('[voice] could not hang up:', e.message);
     res.status(500).json({ error: 'Could not end that call' });
+  }
+});
+
+// Who is ringing right now, asked by the browser the moment a call comes in. See
+// lib/voiceStore.js — the phone network can only tell the browser about the BGM number,
+// not about the caller, so the name has to come from us.
+router.get('/ringing', async (req, res) => {
+  try {
+    res.json(await store.ringingCaller() || {});
+  } catch (e) {
+    // Never fail the popup over this — it falls back to whatever name the network gave.
+    console.error('[voice] could not look up the ringing caller:', e.message);
+    res.json({});
   }
 });
 

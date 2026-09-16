@@ -155,6 +155,28 @@ async function listCalls(limit = 100, q = null) {
   return rows;
 }
 
+// Who is ringing right now.
+//
+// The browser cannot be told this by the phone network. Every leg we ring is dialled from
+// the BGM number, so the name the network carries is about that number, not the caller —
+// which is how incoming calls ended up announcing themselves as the office. We already
+// worked out who it was when the call arrived, so the browser asks us instead.
+//
+// Narrow on purpose: the live inbound call, and only while it is still ringing. The time
+// guard is belt and braces for a call whose end we never saw (a webhook we missed would
+// otherwise leave a stale name sitting here forever).
+async function ringingCaller() {
+  const { rows: [row] } = await pool.query(
+    `SELECT phone, person_id, person_kind, person_name
+       FROM voice_calls
+      WHERE leg = 'primary' AND direction = 'inbound' AND status = 'ringing'
+        AND started_at > now() - interval '2 minutes'
+      ORDER BY started_at DESC
+      LIMIT 1`
+  );
+  return row || null;
+}
+
 async function listCallsFor(phone, limit = 50) {
   const { rows } = await pool.query(
     `SELECT * FROM voice_calls
@@ -209,6 +231,7 @@ async function saveCallRecording(ccid, url, seconds) {
 }
 
 module.exports = {
+  ringingCaller,
   saveCallRecording,
   appendTranscript,
   saveVoicemail, markVoicemailHeard,
