@@ -15,6 +15,7 @@ const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const smsStore = require('../lib/smsStore');
 const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 const { addressLine } = require('../lib/addressLine');
+const { instructorFirstName } = require('../lib/instructorFirstName');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -1208,7 +1209,8 @@ async function buildClientText(kind, id) {
   ctx.intro = phone ? await introFor(phone) : 'This is Bring the Gym to Me.';
   // Its own placeholder rather than a bare {instructor_name}, so a class with nobody
   // assigned yet reads "Your Pilates class is confirmed" instead of "with there".
-  ctx.with_instructor = row.instructor_name ? `with ${row.instructor_name} ` : '';
+  // First name only — the client knows them as Sharon, not Sharon Moreno.
+  ctx.with_instructor = row.instructor_name ? `with ${instructorFirstName(row.instructor_name)} ` : '';
   // A blank style or instructor leaves a double space behind; collapse rather than
   // asking whoever edits the template to think about it.
   const text = renderTemplate(await getClientSmsTemplate(), ctx)
@@ -1470,7 +1472,7 @@ async function buildRescheduleAlert(id) {
     ...ctx,
     days_times: smsDaysTimes(row),
     style_phrase: smsStylePhrase(ctx.style),
-    with_instructor: row.instructor_name ? `with ${row.instructor_name} ` : '',
+    with_instructor: row.instructor_name ? `with ${instructorFirstName(row.instructor_name)} ` : '',
     // The full address, same as the confirmation text. A reschedule alert is exactly the
     // message an instructor reads on the way out the door, so it should say where to go
     // rather than make them dig out the email. This was a separate code path from

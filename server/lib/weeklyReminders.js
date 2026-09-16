@@ -1,5 +1,6 @@
 const pool = require('../db/pg');
 const { addressLine } = require('./addressLine');
+const { instructorFirstName } = require('./instructorFirstName');
 
 // Weekly class reminders — the run that used to live in Amber's Google Voice browser
 // automation (~/git/Amber/gen_reminders_bgmoffice.mjs), rebuilt here so it survives the
@@ -193,7 +194,8 @@ async function buildWeeklyReminders({ start, end } = {}) {
         flags.push(`${s.client_name} has no phone on file — emailing their reminder to ${cRoute.email} instead.`);
       }
     }
-    clients.get(s.client_id).lines.push(`${day}, ${time}: with ${s.instructor_name || 'your instructor'}`);
+    // First name only on the client's copy; the instructor's own copy is unaffected.
+    clients.get(s.client_id).lines.push(`${day}, ${time}: with ${instructorFirstName(s.instructor_name) || 'your instructor'}`);
   }
 
   const recipients = [...instructors.values(), ...clients.values()]
