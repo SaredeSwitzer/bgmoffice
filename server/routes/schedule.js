@@ -14,6 +14,7 @@ const { syncMentions, deleteMentions } = require('../lib/mentions');
 const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const smsStore = require('../lib/smsStore');
 const { backfillProfilesFromClass } = require('../lib/profileBackfill');
+const { addressLine } = require('../lib/addressLine');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -888,9 +889,16 @@ function confirmationContextCombined(rows) {
 async function getSessionRow(id) {
   const { rows: [row] } = await pool.query(
     `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
-            c.neighborhood, c.street, c.city, c.zip
+            -- A class can carry its own address when a client has more than one place,
+            -- so it wins over the client's default. getScheduleRow already did this;
+            -- this one did not, so a dated class always quoted the client's home address.
+            COALESCE(a.neighborhood, c.neighborhood) AS neighborhood,
+            COALESCE(a.street, c.street)             AS street,
+            COALESCE(a.city, c.city)                 AS city,
+            COALESCE(a.zip, c.zip)                   AS zip
        FROM class_sessions s
        JOIN clients c          ON c.id = s.client_id
+       LEFT JOIN client_addresses a ON a.id = s.address_id
        LEFT JOIN instructors i ON i.id = s.instructor_id
       WHERE s.id = $1`,
     [id]
@@ -1249,9 +1257,15 @@ async function buildInstructorText(kind, id) {
   ctx.days_times = smsDaysTimes(wordingRow);
   ctx.style_phrase = smsStylePhrase(ctx.style);
   ctx.intro = phone ? await introFor(phone) : 'This is Bring the Gym to Me.';
-  // The neighborhood, not the full address — the address is in their email, and it makes
-  // a text twice as long for something they'll look up properly before they travel.
-  ctx.where = row.neighborhood ? ` in ${row.neighborhood}` : '';
+  // The full address, at Sarede's request. This used to be the neighborhood only, on the
+  // grounds that the address was in their email and it made the text twice as long — but
+  // an instructor reading this on the way out the door wants the address in the message,
+  // not in an email they then have to go and find. Falls back to the neighborhood when
+  // there is no street on file, since "in Williamsburg" still beats nothing.
+  const full = addressLine({
+    street: row.street, neighborhood: row.neighborhood, city: row.city, zip: row.zip,
+  });
+  ctx.where = full ? ` at ${full}` : (row.neighborhood ? ` in ${row.neighborhood}` : '');
 
   const text = renderTemplate(await getInstructorSmsTemplate(), ctx)
     .replace(/[ \t]+/g, ' ')

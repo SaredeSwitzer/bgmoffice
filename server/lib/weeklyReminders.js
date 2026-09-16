@@ -1,4 +1,5 @@
 const pool = require('../db/pg');
+const { addressLine } = require('./addressLine');
 
 // Weekly class reminders — the run that used to live in Amber's Google Voice browser
 // automation (~/git/Amber/gen_reminders_bgmoffice.mjs), rebuilt here so it survives the
@@ -117,9 +118,17 @@ async function buildWeeklyReminders({ start, end } = {}) {
             c.email AS client_email, c.skip_weekly_reminder,
             c.contact_person_name, c.contact_person_phone,
             i.id AS instructor_id, i.name AS instructor_name, i.phone AS instructor_phone,
-            i.email AS instructor_email
+            i.email AS instructor_email,
+            -- Where the instructor actually has to go. A class can carry its own address
+            -- when a client has more than one location, so that wins; otherwise fall back
+            -- to the address on the client record.
+            COALESCE(a.street, c.street)             AS addr_street,
+            COALESCE(a.neighborhood, c.neighborhood) AS addr_neighborhood,
+            COALESCE(a.city, c.city)                 AS addr_city,
+            COALESCE(a.zip, c.zip)                   AS addr_zip
        FROM class_sessions s
        JOIN clients c      ON c.id = s.client_id
+       LEFT JOIN client_addresses a ON a.id = s.address_id
        LEFT JOIN instructors i ON i.id = s.instructor_id
       WHERE s.session_date BETWEEN $1 AND $2 AND s.status <> 'cancelled'
       ORDER BY s.session_date, s.start_time NULLS LAST`,
@@ -148,7 +157,17 @@ async function buildWeeklyReminders({ start, end } = {}) {
             flags.push(`${s.instructor_name} has no phone on file — emailing their reminder to ${route.email} instead.`);
           }
         }
-        instructors.get(s.instructor_id).lines.push(`${day}, ${time}: with ${s.client_name}`);
+        // The address goes on the instructor's line and not the client's — the client
+        // knows where they live; the instructor is the one who has to find it.
+        const where = addressLine({
+          street: s.addr_street, neighborhood: s.addr_neighborhood,
+          city: s.addr_city, zip: s.addr_zip,
+        });
+        instructors.get(s.instructor_id).lines.push(
+          `${day}, ${time}: with ${s.client_name}${where ? ` — ${where}` : ''}`);
+        if (!where) {
+          flags.push(`No address on file for ${s.client_name} — ${s.instructor_name}'s reminder can't say where to go.`);
+        }
       }
     }
 
