@@ -25,7 +25,7 @@ function useElapsed(running) {
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }
 
-export default // What to put on screen for whoever is calling.
+// What to put on screen for whoever is calling.
 //
 // The number on a ringing leg is always the BGM line — Telnyx will not dial from anything
 // else — so showing it alone makes every incoming call look like the office ringing
@@ -37,7 +37,7 @@ function callerLabel(name, number) {
   return fmtPhone(number)
 }
 
-function Softphone() {
+export default function Softphone() {
   const v = useVoice()
   const [muted, setMuted] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
