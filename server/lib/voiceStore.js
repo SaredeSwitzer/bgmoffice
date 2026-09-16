@@ -188,14 +188,19 @@ async function listCallsFor(phone, limit = 50) {
 
 
 // A message left when nobody picked up. Stored against the call itself.
-async function saveVoicemail(ccid, url, seconds) {
+// The url is kept only so something still works if the id route fails; it is a signed
+// link that Telnyx expires after ten minutes, so by the time anyone clicks play it is
+// long dead. The RECORDING ID is the durable handle — a fresh link is fetched with it at
+// the moment of playing. See routes/voice.js `/calls/:id/recording`.
+async function saveVoicemail(ccid, url, seconds, recordingId) {
   await pool.query(
     `UPDATE voice_calls
         SET voicemail_url = $2,
             voicemail_seconds = coalesce($3, voicemail_seconds),
+            recording_id = coalesce($4, recording_id),
             status = 'voicemail'
       WHERE call_control_id = $1`,
-    [ccid, url, seconds || null]);
+    [ccid, url, seconds || null, recordingId || null]);
 }
 
 async function markVoicemailHeard(id) {
@@ -221,17 +226,28 @@ async function appendTranscript(ccid, text, kind) {
 // is a message left for us. They arrive on the same Telnyx event, so the two must be told
 // apart by what the leg was doing; saving a call recording through saveVoicemail would
 // stamp an answered call as "Left a message" in the log.
-async function saveCallRecording(ccid, url, seconds) {
+// Same as saveVoicemail: the id is what lasts, the url does not.
+async function saveCallRecording(ccid, url, seconds, recordingId) {
   await pool.query(
     `UPDATE voice_calls
         SET recording_url = $2,
-            recording_seconds = coalesce($3, recording_seconds)
+            recording_seconds = coalesce($3, recording_seconds),
+            recording_id = coalesce($4, recording_id)
       WHERE call_control_id = $1`,
-    [ccid, url, seconds || null]);
+    [ccid, url, seconds || null, recordingId || null]);
+}
+
+// What we need to go and fetch a playable link for one call.
+async function recordingHandle(id) {
+  const { rows: [row] } = await pool.query(
+    'SELECT id, recording_id, call_session_id, call_control_id FROM voice_calls WHERE id = $1',
+    [id]);
+  return row || null;
 }
 
 module.exports = {
   ringingCaller,
+  recordingHandle,
   saveCallRecording,
   appendTranscript,
   saveVoicemail, markVoicemailHeard,

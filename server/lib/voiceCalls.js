@@ -577,12 +577,17 @@ async function route(type, p) {
       // A voicemail and a recorded conversation arrive on this same event, so they have to
       // be told apart by what the leg was doing. Saving a call recording as a voicemail
       // would stamp an answered call "Left a message" in the log.
+      // Keep the recording's id, not just the link. The link Telnyx hands over here is
+      // signed and expires in ten minutes; the id is good forever and a fresh link can be
+      // fetched with it whenever somebody actually presses play.
+      const recordingId = p.recording_id || p.id || null;
+
       if (state.role === 'voicemail_recording') {
         // Recorded against the call it belongs to, so it reads as "she rang and left this"
         // rather than as a loose audio file with a number attached.
-        await store.saveVoicemail(ccid, url, secs);
+        await store.saveVoicemail(ccid, url, secs, recordingId);
       } else {
-        await store.saveCallRecording(ccid, url, secs);
+        await store.saveCallRecording(ccid, url, secs, recordingId);
       }
       return;
     }

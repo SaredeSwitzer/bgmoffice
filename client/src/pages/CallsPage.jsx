@@ -43,6 +43,52 @@ function describe(c) {
   return { label: c.status || '', tone: 'text-gray-500' }
 }
 
+
+// Audio that is fetched when you ask for it, not before.
+//
+// The link that comes with a recording is signed and dies ten minutes later, so putting it
+// straight into an <audio src> meant the play button did nothing on anything but a
+// brand-new call — silently, which is the worst way for it to fail. This asks the server
+// for a fresh link on the first press and plays that.
+function Recording({ callId, label, onPlay }) {
+  const [url, setUrl] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function load() {
+    setLoading(true); setError('')
+    try {
+      const r = await api.voiceRecording(callId)
+      setUrl(r.url)
+      onPlay?.()
+    } catch (e) {
+      setError(e.message || 'That recording could not be loaded.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (url) {
+    // autoPlay because they already pressed play once to get here; making them press
+    // again would be the button not working, from where they are sitting.
+    return (
+      <div className="w-full">
+        <audio controls autoPlay src={url} className="mt-1 h-9 w-full" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full">
+      <button type="button" onClick={load} disabled={loading}
+        className="mt-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+        {loading ? 'Loading…' : `▶ Play ${label.toLowerCase()}`}
+      </button>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  )
+}
+
 export default function CallsPage() {
   const [calls, setCalls] = useState([])
   const [loading, setLoading] = useState(true)
@@ -179,22 +225,10 @@ export default function CallsPage() {
                 {/* The recording of an answered call. Sits below the transcript because
                     the words are what you scan; the audio is what you reach for when the
                     words are not enough. */}
-                {c.recording_url && (
-                  <div className="w-full">
-                    <audio controls preload="none" src={c.recording_url} className="mt-1 h-9 w-full" />
-                  </div>
-                )}
+                {c.recording_url && <Recording callId={c.id} label="Recording" />}
 
                 {c.voicemail_url && (
-                  <div className="w-full">
-                    <audio
-                      controls
-                      preload="none"
-                      src={c.voicemail_url}
-                      onPlay={() => markHeard(c)}
-                      className="mt-1 h-9 w-full"
-                    />
-                  </div>
+                  <Recording callId={c.id} label="Voicemail" onPlay={() => markHeard(c)} />
                 )}
               </div>
             )

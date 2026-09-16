@@ -295,14 +295,20 @@ router.post('/setup', requireAdmin, async (req, res) => {
       });
     }
 
-    // What people see when we ring them. Without this the number shows as a bare
-    // "917-719-2201" on a mobile — which is what Sarede saw on her test call. The name
-    // itself lives in the carrier CNAM databases, so switching this on is necessary but
-    // not instant: propagation across carriers takes days, and some never show a name for
-    // a number they do not recognise.
+    // What people see when we ring them. Cleared deliberately — see the note at the top
+    // of this file. Propagation across carriers takes days either way.
     try {
-      const number = (await telnyx('/phone_numbers?page[size]=50')).data
-        ?.find(n => n.phone_number === process.env.TELNYX_FROM_NUMBER);
+      // Match on the last ten digits, not on the string. These came back unequal once —
+      // the stored number and Telnyx's own formatting differed by punctuation — and
+      // because a miss was silent, setup reported success having changed nothing at all.
+      const want = String(process.env.TELNYX_FROM_NUMBER || '').replace(/\D/g, '').slice(-10);
+      const all = (await telnyx('/phone_numbers?page[size]=50')).data || [];
+      const number = want
+        ? all.find(n => String(n.phone_number || '').replace(/\D/g, '').slice(-10) === want)
+        : null;
+      if (!number) {
+        steps.push({ step: 'caller ID name', action: `no match for ${process.env.TELNYX_FROM_NUMBER || '(no number set)'} among ${all.length} numbers on the account` });
+      }
       if (number) {
         // Deliberately cleared, not merely left alone — see the note above. Setup is
         // re-run from time to time, so it has to actively undo a listing that may still
@@ -460,6 +466,39 @@ router.get('/ringing', async (req, res) => {
     // Never fail the popup over this — it falls back to whatever name the network gave.
     console.error('[voice] could not look up the ringing caller:', e.message);
     res.json({});
+  }
+});
+
+// A playable link for one call's recording or voicemail.
+//
+// The link that arrives with the recording is signed and expires ten minutes later, so
+// the ones stored against older calls are all dead — which is why the play button did
+// nothing. Asked for at the moment of playing instead, so it is always fresh.
+//
+// Falls back to searching by call session for recordings saved before we started keeping
+// the id.
+router.get('/calls/:id/recording', async (req, res) => {
+  try {
+    const row = await store.recordingHandle(req.params.id);
+    if (!row) return res.status(404).json({ error: 'No such call' });
+
+    let rec = null;
+    if (row.recording_id) {
+      rec = (await telnyx(`/recordings/${row.recording_id}`)).data;
+    } else if (row.call_session_id) {
+      const found = (await telnyx(`/recordings?filter[call_session_id]=${encodeURIComponent(row.call_session_id)}`)).data;
+      rec = Array.isArray(found) ? found[0] : null;
+      // Remember it, so the next play is one call instead of a search.
+      if (rec?.id) await store.saveCallRecording(row.call_control_id, null, null, rec.id);
+    }
+
+    const url = rec?.download_urls?.mp3 || rec?.download_urls?.wav
+      || rec?.recording_urls?.mp3 || rec?.recording_urls?.wav || null;
+    if (!url) return res.status(404).json({ error: 'That recording is no longer available.' });
+    res.json({ url });
+  } catch (e) {
+    console.error('[voice] could not fetch a recording:', e.message);
+    res.status(500).json({ error: 'Could not fetch that recording.' });
   }
 });
 
