@@ -225,9 +225,20 @@ export default function CallsPage() {
                 {/* The recording of an answered call. Sits below the transcript because
                     the words are what you scan; the audio is what you reach for when the
                     words are not enough. */}
-                {c.recording_url && <Recording callId={c.id} label="Recording" />}
+                {/* Keyed off the recording ID as much as the url: the id is the durable
+                    proof a recording exists, and the url it arrived with has long expired.
+                    A voicemail is shown as a voicemail, never as both. */}
+                {c.status !== 'voicemail' && (c.recording_id || c.recording_url) && (
+                  <Recording callId={c.id} label="Recording" />
+                )}
 
-                {c.voicemail_url && (
+                {/* Say why there is no audio rather than showing nothing, which reads
+                    as "the app lost it". Only when there is genuinely nothing to play. */}
+                {!c.recording_id && !c.recording_url && !c.voicemail_url && c.recording_error && (
+                  <p className="w-full text-xs text-gray-400">{c.recording_error}</p>
+                )}
+
+                {(c.voicemail_url || (c.status === 'voicemail' && c.recording_id)) && (
                   <Recording callId={c.id} label="Voicemail" onPlay={() => markHeard(c)} />
                 )}
               </div>

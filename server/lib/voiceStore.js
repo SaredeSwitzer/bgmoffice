@@ -195,7 +195,7 @@ async function listCallsFor(phone, limit = 50) {
 async function saveVoicemail(ccid, url, seconds, recordingId) {
   await pool.query(
     `UPDATE voice_calls
-        SET voicemail_url = $2,
+        SET voicemail_url = coalesce($2, voicemail_url),
             voicemail_seconds = coalesce($3, voicemail_seconds),
             recording_id = coalesce($4, recording_id),
             status = 'voicemail'
@@ -227,14 +227,29 @@ async function appendTranscript(ccid, text, kind) {
 // apart by what the leg was doing; saving a call recording through saveVoicemail would
 // stamp an answered call as "Left a message" in the log.
 // Same as saveVoicemail: the id is what lasts, the url does not.
+// Every field coalesced, including the url. This is called two ways — by the webhook with
+// a url and no id, and by the player writing back an id it just discovered with no url —
+// and a bare `SET recording_url = $2` let the second one erase what the first had stored,
+// which took every recording off the page. Nothing that fills in one field may blank
+// another.
 async function saveCallRecording(ccid, url, seconds, recordingId) {
   await pool.query(
     `UPDATE voice_calls
-        SET recording_url = $2,
+        SET recording_url = coalesce($2, recording_url),
             recording_seconds = coalesce($3, recording_seconds),
             recording_id = coalesce($4, recording_id)
       WHERE call_control_id = $1`,
-    [ccid, url, seconds || null, recordingId || null]);
+    [ccid, url || null, seconds || null, recordingId || null]);
+}
+
+
+// Why a recording never started. Kept against the call because the alternative is a log
+// line on a serverless platform that nobody can go back and read — which is exactly the
+// position this left us in when inbound calls quietly stopped being recorded.
+async function noteRecordingError(ccid, message) {
+  await pool.query(
+    'UPDATE voice_calls SET recording_error = $2 WHERE call_control_id = $1',
+    [ccid, String(message || '').slice(0, 500)]);
 }
 
 // What we need to go and fetch a playable link for one call.
@@ -247,6 +262,7 @@ async function recordingHandle(id) {
 
 module.exports = {
   ringingCaller,
+  noteRecordingError,
   recordingHandle,
   saveCallRecording,
   appendTranscript,

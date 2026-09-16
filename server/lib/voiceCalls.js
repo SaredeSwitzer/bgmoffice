@@ -242,15 +242,22 @@ async function recordOutgoing(ccid, otherNumber) {
   if (!(await transcribeCallsEnabled())) return;
   if (!mayRecordWithoutTelling(otherNumber)) {
     console.log(`[voice] not recording ${otherNumber} — all-party-consent state`);
+    store.noteRecordingError(ccid, 'not recorded — their state requires everyone to agree').catch(() => {});
     return;
   }
   const st = encodeState({ role: 'outbound', t: 'call' });
   command(ccid, 'transcription_start', {
     transcription_engine: 'B', language: 'en', transcription_tracks: 'both', client_state: st,
-  }).catch((e) => console.error('[voice] no outgoing transcription:', e.message));
+  }).catch((e) => {
+    console.error('[voice] no outgoing transcription:', e.message);
+    store.noteRecordingError(ccid, `transcription: ${e.message}`).catch(() => {});
+  });
   command(ccid, 'record_start', {
     format: 'mp3', channels: 'dual', client_state: st,
-  }).catch((e) => console.error('[voice] no outgoing recording:', e.message));
+  }).catch((e) => {
+    console.error('[voice] no outgoing recording:', e.message);
+    store.noteRecordingError(ccid, `recording: ${e.message}`).catch(() => {});
+  });
 }
 
 // ── The webhook ──────────────────────────────────────────────────────────────────────
@@ -433,7 +440,10 @@ async function route(type, p) {
             language: 'en',
             transcription_tracks: 'both',
             client_state: encodeState({ role: 'inbound', t: 'call' }),
-          }).catch((e) => console.error('[voice] no call transcription:', e.message));
+          }).catch((e) => {
+            console.error('[voice] no call transcription:', e.message);
+            store.noteRecordingError(state.parent, `transcription: ${e.message}`).catch(() => {});
+          });
 
           // And keep the audio. A transcript answers "what was said"; the recording
           // answers "what did she actually say", which is the one that settles a
@@ -442,7 +452,10 @@ async function route(type, p) {
             format: 'mp3',
             channels: 'dual',
             client_state: encodeState({ role: 'inbound', t: 'call' }),
-          }).catch((e) => console.error('[voice] no call recording:', e.message));
+          }).catch((e) => {
+            console.error('[voice] no call recording:', e.message);
+            store.noteRecordingError(state.parent, `recording: ${e.message}`).catch(() => {});
+          });
         }
 
         const others = await store.siblingLegs(state.parent, ccid);
