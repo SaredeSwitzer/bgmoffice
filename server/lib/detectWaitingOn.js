@@ -75,6 +75,19 @@ const RECENT_NOTES_SQL = `
       FROM instructor_notes n
       JOIN instructors i ON i.id = n.instructor_id
 
+    -- What people actually text back. The sheet's whole question is "who still owes us a
+    -- reply", and the reply usually arrives as a text — so reading only the notes meant
+    -- the answer sat in the inbox while the line still said we were waiting. Only their
+    -- messages, never ours: our own text is the asking, not the answering.
+    UNION ALL
+    SELECT 'sms_messages', m.id, m.body, ${LOCAL_TS('m.created_at')},
+           CASE WHEN m.person_kind = 'client'     THEN m.person_name END,
+           CASE WHEN m.person_kind = 'instructor' THEN m.person_name END,
+           '/sms'
+      FROM sms_messages m
+     WHERE m.direction = 'inbound'
+       AND COALESCE(TRIM(m.body), '') <> ''
+
     -- Reminders and tasks are written the same way notes are ("Gateway — enough kids
     -- registered for class to run?", "waiting on Serina for times"), and in practice
     -- that's where a lot of the waiting actually gets recorded. Reading only the notes
@@ -170,7 +183,9 @@ Judging who:
 
 Be conservative. These become items on a real to-do list a person has to read, so a wrong entry costs more than a missed one. If you are unsure whether a note means someone still owes a reply, answer "nothing".
 
-Notes that only record something the office did ("sent the invoice", "called and left VM") count as "waiting" ONLY if the note itself frames a reply as still outstanding. A bare log of an action is "nothing".`;
+Notes that only record something the office did ("sent the invoice", "called and left VM") count as "waiting" ONLY if the note itself frames a reply as still outstanding. A bare log of an action is "nothing".
+
+Some entries are texts the client or instructor sent us, marked source="sms_messages", rather than notes staff typed. Judge those as the reply itself: if the message actually answers what an open item is waiting for, say "heard_back" and name that item. Be strict about "actually answers" — "let me check and get back to you", "ok", "thanks", and "got it" are acknowledgements, not answers, and the item stays open. Closing an item that is not really settled is the expensive mistake here: it takes the thing off her list while the question is still live.`;
 
 // Kept out of the request when unset so the app still boots and every other feature works;
 // the scanner just reports that it is switched off.
