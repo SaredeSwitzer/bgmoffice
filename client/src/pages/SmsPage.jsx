@@ -7,6 +7,7 @@ import CallButton from '../components/CallButton'
 import PayoutRemindersPanel from '../components/PayoutRemindersPanel'
 import PhoneTabs from '../components/PhoneTabs'
 import DictateButton from '../components/DictateButton'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -190,6 +191,7 @@ export default function SmsPage() {
   const activeThread = threads.find((t) => t.phone === active)
   const activeName = activeThread?.person_name || activeMeta?.name || (active ? fmtPhone(active) : '')
   const activeKind = activeThread?.person_kind || activeMeta?.kind || ''
+  const activeId = activeThread?.person_id || activeMeta?.id || null
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-4">
@@ -345,7 +347,18 @@ export default function SmsPage() {
                 <header className="flex items-center gap-2 border-b border-gray-200 px-4 py-3">
                   <button className="text-blue-600 md:hidden" onClick={() => setActive(null)}>← </button>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-gray-900">{activeName}</div>
+                    {/* The name is the way through to their profile — the thing you
+                        reach for mid-conversation when you need their address, their
+                        rate, or what was agreed last time. Not on the list rows on the
+                        left: a click there opens the conversation, which is what you
+                        want there. */}
+                    <div className="truncate font-medium text-gray-900">
+                      {activeId && activeKind === 'client'
+                        ? <ClientLink id={activeId} name={activeName} className="decoration-gray-300 underline decoration-dotted underline-offset-4 hover:decoration-solid hover:decoration-gray-500" stopPropagation={false} />
+                        : activeId && activeKind === 'instructor'
+                          ? <InstructorLink id={activeId} name={activeName} className="decoration-gray-300 underline decoration-dotted underline-offset-4 hover:decoration-solid hover:decoration-gray-500" stopPropagation={false} />
+                          : activeName}
+                    </div>
                     <div className="text-xs text-gray-400">
                       {fmtPhone(active)}{activeKind ? ` · ${activeKind}` : ''}
                     </div>

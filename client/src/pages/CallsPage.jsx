@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import CallButton from '../components/CallButton'
 import PhoneTabs from '../components/PhoneTabs'
+import { ClientLink, InstructorLink } from '../components/NameLink'
 
 // Every call on the BGM line — in, out, missed, and any message left.
 //
@@ -149,8 +150,13 @@ export default function CallsPage() {
                 </span>
 
                 <div className="min-w-0 flex-1">
+                  {/* Whose call it was, and the way through to their profile. */}
                   <div className="truncate font-medium text-gray-900">
-                    {c.person_name || fmtPhone(c.phone)}
+                    {c.person_id && c.person_kind === 'client'
+                      ? <ClientLink id={c.person_id} name={c.person_name} className="decoration-gray-300 underline decoration-dotted underline-offset-4 hover:decoration-solid hover:decoration-gray-500" stopPropagation={false} />
+                      : c.person_id && c.person_kind === 'instructor'
+                        ? <InstructorLink id={c.person_id} name={c.person_name} className="decoration-gray-300 underline decoration-dotted underline-offset-4 hover:decoration-solid hover:decoration-gray-500" stopPropagation={false} />
+                        : (c.person_name || fmtPhone(c.phone))}
                   </div>
                   <div className="text-xs text-gray-400">
                     {fmtPhone(c.phone)}
@@ -204,7 +210,13 @@ export default function CallsPage() {
           {people.map((p) => (
             <div key={p.norm_phone} className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0">
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-gray-900">{p.name || fmtPhone(p.phone)}</div>
+                <div className="truncate font-medium text-gray-900">
+                  {p.person_id && p.person_kind === 'client'
+                    ? <ClientLink id={p.person_id} name={p.name} className="decoration-gray-300 underline decoration-dotted underline-offset-4 hover:decoration-solid hover:decoration-gray-500" stopPropagation={false} />
+                    : p.person_id && p.person_kind === 'instructor'
+                      ? <InstructorLink id={p.person_id} name={p.name} className="decoration-gray-300 underline decoration-dotted underline-offset-4 hover:decoration-solid hover:decoration-gray-500" stopPropagation={false} />
+                      : (p.name || fmtPhone(p.phone))}
+                </div>
                 <div className="text-xs text-gray-400">
                   {fmtPhone(p.phone)}{p.person_kind ? ` · ${p.person_kind}` : ''}
                 </div>
