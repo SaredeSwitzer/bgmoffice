@@ -7,7 +7,6 @@ import { RemindersProvider, useRemindersContext } from '../context/RemindersCont
 import { UnreadTextsProvider, useUnreadTexts } from '../context/UnreadTextsContext'
 import { VoiceProvider, useVoice } from '../context/VoiceContext'
 import Softphone from './Softphone'
-import AmberChat from './AmberChat'
 import { isSaredeUser } from '../utils/saredeAccess'
 import { loadDirectory } from '../utils/directory'
 
@@ -236,7 +235,11 @@ function Shell() {
       </main>
 
       {/* Amber floating chat */}
-      <AmberChat />
+      {/* Amber's chat button used to sit here. Taken off screen 2026-09-15: everything
+          her shortcuts did — unpaid invoices, reminders, open cases, clients — now has a
+          screen of its own, and she was covering content in the corner of every page and
+          sitting on the Send button on a phone. The component and her service are both
+          untouched, so putting her back is one line. */}
     </div>
   )
 }

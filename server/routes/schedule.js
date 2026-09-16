@@ -1471,7 +1471,16 @@ async function buildRescheduleAlert(id) {
     days_times: smsDaysTimes(row),
     style_phrase: smsStylePhrase(ctx.style),
     with_instructor: row.instructor_name ? `with ${row.instructor_name} ` : '',
-    where: row.neighborhood ? ` in ${row.neighborhood}` : '',
+    // The full address, same as the confirmation text. A reschedule alert is exactly the
+    // message an instructor reads on the way out the door, so it should say where to go
+    // rather than make them dig out the email. This was a separate code path from
+    // buildInstructorText and kept the old neighborhood-only wording.
+    where: (() => {
+      const full = addressLine({
+        street: row.street, neighborhood: row.neighborhood, city: row.city, zip: row.zip,
+      });
+      return full ? ` at ${full}` : (row.neighborhood ? ` in ${row.neighborhood}` : '');
+    })(),
   };
   const clean = t => t.replace(/[ \t]+/g, ' ').replace(/ ([.,!?])/g, '$1').trim();
 
