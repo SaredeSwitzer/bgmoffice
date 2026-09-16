@@ -261,6 +261,34 @@ router.post('/setup', requireAdmin, async (req, res) => {
       steps.push({ step: 'softphone connection', action: 'created', id: softphone.id });
     }
 
+    // What people see when we ring them. Cleared deliberately — see the note at the top
+    // of this file. Propagation across carriers takes days either way.
+    try {
+      // Match on the last ten digits, not on the string. These came back unequal once —
+      // the stored number and Telnyx's own formatting differed by punctuation — and
+      // because a miss was silent, setup reported success having changed nothing at all.
+      const want = String(process.env.TELNYX_FROM_NUMBER || '').replace(/\D/g, '').slice(-10);
+      const all = (await telnyx('/phone_numbers?page[size]=50')).data || [];
+      const number = want
+        ? all.find(n => String(n.phone_number || '').replace(/\D/g, '').slice(-10) === want)
+        : null;
+      if (!number) {
+        steps.push({ step: 'caller ID name', action: `no match for ${process.env.TELNYX_FROM_NUMBER || '(no number set)'} among ${all.length} numbers on the account` });
+      }
+      if (number) {
+        // Deliberately cleared, not merely left alone — see the note above. Setup is
+        // re-run from time to time, so it has to actively undo a listing that may still
+        // be registered from before rather than quietly leave it in place.
+        await telnyxWrite(`/phone_numbers/${number.id}/voice`, 'PATCH', {
+          caller_id_name_enabled: false,
+          cnam_listing: { cnam_listing_enabled: false, cnam_listing_details: '' },
+        });
+        steps.push({ step: 'caller ID name', action: 'cleared, so incoming calls can show who is really calling' });
+      }
+    } catch (e) {
+      steps.push({ step: 'caller ID name', action: `could not enable — ${e.message}` });
+    }
+
     // 4. Point the number at it. Reversible: setting connection_id back to '' puts the
     //    number back in exactly the state it is in now.
     //
@@ -293,34 +321,6 @@ router.post('/setup', requireAdmin, async (req, res) => {
         number: number.phone_number,
         was: number.connection_id || '(nothing — calls to it went nowhere)',
       });
-    }
-
-    // What people see when we ring them. Cleared deliberately — see the note at the top
-    // of this file. Propagation across carriers takes days either way.
-    try {
-      // Match on the last ten digits, not on the string. These came back unequal once —
-      // the stored number and Telnyx's own formatting differed by punctuation — and
-      // because a miss was silent, setup reported success having changed nothing at all.
-      const want = String(process.env.TELNYX_FROM_NUMBER || '').replace(/\D/g, '').slice(-10);
-      const all = (await telnyx('/phone_numbers?page[size]=50')).data || [];
-      const number = want
-        ? all.find(n => String(n.phone_number || '').replace(/\D/g, '').slice(-10) === want)
-        : null;
-      if (!number) {
-        steps.push({ step: 'caller ID name', action: `no match for ${process.env.TELNYX_FROM_NUMBER || '(no number set)'} among ${all.length} numbers on the account` });
-      }
-      if (number) {
-        // Deliberately cleared, not merely left alone — see the note above. Setup is
-        // re-run from time to time, so it has to actively undo a listing that may still
-        // be registered from before rather than quietly leave it in place.
-        await telnyxWrite(`/phone_numbers/${number.id}/voice`, 'PATCH', {
-          caller_id_name_enabled: false,
-          cnam_listing: { cnam_listing_enabled: false, cnam_listing_details: '' },
-        });
-        steps.push({ step: 'caller ID name', action: 'cleared, so incoming calls can show who is really calling' });
-      }
-    } catch (e) {
-      steps.push({ step: 'caller ID name', action: `could not enable — ${e.message}` });
     }
 
     res.json({
