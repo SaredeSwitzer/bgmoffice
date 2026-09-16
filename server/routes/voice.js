@@ -13,7 +13,9 @@
 const express = require('express');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const store = require('../lib/voiceStore');
-const { placeBridgedCall } = require('../lib/voiceCalls');
+// The same people search the text inbox uses — one definition of "who is in the book".
+const smsStore = require('../lib/smsStore');
+const { placeBridgedCall, command } = require('../lib/voiceCalls');
 const { lookupPerson } = require('../lib/telnyxInbound');
 const { toE164 } = require('../lib/telnyxSend');
 
@@ -391,13 +393,44 @@ router.post('/call', async (req, res) => {
   }
 });
 
+
+// End a call we started. The "ring my phone, then connect you" path had no way to stop:
+// once it was dialling there was nothing to press, so a call that reached voicemail or
+// rang out just kept going until the far end gave up. Hanging up the leg we hold also
+// takes down the leg bridged to it.
+router.post('/calls/:ccid/hangup', async (req, res) => {
+  try {
+    await command(req.params.ccid, 'hangup', {});
+    res.json({ ok: true });
+  } catch (e) {
+    // Already over is not a failure — the button should not report an error for a call
+    // that ended a second before it was pressed.
+    const gone = /not found|already|completed|hangup/i.test(e.message || '');
+    if (gone) return res.json({ ok: true, already_ended: true });
+    console.error('[voice] could not hang up:', e.message);
+    res.status(500).json({ error: 'Could not end that call' });
+  }
+});
+
 // ── The call log ─────────────────────────────────────────────────────────────────────
 
 router.get('/calls', async (req, res) => {
   try {
-    res.json(req.query.phone
-      ? await store.listCallsFor(req.query.phone)
-      : await store.listCalls(100, req.query.q));
+    if (req.query.phone) return res.json(await store.listCallsFor(req.query.phone));
+
+    const q = String(req.query.q || '').trim();
+    const calls = await store.listCalls(100, q || null);
+    if (q.length < 2) return res.json(calls);
+
+    // Searching calls should find anyone in the book, not only people already called —
+    // otherwise the one moment you most need to ring somebody new is the moment search
+    // comes back empty. Reuses the same people search the text inbox uses, minus anyone
+    // already showing in the results above.
+    const seen = new Set(calls.map(c => String(c.phone || '').replace(/\D/g, '').slice(-10)));
+    const people = (await smsStore.searchPeople(q))
+      .filter(p => !seen.has(String(p.phone || '').replace(/\D/g, '').slice(-10)));
+
+    res.json({ calls, people });
   } catch (e) {
     console.error('[voice] could not load the call log:', e.message);
     res.status(500).json({ error: 'Could not load calls' });

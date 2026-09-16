@@ -103,6 +103,8 @@ export const api = {
   voiceToken: () => request('/voice/token', { method: 'POST' }),
   // The no-browser path: rings your own phone, then connects you to them.
   voiceCall: (to) => request('/voice/call', { method: 'POST', body: JSON.stringify({ to }) }),
+  // End a call the app placed — the only way to stop the ring-my-phone path.
+  voiceHangup: (ccid) => request(`/voice/calls/${encodeURIComponent(ccid)}/hangup`, { method: 'POST' }),
   voiceCalls: (phone) => request(`/voice/calls${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`),
   // Searching the call log the same way the text inbox is searched.
   voiceCallSearch: (q) => request(`/voice/calls?q=${encodeURIComponent(q || '')}`),

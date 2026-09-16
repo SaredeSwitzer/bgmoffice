@@ -28,6 +28,11 @@ export function VoiceProvider({ children }) {
   const [remoteName, setRemoteName] = useState('')
   const [incoming, setIncoming] = useState(false)
   const [micBlocked, setMicBlocked] = useState(false)
+  // A call placed down the "ring my phone, then connect you" path. There is no WebRTC call
+  // object for it — the two legs are Telnyx's — so it is tracked here by its id, purely so
+  // the same bar can offer to end it. Without this there was nothing to press at all when
+  // one rang out or reached voicemail.
+  const [bridgedCall, setBridgedCall] = useState(null)   // { ccid, name, number }
   const clientRef = useRef(null)
   // Where the other person's voice actually comes out. WebRTC hands us a MediaStream and
   // nothing plays it on its own — without an audio element attached to that stream the
@@ -174,6 +179,19 @@ export function VoiceProvider({ children }) {
     return c
   }, [status])
 
+  // Ring my own phone, then connect me — used when this browser is not a phone.
+  const callViaMyPhone = useCallback(async (to, name) => {
+    const r = await api.voiceCall(to)
+    setBridgedCall({ ccid: r.call_control_id, name: name || null, number: to })
+    return r
+  }, [])
+
+  const hangupBridged = useCallback(async () => {
+    const c = bridgedCall
+    setBridgedCall(null)
+    if (c?.ccid) await api.voiceHangup(c.ccid).catch(() => {})
+  }, [bridgedCall])
+
   const answer = useCallback(() => { call?.answer(); setIncoming(false) }, [call])
   const hangup = useCallback(() => { call?.hangup() }, [call])
   const reject = useCallback(() => { call?.hangup(); setIncoming(false) }, [call])
@@ -183,6 +201,7 @@ export function VoiceProvider({ children }) {
     <VoiceContext.Provider value={{
       enabled, toggle, status, error, micBlocked,
       call, callState, incoming, remoteNumber, remoteName,
+      bridgedCall, callViaMyPhone, hangupBridged,
       dial, answer, hangup, reject, toggleMute,
     }}>
       {children}

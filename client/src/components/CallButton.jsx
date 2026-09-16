@@ -24,7 +24,9 @@ export default function CallButton({ phone, name, className = '' }) {
       if (v?.status === 'ready') {
         await v.dial(phone)
       } else {
-        const r = await api.voiceCall(phone)
+        // Goes through the context so the call is tracked and can be hung up — the bar
+        // at the top of the screen is the only way to stop this path once it is dialling.
+        const r = await v.callViaMyPhone(phone, name)
         // Say what is about to happen, or a silent button followed by your own phone
         // ringing is simply confusing.
         setNote(`Ringing your phone — pick up and we'll connect you${name ? ` to ${name}` : ''}.`)
@@ -41,7 +43,7 @@ export default function CallButton({ phone, name, className = '' }) {
     <div className={className}>
       <button
         onClick={call}
-        disabled={busy || Boolean(v?.call)}
+        disabled={busy || Boolean(v?.call) || Boolean(v?.bridgedCall)}
         title={v?.status === 'ready' ? 'Call from this computer' : 'Ring my phone, then connect'}
         className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
       >

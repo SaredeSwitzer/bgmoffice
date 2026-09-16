@@ -48,11 +48,22 @@ export default function CallsPage() {
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [dialOpen, setDialOpen] = useState(false)
+  // People who match the search but have never been called. Searching only what you have
+  // already dialled means the one time you need to ring somebody new, search says nothing.
+  const [people, setPeople] = useState([])
 
   const load = useCallback(async (q) => {
     try {
       const term = (q ?? '').trim()
-      setCalls(term.length >= 2 ? await api.voiceCallSearch(term) : await api.voiceCalls())
+      if (term.length < 2) {
+        setCalls(await api.voiceCalls())
+        setPeople([])
+        return
+      }
+      // A search answers with both halves; the plain list is still a bare array.
+      const r = await api.voiceCallSearch(term)
+      setCalls(Array.isArray(r) ? r : (r.calls || []))
+      setPeople(Array.isArray(r) ? [] : (r.people || []))
     }
     catch (e) { setError(e.message || 'Could not load calls.') }
     finally { setLoading(false) }
@@ -115,10 +126,13 @@ export default function CallsPage() {
 
       {error && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      {/* Hidden entirely when a search matched nobody you have called — an empty bordered
+          box floating above the results reads as something failing to load. */}
+      <div className={`overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm ${
+        !loading && calls.length === 0 && people.length > 0 ? 'hidden' : ''}`}>
         {loading ? (
           <p className="p-4 text-sm text-gray-400">Loading…</p>
-        ) : calls.length === 0 ? (
+        ) : calls.length === 0 && people.length === 0 ? (
           <p className="p-6 text-center text-sm text-gray-400">
             {query.trim()
               ? `Nothing found for “${query.trim()}”.`
@@ -172,6 +186,25 @@ export default function CallsPage() {
           })
         )}
       </div>
+
+      {people.length > 0 && (
+        <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <h2 className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Haven’t called {people.length === 1 ? 'them' : 'these'} yet
+          </h2>
+          {people.map((p) => (
+            <div key={p.norm_phone} className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium text-gray-900">{p.name || fmtPhone(p.phone)}</div>
+                <div className="text-xs text-gray-400">
+                  {fmtPhone(p.phone)}{p.person_kind ? ` · ${p.person_kind}` : ''}
+                </div>
+              </div>
+              <CallButton phone={p.phone} name={p.name} className="shrink-0" />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

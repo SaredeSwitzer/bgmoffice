@@ -80,6 +80,30 @@ function Softphone() {
     )
   }
 
+  // A call placed down the ring-my-phone path. No WebRTC object exists for it, so it gets
+  // its own bar — the point being that there is something to press when it rings out or
+  // reaches voicemail, which there was not before.
+  if (!v.call && v.bridgedCall) {
+    return (
+      <div className="fixed inset-x-0 top-0 z-[100] border-b-2 border-gray-300 bg-white shadow-lg">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3 px-4 py-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Calling from your phone
+            </p>
+            <p className="truncate font-bold text-gray-900">
+              {v.bridgedCall.name || fmtPhone(v.bridgedCall.number)}
+            </p>
+          </div>
+          <button onClick={v.hangupBridged}
+            className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+            Hang up
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // A live call stays across the top too, so hanging up never means hunting for the
   // window you started the call from.
   if (v.call) {
