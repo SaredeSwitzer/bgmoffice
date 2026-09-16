@@ -18,11 +18,14 @@ function officePeopleSql(a = 'users') {
 
 // Shown and matched by first name only ("Sarede", not "Sarede S") since that's how the
 // office actually refers to each other.
+// First names, because that is how people type an @mention. Initials come along too so a
+// mention can be shown as "Maria" rather than "MA" — initials are what gets stamped on a
+// note, and they mean nothing to the person reading their own list.
 async function getMentionableUsers() {
   const { rows } = await pool.query(
-    `SELECT u.id, u.name FROM users u WHERE ${officePeopleSql('u')} ORDER BY u.name`
+    `SELECT u.id, u.name, u.initials FROM users u WHERE ${officePeopleSql('u')} ORDER BY u.name`
   );
-  return rows.map(u => ({ id: u.id, name: u.name.split(' ')[0] }));
+  return rows.map(u => ({ id: u.id, name: u.name.split(' ')[0], initials: u.initials || null }));
 }
 
 // Finds "@Full Name" occurrences in free text against a list of {id, name}. Longest

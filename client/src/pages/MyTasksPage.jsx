@@ -18,6 +18,7 @@ import { isSaredeUser } from '../utils/saredeAccess'
 import { LatestHandoff, WriteHandoff } from '../components/ShiftHandoff'
 import { useDelegates } from '../utils/delegates'
 import MyTasksTabs from '../components/MyTasksTabs'
+import MentionList from '../components/MentionList'
 
 
 function QuickAddOther({ onAdd }) {
@@ -550,10 +551,9 @@ export default function MyTasksPage() {
         {mentionTasks.length === 0 ? (
           <p className="text-sm text-gray-400 italic px-2">Nobody's tagged you in anything.</p>
         ) : (
-          <TaskTable
-            items={mentionTasks} onClick={handleClick}
-            onResolveMention={handleResolveMention} onResolveReminder={handleResolveReminder}
-            onToggleUrgent={handleToggleUrgent} isNew={isNew}
+          <MentionList
+            items={mentionTasks} users={mentionableUsers} onOpen={handleClick}
+            onResolve={handleResolveMention} onToggleUrgent={handleToggleUrgent} isNew={isNew}
           />
         )}
 

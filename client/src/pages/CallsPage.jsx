@@ -232,10 +232,16 @@ export default function CallsPage() {
                   <Recording callId={c.id} label="Recording" />
                 )}
 
-                {/* Say why there is no audio rather than showing nothing, which reads
-                    as "the app lost it". Only when there is genuinely nothing to play. */}
-                {!c.recording_id && !c.recording_url && !c.voicemail_url && c.recording_error && (
-                  <p className="w-full text-xs text-gray-400">{c.recording_error}</p>
+                {/* Say why there is no audio rather than showing nothing, which reads as
+                    "the app lost it". A call nobody answered says so plainly — that one
+                    is not a fault, and looking for a recording of it is a wild goose
+                    chase. Only shown when there is genuinely nothing to play. */}
+                {!c.recording_id && !c.recording_url && !c.voicemail_url && (
+                  c.recording_error ? (
+                    <p className="w-full text-xs text-gray-400">{c.recording_error}</p>
+                  ) : (c.status === 'missed' || !c.duration_seconds) ? (
+                    <p className="w-full text-xs text-gray-400">Nobody picked up, so there was nothing to record.</p>
+                  ) : null
                 )}
 
                 {(c.voicemail_url || (c.status === 'voicemail' && c.recording_id)) && (
