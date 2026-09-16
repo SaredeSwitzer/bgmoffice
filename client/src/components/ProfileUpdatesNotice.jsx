@@ -12,12 +12,21 @@ function list(items) {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 }
 
-export default function ProfileUpdatesNotice({ updates, onDismiss }) {
-  if (!updates || updates.length === 0) return null
+// The check-in reminder is set automatically the first time a client is put with an
+// instructor they have not had before, so this is the only place it is announced. Same
+// reasoning as above: the app should not quietly add things to My Tasks.
+export default function ProfileUpdatesNotice({ updates, checkIn, onDismiss }) {
+  if ((!updates || updates.length === 0) && !checkIn) return null
   return (
     <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 flex items-start justify-between gap-3">
       <div className="text-sm text-emerald-900">
-        {updates.map(u => (
+        {checkIn && (
+          <p>
+            Added a reminder to <Link to="/my-tasks" className="font-semibold underline hover:no-underline">My Tasks</Link>
+            {' '}to check in after the first class — they haven't had this instructor before.
+          </p>
+        )}
+        {(updates || []).map(u => (
           <p key={`${u.kind}-${u.id}`}>
             Also saved to{' '}
             <Link to={`/${u.kind === 'client' ? 'clients' : 'instructors'}/${u.id}`}

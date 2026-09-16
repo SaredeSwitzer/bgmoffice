@@ -214,14 +214,44 @@ router.get('/schedules/:id', async (req, res) => {
 });
 
 // ── "Check in after the first class" ───────────────────────────────────────────
-// A new client's first class is the one worth following up: did the instructor suit them,
-// was the pace right, do they want to keep the slot. It's also the easiest thing in the
-// world to forget a week later.
+// A first class with a new instructor is the one worth following up: did they suit each
+// other, was the pace right, does the client want to keep the slot. It is also the
+// easiest thing in the world to forget a week later.
 //
-// So setting up a class can set the reminder at the same time — dated the day after the
-// first class actually happens, and landing in My Tasks like every other reminder.
+// This used to be a tick-box that was only pre-ticked for a client's very first class
+// ever, so pairing an existing client with an instructor they had never met produced no
+// reminder at all unless somebody remembered to tick it. Nobody did. It is automatic now,
+// decided here rather than in the form, so it happens the same way whichever screen the
+// class was added from — the calendar, the recurring list, or the recruiting page.
+
+// Have these two been put together before? Asked BEFORE the new class is written, so the
+// class being created doesn't count as its own precedent.
+async function firstTimeWithInstructor(client_id, instructor_id) {
+  if (!client_id || !instructor_id) return false;
+  const { rows: [{ n }] } = await pool.query(
+    `SELECT (
+       EXISTS (SELECT 1 FROM class_sessions  WHERE client_id = $1 AND instructor_id = $2)
+       OR
+       EXISTS (SELECT 1 FROM class_schedules WHERE client_id = $1 AND instructor_id = $2)
+     )::int AS n`,
+    [client_id, instructor_id]
+  );
+  return n === 0;
+}
+
 async function createCheckInReminder({ client_id, instructor_id, firstDate, style, start_time, initials }) {
   if (!client_id || !firstDate) return null;
+
+  // One reminder per pairing. A weekly class booked on three days creates three recurring
+  // schedules in a row, and three identical reminders in My Tasks would be noise.
+  const { rows: already } = await pool.query(
+    `SELECT id FROM reminders
+      WHERE client_id = $1 AND instructor_id IS NOT DISTINCT FROM $2
+        AND status = 'pending' AND title LIKE 'Check in with %'
+      LIMIT 1`,
+    [client_id, instructor_id || null]
+  );
+  if (already.length) return null;
 
   const { rows: [client] } = await pool.query('SELECT name FROM clients WHERE id = $1', [client_id]);
   const { rows: [inst] } = instructor_id
@@ -246,7 +276,7 @@ async function createCheckInReminder({ client_id, instructor_id, firstDate, styl
   const { rows: [reminder] } = await pool.query(
     `INSERT INTO reminders (title, notes, remind_on, client_id, instructor_id, created_by)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, remind_on`,
-    [`Check in with ${client?.name || 'this client'} after their first class`,
+    [`Check in with ${client?.name || 'this client'} after their first class${inst?.name ? ` with ${inst.name}` : ''}`,
      notes, remind_on, client_id, instructor_id || null, initials]
   );
   return reminder;
@@ -274,6 +304,9 @@ router.post('/schedules', async (req, res) => {
   if (wd === undefined) return res.status(400).json({ error: 'weekday must be 0–6 (0=Sun) or null' });
 
   const filled = await fillClientDefaults(client_id, { style, participant_count, participant_ages });
+  // Asked before anything is written, or the class we are about to create would look like
+  // a class they have already had together.
+  const new_pairing = await firstTimeWithInstructor(client_id, instructor_id);
 
   const { rows: [{ id }] } = await pool.query(
     `INSERT INTO class_schedules
@@ -296,7 +329,7 @@ router.post('/schedules', async (req, res) => {
     client_id, instructor_id, charge_amount, charge_note, instructor_pay, payment_method,
     style: filled.style, participant_count: filled.participant_count, participant_ages: filled.participant_ages,
   });
-  const check_in_reminder = req.body.check_in_reminder
+  const check_in_reminder = (req.body.check_in_reminder || new_pairing)
     ? await createCheckInReminder({
         client_id, instructor_id,
         firstDate: await firstDateOfSchedule(id, start_date),
@@ -530,6 +563,9 @@ router.post('/sessions', async (req, res) => {
   const filled = await fillClientDefaults(client_id, {
     style: inherited.style, participant_count, participant_ages,
   });
+  // Asked before anything is written, or the class we are about to create would look like
+  // a class they have already had together.
+  const new_pairing = await firstTimeWithInstructor(client_id, instructor_id);
 
   const { rows: [row] } = await pool.query(
     `INSERT INTO class_sessions
@@ -552,7 +588,7 @@ router.post('/sessions', async (req, res) => {
     style: filled.style, participant_count: filled.participant_count,
     participant_ages: filled.participant_ages,
   });
-  const check_in_reminder = req.body.check_in_reminder
+  const check_in_reminder = (req.body.check_in_reminder || new_pairing)
     ? await createCheckInReminder({
         client_id, instructor_id, firstDate: session_date,
         style: filled.style, start_time, initials: req.user.initials,
@@ -582,6 +618,9 @@ router.post('/sessions/bulk', async (req, res) => {
   // Fall back to how this client's other classes are billed — a blank payment method
   // means the class never comes off a package and never lands on an invoice.
   const method = payment_method || await usualPaymentMethod(client_id);
+  // Asked before anything is written, or the class we are about to create would look like
+  // a class they have already had together.
+  const new_pairing = await firstTimeWithInstructor(client_id, instructor_id);
 
   const created = [];
   for (const session_date of dates) {
@@ -605,7 +644,7 @@ router.post('/sessions/bulk', async (req, res) => {
     payment_method: method, style: filled.style,
     participant_count: filled.participant_count, participant_ages: filled.participant_ages,
   });
-  if (req.body.check_in_reminder) {
+  if (req.body.check_in_reminder || new_pairing) {
     await createCheckInReminder({
       client_id, instructor_id, firstDate: [...dates].sort()[0],
       style: filled.style, start_time, initials: req.user.initials,
