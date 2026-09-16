@@ -186,6 +186,19 @@ const DEFAULT_GREETING =
   "Thanks for calling Bring the Gym to Me. We can't take your call right now, " +
   'so please leave a message after the tone and we\'ll get back to you as soon as we can.';
 
+// What callers hear before anything else, now that calls are recorded. Editable for the
+// same reason the voicemail greeting is — it is a thing customers hear.
+const DEFAULT_NOTICE = 'Thanks for calling Bring the Gym to Me. This call may be recorded.';
+
+async function recordingNotice() {
+  try {
+    const { rows } = await pool.query(
+      "SELECT value FROM app_settings WHERE key = 'recording_notice'");
+    if (rows[0]?.value?.trim()) return rows[0].value.trim();
+  } catch { /* the notice must never be the reason a call fails */ }
+  return DEFAULT_NOTICE;
+}
+
 async function voicemailGreeting() {
   try {
     const { rows } = await pool.query(
@@ -352,16 +365,28 @@ async function route(type, p) {
         // on an open, silent line for a few seconds — that dead air is what a caller
         // hears as "something is wrong with this number". Give them a normal ringing
         // tone while we hunt, and stop it the moment somebody picks up.
-        // Started, not awaited. The ring tone is for the caller's comfort; making the
-        // phones wait on it just delays the thing that actually matters.
-        command(ccid, 'playback_start', {
-          audio_url: `${process.env.PUBLIC_URL || 'https://bgmoffice.com'}/ringback.wav`,
-          loop: 'infinity',
-        }).catch((e) => console.error('[voice] no ringback:', e.message));
-
-        // Who is calling, as we already worked it out when the call came in.
+        // Phones first, always. Everything the caller hears is arranged around the ring,
+        // never in front of it — anything that delays somebody picking up costs more than
+        // it explains.
         const known = await store.findByCallControlId(ccid).catch(() => null);
         const rung = await ringEveryone(ccid, toE164(p.from), p.connection_id, known?.person_name);
+
+        if (await transcribeCallsEnabled()) {
+          // Tell them the call may be recorded, then let the ring tone follow when the
+          // notice finishes — the two share one audio channel, so they take turns.
+          command(ccid, 'speak', {
+            payload: await recordingNotice(),
+            voice: 'female',
+            language: 'en-US',
+            client_state: encodeState({ role: 'inbound', t: 'notice' }),
+          }).catch((e) => console.error('[voice] no recording notice:', e.message));
+        } else {
+          // Nothing to announce, so straight to the ring tone.
+          command(ccid, 'playback_start', {
+            audio_url: `${process.env.PUBLIC_URL || 'https://bgmoffice.com'}/ringback.wav`,
+            loop: 'infinity',
+          }).catch((e) => console.error('[voice] no ringback:', e.message));
+        }
         if (rung === 0) {
           // Nobody to ring. Better to end the call than leave someone on a silent line.
           await command(ccid, 'hangup', {}).catch(() => {});
@@ -484,6 +509,14 @@ async function route(type, p) {
 
     // The greeting has finished playing — now actually take the message.
     case 'call.speak.ended': {
+      // The recording notice has finished — now the caller can hear it ringing.
+      if (state.t === 'notice') {
+        await command(ccid, 'playback_start', {
+          audio_url: `${process.env.PUBLIC_URL || 'https://bgmoffice.com'}/ringback.wav`,
+          loop: 'infinity',
+        }).catch((e) => console.error('[voice] no ringback:', e.message));
+        return;
+      }
       if (state.role !== 'voicemail_greeting') return;
       await command(ccid, 'record_start', {
         format: 'mp3',
