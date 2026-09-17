@@ -203,9 +203,15 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
   const instructorsOn = (row.people || []).filter(p => p.kind === 'instructor')
   const clientsOn     = (row.people || []).filter(p => p.kind === 'client')
 
+  const [open, setOpen] = useState(false)
+
   const hasLinkedNote = !!openNoteId && notes.some(n => String(n.id) === String(openNoteId))
   useEffect(() => {
     if (!hasLinkedNote) return
+    // Two folds, not one. The line itself is collapsed to a title, and the notes under it
+    // fold separately — so opening only the notes left the linked note still unrendered
+    // and the arriving mention pointing at nothing. Both have to give.
+    setOpen(true)
     setShowNotes(true)
     // After the thread has rendered — otherwise there's no box to put the cursor in.
     const t = setTimeout(() => replyRef.current?.focus(), 120)
@@ -229,7 +235,6 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
   // answers. Collapsing only the lines inside a client's block made that block look like a
   // different kind of thing from the lines around it; folding everything gives one rhythm
   // down the page, and the blocks read as blocks because of the heading and the indent.
-  const [open, setOpen] = useState(false)
   const collapsed = !open
   const pad = collapsed ? 'py-1.5' : 'py-2.5'
 

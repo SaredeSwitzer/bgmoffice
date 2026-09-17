@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import MentionTextarea from './MentionTextarea'
 import { renderWithMentions } from '../utils/mentions.jsx'
 import { noteTime } from '../utils/dates'
+import { highlightNote } from '../utils/hashHighlight'
 
 // An @mention opened in place on My Tasks. Before this, the only way to find out what
 // somebody wanted was to click through to whichever screen the note lived on — which
@@ -16,6 +17,7 @@ import { noteTime } from '../utils/dates'
 export default function MentionThread({ mention, mentionableUsers = [], onResolve, onClose }) {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
   const [reply,   setReply]   = useState('')
@@ -59,6 +61,38 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
   const noteText = data?.note?.text || mention.last_note?.text || mention.snippet || ''
   const thread   = data?.thread || []
   const openPath = mention.link_path
+
+  // "Open where it lives" did nothing for most mentions, and 46 of the 130 on file are
+  // the affected kind — the ones on a Waiting On note, whose home is the Waiting sheet on
+  // My Tasks, the very page this dialog is open on top of. Two things went wrong at once:
+  // the dialog stayed up, covering whatever had just been scrolled to, and navigating to
+  // the page you are already on with the hash you already have is a no-op React Router
+  // never reports, so nothing fired either.
+  //
+  // So: get out of the way first, then either navigate or, when already home, do the
+  // pointing at the note ourselves.
+  function openWhereItLives() {
+    if (!openPath) return
+    const hashAt = openPath.indexOf('#')
+    const path = hashAt === -1 ? openPath : openPath.slice(0, hashAt)
+    const hash = hashAt === -1 ? '' : openPath.slice(hashAt)
+    const samePage = location.pathname === path.split('?')[0]
+
+    onClose?.()
+    if (samePage && hash) {
+      // Clear the hash before setting it, so it is always a CHANGE. Setting the hash it
+      // already has (opening the same mention twice) would otherwise tell the page
+      // nothing, and My Tasks switches from the queue to the Waiting sheet off exactly
+      // that signal.
+      navigate(path, { replace: true })
+      setTimeout(() => navigate(openPath), 0)
+      // The view still has to swap and the note's thread to open, so highlightNote waits
+      // for the element rather than assuming it is already there.
+      setTimeout(() => highlightNote(hash), 80)
+    } else {
+      navigate(openPath)
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-xl px-5 py-4">
@@ -138,7 +172,7 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
                   Leave it unread
                 </button>
                 {openPath && (
-                  <button type="button" onClick={() => navigate(openPath)}
+                  <button type="button" onClick={openWhereItLives}
                     className="text-[11px] text-blue-600 hover:underline ml-auto">
                     Open where it lives ↗
                   </button>
@@ -162,7 +196,7 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
                 Leave it unread
               </button>
               {openPath && (
-                <button type="button" onClick={() => navigate(openPath)}
+                <button type="button" onClick={openWhereItLives}
                   className="text-[11px] text-blue-600 hover:underline ml-auto">
                   Open where it lives ↗
                 </button>
