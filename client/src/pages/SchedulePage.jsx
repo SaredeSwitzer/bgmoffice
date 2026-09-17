@@ -638,15 +638,20 @@ export default function SchedulePage() {
                                     {s.confirmation_sent_at ? '✓ Emailed' : 'Confirmation Email'}
                                   </button>
                                 )}
-                                <button onClick={e => { e.stopPropagation(); setTextClass({ who: 'client', row: s, kind: 'session' }) }}
-                                  title="Text the client a short class confirmation"
-                                  className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
-                                    s.client_text_sent_at
-                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                      : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                                  }`}>
-                                  {s.client_text_sent_at ? '✓ Texted client' : 'Text Client'}
-                                </button>
+                                {/* Gone entirely for a client who has asked not to be
+                                    texted — offering a button that only produces a refusal
+                                    is worse than not offering it. */}
+                                {!s.no_texting && (
+                                  <button onClick={e => { e.stopPropagation(); setTextClass({ who: 'client', row: s, kind: 'session' }) }}
+                                    title="Text the client a short class confirmation"
+                                    className={`w-full mt-1 text-[10px] rounded px-1 py-0.5 border transition-colors whitespace-nowrap ${
+                                      s.client_text_sent_at
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                                    }`}>
+                                    {s.client_text_sent_at ? '✓ Texted client' : 'Text Client'}
+                                  </button>
+                                )}
                                 {s.instructor_id && (
                                   <button onClick={e => { e.stopPropagation(); setTextClass({ who: 'instructor', row: s, kind: 'session' }) }}
                                     title="Text the instructor a short class confirmation"
@@ -878,16 +883,21 @@ export default function SchedulePage() {
                           : (s.confirmation_sent_at ? '✓ Emailed' : 'Send Confirmation Email')}
                       </button>
                     )}
-                    <button
-                      onClick={() => setTextClass({ who: 'client', row: s, kind: 'schedule' })}
-                      title="Text the client a short class confirmation"
-                      className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
-                        s.client_text_sent_at
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                          : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                      }`}>
-                      {s.client_text_sent_at ? '✓ Texted Client' : 'Text Client'}
-                    </button>
+                    {/* Absent for a do-not-text client; the note below the row says why. */}
+                    {s.no_texting ? (
+                      <span className="text-xs text-gray-400 px-2 py-1">Client asked not to be texted</span>
+                    ) : (
+                      <button
+                        onClick={() => setTextClass({ who: 'client', row: s, kind: 'schedule' })}
+                        title="Text the client a short class confirmation"
+                        className={`text-xs rounded-lg px-2 py-1 border transition-colors ${
+                          s.client_text_sent_at
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        }`}>
+                        {s.client_text_sent_at ? '✓ Texted Client' : 'Text Client'}
+                      </button>
+                    )}
                     {s.instructor_id && (
                       <button
                         onClick={() => setTextClass({ who: 'instructor', row: s, kind: 'schedule' })}

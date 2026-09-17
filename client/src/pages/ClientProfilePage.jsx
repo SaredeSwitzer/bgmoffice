@@ -901,6 +901,7 @@ export default function ClientProfilePage() {
           gender: c.gender || '',
           track_last_class: c.track_last_class ? true : false,
           skip_weekly_reminder: c.skip_weekly_reminder ? true : false,
+          no_texting: c.no_texting ? true : false,
           last_class_date: c.last_class_date || '',
           default_age: c.default_age || '',
           default_participants: c.default_participants ?? '',
@@ -1142,18 +1143,23 @@ export default function ClientProfilePage() {
                   </div>
                 )}
               </div>
-              {/* Some clients have asked not to be texted at all. Until now this could only
-                  be set directly in the database, so it was invisible and easy to undo. */}
+              {/* One setting, because "don't text them" is one thought. It used to cover
+                  only the weekly run, so a client who had asked for no texts still got
+                  class confirmations and change alerts — which is why one of them ended up
+                  with "DO NOT TEXT" typed into their own name as a warning to staff. */}
               <div className="col-span-2 pt-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Weekly Reminders</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Texting</p>
                 <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                  <input type="checkbox" checked={editForm.skip_weekly_reminder}
-                    onChange={e => setEditForm(f => ({ ...f, skip_weekly_reminder: e.target.checked }))}
+                  <input type="checkbox" checked={editForm.no_texting}
+                    onChange={e => setEditForm(f => ({ ...f, no_texting: e.target.checked }))}
                     className="rounded" />
-                  Don't include this client in weekly reminder texts
+                  Don't text this client
                 </label>
                 <p className="text-[11px] text-gray-400 mt-1 ml-5">
-                  Use for anyone who's asked not to be texted. They'll be skipped every week.
+                  For anyone who's asked us not to text them. No weekly reminders, no class
+                  confirmations and no change alerts — the buttons won't even appear on their
+                  classes. Email still works, and you can still text by hand from Phone if
+                  you need to.
                 </p>
               </div>
               {/* Class defaults — pre-fill new calendar entries + instructor confirmation emails for this client */}

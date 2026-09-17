@@ -16,6 +16,7 @@ const smsStore = require('../lib/smsStore');
 const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 const { addressLine } = require('../lib/addressLine');
 const { instructorFirstName } = require('../lib/instructorFirstName');
+const { clientTextingBlocked } = require('../lib/clientTexting');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -157,7 +158,7 @@ async function fillFromSchedule(schedule_id, fields) {
 // A schedule with client + instructor names attached (for list/detail views).
 async function getScheduleRow(id) {
   const { rows: [row] } = await pool.query(
-    `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
+    `SELECT cs.*, c.name AS client_name, c.no_texting, i.name AS instructor_name,
             COALESCE(a.neighborhood, c.neighborhood) AS neighborhood,
             COALESCE(a.street, c.street) AS street,
             COALESCE(a.city, c.city) AS city,
@@ -186,7 +187,7 @@ router.get('/schedules', async (req, res) => {
   if (client_id) { args.push(client_id); where.push(`cs.client_id = $${args.length}`); }
   if (status)    { args.push(status);    where.push(`cs.status = $${args.length}`); }
   const { rows } = await pool.query(
-    `SELECT cs.*, c.name AS client_name, i.name AS instructor_name,
+    `SELECT cs.*, c.name AS client_name, c.no_texting, i.name AS instructor_name,
             COALESCE(a.neighborhood, c.neighborhood) AS neighborhood,
             COALESCE(a.street, c.street) AS street,
             COALESCE(a.city, c.city) AS city,
@@ -524,7 +525,7 @@ router.get('/sessions', async (req, res) => {
   if (instructor_id) { args.push(instructor_id); where.push(`s.instructor_id = $${args.length}`); }
 
   const { rows } = await pool.query(
-    `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
+    `SELECT s.*, c.name AS client_name, c.no_texting, i.name AS instructor_name,
             COALESCE(a.neighborhood, c.neighborhood) AS neighborhood,
             COALESCE(a.street, c.street) AS street,
             COALESCE(a.city, c.city) AS city,
@@ -928,7 +929,7 @@ function confirmationContextCombined(rows) {
 
 async function getSessionRow(id) {
   const { rows: [row] } = await pool.query(
-    `SELECT s.*, c.name AS client_name, i.name AS instructor_name,
+    `SELECT s.*, c.name AS client_name, c.no_texting, i.name AS instructor_name,
             -- A class can carry its own address when a client has more than one place,
             -- so it wins over the client's default. getScheduleRow already did this;
             -- this one did not, so a dated class always quoted the client's home address.
@@ -1137,16 +1138,28 @@ const CLIENT_SMS_DEFAULT =
   "{days_times}. Please give us at least 24 hours' notice to cancel a class. " +
   "Reply here any time.";
 
-// We text from a number nobody has seen before, so the first message to someone has to say
-// who it is and invite them to save it. After that the greeting alone is enough — repeating
-// "this is our new number" to somebody already mid-conversation reads like a robot.
+// We text from a number nobody has seen before, so the FIRST message to someone has to say
+// who it is and invite them to save it.
+//
+// After that it says nothing at all. It used to keep announcing "This is Bring the Gym to
+// Me" on every message, which to anyone already mid-conversation reads like being handed a
+// business card by someone you are talking to — they know, their phone knows, and it is
+// the same reasoning that took the line off the instructors' payment requests.
+//
+// Matched on the last ten digits: numbers reach this function via toE164, but the ones
+// already in sms_messages were written by several different paths over months, and an
+// exact string match would fail on the punctuation and reintroduce the greeting to people
+// we text constantly.
 async function introFor(phone) {
+  const digits = String(phone || '').replace(/\D/g, '').slice(-10);
+  if (!digits) return 'This is Bring the Gym to Me — our texting number, feel free to save it.';
   const { rows: [prior] } = await pool.query(
-    `SELECT 1 FROM sms_messages WHERE phone = $1 AND direction = 'outbound' LIMIT 1`, [phone]
+    `SELECT 1 FROM sms_messages
+      WHERE direction = 'outbound'
+        AND right(regexp_replace(coalesce(phone,''), '\\D', '', 'g'), 10) = $1
+      LIMIT 1`, [digits]
   );
-  return prior
-    ? 'This is Bring the Gym to Me.'
-    : 'This is Bring the Gym to Me — our texting number, feel free to save it.';
+  return prior ? '' : 'This is Bring the Gym to Me — our texting number, feel free to save it.';
 }
 
 // How you'd actually greet them in a text.
@@ -1257,12 +1270,17 @@ async function buildClientText(kind, id) {
     .replace(/ ([.,!?])/g, '$1')
     .trim();
 
+  const noTexting = await clientTextingBlocked(row.client_id);
+
   return {
     to: phone,
     client_id: row.client_id,
     client_name: client?.name || null,
     has_instructor: !!row.instructor_name,
     text,
+    // Same as the reschedule alert: the screen hides the send and says why.
+    no_texting: !!noTexting,
+    no_texting_reason: noTexting?.reason || null,
     already_sent_at: row.client_text_sent_at || null,
     already_sent_to: row.client_text_sent_to || null,
   };
@@ -1333,6 +1351,12 @@ async function sendConfirmTextRoute({ who, kind, table, req, res }) {
   const isClient = who === 'client';
   const r = isClient ? await buildClientText(kind, req.params.id) : await buildInstructorText(kind, req.params.id);
   if (r.error) return res.status(r.status).json({ error: r.error });
+  // Checked here and not only in the UI: this endpoint is reachable from the calendar, the
+  // client's profile and Amber, and the opt-out has to hold on all of them.
+  if (isClient) {
+    const stop = await clientTextingBlocked(r.client_id);
+    if (stop) return res.status(400).json({ error: stop.reason, no_texting: true });
+  }
   if (!r.to) {
     return res.status(400).json({
       error: `This ${who} has no phone number on file. Add one on their profile first.`,
@@ -1536,6 +1560,8 @@ async function buildRescheduleAlert(id) {
       instructor_name: firstNameOf(inst?.name) || 'there', intro: await introFor(instructorPhone) }
   )) : null;
 
+  const noTexting = await clientTextingBlocked(row.client_id);
+
   return {
     to: inst?.email || null,
     instructor_name: ctx.instructor_name,
@@ -1543,9 +1569,14 @@ async function buildRescheduleAlert(id) {
     instructor_phone: instructorPhone,
     instructor_full_name: inst?.name || null,
     instructor_text: instructorText,
+    client_id: row.client_id,
     client_phone: clientPhone,
     client_name: row.client_name || null,
     client_text: clientText,
+    // So the screen can drop the client's tick-box and say why, rather than offering a
+    // send that the server is only going to refuse.
+    client_no_texting: !!noTexting,
+    client_no_texting_reason: noTexting?.reason || null,
     already_sent_at: row.reschedule_alert_sent_at || null,
     already_sent_to: row.reschedule_alert_sent_to || null,
   };
@@ -1574,7 +1605,11 @@ router.post('/sessions/:id/send-reschedule-alert', async (req, res) => {
       text: String(req.body.instructor_text ?? (r.instructor_text || '')).trim(),
       person_kind: 'instructor', person_name: r.instructor_full_name });
   }
-  if (wants('text_client') && r.client_phone) {
+  // The client's copy is dropped silently rather than failing the whole send: the
+  // instructor still needs to hear that the class moved, and one person opting out of
+  // texts must not stop the other being told.
+  const clientBlocked = await clientTextingBlocked(r.client_id);
+  if (wants('text_client') && r.client_phone && !clientBlocked) {
     jobs.push({ channel: 'client_text', to: r.client_phone,
       text: String(req.body.client_text ?? (r.client_text || '')).trim(),
       person_kind: 'client', person_name: r.client_name });

@@ -116,7 +116,7 @@ async function buildWeeklyReminders({ start, end } = {}) {
   const { rows: sessions } = await pool.query(
     `SELECT s.session_date::text AS session_date, s.start_time::text AS start_time, s.notes,
             c.id AS client_id, c.name AS client_name, c.phone AS client_phone,
-            c.email AS client_email, c.skip_weekly_reminder,
+            c.email AS client_email, c.skip_weekly_reminder, c.no_texting,
             c.contact_person_name, c.contact_person_phone,
             i.id AS instructor_id, i.name AS instructor_name, i.phone AS instructor_phone,
             i.email AS instructor_email,
@@ -173,7 +173,9 @@ async function buildWeeklyReminders({ start, end } = {}) {
     }
 
     // ── client side
-    if (s.skip_weekly_reminder) continue;
+    // Either flag keeps them out. no_texting is the broader one set on the profile;
+    // skip_weekly_reminder is the older weekly-only setting, still honoured.
+    if (s.skip_weekly_reminder || s.no_texting) continue;
     if (NO_REMINDER_NOTE.test(s.notes || '')) {
       flags.push(`Held ${s.client_name}'s reminder for ${day} — note says "${String(s.notes).trim()}".`);
       continue;

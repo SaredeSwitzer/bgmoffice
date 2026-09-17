@@ -96,7 +96,7 @@ router.post('/', async (req, res) => {
     contact_person_name, contact_person_phone, contact_person_email, contact_person_role,
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
     default_age, default_participants, default_style, default_payment_method,
-    track_last_class, last_class_date, skip_weekly_reminder,
+    track_last_class, last_class_date, skip_weekly_reminder, no_texting,
     referred_by, gender, referred_by_client_id, goals, health_notes, equipment,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
@@ -128,8 +128,8 @@ router.post('/', async (req, res) => {
         waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
         default_age, default_participants, default_style, default_payment_method,
         track_last_class, last_class_date, skip_weekly_reminder, referred_by, gender,
-        referred_by_client_id, goals, health_notes, equipment)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
+        referred_by_client_id, goals, health_notes, equipment, no_texting)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
      RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
@@ -141,9 +141,9 @@ router.post('/', async (req, res) => {
       client_type === 'organization' ? 'organization' : 'individual',
       default_age || null, default_participants === '' ? null : default_participants ?? null, default_style || null,
       default_payment_method || null,
-      !!track_last_class, last_class_date || null, !!skip_weekly_reminder,
+      !!track_last_class, last_class_date || null, !!skip_weekly_reminder || !!no_texting,
       referred_by || null, gender || null, referred_by_client_id || null,
-      goals || null, health_notes || null, equipment || null,
+      goals || null, health_notes || null, equipment || null, !!no_texting,
     ]
   );
   if (signatureToLink) {
@@ -158,7 +158,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query(
-    `SELECT id, skip_weekly_reminder, referred_by, gender, referred_by_client_id,
+    `SELECT id, skip_weekly_reminder, no_texting, referred_by, gender, referred_by_client_id,
             goals, health_notes, equipment, phone_texting, phone_whatsapp,
             default_payment_method
        FROM clients WHERE id = $1`,
@@ -172,7 +172,7 @@ router.put('/:id', async (req, res) => {
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
     track_last_class, last_class_date, default_age, default_participants, default_style,
     default_payment_method,
-    skip_weekly_reminder, referred_by, gender, referred_by_client_id,
+    skip_weekly_reminder, no_texting, referred_by, gender, referred_by_client_id,
     goals, health_notes, equipment, phone_texting, phone_whatsapp,
   } = req.body;
 
@@ -186,6 +186,17 @@ router.put('/:id', async (req, res) => {
   const nextSkipWeekly = skip_weekly_reminder === undefined || skip_weekly_reminder === null
     ? !!existing.skip_weekly_reminder
     : !!skip_weekly_reminder;
+
+  // "Don't text this client" — the one the profile actually shows, covering confirmations,
+  // change alerts and the weekly run alike. Same absent-means-leave-alone rule, and for the
+  // same reason, only more so: quietly re-enabling texts to somebody who asked us to stop
+  // is the kind of mistake that costs a client.
+  //
+  // The old weekly-only flag is kept in step with it so nothing that still reads that
+  // column — Amber, among others — starts texting someone this says not to.
+  const nextNoTexting = no_texting === undefined || no_texting === null
+    ? !!existing.no_texting
+    : !!no_texting;
 
   // Same absent-means-leave-alone rule as skip_weekly_reminder: these two come from the
   // intake form and the general client edit form doesn't send them, so a plain save must
@@ -219,7 +230,7 @@ router.put('/:id', async (req, res) => {
        waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
        client_type=$19, track_last_class=$20, last_class_date=$21,
        default_age=$22, default_participants=$23, default_style=$24,
-       skip_weekly_reminder=$25
+       skip_weekly_reminder=$25, no_texting=$36
      WHERE id=$26 RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
@@ -231,11 +242,12 @@ router.put('/:id', async (req, res) => {
       client_type === 'organization' ? 'organization' : 'individual',
       !!track_last_class, last_class_date || null,
       default_age || null, default_participants === '' ? null : default_participants ?? null, default_style || null,
-      nextSkipWeekly,
+      nextSkipWeekly || nextNoTexting,
       req.params.id,
       nextReferredBy, nextGender, nextReferrerId,
       nextGoals, nextHealth, nextEquipment,
       nextTexting, nextWhatsapp, nextPayMethod,
+      nextNoTexting,
     ]
   );
   await syncMentions({

@@ -62,7 +62,9 @@ export default function RescheduleAlertModal({ session, onClose, onSent }) {
 
   const canEmail  = !!preview?.to
   const canTextIn = !!preview?.instructor_phone
-  const canTextCl = !!preview?.client_phone
+  // A client who has asked not to be texted takes the option away entirely, phone on file
+  // or not — the instructor still gets told, which is the part that matters for the class.
+  const canTextCl = !!preview?.client_phone && !preview?.client_no_texting
   const chosen = [canEmail && sendEmail, canTextIn && textInstructor, canTextCl && textClient].filter(Boolean).length
 
   async function send() {
@@ -137,12 +139,16 @@ export default function RescheduleAlertModal({ session, onClose, onSent }) {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </Part>
 
-              {/* 3 — the client's phone. Plenty have only a landline, or nothing. */}
+              {/* 3 — the client's phone. Plenty have only a landline, or nothing — and
+                  some have asked us not to text them at all, which says so in their words
+                  rather than looking like a missing number. */}
               <Part
                 on={textClient} setOn={setTextClient} enabled={canTextCl}
                 title="Text the client"
                 to={preview?.client_phone}
-                missing={`No mobile on file for ${preview?.client_name || 'this client'} — nothing will go to them.`}
+                missing={preview?.client_no_texting
+                  ? preview.client_no_texting_reason
+                  : `No mobile on file for ${preview?.client_name || 'this client'} — nothing will go to them.`}
               >
                 <textarea value={clientText} onChange={e => setClientText(e.target.value)} rows={3}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
