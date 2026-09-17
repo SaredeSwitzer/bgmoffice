@@ -105,6 +105,10 @@ export const api = {
   voiceCall: (to) => request('/voice/call', { method: 'POST', body: JSON.stringify({ to }) }),
   // End a call the app placed — the only way to stop the ring-my-phone path.
   voiceHangup: (ccid) => request(`/voice/calls/${encodeURIComponent(ccid)}/hangup`, { method: 'POST' }),
+  whoIs: ({ phone, name }) =>
+    request(`/sms/who-is?phone=${encodeURIComponent(phone)}&name=${encodeURIComponent(name || '')}`),
+  saveContact: (body) =>
+    request('/sms/save-contact', { method: 'POST', body: JSON.stringify(body) }),
   voiceRecording: (id) => request(`/voice/calls/${id}/recording`),
   voiceRinging: () => request('/voice/ringing'),
   voiceCalls: (phone) => request(`/voice/calls${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`),

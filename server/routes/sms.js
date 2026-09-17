@@ -17,6 +17,7 @@ const { sendMail } = require('../lib/mailer');
 const { explainSmsFailure } = require('../lib/smsFailureReason');
 // Calls share the same phone key texts use, which is what lets the two be shown together.
 const voiceStore = require('../lib/voiceStore');
+const { saveContact, suggestMatches, whoHasNumber } = require('../lib/saveContact');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -402,5 +403,34 @@ async function sendPreparedBatch(req, res) {
 
 router.post('/weekly-reminders/send', sendPreparedBatch);
 router.post('/send-batch', sendPreparedBatch);
+
+
+// ── Putting a name to an unknown number ──────────────────────────────────────────────
+//
+// See lib/saveContact.js for why this is three different things wearing one button.
+
+// Who might this be? Offered before anything is created, because duplicate instructors
+// have been a real clean-up job here more than once.
+router.get('/who-is', async (req, res) => {
+  try {
+    const [already, matches] = await Promise.all([
+      whoHasNumber(req.query.phone),
+      suggestMatches(req.query.name),
+    ]);
+    res.json({ already, matches });
+  } catch (e) {
+    console.error('[sms] who-is failed:', e.message);
+    res.json({ already: null, matches: [] });
+  }
+});
+
+router.post('/save-contact', async (req, res) => {
+  try {
+    const r = await saveContact({ ...req.body, initials: req.user.initials });
+    res.json(r);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Could not save that.' });
+  }
+});
 
 module.exports = router;

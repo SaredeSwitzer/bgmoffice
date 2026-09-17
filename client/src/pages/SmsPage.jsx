@@ -9,6 +9,7 @@ import InstructorNudgesPanel from '../components/InstructorNudgesPanel'
 import PhoneTabs from '../components/PhoneTabs'
 import DictateButton from '../components/DictateButton'
 import { ClientLink, InstructorLink } from '../components/NameLink'
+import SaveContactPanel from '../components/SaveContactPanel'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -194,6 +195,13 @@ export default function SmsPage() {
   const activeName = activeThread?.person_name || activeMeta?.name || (active ? fmtPhone(active) : '')
   const activeKind = activeThread?.person_kind || activeMeta?.kind || ''
   const activeId = activeThread?.person_id || activeMeta?.id || null
+  // A number nobody has put a name to. Offered, not forced — plenty of one-off numbers
+  // are never worth saving, and a panel that will not go away is worse than a bare number.
+  const [savingContact, setSavingContact] = useState(false)
+  const [savedNote, setSavedNote] = useState('')
+  // activeName falls back to the formatted number when nobody is known, so the number
+  // itself is the tell — not an empty string.
+  const isNamed = Boolean(activeThread?.person_name || activeMeta?.name)
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-4">
@@ -373,10 +381,38 @@ export default function SmsPage() {
                       {fmtPhone(active)}{activeKind ? ` · ${activeKind}` : ''}
                     </div>
                   </div>
+                  {/* Nobody has put a name to this number — and the one moment the
+                      question is worth asking is while you are looking at what they said. */}
+                  {!isNamed && !savingContact && (
+                    <button type="button" onClick={() => { setSavedNote(''); setSavingContact(true) }}
+                      className="shrink-0 rounded-lg border border-blue-300 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50">
+                      Save this number
+                    </button>
+                  )}
                   {/* Texting someone and calling them are the same errand; the button for
                       it belongs where you already are, not on another screen. */}
                   <CallButton phone={active} name={activeName} className="shrink-0" />
                 </header>
+
+                {savingContact && (
+                  <SaveContactPanel
+                    phone={active}
+                    onClose={() => setSavingContact(false)}
+                    onSaved={(r) => {
+                      setSavingContact(false)
+                      setSavedNote(r?.message || 'Saved.')
+                      loadThreads()
+                      openThread(active)
+                    }}
+                  />
+                )}
+                {savedNote && !savingContact && (
+                  <div className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-xs text-emerald-800">
+                    <span>{savedNote}</span>
+                    <button type="button" onClick={() => setSavedNote('')}
+                      className="ml-auto text-emerald-500 hover:text-emerald-800">×</button>
+                  </div>
+                )}
 
                 <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-gray-50 px-4 py-3">
                   {messages.map((m) => (m.kind === 'call' ? (

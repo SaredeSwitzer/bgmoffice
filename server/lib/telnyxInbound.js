@@ -63,7 +63,15 @@ async function lookupPerson(fromNumber) {
        LIMIT 1`,
       [digits]
     );
-    return rows[0] || null;
+    if (rows[0]) return rows[0];
+
+    // Not in the book, but we may have put a name to the number anyway — a potential
+    // client, an instructor not taken on, somebody's mother. They have no profile to link
+    // to, so the name travels alone. See lib/saveContact.js.
+    const { rows: named } = await pool.query(
+      `SELECT name FROM phone_contacts
+        WHERE right(regexp_replace(phone, '[^0-9]', '', 'g'), 10) = $1 LIMIT 1`, [digits]);
+    return named[0] ? { id: null, kind: null, name: named[0].name } : null;
   } catch (e) {
     console.error('[telnyx inbound] person lookup failed:', e.message);
     return null;
