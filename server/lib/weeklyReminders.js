@@ -1,6 +1,7 @@
 const pool = require('../db/pg');
 const { addressLine } = require('./addressLine');
 const { instructorFirstName } = require('./instructorFirstName');
+const { greetingName } = require('./greetingName');
 
 // Weekly class reminders — the run that used to live in Amber's Google Voice browser
 // automation (~/git/Amber/gen_reminders_bgmoffice.mjs), rebuilt here so it survives the
@@ -23,7 +24,6 @@ const { instructorFirstName } = require('./instructorFirstName');
 // were fixed on the records themselves (see migration 023).
 
 const NO_REMINDER_NOTE = /no\s*24\s*hr|no texting for 24 hour/i;
-const ORG_HINT = /center|circle|school|connections|hamaspik|senior|camp|friendship|jcc|montessori/i;
 
 const digits = (p) => String(p || '').replace(/\D/g, '');
 
@@ -65,15 +65,16 @@ function rangeLabel(start, end) {
   return `${Number(sm)}/${Number(sd)}–${Number(em)}/${Number(ed)}`;
 }
 
-function greetName(full) {
-  const name = String(full || '').trim();
-  return ORG_HINT.test(name) ? name : name.split(/\s+/)[0];
-}
-
-// An organisation is greeted by its full name, a person by their first name — but when the
-// reminder goes to the person who books for an organisation, it's that person reading it.
-function greetFor({ name, via }) {
-  return via ? String(via).split(/\s+/)[0] : greetName(name);
+// An organisation is greeted by the person we deal with there, a person by their first
+// name — but when the reminder goes to whoever books for an organisation, it's that person
+// reading it, so they win over both.
+//
+// Shared with the confirmation texts (lib/greetingName.js). It used to be its own rule
+// here, which greeted "Hi Shalom Center - Genya!" while the confirmation text for the same
+// client said "Hi Genya!".
+function greetFor({ name, via, contact_person_name, client_type }) {
+  if (via) return String(via).split(/\s+/)[0];
+  return greetingName({ name, contact_person_name, client_type });
 }
 
 // Phone first, always — the client's own, then whoever books for them, then email, then
@@ -117,7 +118,7 @@ async function buildWeeklyReminders({ start, end } = {}) {
     `SELECT s.session_date::text AS session_date, s.start_time::text AS start_time, s.notes,
             c.id AS client_id, c.name AS client_name, c.phone AS client_phone,
             c.email AS client_email, c.skip_weekly_reminder, c.no_texting,
-            c.contact_person_name, c.contact_person_phone,
+            c.contact_person_name, c.contact_person_phone, c.client_type,
             i.id AS instructor_id, i.name AS instructor_name, i.phone AS instructor_phone,
             i.email AS instructor_email,
             -- Where the instructor actually has to go. A class can carry its own address
@@ -189,7 +190,8 @@ async function buildWeeklyReminders({ start, end } = {}) {
       continue;
     }
     if (!clients.has(s.client_id)) {
-      clients.set(s.client_id, { kind: 'client', id: s.client_id, name: s.client_name, ...cRoute, lines: [] });
+      clients.set(s.client_id, { kind: 'client', id: s.client_id, name: s.client_name,
+        contact_person_name: s.contact_person_name, client_type: s.client_type, ...cRoute, lines: [] });
       if (cRoute.via) {
         flags.push(`${s.client_name} has no phone of their own — texting ${cRoute.via} instead.`);
       } else if (cRoute.channel === 'email') {
