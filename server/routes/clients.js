@@ -1,11 +1,20 @@
 const express = require('express');
 const pool    = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
+const { cleanPhone } = require('../lib/phoneFormat');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
 const { rejectIfAddress } = require('../lib/neighborhood');
 
 const router = express.Router();
 router.use(requireAuth);
+// Phone numbers are tidied on the way in (see lib/phoneFormat.js) so every save path —
+// staff form, self-service profile, import — stores the same shape.
+router.use((req, _res, next) => {
+  if (req.body && typeof req.body === 'object') {
+    for (const k of ['phone', 'contact_person_phone']) if (k in req.body) req.body[k] = cleanPhone(req.body[k]);
+  }
+  next();
+});
 
 const LAST_CLASS_REMINDER_LEAD_DAYS = 7;
 

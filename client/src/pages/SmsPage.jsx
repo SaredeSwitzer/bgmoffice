@@ -5,6 +5,7 @@ import { useUnreadTexts } from '../context/UnreadTextsContext'
 import StartWaitingLinePrompt from '../components/StartWaitingLinePrompt'
 import CallButton from '../components/CallButton'
 import PayoutRemindersPanel from '../components/PayoutRemindersPanel'
+import InstructorNudgesPanel from '../components/InstructorNudgesPanel'
 import PhoneTabs from '../components/PhoneTabs'
 import DictateButton from '../components/DictateButton'
 import { ClientLink, InstructorLink } from '../components/NameLink'
@@ -52,6 +53,7 @@ export default function SmsPage() {
   const [composeOpen, setComposeOpen] = useState(false)
   const [remindersOpen, setRemindersOpen] = useState(false)
   const [payoutOpen, setPayoutOpen] = useState(false)
+  const [nudgesOpen, setNudgesOpen] = useState(false)
   // Search: the query, what came back, and the message we were sent here to read.
   const [query, setQuery] = useState('')
   const [results, setResults] = useState(null)   // null = not searching
@@ -206,16 +208,22 @@ export default function SmsPage() {
           New message
         </button>
         <button
-          onClick={() => { setRemindersOpen(true); setPayoutOpen(false); setComposeOpen(false); setActive(null) }}
+          onClick={() => { setRemindersOpen(true); setPayoutOpen(false); setNudgesOpen(false); setComposeOpen(false); setActive(null) }}
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           Weekly reminders
         </button>
         <button
-          onClick={() => { setPayoutOpen(true); setRemindersOpen(false); setComposeOpen(false); setActive(null) }}
+          onClick={() => { setPayoutOpen(true); setRemindersOpen(false); setNudgesOpen(false); setComposeOpen(false); setActive(null) }}
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           Payment requests
+        </button>
+        <button
+          onClick={() => { setNudgesOpen(true); setPayoutOpen(false); setRemindersOpen(false); setComposeOpen(false); setActive(null) }}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Login / availability
         </button>
       </div>
 
@@ -267,7 +275,7 @@ export default function SmsPage() {
 
       <div className="flex h-[62vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:h-[70vh]">
         {/* Conversation list */}
-        <aside className={`${active || composeOpen || remindersOpen || payoutOpen ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-gray-200 md:w-80`}>
+        <aside className={`${active || composeOpen || remindersOpen || payoutOpen || nudgesOpen ? 'hidden md:flex' : 'flex'} w-full shrink-0 flex-col border-r border-gray-200 md:w-80`}>
           <div className="shrink-0 border-b border-gray-200 p-2">
             <div className="relative">
               <input
@@ -334,6 +342,8 @@ export default function SmsPage() {
           </section>
         ) : payoutOpen ? (
           <PayoutRemindersPanel onClose={() => setPayoutOpen(false)} onSent={loadThreads} />
+        ) : nudgesOpen ? (
+          <InstructorNudgesPanel onClose={() => setNudgesOpen(false)} onSent={loadThreads} />
         ) : composeOpen ? (
           <ComposePanel onClose={() => setComposeOpen(false)} onOpenThread={openThread} onSent={loadThreads} />
         ) : (

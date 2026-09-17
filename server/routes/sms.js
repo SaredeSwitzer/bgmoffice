@@ -11,6 +11,7 @@ const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const { lookupPerson } = require('../lib/telnyxInbound');
 const { buildWeeklyReminders } = require('../lib/weeklyReminders');
 const { buildPayoutReminders } = require('../lib/payoutReminders');
+const { buildInstructorNudges } = require('../lib/instructorNudges');
 const { findPeopleInText } = require('../lib/detectPeopleInText');
 const { sendMail } = require('../lib/mailer');
 const { explainSmsFailure } = require('../lib/smsFailureReason');
@@ -266,6 +267,20 @@ router.get('/payout-reminders', async (req, res) => {
   } catch (e) {
     console.error('[sms] payout reminder preview failed:', e.message);
     res.status(500).json({ error: 'Could not work out who is still owed' });
+  }
+});
+
+// "Who isn't using BGM Office — never logged in, or no/stale availability — and nudge them."
+// scope=upcoming (has a class in the next `weeks` weeks, default) or scope=all.
+router.get('/instructor-nudges', async (req, res) => {
+  try {
+    const scope = req.query.scope === 'all' ? 'all' : 'upcoming';
+    const weeks = Math.min(Math.max(Number(req.query.weeks) || 4, 1), 12);
+    const staleDays = Math.min(Math.max(Number(req.query.stale_days) || 28, 7), 365);
+    res.json(await buildInstructorNudges({ scope, weeks, staleDays }));
+  } catch (e) {
+    console.error('[sms] instructor nudge preview failed:', e.message);
+    res.status(500).json({ error: 'Could not work out who needs a nudge' });
   }
 });
 

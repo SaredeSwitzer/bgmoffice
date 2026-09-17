@@ -1,6 +1,7 @@
 const express  = require('express');
 const multer   = require('multer');
 const crypto   = require('crypto');
+const { cleanPhone } = require('../lib/phoneFormat');
 const path     = require('path');
 const pool     = require('../db/pg');
 const { requireAuth, requireStaff } = require('../middleware/auth');
@@ -24,6 +25,14 @@ function deriveInitials(name) {
 
 const router = express.Router();
 router.use(requireAuth);
+// Phone numbers are tidied on the way in (see lib/phoneFormat.js) so every save path —
+// staff form, self-service profile, import — stores the same shape.
+router.use((req, _res, next) => {
+  if (req.body && typeof req.body === 'object') {
+    for (const k of ['phone', 'contact_person_phone']) if (k in req.body) req.body[k] = cleanPhone(req.body[k]);
+  }
+  next();
+});
 
 // Memory storage — files are uploaded to Supabase Storage, not disk
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });

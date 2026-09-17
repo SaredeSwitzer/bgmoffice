@@ -126,6 +126,11 @@ export const api = {
     const qs = params?.start && params?.end ? `?start=${params.start}&end=${params.end}` : ''
     return request(`/sms/payout-reminders${qs}`)
   },
+  // Who hasn't logged into BGM Office or set their availability, with a drafted nudge each.
+  getInstructorNudges: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString()
+    return request(`/sms/instructor-nudges${qs ? `?${qs}` : ''}`)
+  },
   // The shared batch sender — the class reminders and the payout nudges both go through it.
   sendPreparedMessages: (messages) =>
     request('/sms/send-batch', { method: 'POST', body: JSON.stringify({ messages }) }),
