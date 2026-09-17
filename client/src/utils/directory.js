@@ -56,3 +56,49 @@ export function findPersonInText(text) {
   }
   return null
 }
+
+// Everyone the directory recognises in a piece of text — for the Waiting On prompt, which
+// SHOWS what it found and lets you correct it before anything is saved.
+//
+// Deliberately looser than findPersonInText above, which links a name in saved note text
+// and so must never be wrong. Here a wrong guess costs one untick, while a missed name
+// costs the thing this exists for: "asked whitney and waiting to hear back" is the real
+// note that started this, and the strict version found nobody in it — no "from", and no
+// surname to match on.
+//
+// The guard against nonsense is a length floor plus a stop list. An early scan matched
+// "the" in "waiting to hear back on the exact date" to a client called "The Gateway
+// School"; these are the words that cause that.
+const NOT_A_NAME = new Set([
+  'the', 'and', 'for', 'with', 'from', 'her', 'his', 'them', 'they', 'she', 'him',
+  'class', 'client', 'mom', 'dad', 'kids', 'new', 'next', 'week', 'back', 'call',
+  'text', 'email', 'time', 'date', 'this', 'that', 'will', 'can', 'not', 'yes', 'sub',
+]);
+
+export function findPeopleInText(text, { exclude = [] } = {}) {
+  const raw = String(text || '');
+  if (!raw.trim()) return [];
+  const hay = raw.toLowerCase();
+  const skip = new Set(exclude.map(e => `${e.kind}-${e.id}`));
+  const words = new Set(hay.split(/[^a-z'-]+/).filter(Boolean));
+  const found = [];
+  const seen = new Set();
+
+  for (const p of directory) {
+    const key = `${p.kind}-${p.id}`;
+    if (skip.has(key) || seen.has(key)) continue;
+    const name = String(p.name || '').trim().toLowerCase();
+    if (!name) continue;
+
+    // The whole name written out is unambiguous however it is punctuated around.
+    let hit = name.length >= 4 && hay.includes(name);
+
+    // Otherwise their first name as a word of its own.
+    if (!hit) {
+      const first = name.split(/\s+/)[0];
+      hit = first.length >= 4 && !NOT_A_NAME.has(first) && words.has(first);
+    }
+    if (hit) { seen.add(key); found.push(p); }
+  }
+  return found;
+}

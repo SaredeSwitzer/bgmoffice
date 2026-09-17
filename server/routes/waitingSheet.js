@@ -102,16 +102,23 @@ router.post('/', async (req, res) => {
     `INSERT INTO waiting_sheet_rows (what, urgent, need_by, created_by) VALUES ($1,$2,$3,$4) RETURNING id`,
     [what.trim(), !!urgent, need_by || null, req.user.initials]
   );
-  // The first name on a new line is who we're waiting on — that's why the line exists.
-  // It starts flagged so nobody has to remember the extra click; clicking them clears it.
+  // Who the hourglass starts on. A caller that knows can say so per person — the note
+  // "asked Whitney, waiting to hear back" belongs to a line carrying both the client and
+  // Whitney, with the hourglass on WHITNEY, and only the caller reading that sentence can
+  // tell which is which.
+  //
+  // Nobody flagged explicitly falls back to the old rule: the first name on the line is
+  // who we're waiting on, since that is why the line exists. Clicking them clears it.
+  const anyExplicit = people.some(p => p?.waiting);
   for (const p of people) {
     if (!p?.name?.trim()) continue;
     const { rows: [added] } = await pool.query(
-      `INSERT INTO waiting_sheet_people (row_id, kind, person_id, name) VALUES ($1,$2,$3,$4)
-       RETURNING id, kind`,
-      [row.id, p.kind === 'instructor' ? 'instructor' : 'client', p.person_id || null, p.name.trim()]
+      `INSERT INTO waiting_sheet_people (row_id, kind, person_id, name, waiting)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id, kind`,
+      [row.id, p.kind === 'instructor' ? 'instructor' : 'client', p.person_id || null,
+       p.name.trim(), anyExplicit ? !!p.waiting : false]
     );
-    await flagIfFirst(row.id, added);
+    if (!anyExplicit) await flagIfFirst(row.id, added);
   }
   res.status(201).json(await getRow(row.id));
 });
