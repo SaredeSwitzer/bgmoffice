@@ -6,6 +6,7 @@ import SearchSelect from '../components/SearchSelect'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import PhoneLink from '../components/PhoneLink'
 import MentionTextarea from '../components/MentionTextarea'
+import WaitingOnNudge from '../components/WaitingOnNudge'
 import StylesManagerModal from '../components/StylesManagerModal'
 import ScheduleFromRecruitingModal from '../components/ScheduleFromRecruitingModal'
 import { renderWithMentions } from '../utils/mentions'
@@ -131,7 +132,7 @@ function NoteCard({ note: n, currentUserInitials, users, onDelete, onEdit, onRep
 
 // ── Notes Thread ──────────────────────────────────────────────────────────────
 
-function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = false }) {
+function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = false, client, instructor }) {
   const { user } = useAuth()
   const textRef = useRef(null)
 
@@ -240,6 +241,8 @@ function NotesThread({ entryId, notes, onNotesChanged, users, defaultAdding = fa
               </button>
             </div>
           </div>
+          {/* Chasing a candidate is exactly the kind of thing that belongs on the sheet. */}
+          <WaitingOnNudge text={text} client={client} instructor={instructor} />
         </form>
       )}
     </div>
@@ -958,6 +961,8 @@ function EntryCard({ entry, clients, instructors, actionTypes, users, mentionabl
                 onNotesChanged={n => { setNotes(n); setQuickNote(false) }}
                 users={mentionableUsers}
                 defaultAdding={quickNote}
+                client={entry.client_id ? { id: entry.client_id, name: entry.client_name } : null}
+                instructor={entry.instructor_id ? { id: entry.instructor_id, name: entry.instructor_name } : null}
               />
             </>
           )}

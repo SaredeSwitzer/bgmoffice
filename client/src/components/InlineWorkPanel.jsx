@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import MentionTextarea from './MentionTextarea'
+import WaitingOnNudge from './WaitingOnNudge'
 import { renderWithMentions } from '../utils/mentions.jsx'
 import { noteTime } from '../utils/dates'
 import NoteBody from './NoteBody'
@@ -210,6 +211,13 @@ export default function InlineWorkPanel({ item, mentionableUsers = [], openPath,
               placeholder={`Add a note as ${user?.initials}… (type @ to tag someone)`}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs bg-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend(e) }}
+            />
+            {/* Offered while the words are still on screen, so the sheet gets the line
+                at the moment the thought is had rather than never. */}
+            <WaitingOnNudge
+              text={text}
+              client={item.client_id ? { id: item.client_id, name: item.client_name } : null}
+              instructor={item.instructor_id ? { id: item.instructor_id, name: item.instructor_name } : null}
             />
             <div className="flex flex-wrap items-center gap-2">
               <button type="submit" disabled={sending || !text.trim()}

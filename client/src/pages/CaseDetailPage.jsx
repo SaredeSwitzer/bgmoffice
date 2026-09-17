@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
+import WaitingOnNudge from '../components/WaitingOnNudge'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { today } from '../utils/dates'
@@ -331,7 +332,7 @@ function NoteThread({ notes, onNoteEdited, onNoteDeleted, mentionableUsers = [],
 
 // ── Add-note input ────────────────────────────────────────────────────────────
 
-function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdded, mentionableUsers = [] }) {
+function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdded, mentionableUsers = [], client, instructor }) {
   const [text, setText] = useState('')
   const [wantReminder, setWantReminder] = useState(false)
   const [reminderDate, setReminderDate] = useState(new Date().toLocaleDateString('en-CA'))
@@ -402,6 +403,9 @@ function AddNoteInput({ actionItemId, caseId, delegates, onAdded, onReminderAdde
           Send
         </button>
       </div>
+
+      {/* The words are still on screen — offer the line now, not later. */}
+      <WaitingOnNudge text={text} client={client} instructor={instructor} />
 
       {/* Optional reminder row */}
       <div className="pl-1 space-y-1.5">
@@ -807,7 +811,10 @@ function ActionItemCard({ item: initItem, actionTypes, delegates, onDeleted, cas
               <NoteThread notes={item.notes} onNoteEdited={handleNoteEdited} onNoteDeleted={handleNoteDeleted} mentionableUsers={mentionableUsers}
                 context={{ clientId: caseContext?.client_id, instructorId: caseContext?.instructor_id }} />
               {!isResolved && (
-                <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates} onAdded={handleNoteAdded} onReminderAdded={handleReminderAdded} mentionableUsers={mentionableUsers} />
+                <AddNoteInput actionItemId={item.id} caseId={caseContext?.id} delegates={delegates}
+                  onAdded={handleNoteAdded} onReminderAdded={handleReminderAdded} mentionableUsers={mentionableUsers}
+                  client={caseContext?.client_id ? { id: caseContext.client_id, name: caseContext.client_name } : null}
+                  instructor={caseContext?.instructor_id ? { id: caseContext.instructor_id, name: caseContext.instructor_name } : null} />
               )}
             </>
           )}
