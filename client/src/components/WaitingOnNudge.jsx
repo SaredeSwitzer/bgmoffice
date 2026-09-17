@@ -28,6 +28,26 @@ export function mentionsWaiting(text) {
   return WAITING_RE.test(String(text || ''));
 }
 
+
+// A first draft of the line, taken from the note.
+//
+// It used to open empty, and an empty box leaves Add greyed out — so somebody who filled
+// in the people, pressed Add and got nothing had done everything right. The note is
+// already a description of what we are waiting for, so it starts there and can be edited.
+// The "waiting to hear back" part is dropped: it is the reason the prompt appeared, not
+// the thing we are waiting for.
+function lineFromNote(text) {
+  let t = String(text || '').replace(/\s+/g, ' ').trim()
+  // Only when the phrase is hanging off one end. Cutting it out of the middle turns
+  // "called Serina, waiting to hear back on the rate" into "called Serina, on the rate",
+  // which is worse than leaving it in.
+  t = t.replace(new RegExp(`^${WAITING_RE.source}\\b[\\s:,-]*`, 'i'), '')
+  t = t.replace(new RegExp(`[\\s:,-]*\\b${WAITING_RE.source}\\s*$`, 'i'), '')
+  // A note that is nothing but the phrase leaves nothing behind; keep the original rather
+  // than handing back an empty box.
+  return (t.trim() || String(text || '').replace(/\s+/g, ' ').trim()).slice(0, 120)
+}
+
 const keyOf = p => `${p.kind}-${p.id}`
 
 export default function WaitingOnNudge({ text, client, instructor, onAdded }) {
@@ -109,9 +129,12 @@ export default function WaitingOnNudge({ text, client, instructor, onAdded }) {
   function toggleOn(p) {
     setPeople(prev => prev.map(x => (keyOf(x) === keyOf(p) ? { ...x, on: !x.on } : x)))
   }
-  // Exactly one hourglass, the way the sheet itself works.
-  function setWaiting(p) {
-    setPeople(prev => prev.map(x => ({ ...x, waiting: keyOf(x) === keyOf(p) })))
+  // Several people can carry the hourglass at once, which is how the sheet itself works —
+  // five open lines already have more than one flagged, because chasing cover means waiting
+  // on two instructors about the same class. The first version made these mutually
+  // exclusive, so flagging a second cleared the first.
+  function toggleWaiting(p) {
+    setPeople(prev => prev.map(x => (keyOf(x) === keyOf(p) ? { ...x, waiting: !x.waiting } : x)))
   }
   function addPicked(kind, v) {
     setPicking(null)
@@ -149,8 +172,9 @@ export default function WaitingOnNudge({ text, client, instructor, onAdded }) {
     }
   }
 
-  const waitingOn = chosen.find(p => p.waiting)
-  const summary = waitingOn ? waitingOn.name : chosen.map(p => p.name).join(' and ')
+  // Names the people we are actually waiting on; falls back to everyone on the line.
+  const flagged = chosen.filter(p => p.waiting)
+  const summary = (flagged.length ? flagged : chosen).map(p => p.name).join(' and ')
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
@@ -189,7 +213,7 @@ export default function WaitingOnNudge({ text, client, instructor, onAdded }) {
                   <span className="text-[10px] uppercase tracking-wide text-amber-600">{p.kind}</span>
                   {p.from === 'note' && <span className="text-[10px] text-amber-600">named in your note</span>}
                   {p.on && (
-                    <button type="button" onClick={() => setWaiting(p)}
+                    <button type="button" onClick={() => toggleWaiting(p)}
                       title="We're waiting on this person"
                       className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                         p.waiting
@@ -233,6 +257,9 @@ export default function WaitingOnNudge({ text, client, instructor, onAdded }) {
             </button>
             <button type="button" onClick={() => setState('idle')}
               className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs text-amber-800">Cancel</button>
+            {!what.trim() && (
+              <span className="text-[11px] text-amber-700">Say what you&rsquo;re waiting for first.</span>
+            )}
           </div>
           {error && <p className="text-[11px] text-red-600">{error}</p>}
         </div>
@@ -253,7 +280,7 @@ export default function WaitingOnNudge({ text, client, instructor, onAdded }) {
                 Add to “{row.what}”
               </button>
             ))}
-            <button type="button" onClick={() => { setWhat(''); setState('writing') }}
+            <button type="button" onClick={() => { setWhat(lineFromNote(text)); setState('writing') }}
               className="rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-700">
               {rows.length ? 'New Waiting On line' : 'Add a Waiting On line'}
             </button>
