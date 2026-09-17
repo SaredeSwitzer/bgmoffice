@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { isSaredeUser } from '../utils/saredeAccess'
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
+import WaitingOnNudge from '../components/WaitingOnNudge'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { noteTime } from '../utils/dates'
@@ -19,7 +20,7 @@ function fmt(iso) {
 // ── Note thread — same lazy-load-on-expand pattern as ReminderNoteThread
 // (client/src/pages/RemindersPage.jsx), just pointed at sales leads instead. ──────────
 
-function LeadNoteThread({ leadId, initialCount, mentionableUsers, autoOpen }) {
+function LeadNoteThread({ leadId, initialCount, mentionableUsers, autoOpen, client }) {
   const { user } = useAuth()
   const [open, setOpen] = useState(!!autoOpen)
   const [loading, setLoading] = useState(false)
@@ -105,14 +106,20 @@ function LeadNoteThread({ leadId, initialCount, mentionableUsers, autoOpen }) {
           ) : (
             <p className="text-xs text-gray-400 italic">No notes yet.</p>
           )}
-          <form onSubmit={handleSend} className="flex gap-2 items-start">
-            <MentionTextarea value={text} onChange={setText} users={mentionableUsers}
-              placeholder={`Note as ${user?.initials}… (type @ to tag someone)`} rows={1}
-              className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
-            <button type="submit" disabled={sending || !text.trim()}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 flex-shrink-0 hover:bg-gray-700 transition-colors">
-              {sending ? '…' : 'Send'}
-            </button>
+          <form onSubmit={handleSend} className="space-y-1.5">
+            <div className="flex gap-2 items-start">
+              <MentionTextarea value={text} onChange={setText} users={mentionableUsers}
+                placeholder={`Note as ${user?.initials}… (type @ to tag someone)`} rows={1}
+                className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
+              <button type="submit" disabled={sending || !text.trim()}
+                className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 flex-shrink-0 hover:bg-gray-700 transition-colors">
+                {sending ? '…' : 'Send'}
+              </button>
+            </div>
+            {/* A lead who hasn't come back to you is the definition of waiting on someone.
+                A lead that isn't a client yet has nobody to attach — the line still gets
+                made, and the sheet lets you put a name on it there. */}
+            <WaitingOnNudge text={text} client={client} />
           </form>
         </div>
       )}
@@ -248,7 +255,8 @@ export default function SalesPage() {
                   className="text-xs text-gray-300 hover:text-red-500 flex-shrink-0">Remove</button>
               </div>
               <LeadNoteThread leadId={lead.id} initialCount={lead.note_count} mentionableUsers={mentionableUsers}
-                autoOpen={String(lead.id) === targetLeadId} />
+                autoOpen={String(lead.id) === targetLeadId}
+                client={lead.client_id ? { id: lead.client_id, name: lead.client_name || lead.name } : null} />
             </div>
           ))}
         </div>

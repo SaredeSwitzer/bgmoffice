@@ -14,6 +14,7 @@ import { today } from '../utils/dates'
 import DateInput from '../components/DateInput'
 import NoteBody from '../components/NoteBody'
 import MentionTextarea from '../components/MentionTextarea'
+import WaitingOnNudge from '../components/WaitingOnNudge'
 import NeighborhoodPicker from '../components/NeighborhoodPicker'
 
 function fmt(iso) {
@@ -526,7 +527,7 @@ function fmtNoteDate(iso) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 
-function FeedbackNotesSection({ instructorId, initialNotes, mentionableUsers = [] }) {
+function FeedbackNotesSection({ instructorId, instructorName, initialNotes, mentionableUsers = [] }) {
   const [notes, setNotes] = useState(initialNotes || [])
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
@@ -569,7 +570,8 @@ function FeedbackNotesSection({ instructorId, initialNotes, mentionableUsers = [
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5 space-y-4">
-        <form onSubmit={handleAdd} className="flex gap-2 items-start">
+        <form onSubmit={handleAdd} className="space-y-1.5">
+          <div className="flex gap-2 items-start">
           <MentionTextarea
             value={text}
             onChange={setText}
@@ -583,6 +585,8 @@ function FeedbackNotesSection({ instructorId, initialNotes, mentionableUsers = [
             className="px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 whitespace-nowrap">
             {saving ? 'Saving…' : '+ Add'}
           </button>
+        </div>
+          <WaitingOnNudge text={text} instructor={instructorId ? { id: instructorId, name: instructorName } : null} />
         </form>
 
         {notes.length === 0 ? (
@@ -1040,6 +1044,7 @@ export default function InstructorProfilePage() {
       {/* Feedback Notes */}
       <FeedbackNotesSection
         instructorId={id}
+        instructorName={instructor?.name}
         initialNotes={feedbackNotes}
         mentionableUsers={mentionableUsers}
       />

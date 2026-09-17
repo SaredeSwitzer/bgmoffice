@@ -10,6 +10,7 @@ import NewCaseModal from '../components/NewCaseModal'
 import { NewInvoiceModal } from './InvoicesPage'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import MentionTextarea from '../components/MentionTextarea'
+import WaitingOnNudge from '../components/WaitingOnNudge'
 import DateInput from '../components/DateInput'
 import { renderWithMentions } from '../utils/mentions'
 import { fmtTimeRange } from '../utils/time'
@@ -1100,6 +1101,9 @@ export default function ClientProfilePage() {
                   users={mentionableUsers} rows={2}
                   placeholder="Type @ to tag someone"
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm resize-none" />
+                <div className="mt-1.5">
+                  <WaitingOnNudge text={editForm.notes} client={client ? { id: client.id, name: client.name } : null} />
+                </div>
               </div>
               {/* Waiver */}
               <div className="col-span-2">

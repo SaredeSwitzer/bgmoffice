@@ -418,8 +418,8 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
         {/* Outside the <form> above — these have their own add-note forms, and forms can't nest. */}
         {isEdit ? (
           <>
-            <ClassNotes kind="session" id={session.id} />
-            {canSeeAdminNotes && <AdminNotes kind="session" id={session.id} />}
+            <ClassNotes kind="session" id={session.id} client={session.client_id ? { id: session.client_id, name: session.client_name } : null} instructor={session.instructor_id ? { id: session.instructor_id, name: session.instructor_name } : null} />
+            {canSeeAdminNotes && <AdminNotes kind="session" id={session.id} client={session.client_id ? { id: session.client_id, name: session.client_name } : null} instructor={session.instructor_id ? { id: session.instructor_id, name: session.instructor_name } : null} />}
           </>
         ) : (
           <>

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import MentionTextarea from './MentionTextarea'
+import WaitingOnNudge from './WaitingOnNudge'
 import { renderWithMentions } from '../utils/mentions.jsx'
 import { noteTime } from '../utils/dates'
 import { highlightNote } from '../utils/hashHighlight'
@@ -158,6 +159,9 @@ export default function MentionThread({ mention, mentionableUsers = [], onResolv
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs bg-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
                 onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleReply(e) }}
               />
+              <WaitingOnNudge text={reply}
+                client={mention.client_id ? { id: mention.client_id, name: mention.client_name } : null}
+                instructor={mention.instructor_id ? { id: mention.instructor_id, name: mention.instructor_name } : null} />
               <div className="flex flex-wrap items-center gap-2">
                 <button type="submit" disabled={sending || !reply.trim()}
                   className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 hover:bg-blue-700">

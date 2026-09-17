@@ -12,6 +12,7 @@ import InstructorCheckInModal from '../components/InstructorCheckInModal'
 import WaiverContractReminderModal from '../components/WaiverContractReminderModal'
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
+import WaitingOnNudge from '../components/WaitingOnNudge'
 import { renderWithMentions } from '../utils/mentions'
 import { useHashHighlight } from '../utils/hashHighlight'
 import { ymd, noteTime } from '../utils/dates'
@@ -123,7 +124,7 @@ function FollowUpModal({ reminder, onClose, onAddReminder, navigate }) {
 // fetch a thread for every row on page load. "Send" tags whoever's mentioned the same
 // way replies do everywhere else in the app (task replies, action item follow-ups).
 
-function ReminderNoteThread({ reminderId, initialCount, mentionableUsers, autoOpen }) {
+function ReminderNoteThread({ reminderId, initialCount, mentionableUsers, autoOpen, client, instructor }) {
   const { user } = useAuth()
   const [open, setOpen] = useState(!!autoOpen)
   const [loading, setLoading] = useState(false)
@@ -208,14 +209,17 @@ function ReminderNoteThread({ reminderId, initialCount, mentionableUsers, autoOp
           ) : (
             <p className="text-xs text-gray-400 italic">No notes yet.</p>
           )}
-          <form onSubmit={handleSend} className="flex gap-2 items-start">
-            <MentionTextarea value={text} onChange={setText} users={mentionableUsers}
-              placeholder={`Note as ${user?.initials}… (type @ to tag someone)`} rows={1}
-              className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
-            <button type="submit" disabled={sending || !text.trim()}
-              className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 flex-shrink-0 hover:bg-gray-700 transition-colors">
-              {sending ? '…' : 'Send'}
-            </button>
+          <form onSubmit={handleSend} className="space-y-1.5">
+            <div className="flex gap-2 items-start">
+              <MentionTextarea value={text} onChange={setText} users={mentionableUsers}
+                placeholder={`Note as ${user?.initials}… (type @ to tag someone)`} rows={1}
+                className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" />
+              <button type="submit" disabled={sending || !text.trim()}
+                className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg disabled:opacity-50 flex-shrink-0 hover:bg-gray-700 transition-colors">
+                {sending ? '…' : 'Send'}
+              </button>
+            </div>
+            <WaitingOnNudge text={text} client={client} instructor={instructor} />
           </form>
         </div>
       )}
@@ -432,7 +436,9 @@ function ReminderRow({ reminder, onDone, onDelete, onUpdated, isOverdue, delegat
         )}
         {(isOverdue || reminder.remind_on === today()) && (
           <ReminderNoteThread reminderId={reminder.id} initialCount={reminder.note_count} mentionableUsers={mentionableUsers}
-            autoOpen={String(reminder.id) === targetReminderId} />
+            autoOpen={String(reminder.id) === targetReminderId}
+            client={reminder.client_id ? { id: reminder.client_id, name: reminder.client_name } : null}
+            instructor={reminder.instructor_id ? { id: reminder.instructor_id, name: reminder.instructor_name } : null} />
         )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">

@@ -4,12 +4,13 @@ import { api } from '../api/client'
 import { noteTime } from '../utils/dates'
 import NoteBody from './NoteBody'
 import MentionTextarea from './MentionTextarea'
+import WaitingOnNudge from './WaitingOnNudge'
 
 // Same idea as ClassNotes, but backed by admin_notes — a separate table the server only
 // serves to Sarede/Claire/Maria (requireOwnerAccess). This component doesn't re-check
 // who's viewing; callers gate whether to render it at all (see OWNER_EMAILS usage in
 // ClassSessionModal / SchedulePage) so the section doesn't even appear for anyone else.
-export default function AdminNotes({ kind, id, onCountChange }) {
+export default function AdminNotes({ kind, id, onCountChange, client, instructor }) {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
@@ -90,7 +91,8 @@ export default function AdminNotes({ kind, id, onCountChange }) {
         </ul>
       )}
 
-      <form onSubmit={add} className="flex items-center gap-2 pt-1">
+      <form onSubmit={add} className="space-y-1.5 pt-1">
+        <div className="flex items-center gap-2">
         <MentionTextarea ref={inputRef} value={text} onChange={setText} users={mentionableUsers} rows={1}
           placeholder="New admin note… (@ to tag someone)"
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); add(e) } }}
@@ -99,6 +101,10 @@ export default function AdminNotes({ kind, id, onCountChange }) {
           className="px-2.5 py-1 bg-amber-600 text-white text-[11px] font-medium rounded-lg disabled:opacity-50">
           Add
         </button>
+        </div>
+        {/* A note on a class is where "waiting to hear back from the instructor" gets
+            typed during a shift — the client and instructor are already known here. */}
+        <WaitingOnNudge text={text} client={client} instructor={instructor} />
       </form>
     </div>
   )

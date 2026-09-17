@@ -677,12 +677,14 @@ export default function SchedulePage() {
                               </div>
                               {openNotes === `session-${s.id}` && (
                                 <div onClick={e => e.stopPropagation()}>
-                                  <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)} />
+                                  <ClassNotes kind="session" id={s.id} onCountChange={rows => applyCounts('session', s.id, rows)}
+                                    client={s.client_id ? { id: s.client_id, name: s.client_name } : null} instructor={s.instructor_id ? { id: s.instructor_id, name: s.instructor_name } : null} />
                                 </div>
                               )}
                               {openAdminNotes === `session-${s.id}` && (
                                 <div onClick={e => e.stopPropagation()}>
-                                  <AdminNotes kind="session" id={s.id} />
+                                  <AdminNotes kind="session" id={s.id}
+                                    client={s.client_id ? { id: s.client_id, name: s.client_name } : null} instructor={s.instructor_id ? { id: s.instructor_id, name: s.instructor_name } : null} />
                                 </div>
                               )}
                             </Fragment>
@@ -937,10 +939,12 @@ export default function SchedulePage() {
                     <button onClick={() => removeSchedule(s.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
                   </div>
                   {openNotes === `schedule-${s.id}` && (
-                    <ClassNotes kind="schedule" id={s.id} onCountChange={rows => applyCounts('schedule', s.id, rows)} />
+                    <ClassNotes kind="schedule" id={s.id} onCountChange={rows => applyCounts('schedule', s.id, rows)}
+                      client={s.client_id ? { id: s.client_id, name: s.client_name } : null} instructor={s.instructor_id ? { id: s.instructor_id, name: s.instructor_name } : null} />
                   )}
                   {openAdminNotes === `schedule-${s.id}` && (
-                    <AdminNotes kind="schedule" id={s.id} />
+                    <AdminNotes kind="schedule" id={s.id}
+                      client={s.client_id ? { id: s.client_id, name: s.client_name } : null} instructor={s.instructor_id ? { id: s.instructor_id, name: s.instructor_name } : null} />
                   )}
                 </Fragment>
                 )

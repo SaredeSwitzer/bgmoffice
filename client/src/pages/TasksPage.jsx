@@ -7,6 +7,7 @@ import ActionTypeBadge from '../components/ActionTypeBadge'
 import DashboardFilterBar from '../components/DashboardFilterBar'
 import SearchSelect from '../components/SearchSelect'
 import MentionTextarea from '../components/MentionTextarea'
+import WaitingOnNudge from '../components/WaitingOnNudge'
 import { renderWithMentions } from '../utils/mentions'
 import NoteBody from '../components/NoteBody'
 import { useHashHighlight } from '../utils/hashHighlight'
@@ -305,6 +306,9 @@ function TaskCard({ task, onUpdate, onDelete, onDone, isNew, actionTypes, client
               ✕
             </button>
           </div>
+          <WaitingOnNudge text={replyText}
+            client={task.client_id ? { id: task.client_id, name: task.client_name } : null}
+            instructor={task.instructor_id ? { id: task.instructor_id, name: task.instructor_name } : null} />
           <div className="flex gap-2 flex-wrap">
             <select value={replyAssign} onChange={e => setReplyAssign(e.target.value)}
               className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white text-gray-600">

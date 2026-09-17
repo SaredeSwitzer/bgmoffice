@@ -4,10 +4,11 @@ import { api } from '../api/client'
 import { noteTime } from '../utils/dates'
 import NoteBody from './NoteBody'
 import MentionTextarea from './MentionTextarea'
+import WaitingOnNudge from './WaitingOnNudge'
 
 // Notes + checkable to-do tasks on a class. `kind` is 'schedule' (recurring class) or
 // 'session' (a single dated class). Self-contained: loads its own list on mount.
-export default function ClassNotes({ kind, id, onCountChange }) {
+export default function ClassNotes({ kind, id, onCountChange, client, instructor }) {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
@@ -105,7 +106,8 @@ export default function ClassNotes({ kind, id, onCountChange }) {
         </ul>
       )}
 
-      <form onSubmit={add} className="flex items-center gap-2 pt-1">
+      <form onSubmit={add} className="space-y-1.5 pt-1">
+        <div className="flex items-center gap-2">
         <MentionTextarea ref={inputRef} value={text} onChange={setText} users={mentionableUsers} rows={1}
           placeholder={isTask ? 'New task… (@ to tag someone)' : 'New note… (@ to tag someone)'}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); add(e) } }}
@@ -118,6 +120,10 @@ export default function ClassNotes({ kind, id, onCountChange }) {
           className="px-2.5 py-1 bg-gray-900 text-white text-[11px] font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
           Add
         </button>
+        </div>
+        {/* A note on a class is where "waiting to hear back from the instructor" gets
+            typed during a shift — the client and instructor are already known here. */}
+        <WaitingOnNudge text={text} client={client} instructor={instructor} />
       </form>
     </div>
   )
