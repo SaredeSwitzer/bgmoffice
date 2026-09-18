@@ -620,6 +620,15 @@ export const api = {
   bulkUpdateClassSessions: (data) => request('/schedule/sessions/bulk-update', { method: 'PATCH', body: JSON.stringify(data) }),
   deleteClassSession: (id) => request(`/schedule/sessions/${id}`, { method: 'DELETE' }),
 
+  // Who shares the cost of a class. An empty client_ids list stops the sharing and puts
+  // the class back to its own client paying for it.
+  getClassPayers: (scheduleId) => request(`/schedule/classes/${scheduleId}/payers`),
+  setClassPayers: (scheduleId, client_ids) =>
+    request(`/schedule/classes/${scheduleId}/payers`, { method: 'PUT', body: JSON.stringify({ client_ids }) }),
+  getSessionPayers: (sessionId) => request(`/schedule/sessions/${sessionId}/payers`),
+  setSessionPayers: (sessionId, client_ids) =>
+    request(`/schedule/sessions/${sessionId}/payers`, { method: 'PUT', body: JSON.stringify({ client_ids }) }),
+
   // Instructor accounts only — the caller's own classes. The server scopes this to the
   // instructor_id in the session, so there is no id to pass and none can be forged here.
   getMySessions: (start, end) => {

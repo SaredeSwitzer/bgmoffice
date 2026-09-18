@@ -754,6 +754,11 @@ export default function BillingPage() {
                         <Link to={`/clients/${r.client_id}`} className="text-sm font-semibold text-gray-900 hover:underline truncate block">{r.client_name}</Link>
                         <p className="text-xs text-gray-500 mt-0.5">
                           {r.session_count} class{r.session_count === 1 ? '' : 'es'}
+                          {/* Without this a shared class reads as a short charge: $35
+                              against a class everyone knows costs $105. */}
+                          {Number(r.shared_count) > 0 && (
+                            <span className="text-blue-700"> · {r.shared_count === r.session_count ? 'share of a split class' : 'includes a split class'}</span>
+                          )}
                           {' · '}
                           {done ? <span className="text-green-600 font-medium">charged {money(r.charged_amount)}</span>
                             : r.has_card ? <span>{r.card_brand ? `${r.card_brand} ` : ''}•••• {r.card_last4}</span>

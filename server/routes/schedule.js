@@ -17,6 +17,7 @@ const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 const { addressLine } = require('../lib/addressLine');
 const { instructorFirstName } = require('../lib/instructorFirstName');
 const { clientTextingBlocked } = require('../lib/clientTexting');
+const { listPayers, setPayers, resolveForSession } = require('../lib/classPayers');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -1853,6 +1854,54 @@ router.delete('/admin-notes/:noteId', requireOwnerAccess, async (req, res) => {
   if (result.rowCount === 0) return res.status(404).json({ error: 'Note not found' });
   await deleteMentions('admin_notes', req.params.noteId);
   res.json({ success: true });
+});
+
+// ── Who shares the cost of a class ────────────────────────────────────────────
+// A standing list on the recurring class, or a one-week override on a single session.
+// Staff-level, not Sarede-only: whoever sets a class up is the one who knows who is in
+// the room. Only the Billing screen itself stays restricted.
+
+router.get('/classes/:scheduleId/payers', async (req, res) => {
+  res.json({ payers: await listPayers({ schedule_id: req.params.scheduleId }) });
+});
+
+router.put('/classes/:scheduleId/payers', async (req, res) => {
+  try {
+    const payers = await setPayers({
+      schedule_id: req.params.scheduleId,
+      client_ids: req.body.client_ids,
+      initials: req.user.initials,
+    });
+    res.json({ payers });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// What one week actually works out to — the same numbers the weekly charge run will use,
+// so the class screen shows the real split rather than an estimate of it.
+router.get('/sessions/:sessionId/payers', async (req, res) => {
+  const [override, resolved] = await Promise.all([
+    listPayers({ session_id: req.params.sessionId }),
+    resolveForSession(req.params.sessionId),
+  ]);
+  res.json({ override, resolved });
+});
+
+router.put('/sessions/:sessionId/payers', async (req, res) => {
+  try {
+    await setPayers({
+      session_id: req.params.sessionId,
+      client_ids: req.body.client_ids,
+      initials: req.user.initials,
+    });
+    res.json({
+      override: await listPayers({ session_id: req.params.sessionId }),
+      resolved: await resolveForSession(req.params.sessionId),
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

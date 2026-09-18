@@ -328,11 +328,15 @@ router.get('/week', requireSaredeOnly, async (req, res) => {
     return res.status(400).json({ error: 'start (YYYY-MM-DD, the week Sunday) is required' });
   }
   const { rows } = await pool.query(
+    // session_payer_shares, not class_sessions: a class several people split shows up
+    // here as one row per person for their share, and a class nobody splits shows up
+    // exactly as it always did — same row, same amount. See migration 033.
     `WITH wk AS (
        SELECT s.client_id,
-              SUM(s.charge_amount)::numeric(10,2) AS amount,
-              COUNT(*) AS session_count
-         FROM class_sessions s
+              SUM(s.amount)::numeric(10,2) AS amount,
+              COUNT(*) AS session_count,
+              COUNT(*) FILTER (WHERE s.payer_count > 1) AS shared_count
+         FROM session_payer_shares s
         WHERE s.session_date BETWEEN $1::date AND ($1::date + 6)
           AND (s.payment_method ILIKE '%CC%' OR s.payment_method ILIKE '%credit%')
           AND s.status <> 'cancelled'
@@ -348,6 +352,7 @@ router.get('/week', requireSaredeOnly, async (req, res) => {
      SELECT COALESCE(wk.client_id, ch.client_id) AS client_id,
             COALESCE(wk.amount, 0)::numeric(10,2) AS amount,
             COALESCE(wk.session_count, 0)         AS session_count,
+            COALESCE(wk.shared_count, 0)          AS shared_count,
             c.name AS client_name, c.card_brand, c.card_last4,
             (c.card_last4 IS NOT NULL) AS has_card,
             ch.status AS charged_status, ch.amount AS charged_amount,
@@ -396,12 +401,15 @@ router.get('/report', requireSaredeOnly, async (req, res) => {
     [start]
   );
 
+  // Per client, this has to be each person's *share*, not the price of the class — it
+  // sits next to the charge status, and a shared class would otherwise show Baila owing
+  // $105 beside a $35 charge and read like the charge was short.
   const { rows: byClient } = await pool.query(
     `SELECT c.id AS client_id, c.name AS client_name,
-            COALESCE(SUM(s.charge_amount), 0)::numeric(10,2) AS amount,
+            COALESCE(SUM(s.amount), 0)::numeric(10,2) AS amount,
             COUNT(*)::int AS session_count,
             rc.status AS charged_status, rc.note AS charged_note
-       FROM class_sessions s JOIN clients c ON c.id = s.client_id
+       FROM session_payer_shares s JOIN clients c ON c.id = s.client_id
        LEFT JOIN recurring_charges rc ON rc.client_id = c.id AND rc.week_start = $1::date
       WHERE s.session_date BETWEEN $1::date AND (${end}) AND s.status <> 'cancelled'
       GROUP BY c.id, c.name, rc.status, rc.note ORDER BY amount DESC`,

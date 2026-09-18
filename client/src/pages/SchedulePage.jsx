@@ -19,6 +19,7 @@ import ProfileUpdatesNotice from '../components/ProfileUpdatesNotice'
 import TimeInput from '../components/TimeInput'
 import DurationInput from '../components/DurationInput'
 import ChargeInput from '../components/ChargeInput'
+import ClassPayersPanel from '../components/ClassPayersPanel'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import { fmtTime, fmtTimeRange } from '../utils/time'
 import ReportsPage from './ReportsPage'
@@ -818,6 +819,21 @@ export default function SchedulePage() {
                     placeholder="e.g. 6, 8" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
               </div>
+              {/* Only on an existing class: the split hangs off the class, so there has
+                  to be a class to hang it off. It saves itself rather than riding on
+                  Save Changes — it is about who pays, not about the class details, and
+                  it must not be lost if the form above is cancelled. */}
+              {editingId && (
+                <div className="mb-4">
+                  <ClassPayersPanel
+                    scheduleId={editingId}
+                    amount={form.charge_amount}
+                    ownerName={form.client?.name}
+                    clients={clients}
+                  />
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <button type="submit" disabled={saving || !form.client}
                   className="px-4 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg disabled:opacity-50 hover:bg-gray-700 transition-colors">
