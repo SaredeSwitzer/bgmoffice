@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const pool     = require('../db/pg');
 const { requireAuth } = require('../middleware/auth');
 const { sendLoginCode } = require('../lib/mailer');
+const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const { signToken, publicUser } = require('../lib/token');
 const { notifyCrew } = require('../lib/notifyCrew');
 
@@ -134,6 +135,32 @@ function maskEmail(email) {
   return `${name.slice(0, 2)}${'•'.repeat(Math.max(name.length - 2, 1))}@${domain}`;
 }
 
+
+// The mobile a code can also be texted to.
+//
+// Instructors are the people this matters for: they sign in rarely, from a phone, and
+// their email is whatever address they gave us — often Outlook or Yahoo, both of which
+// junk automated mail like this without telling anyone. Bell Gontreras had four codes
+// issued over nine days and used none of them; the app had sent every one, to an inbox
+// she was never going to look in, while the reminder we texted her said to expect a text.
+//
+// The number comes off their own instructor record — the same place their class reminders
+// go — so a code can only ever reach a phone we already text them on. Staff and admin
+// accounts have no number on file, so they carry on by email alone.
+async function phoneForUser(user) {
+  if (!user?.instructor_id) return null;
+  const { rows: [row] } = await pool.query(
+    'SELECT phone FROM instructors WHERE id = $1', [user.instructor_id]);
+  const digits = String(row?.phone || '').replace(/\D/g, '');
+  return digits.length >= 10 ? row.phone : null;
+}
+
+// "your phone ending 1646" — enough to tell her which phone to pick up, and no more.
+function maskPhone(phone) {
+  const d = String(phone || '').replace(/\D/g, '');
+  return d.length >= 4 ? `your phone ending ${d.slice(-4)}` : 'your phone';
+}
+
 // ── 1. Code sign-in ───────────────────────────────────────────────────────────
 
 router.post('/request-code', loginLimiter, async (req, res) => {
@@ -190,17 +217,45 @@ router.post('/request-code', loginLimiter, async (req, res) => {
     [user.id, hashCode(code), String(CODE_TTL_MINUTES)]
   );
 
-  try {
-    await sendLoginCode(destination, code);
-  } catch (err) {
+  // Both ways at once, and each on its own: an instructor whose email silently junks the
+  // code still gets the text, which is the whole point.
+  const mobile = await phoneForUser(user);
+  const [mailed, texted] = await Promise.all([
+    sendLoginCode(destination, code).then(() => true).catch((err) => {
+      console.error('[auth] could not email the login code:', err.message);
+      return false;
+    }),
+    mobile
+      ? sendSMS({
+          to: toE164(mobile),
+          // Deliberately short, and deliberately NOT logged to the Texts inbox: everyone
+          // on staff can read that inbox, and a live sign-in code for somebody else has no
+          // business sitting in it.
+          text: `Your BGM Office sign-in code is ${code}. It expires in ${CODE_TTL_MINUTES} minutes.`,
+        }).then(() => true).catch((err) => {
+          console.error('[auth] could not text the login code:', err.message);
+          return false;
+        })
+      : Promise.resolve(false),
+  ]);
+
+  if (!mailed && !texted) {
     // Burn the code we couldn't deliver, and say so. Silently "succeeding" here would
-    // leave her staring at the code box waiting for an email that is never coming.
+    // leave her staring at the code box waiting for a code that is never coming.
     await pool.query('UPDATE login_codes SET consumed_at = now() WHERE id = $1', [row.id]);
-    console.error('[auth] could not send login code:', err.message);
     return res.status(500).json({ error: "We couldn't send the code. Sign in with your password instead." });
   }
 
-  res.json({ ok: true, sent_to: maskEmail(destination), expires_in_minutes: CODE_TTL_MINUTES });
+  // Say where it actually went, not where it was meant to go — being told to check an
+  // inbox that never received anything is how this went wrong in the first place.
+  const went = [mailed && maskEmail(destination), texted && maskPhone(mobile)].filter(Boolean);
+  res.json({
+    ok: true,
+    sent_to: went.join(' and '),
+    emailed: mailed,
+    texted,
+    expires_in_minutes: CODE_TTL_MINUTES,
+  });
 });
 
 router.post('/verify-code', loginLimiter, async (req, res) => {

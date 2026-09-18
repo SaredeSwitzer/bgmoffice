@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { api } from '../api/client'
 import { browserSupportsWebAuthn } from '@simplewebauthn/browser'
 
-// Sign-in has two paths. The everyday one is a 6-digit code emailed to you — nothing to
+// Sign-in has two paths. The everyday one is a 6-digit code sent to you — by email, and
+// by text too when we have a mobile for you — nothing to
 // remember, nothing to leak. The password path stays as a backup for when email is down;
 // it expects a long random password out of a password manager, not one you type from memory.
 //
@@ -161,10 +162,11 @@ export default function LoginPage() {
                 />
               </div>
               <button type="submit" disabled={loading} className={buttonClass}>
-                {loading ? 'Sending…' : 'Email me a code'}
+                {loading ? 'Sending…' : 'Send me a code'}
               </button>
               <p className="text-xs text-gray-400 text-center">
-                We'll send you a 6-digit code. No password needed.
+                We&rsquo;ll send you a 6-digit code by email, and text it to you too if we
+                have your mobile. No password needed.
               </p>
               <div className="text-center pt-1">
                 <button type="button" onClick={() => switchTo('password')} className={linkClass}>
