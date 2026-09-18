@@ -231,7 +231,7 @@ export default function SmsPage() {
           onClick={() => { setNudgesOpen(true); setPayoutOpen(false); setRemindersOpen(false); setComposeOpen(false); setActive(null) }}
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Login / availability
+          Reminder to Login/Update Availability
         </button>
       </div>
 
