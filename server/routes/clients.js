@@ -11,7 +11,7 @@ router.use(requireAuth);
 // staff form, self-service profile, import — stores the same shape.
 router.use((req, _res, next) => {
   if (req.body && typeof req.body === 'object') {
-    for (const k of ['phone', 'text_phone', 'contact_person_phone']) if (k in req.body) req.body[k] = cleanPhone(req.body[k]);
+    for (const k of ['phone', 'contact_person_phone']) if (k in req.body) req.body[k] = cleanPhone(req.body[k]);
   }
   next();
 });
@@ -99,6 +99,26 @@ router.get('/:id', async (req, res) => {
   });
 });
 
+// A phone set from somewhere other than the numbers list — the new-client form, the
+// intake form, an import — has to appear in the list too, or the client shows a number on
+// one screen and "no numbers" on another. Updates the main row when there is one rather
+// than stacking up duplicates of the same number.
+async function mirrorPhoneIntoList(clientId, phone, initials) {
+  const cleaned = cleanPhone(phone);
+  if (!cleaned) return;
+  const { rows: [main] } = await pool.query(
+    `SELECT id, phone FROM client_phones WHERE client_id = $1
+      ORDER BY is_primary DESC, sort_order, id LIMIT 1`, [clientId]);
+  if (!main) {
+    await pool.query(
+      `INSERT INTO client_phones (client_id, phone, is_primary, created_by) VALUES ($1,$2,true,$3)`,
+      [clientId, cleaned, initials || null]);
+    return;
+  }
+  const same = String(main.phone || '').replace(/\D/g, '').slice(-10) === cleaned.replace(/\D/g, '').slice(-10);
+  if (!same) await pool.query('UPDATE client_phones SET phone = $1 WHERE id = $2', [cleaned, main.id]);
+}
+
 router.post('/', async (req, res) => {
   const {
     name, phone, email, invoice_email, preferred_contact, notes, rate_per_class,
@@ -106,7 +126,7 @@ router.post('/', async (req, res) => {
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
     default_age, default_participants, default_style, default_payment_method,
     track_last_class, last_class_date, skip_weekly_reminder, no_texting,
-    referred_by, gender, referred_by_client_id, goals, health_notes, equipment, text_phone,
+    referred_by, gender, referred_by_client_id, goals, health_notes, equipment,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
   // Neighborhood is the area, not the street — see lib/neighborhood.js.
@@ -137,8 +157,8 @@ router.post('/', async (req, res) => {
         waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
         default_age, default_participants, default_style, default_payment_method,
         track_last_class, last_class_date, skip_weekly_reminder, referred_by, gender,
-        referred_by_client_id, goals, health_notes, equipment, no_texting, text_phone)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
+        referred_by_client_id, goals, health_notes, equipment, no_texting)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
      RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
@@ -153,9 +173,9 @@ router.post('/', async (req, res) => {
       !!track_last_class, last_class_date || null, !!skip_weekly_reminder || !!no_texting,
       referred_by || null, gender || null, referred_by_client_id || null,
       goals || null, health_notes || null, equipment || null, !!no_texting,
-      text_phone || null,
     ]
   );
+  await mirrorPhoneIntoList(client.id, client.phone, req.user.initials);
   if (signatureToLink) {
     await pool.query('UPDATE client_contract_signatures SET client_id = $1 WHERE id = $2', [client.id, signatureToLink]);
   }
@@ -170,7 +190,7 @@ router.put('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query(
     `SELECT id, skip_weekly_reminder, no_texting, referred_by, gender, referred_by_client_id,
             goals, health_notes, equipment, phone_texting, phone_whatsapp,
-            default_payment_method, text_phone
+            default_payment_method, phone
        FROM clients WHERE id = $1`,
     [req.params.id]
   );
@@ -183,7 +203,7 @@ router.put('/:id', async (req, res) => {
     track_last_class, last_class_date, default_age, default_participants, default_style,
     default_payment_method,
     skip_weekly_reminder, no_texting, referred_by, gender, referred_by_client_id,
-    goals, health_notes, equipment, phone_texting, phone_whatsapp, text_phone,
+    goals, health_notes, equipment, phone_texting, phone_whatsapp,
   } = req.body;
 
   const badArea = rejectIfAddress(neighborhood);
@@ -227,10 +247,11 @@ router.put('/:id', async (req, res) => {
   const nextPayMethod = default_payment_method === undefined
     ? existing.default_payment_method
     : (default_payment_method || null);
-  // Same absent-means-leave-alone rule, and it matters here: the separate texting number
-  // is only on the client edit form, so any other save path — the intake form, a backfill
-  // from a class — must not wipe it and send every future text to the landline.
-  const nextTextPhone = text_phone === undefined ? existing.text_phone : (text_phone || null);
+  // Numbers are edited in their own list now (client_phones), so the client edit form no
+  // longer sends a phone at all — and an absent phone must mean "leave it alone", or
+  // saving a client's notes would wipe the number off the record and out of every screen
+  // that reads it. Same trap as the flags above, one field further along.
+  const nextPhone = phone === undefined ? existing.phone : (phone || null);
   const nextTexting  = phone_texting  === undefined ? existing.phone_texting  : (phone_texting  || null);
   const nextWhatsapp = phone_whatsapp === undefined ? existing.phone_whatsapp : (phone_whatsapp || null);
 
@@ -238,7 +259,7 @@ router.put('/:id', async (req, res) => {
     `UPDATE clients SET
        referred_by=$27, gender=$28, referred_by_client_id=$29,
        goals=$30, health_notes=$31, equipment=$32,
-       phone_texting=$33, phone_whatsapp=$34, default_payment_method=$35, text_phone=$37,
+       phone_texting=$33, phone_whatsapp=$34, default_payment_method=$35,
        name=$1, phone=$2, email=$3, invoice_email=$4, preferred_contact=$5, notes=$6, rate_per_class=$7,
        contact_person_name=$8, contact_person_phone=$9, contact_person_email=$10, contact_person_role=$11,
        waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
@@ -247,7 +268,7 @@ router.put('/:id', async (req, res) => {
        skip_weekly_reminder=$25, no_texting=$36
      WHERE id=$26 RETURNING *`,
     [
-      name, phone || null, email || null, invoice_email || null, preferred_contact || null,
+      name, nextPhone, email || null, invoice_email || null, preferred_contact || null,
       notes || null, rate_per_class || null,
       contact_person_name || null, contact_person_phone || null,
       contact_person_email || null, contact_person_role || null,
@@ -261,7 +282,7 @@ router.put('/:id', async (req, res) => {
       nextReferredBy, nextGender, nextReferrerId,
       nextGoals, nextHealth, nextEquipment,
       nextTexting, nextWhatsapp, nextPayMethod,
-      nextNoTexting, nextTextPhone,
+      nextNoTexting,
     ]
   );
   await syncMentions({
@@ -269,6 +290,9 @@ router.put('/:id', async (req, res) => {
     authorInitials: req.user.initials, linkPath: `/clients/${client.id}`,
   });
   await syncLastClassReminder(client, req.user.initials);
+  // Only when this save actually carried a number — an untouched field must not disturb
+  // a list the client edited number by number.
+  if (phone !== undefined) await mirrorPhoneIntoList(client.id, client.phone, req.user.initials);
   const { rows: [fresh] } = await pool.query('SELECT * FROM clients WHERE id = $1', [client.id]);
   res.json(fresh);
 });
@@ -378,6 +402,113 @@ router.delete('/:id/addresses/:addressId', async (req, res) => {
       await syncPrimaryToClient(req.params.id);
     }
   }
+  res.json({ success: true });
+});
+
+// ── Phone numbers ─────────────────────────────────────────────────────────────
+// A client can have several numbers, each saying what it's for: a cell that does
+// everything, an office line that only takes calls, a number that's WhatsApp only. A new
+// number defaults to calls and texts, which is what almost every number is.
+//
+// The main number is mirrored back onto clients.phone, the same way the primary address
+// is, so invoices, the client list, exports and the call button keep reading the one
+// field they always have. Which number a TEXT goes to is decided by client_text_phone()
+// in the database — one definition, used by every send path.
+
+async function syncPrimaryPhoneToClient(clientId) {
+  const { rows: [primary] } = await pool.query(
+    `SELECT phone FROM client_phones WHERE client_id = $1
+      ORDER BY is_primary DESC, sort_order, id LIMIT 1`,
+    [clientId]
+  );
+  await pool.query('UPDATE clients SET phone = $1 WHERE id = $2', [primary?.phone || null, clientId]);
+}
+
+router.get('/:id/phones', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT * FROM client_phones WHERE client_id = $1 ORDER BY is_primary DESC, sort_order, id`,
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
+// A number nobody can be reached at is a typo, not a preference — all three unticked is
+// refused rather than silently stored as a number that does nothing.
+function usesOf(body) {
+  const pick = (k, dflt) => (body[k] === undefined ? dflt : !!body[k]);
+  return { for_calls: pick('for_calls', true), for_texts: pick('for_texts', true), for_whatsapp: pick('for_whatsapp', false) };
+}
+
+router.post('/:id/phones', async (req, res) => {
+  const phone = cleanPhone(req.body.phone);
+  if (!phone) return res.status(400).json({ error: 'Enter a phone number.' });
+  const uses = usesOf(req.body);
+  if (!uses.for_calls && !uses.for_texts && !uses.for_whatsapp) {
+    return res.status(400).json({ error: 'Say what the number is for — calls, texts or WhatsApp.' });
+  }
+
+  // The first number a client gets is the main one whether or not anyone said so.
+  const { rows: [{ count }] } = await pool.query(
+    'SELECT count(*)::int AS count FROM client_phones WHERE client_id = $1', [req.params.id]
+  );
+  const primary = !!req.body.is_primary || count === 0;
+  if (primary) await pool.query('UPDATE client_phones SET is_primary = false WHERE client_id = $1', [req.params.id]);
+
+  const { rows: [row] } = await pool.query(
+    `INSERT INTO client_phones (client_id, phone, label, for_calls, for_texts, for_whatsapp, is_primary, sort_order, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [req.params.id, phone, req.body.label?.trim() || null,
+     uses.for_calls, uses.for_texts, uses.for_whatsapp, primary, count, req.user.initials]
+  );
+  await syncPrimaryPhoneToClient(req.params.id);
+  res.status(201).json(row);
+});
+
+router.put('/:id/phones/:phoneId', async (req, res) => {
+  const phone = cleanPhone(req.body.phone);
+  if (!phone) return res.status(400).json({ error: 'Enter a phone number.' });
+  const uses = usesOf(req.body);
+  if (!uses.for_calls && !uses.for_texts && !uses.for_whatsapp) {
+    return res.status(400).json({ error: 'Say what the number is for — calls, texts or WhatsApp.' });
+  }
+  const { rows: [row] } = await pool.query(
+    `UPDATE client_phones SET phone=$1, label=$2, for_calls=$3, for_texts=$4, for_whatsapp=$5
+      WHERE id=$6 AND client_id=$7 RETURNING *`,
+    [phone, req.body.label?.trim() || null, uses.for_calls, uses.for_texts, uses.for_whatsapp,
+     req.params.phoneId, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Number not found' });
+  await syncPrimaryPhoneToClient(req.params.id);
+  res.json(row);
+});
+
+router.patch('/:id/phones/:phoneId/primary', async (req, res) => {
+  await pool.query('UPDATE client_phones SET is_primary = false WHERE client_id = $1', [req.params.id]);
+  const { rows: [row] } = await pool.query(
+    'UPDATE client_phones SET is_primary = true WHERE id = $1 AND client_id = $2 RETURNING *',
+    [req.params.phoneId, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Number not found' });
+  await syncPrimaryPhoneToClient(req.params.id);
+  res.json(row);
+});
+
+router.delete('/:id/phones/:phoneId', async (req, res) => {
+  const { rows: [row] } = await pool.query(
+    'SELECT is_primary FROM client_phones WHERE id = $1 AND client_id = $2',
+    [req.params.phoneId, req.params.id]
+  );
+  if (!row) return res.status(404).json({ error: 'Number not found' });
+  await pool.query('DELETE FROM client_phones WHERE id = $1', [req.params.phoneId]);
+
+  // Deleting the main number would leave the client with none, so the next one takes over.
+  if (row.is_primary) {
+    const { rows: [next] } = await pool.query(
+      'SELECT id FROM client_phones WHERE client_id = $1 ORDER BY sort_order, id LIMIT 1', [req.params.id]
+    );
+    if (next) await pool.query('UPDATE client_phones SET is_primary = true WHERE id = $1', [next.id]);
+  }
+  await syncPrimaryPhoneToClient(req.params.id);
   res.json({ success: true });
 });
 

@@ -25,17 +25,20 @@ async function clientTextingBlocked(clientId) {
 
 // ── Which of a client's numbers a text goes to ──────────────────────────────────────
 //
-// Most clients have one number and it does both jobs. A few answer calls on a landline or
-// an office line and read texts on a cell, so they get a second number, and then the rule
-// is simple and applied in one place: texts go to text_phone when there is one, otherwise
-// to phone. Nobody sending a text has to remember which client is which.
+// A client can have several numbers, each ticked for calls, texts and/or WhatsApp. The
+// text goes to the first one marked for texts, main number first. That rule lives in the
+// database as client_text_phone() (migration 035) so the multi-row queries — the weekly
+// run, the contact picker — can use the same definition rather than each re-deciding it.
 //
-// Deliberately not a "preferred" number: when both are on file the first one is call-only,
-// because texting a landline fails silently — Telnyx accepts the message and it lands
-// nowhere, so a soft preference would just be a silent failure with extra steps.
-function textingNumber(client) {
-  const pick = client?.text_phone || client?.phone || null;
-  return pick && String(pick).trim() ? pick : null;
+// A client with numbers on file but none marked for texts gets nothing, deliberately: no
+// silent fallback to a number somebody unticked on purpose. Texting a landline fails
+// silently — Telnyx accepts it and it lands nowhere — so a soft preference would just be
+// a silent failure with extra steps.
+async function textingNumber(clientId) {
+  if (!clientId) return null;
+  const { rows: [r] } = await pool.query('SELECT client_text_phone($1) AS phone', [clientId]);
+  const p = r?.phone;
+  return p && String(p).trim() ? String(p).trim() : null;
 }
 
 // Last ten digits, so "(917) 555-1234", "917-555-1234" and "+19175551234" compare equal.
@@ -45,36 +48,38 @@ function sameNumber(a, b) {
   return x.length === 10 && x === d(b);
 }
 
-// "You're texting the number they only take calls at." Returns null when there's nothing
-// wrong — one number on file, or the right one picked.
+// "You're texting a number that isn't for texts." Returns null when there's nothing wrong.
 //
-// Only ever fires for a client who has both numbers filled in: with one number there is
-// nothing to get wrong, so nothing is ever blocked.
-function callOnlyNumber(client, to) {
-  const text = client?.text_phone;
-  if (!text || !String(text).trim()) return null;
-  if (!sameNumber(client?.phone, to)) return null;
-  if (sameNumber(text, to)) return null;
-  return {
-    blocked: true,
-    client_name: client?.name || null,
-    texting_number: String(text).trim(),
-    // Names the way out rather than being a dead end, same as the do-not-text message.
-    reason: `${client?.name || 'That client'} doesn't take texts at ${String(client.phone).trim()} — that's their number for calls. Texts go to ${String(text).trim()}.`,
-  };
-}
-
-// The same check starting from a number rather than a client: used by the Texts page,
-// where all you have is whatever number was typed or picked.
+// Only fires for a number that is on file for a client AND unticked for texts — a number
+// nobody has said anything about is left alone, and a client with one ordinary number can
+// never trip it.
 async function callOnlyNumberLookup(to) {
   const d = String(to || '').replace(/\D/g, '').slice(-10);
   if (d.length !== 10) return null;
-  const { rows: [c] } = await pool.query(
-    `SELECT name, phone, text_phone FROM clients
-      WHERE right(regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g'), 10) = $1
-        AND coalesce(text_phone,'') <> ''
+  const { rows: [row] } = await pool.query(
+    `SELECT c.id, c.name, p.phone, p.label, p.for_calls, p.for_whatsapp,
+            client_text_phone(c.id) AS texting_number
+       FROM client_phones p
+       JOIN clients c ON c.id = p.client_id
+      WHERE right(regexp_replace(coalesce(p.phone,''), '[^0-9]', '', 'g'), 10) = $1
+        AND p.for_texts = false
       LIMIT 1`, [d]);
-  return c ? callOnlyNumber(c, to) : null;
+  if (!row) return null;
+  // Ticked for texts on another row of the same client's list — the same number twice,
+  // once for calls and once for texts. Nothing to complain about.
+  if (sameNumber(row.texting_number, to)) return null;
+
+  const isFor = [row.for_calls && 'calls', row.for_whatsapp && 'WhatsApp'].filter(Boolean).join(' and ');
+  const what = isFor ? `that number is for ${isFor}` : `that number isn't marked for texts`;
+  return {
+    blocked: true,
+    client_name: row.name,
+    texting_number: row.texting_number || null,
+    // Names the way out rather than being a dead end, same as the do-not-text message.
+    reason: row.texting_number
+      ? `${row.name} doesn't take texts at ${String(row.phone).trim()} — ${what}. Texts go to ${String(row.texting_number).trim()}.`
+      : `${row.name} doesn't take texts at ${String(row.phone).trim()} — ${what}, and there's no texting number on their profile.`,
+  };
 }
 
-module.exports = { clientTextingBlocked, textingNumber, sameNumber, callOnlyNumber, callOnlyNumberLookup };
+module.exports = { clientTextingBlocked, textingNumber, sameNumber, callOnlyNumberLookup };

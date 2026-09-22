@@ -9,19 +9,15 @@ const CONTACT_COLORS = {
   call:     'bg-orange-100 text-orange-700',
 }
 
-export default function ContactInfo({ phone, text_phone, email, preferred_contact, phone_texting, phone_whatsapp }) {
-  // A client with a separate texting number has two numbers doing two different jobs, so
-  // say which is which. With one number — almost everyone — the label stays plain "Phone".
-  const hasBoth = !!(phone && text_phone)
+// The main number and how they like to be reached. A client's other numbers, and what
+// each is for, live in the Phone Numbers list on their profile.
+export default function ContactInfo({ phone, email, preferred_contact, phone_texting, phone_whatsapp }) {
   return (
     <div className="flex flex-wrap gap-4 text-sm">
       {phone && (
         <div>
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">
-            {hasBoth ? 'Phone (calls)' : 'Phone'}
-          </p>
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Phone</p>
           <PhoneLink phone={phone} />
-          {hasBoth && <p className="text-[11px] text-gray-400 mt-0.5">Calls only — texts go to the number alongside.</p>}
           {/* Answered at intake. "No" is the one worth seeing before anybody types a
               message — a number that doesn't take texts silently swallows them. */}
           {(phone_texting || phone_whatsapp) && (
@@ -38,13 +34,6 @@ export default function ContactInfo({ phone, text_phone, email, preferred_contac
               )}
             </p>
           )}
-        </div>
-      )}
-      {text_phone && (
-        <div>
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Phone (texts)</p>
-          <PhoneLink phone={text_phone} />
-          <p className="text-[11px] text-gray-400 mt-0.5">All texts go here.</p>
         </div>
       )}
       {email && (

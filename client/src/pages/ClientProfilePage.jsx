@@ -22,6 +22,7 @@ import { useHashHighlight } from '../utils/hashHighlight'
 import Byline from '../components/Byline'
 import { PAYMENT_METHODS } from '../utils/payments'
 import ClientAddresses from '../components/ClientAddresses'
+import ClientPhones from '../components/ClientPhones'
 import { today } from '../utils/dates'
 import { NeighborhoodWarning } from '../utils/neighborhood'
 import TextConfirmModal from '../components/TextConfirmModal'
@@ -876,7 +877,7 @@ export default function ClientProfilePage() {
         setAllClients(everyClient || [])
         setClient(c)
         setEditForm({
-          name: c.name, phone: c.phone || '', text_phone: c.text_phone || '', email: c.email || '',
+          name: c.name, email: c.email || '',
           invoice_email: c.invoice_email || '',
           preferred_contact: c.preferred_contact || '', notes: c.notes || '',
           phone_texting: c.phone_texting || '', phone_whatsapp: c.phone_whatsapp || '',
@@ -980,28 +981,9 @@ export default function ClientProfilePage() {
                 <input required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-                <input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
-                <p className="text-[11px] text-gray-400 mt-1">Used for calls and texts, unless you fill in a texting number.</p>
-              </div>
-              {/* Only for the few clients who answer the phone at one number and read
-                  texts at another. Left empty — which it is for nearly everyone — the
-                  number above keeps doing both jobs, exactly as before. */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Texting Number <span className="text-gray-400 font-normal">(if different)</span>
-                </label>
-                <input value={editForm.text_phone} onChange={e => setEditForm(f => ({ ...f, text_phone: e.target.value }))}
-                  placeholder="917-555-0000"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
-                <p className="text-[11px] text-gray-400 mt-1">
-                  {editForm.text_phone
-                    ? 'Every text goes here. The number above becomes calls-only and texts to it are refused.'
-                    : 'Leave empty unless they text at a different number.'}
-                </p>
-              </div>
+              {/* Numbers are edited in the Phone Numbers list on the profile — a client
+                  can have several, each for calls, texts and/or WhatsApp. One box here
+                  would be a second, quieter place to change the same thing. */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                 <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
@@ -1029,24 +1011,9 @@ export default function ClientProfilePage() {
                   <option value="call">Call</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Takes texts?</label>
-                <select value={editForm.phone_texting} onChange={e => setEditForm(f => ({ ...f, phone_texting: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
-                  <option value="">Not asked</option>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">On WhatsApp?</label>
-                <select value={editForm.phone_whatsapp} onChange={e => setEditForm(f => ({ ...f, phone_whatsapp: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
-                  <option value="">Not asked</option>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
-              </div>
+              {/* "Takes texts?" and "On WhatsApp?" used to be asked here and were only
+                  ever a note to yourself — nothing read them. Each number now carries its
+                  own Calls / Texts / WhatsApp ticks, which the app acts on. */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Rate Per Class</label>
                 <input value={editForm.rate_per_class} onChange={e => setEditForm(f => ({ ...f, rate_per_class: e.target.value }))}
@@ -1321,8 +1288,7 @@ export default function ClientProfilePage() {
                 </button>
               </div>
             </div>
-            <ContactInfo phone={client.phone} text_phone={client.text_phone} email={client.email} preferred_contact={client.preferred_contact}
-              phone_texting={client.phone_texting} phone_whatsapp={client.phone_whatsapp} />
+            <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
             {(client.referred_by || client.gender) && (
               <p className="text-xs text-gray-500 mt-1">
                 {client.referred_by && (
@@ -1441,6 +1407,13 @@ export default function ClientProfilePage() {
                 <ContactInfo phone={client.contact_person_phone} email={client.contact_person_email} />
               </div>
             )}
+
+            {/* Numbers, in their own list for the same reason as addresses: people have
+                more than one, and each does a different job. Reloading the client after a
+                change keeps the header's main number honest. */}
+            <div className="mt-3">
+              <ClientPhones clientId={client.id} onChanged={reloadClient} />
+            </div>
 
             {/* Addresses. The list below replaces the old single read-only block — a
                 client can be taught in more than one place, and the main one is what

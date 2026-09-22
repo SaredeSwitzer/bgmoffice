@@ -339,6 +339,17 @@ export const api = {
   deleteClientAddress: (clientId, addressId) =>
     request(`/clients/${clientId}/addresses/${addressId}`, { method: 'DELETE' }),
 
+  // Several numbers per client, each marked for calls / texts / WhatsApp.
+  getClientPhones: (clientId) => request(`/clients/${clientId}/phones`),
+  addClientPhone: (clientId, data) =>
+    request(`/clients/${clientId}/phones`, { method: 'POST', body: JSON.stringify(data) }),
+  updateClientPhone: (clientId, phoneId, data) =>
+    request(`/clients/${clientId}/phones/${phoneId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  setMainClientPhone: (clientId, phoneId) =>
+    request(`/clients/${clientId}/phones/${phoneId}/primary`, { method: 'PATCH' }),
+  deleteClientPhone: (clientId, phoneId) =>
+    request(`/clients/${clientId}/phones/${phoneId}`, { method: 'DELETE' }),
+
   // The shift working sheet + shift handoffs — see server/routes/waitingSheet.js.
   getWaitingSheet: () => request('/waiting-sheet'),
   getWaitingSheetDone: () => request('/waiting-sheet/done'),

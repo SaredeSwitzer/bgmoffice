@@ -123,8 +123,8 @@ router.get('/thread/:phone/timeline', async (req, res) => {
 router.get('/contacts', async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT id, name, COALESCE(nullif(text_phone,''), phone) AS phone, 'client' AS kind FROM clients
-        WHERE coalesce(COALESCE(nullif(text_phone,''), phone),'') <> ''
+      SELECT id, name, client_text_phone(id) AS phone, 'client' AS kind FROM clients
+        WHERE coalesce(client_text_phone(id),'') <> ''
       UNION ALL
       SELECT id, name, phone, 'instructor' AS kind FROM instructors
         WHERE coalesce(phone,'') <> ''

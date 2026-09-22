@@ -60,7 +60,7 @@ function greetingName(client) {
 async function loadPackage(id) {
   const { rows: [pkg] } = await pool.query(
     `SELECT cp.*, c.name AS client_name,
-            COALESCE(nullif(c.text_phone,''), c.phone) AS phone,
+            client_text_phone(c.id) AS phone,
             c.contact_person_name
        FROM client_packages cp
        JOIN clients c ON c.id = cp.client_id

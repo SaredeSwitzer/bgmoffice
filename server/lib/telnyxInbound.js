@@ -57,7 +57,8 @@ async function lookupPerson(fromNumber) {
     const { rows } = await pool.query(
       `SELECT id, name, 'client' AS kind FROM clients
          WHERE right(regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g'), 10) = $1
-            OR right(regexp_replace(coalesce(text_phone,''), '[^0-9]', '', 'g'), 10) = $1
+            OR EXISTS (SELECT 1 FROM client_phones p WHERE p.client_id = clients.id
+                        AND right(regexp_replace(coalesce(p.phone,''), '[^0-9]', '', 'g'), 10) = $1)
        UNION ALL
        SELECT id, name, 'instructor' AS kind FROM instructors
          WHERE right(regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g'), 10) = $1
