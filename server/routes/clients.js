@@ -11,7 +11,7 @@ router.use(requireAuth);
 // staff form, self-service profile, import — stores the same shape.
 router.use((req, _res, next) => {
   if (req.body && typeof req.body === 'object') {
-    for (const k of ['phone', 'contact_person_phone']) if (k in req.body) req.body[k] = cleanPhone(req.body[k]);
+    for (const k of ['phone', 'text_phone', 'contact_person_phone']) if (k in req.body) req.body[k] = cleanPhone(req.body[k]);
   }
   next();
 });
@@ -106,7 +106,7 @@ router.post('/', async (req, res) => {
     waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
     default_age, default_participants, default_style, default_payment_method,
     track_last_class, last_class_date, skip_weekly_reminder, no_texting,
-    referred_by, gender, referred_by_client_id, goals, health_notes, equipment,
+    referred_by, gender, referred_by_client_id, goals, health_notes, equipment, text_phone,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
   // Neighborhood is the area, not the street — see lib/neighborhood.js.
@@ -137,8 +137,8 @@ router.post('/', async (req, res) => {
         waiver_signed, waiver_signed_date, street, city, state, zip, neighborhood, client_type,
         default_age, default_participants, default_style, default_payment_method,
         track_last_class, last_class_date, skip_weekly_reminder, referred_by, gender,
-        referred_by_client_id, goals, health_notes, equipment, no_texting)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
+        referred_by_client_id, goals, health_notes, equipment, no_texting, text_phone)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
      RETURNING *`,
     [
       name, phone || null, email || null, invoice_email || null, preferred_contact || null,
@@ -153,6 +153,7 @@ router.post('/', async (req, res) => {
       !!track_last_class, last_class_date || null, !!skip_weekly_reminder || !!no_texting,
       referred_by || null, gender || null, referred_by_client_id || null,
       goals || null, health_notes || null, equipment || null, !!no_texting,
+      text_phone || null,
     ]
   );
   if (signatureToLink) {
@@ -169,7 +170,7 @@ router.put('/:id', async (req, res) => {
   const { rows: [existing] } = await pool.query(
     `SELECT id, skip_weekly_reminder, no_texting, referred_by, gender, referred_by_client_id,
             goals, health_notes, equipment, phone_texting, phone_whatsapp,
-            default_payment_method
+            default_payment_method, text_phone
        FROM clients WHERE id = $1`,
     [req.params.id]
   );
@@ -182,7 +183,7 @@ router.put('/:id', async (req, res) => {
     track_last_class, last_class_date, default_age, default_participants, default_style,
     default_payment_method,
     skip_weekly_reminder, no_texting, referred_by, gender, referred_by_client_id,
-    goals, health_notes, equipment, phone_texting, phone_whatsapp,
+    goals, health_notes, equipment, phone_texting, phone_whatsapp, text_phone,
   } = req.body;
 
   const badArea = rejectIfAddress(neighborhood);
@@ -226,6 +227,10 @@ router.put('/:id', async (req, res) => {
   const nextPayMethod = default_payment_method === undefined
     ? existing.default_payment_method
     : (default_payment_method || null);
+  // Same absent-means-leave-alone rule, and it matters here: the separate texting number
+  // is only on the client edit form, so any other save path — the intake form, a backfill
+  // from a class — must not wipe it and send every future text to the landline.
+  const nextTextPhone = text_phone === undefined ? existing.text_phone : (text_phone || null);
   const nextTexting  = phone_texting  === undefined ? existing.phone_texting  : (phone_texting  || null);
   const nextWhatsapp = phone_whatsapp === undefined ? existing.phone_whatsapp : (phone_whatsapp || null);
 
@@ -233,7 +238,7 @@ router.put('/:id', async (req, res) => {
     `UPDATE clients SET
        referred_by=$27, gender=$28, referred_by_client_id=$29,
        goals=$30, health_notes=$31, equipment=$32,
-       phone_texting=$33, phone_whatsapp=$34, default_payment_method=$35,
+       phone_texting=$33, phone_whatsapp=$34, default_payment_method=$35, text_phone=$37,
        name=$1, phone=$2, email=$3, invoice_email=$4, preferred_contact=$5, notes=$6, rate_per_class=$7,
        contact_person_name=$8, contact_person_phone=$9, contact_person_email=$10, contact_person_role=$11,
        waiver_signed=$12, waiver_signed_date=$13, street=$14, city=$15, state=$16, zip=$17, neighborhood=$18,
@@ -256,7 +261,7 @@ router.put('/:id', async (req, res) => {
       nextReferredBy, nextGender, nextReferrerId,
       nextGoals, nextHealth, nextEquipment,
       nextTexting, nextWhatsapp, nextPayMethod,
-      nextNoTexting,
+      nextNoTexting, nextTextPhone,
     ]
   );
   await syncMentions({

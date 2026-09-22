@@ -18,6 +18,7 @@ const { explainSmsFailure } = require('../lib/smsFailureReason');
 // Calls share the same phone key texts use, which is what lets the two be shown together.
 const voiceStore = require('../lib/voiceStore');
 const { saveContact, suggestMatches, whoHasNumber } = require('../lib/saveContact');
+const { callOnlyNumberLookup } = require('../lib/clientTexting');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -122,8 +123,8 @@ router.get('/thread/:phone/timeline', async (req, res) => {
 router.get('/contacts', async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT id, name, phone, 'client' AS kind FROM clients
-        WHERE coalesce(phone,'') <> ''
+      SELECT id, name, COALESCE(nullif(text_phone,''), phone) AS phone, 'client' AS kind FROM clients
+        WHERE coalesce(COALESCE(nullif(text_phone,''), phone),'') <> ''
       UNION ALL
       SELECT id, name, phone, 'instructor' AS kind FROM instructors
         WHERE coalesce(phone,'') <> ''
@@ -293,6 +294,21 @@ router.post('/send', async (req, res) => {
   const text = String(body).trim();
   try {
     const phone = toE164(to);
+
+    // Stop a text to a number the client only takes calls at. Checked here rather than
+    // only in the picker, because the number can also be typed in by hand — and the
+    // failure it prevents is a silent one: a text to a landline is accepted by Telnyx and
+    // simply never arrives, so without this nobody finds out for a week.
+    const callOnly = await callOnlyNumberLookup(phone);
+    if (callOnly) {
+      return res.status(400).json({
+        error: callOnly.reason,
+        call_only: true,
+        client_name: callOnly.client_name,
+        texting_number: callOnly.texting_number,
+      });
+    }
+
     const person = await lookupPerson(phone);
     const sent = await sendSMS({ to: phone, text });
     const row = await store.logMessage({

@@ -876,7 +876,7 @@ export default function ClientProfilePage() {
         setAllClients(everyClient || [])
         setClient(c)
         setEditForm({
-          name: c.name, phone: c.phone || '', email: c.email || '',
+          name: c.name, phone: c.phone || '', text_phone: c.text_phone || '', email: c.email || '',
           invoice_email: c.invoice_email || '',
           preferred_contact: c.preferred_contact || '', notes: c.notes || '',
           phone_texting: c.phone_texting || '', phone_whatsapp: c.phone_whatsapp || '',
@@ -984,6 +984,23 @@ export default function ClientProfilePage() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
                 <input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <p className="text-[11px] text-gray-400 mt-1">Used for calls and texts, unless you fill in a texting number.</p>
+              </div>
+              {/* Only for the few clients who answer the phone at one number and read
+                  texts at another. Left empty — which it is for nearly everyone — the
+                  number above keeps doing both jobs, exactly as before. */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Texting Number <span className="text-gray-400 font-normal">(if different)</span>
+                </label>
+                <input value={editForm.text_phone} onChange={e => setEditForm(f => ({ ...f, text_phone: e.target.value }))}
+                  placeholder="917-555-0000"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {editForm.text_phone
+                    ? 'Every text goes here. The number above becomes calls-only and texts to it are refused.'
+                    : 'Leave empty unless they text at a different number.'}
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
@@ -1304,7 +1321,7 @@ export default function ClientProfilePage() {
                 </button>
               </div>
             </div>
-            <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact}
+            <ContactInfo phone={client.phone} text_phone={client.text_phone} email={client.email} preferred_contact={client.preferred_contact}
               phone_texting={client.phone_texting} phone_whatsapp={client.phone_whatsapp} />
             {(client.referred_by || client.gender) && (
               <p className="text-xs text-gray-500 mt-1">

@@ -116,7 +116,10 @@ async function buildWeeklyReminders({ start, end } = {}) {
 
   const { rows: sessions } = await pool.query(
     `SELECT s.session_date::text AS session_date, s.start_time::text AS start_time, s.notes,
-            c.id AS client_id, c.name AS client_name, c.phone AS client_phone,
+            c.id AS client_id, c.name AS client_name,
+            -- The weekly text goes to the client's texting number when they keep a
+            -- separate one, otherwise to their only number. See lib/clientTexting.js.
+            COALESCE(nullif(c.text_phone,''), c.phone) AS client_phone,
             c.email AS client_email, c.skip_weekly_reminder, c.no_texting,
             c.contact_person_name, c.contact_person_phone, c.client_type,
             i.id AS instructor_id, i.name AS instructor_name, i.phone AS instructor_phone,

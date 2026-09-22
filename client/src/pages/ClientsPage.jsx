@@ -17,7 +17,7 @@ export default function ClientsPage() {
   const [showNew, setShowNew] = useState(false)
   const [newClient, setNewClient] = useState(false)
   const [form, setForm] = useState({
-    name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '',
+    name: '', phone: '', text_phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '',
     client_type: 'individual', contact_person_name: '', contact_person_phone: '', contact_person_email: '', contact_person_role: '',
     street: '', city: '', state: '', zip: '', neighborhood: '',
   })
@@ -48,7 +48,7 @@ export default function ClientsPage() {
       setClients(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))
       setNewClient(false)
       setForm({
-        name: '', phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '',
+        name: '', phone: '', text_phone: '', email: '', preferred_contact: '', notes: '', rate_per_class: '',
         client_type: 'individual', contact_person_name: '', contact_person_phone: '', contact_person_email: '', contact_person_role: '',
         street: '', city: '', state: '', zip: '', neighborhood: '',
       })
@@ -114,6 +114,14 @@ export default function ClientsPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
               <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="718-555-0000" />
+            </div>
+            {/* Blank for nearly everyone — see the client profile for what it does. */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Texting Number <span className="text-gray-400 font-normal">(if different)</span>
+              </label>
+              <input value={form.text_phone} onChange={e => setForm(f => ({ ...f, text_phone: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" placeholder="Only if they text elsewhere" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>

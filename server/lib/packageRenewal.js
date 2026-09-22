@@ -59,7 +59,9 @@ function greetingName(client) {
 // shouldn't produce a text saying it's nearly finished.
 async function loadPackage(id) {
   const { rows: [pkg] } = await pool.query(
-    `SELECT cp.*, c.name AS client_name, c.phone, c.contact_person_name
+    `SELECT cp.*, c.name AS client_name,
+            COALESCE(nullif(c.text_phone,''), c.phone) AS phone,
+            c.contact_person_name
        FROM client_packages cp
        JOIN clients c ON c.id = cp.client_id
       WHERE cp.id = $1`,

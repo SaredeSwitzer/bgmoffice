@@ -75,7 +75,14 @@ async function request(path, options = {}) {
     localStorage.removeItem('bgm_token')
     window.dispatchEvent(new Event('bgm:session-expired'))
   }
-  if (!res.ok) throw new Error(data.error || 'Request failed')
+  if (!res.ok) {
+    // The message is what almost every caller shows. A few refusals also carry something
+    // the screen can act on — "that's their call-only number, here's the texting one" —
+    // so the whole body rides along on the error rather than being flattened to a string.
+    const err = new Error(data.error || 'Request failed')
+    err.data = data
+    throw err
+  }
   return data
 }
 

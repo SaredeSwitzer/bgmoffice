@@ -16,7 +16,7 @@ const smsStore = require('../lib/smsStore');
 const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 const { addressLine } = require('../lib/addressLine');
 const { instructorFirstName } = require('../lib/instructorFirstName');
-const { clientTextingBlocked } = require('../lib/clientTexting');
+const { clientTextingBlocked, textingNumber } = require('../lib/clientTexting');
 const { listPayers, setPayers, resolveForSession } = require('../lib/classPayers');
 
 const router = express.Router();
@@ -1252,8 +1252,11 @@ async function buildClientText(kind, id) {
   const wordingRow = await wordingRowFor(kind, row);
 
   const { rows: [client] } = await pool.query(
-    'SELECT name, phone, client_type, contact_person_name FROM clients WHERE id = $1', [row.client_id]);
-  const phone = client?.phone ? toE164(client.phone) : null;
+    'SELECT name, phone, text_phone, client_type, contact_person_name FROM clients WHERE id = $1', [row.client_id]);
+  // Texts go to the client's texting number when they have a separate one — see
+  // lib/clientTexting.js. Everyone else is unchanged: one number, used for both.
+  const clientTextTo = textingNumber(client);
+  const phone = clientTextTo ? toE164(clientTextTo) : null;
 
   const ctx = confirmationContext(wordingRow);
   ctx.client_name = smsGreetingName(client);
@@ -1516,7 +1519,7 @@ async function buildRescheduleAlert(id) {
     ? await pool.query('SELECT name, email, phone FROM instructors WHERE id=$1', [row.instructor_id])
     : { rows: [] };
   const { rows: [client] } = await pool.query(
-    'SELECT name, phone, client_type, contact_person_name FROM clients WHERE id = $1', [row.client_id]);
+    'SELECT name, phone, text_phone, client_type, contact_person_name FROM clients WHERE id = $1', [row.client_id]);
 
   const ctx = confirmationContext(row);
   const subject = `Class time updated — ${ctx.client_name}`;
@@ -1530,7 +1533,8 @@ async function buildRescheduleAlert(id) {
 
   // The texts say the same thing in one line each, in the same voice as the confirmations.
   const instructorPhone = inst?.phone ? toE164(inst.phone) : null;
-  const clientPhone     = client?.phone ? toE164(client.phone) : null;
+  const clientTextTo    = textingNumber(client);
+  const clientPhone     = clientTextTo ? toE164(clientTextTo) : null;
 
   const shared = {
     ...ctx,

@@ -634,6 +634,9 @@ function ComposePanel({ onClose, onOpenThread, onSent }) {
   const [confirming, setConfirming] = useState(false)
   const [progress, setProgress] = useState(null)   // { done, total, fails }
   const [error, setError] = useState('')
+  // Set when a send was refused because that number only takes calls — holds the number
+  // the text should have gone to, so the fix is one click rather than a hunt.
+  const [callOnly, setCallOnly] = useState(null)
 
   useEffect(() => {
     api.smsContacts().then(setContacts).catch(() => setContacts([]))
@@ -651,15 +654,18 @@ function ComposePanel({ onClose, onOpenThread, onSent }) {
   const audienceList = contacts.filter((c) =>
     audience === 'all' ? true : audience === 'clients' ? c.kind === 'client' : c.kind === 'instructor')
 
-  async function sendOne() {
-    const phone = resolveOnePhone()
+  async function sendOne(toNumber) {
+    const phone = toNumber || resolveOnePhone()
     if (!phone) { setError('Enter a valid number or pick a contact.'); return }
     if (!body.trim()) { setError('Type a message.'); return }
-    setBusy(true); setError('')
+    setBusy(true); setError(''); setCallOnly(null)
     try {
       const row = await api.smsSend(phone, body.trim())
       onOpenThread(row.phone)
-    } catch (e) { setError(e.message || 'Failed to send.') }
+    } catch (e) {
+      setError(e.message || 'Failed to send.')
+      if (e.data?.call_only) setCallOnly(e.data.texting_number || null)
+    }
     finally { setBusy(false) }
   }
 
@@ -734,7 +740,20 @@ function ComposePanel({ onClose, onOpenThread, onSent }) {
           <p className="mt-1 text-xs text-gray-400">People can reply STOP to opt out.</p>
         </div>
 
-        {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+        {error && (
+          <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            {error}
+            {/* The refusal names the right number, so offer it rather than leaving her to
+                retype it. One click sends the message she already typed, to the number
+                that actually receives texts. */}
+            {callOnly && (
+              <button onClick={() => { setRecipient(callOnly); sendOne(callOnly) }} disabled={busy}
+                className="mt-2 block rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+                Send to {fmtPhone(callOnly)} instead
+              </button>
+            )}
+          </div>
+        )}
 
         {progress && (
           <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
@@ -746,7 +765,7 @@ function ComposePanel({ onClose, onOpenThread, onSent }) {
 
       <footer className="border-t border-gray-200 p-3">
         {mode === 'one' ? (
-          <button onClick={sendOne} disabled={busy}
+          <button onClick={() => sendOne()} disabled={busy}
             className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
             {busy ? 'Sending…' : 'Send'}
           </button>

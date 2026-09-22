@@ -49,6 +49,7 @@ async function whoHasNumber(phone) {
   const { rows } = await pool.query(
     `SELECT id, name, 'client' AS kind FROM clients
       WHERE right(regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g'), 10) = $1
+         OR right(regexp_replace(coalesce(text_phone,''), '[^0-9]', '', 'g'), 10) = $1
      UNION ALL
      SELECT id, name, 'instructor' AS kind FROM instructors
       WHERE right(regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g'), 10) = $1

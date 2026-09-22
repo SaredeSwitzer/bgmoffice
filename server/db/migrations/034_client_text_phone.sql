@@ -1,0 +1,11 @@
+-- A second number for clients who take calls at one number and texts at another.
+--
+-- Until now a client had one phone, and every text went to it. Some clients answer the
+-- phone on a landline or an office line and read texts on a cell; texting the first one
+-- goes nowhere, silently — Telnyx accepts it and the message simply never arrives.
+--
+-- text_phone is the exception, not the rule: it is empty for almost everyone, and when it
+-- is empty `phone` is used for both, exactly as before. When it is filled in, every send
+-- path routes texts here and `phone` becomes call-only (the Texts page refuses it and says
+-- where to send instead).
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS text_phone TEXT;
