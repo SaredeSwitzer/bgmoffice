@@ -47,6 +47,7 @@ const CLASS_TYPE_LABELS = {
   ala_carte:      'A la carte',
   ongoing_weekly: 'Ongoing weekly',
   semester:       'Semester',
+  sub:            'Sub',
 }
 
 function fmt(iso) {
@@ -429,6 +430,7 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
             <option value="ala_carte">A la carte</option>
             <option value="ongoing_weekly">Ongoing weekly</option>
             <option value="semester">Semester</option>
+            <option value="sub">Sub</option>
           </select>
         </div>
 
@@ -438,13 +440,13 @@ function EntryForm({ day, entry, clients, instructors, actionTypes, users, style
             placeholder="e.g. 9:30–10:30 AM" className={inputCls} />
         </div>
 
-        {(form.class_type === 'ala_carte' || form.class_type === 'semester') && (
+        {(form.class_type === 'ala_carte' || form.class_type === 'semester' || form.class_type === 'sub') && (
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              {form.class_type === 'ala_carte' ? 'Specific Dates' : 'Date Range'}
+              {form.class_type === 'semester' ? 'Date Range' : 'Specific Dates'}
             </label>
             <input value={form.class_dates} onChange={e => setField('class_dates', e.target.value)}
-              placeholder={form.class_type === 'ala_carte' ? 'e.g. May 24, June 21, July 5' : 'e.g. Sep 8 – Dec 15'}
+              placeholder={form.class_type === 'semester' ? 'e.g. Sep 8 – Dec 15' : 'e.g. May 24, June 21, July 5'}
               className={inputCls} />
           </div>
         )}

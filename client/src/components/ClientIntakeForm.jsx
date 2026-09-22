@@ -488,11 +488,12 @@ export default function ClientIntakeForm({ clients = [], styles = [], onSaved })
             <option value="ala_carte">A la carte</option>
             <option value="ongoing_weekly">Ongoing weekly</option>
             <option value="semester">Semester</option>
+            <option value="sub">Sub</option>
           </select>
         </div>
-        {(f.class_type === 'ala_carte' || f.class_type === 'semester') && (
+        {(f.class_type === 'ala_carte' || f.class_type === 'semester' || f.class_type === 'sub') && (
           <div>
-            <label className={labelCls}>{f.class_type === 'ala_carte' ? 'Specific dates' : 'Date range'}</label>
+            <label className={labelCls}>{f.class_type === 'semester' ? 'Date range' : 'Specific dates'}</label>
             <input value={f.class_dates} onChange={e => set('class_dates', e.target.value)} className={inputCls} />
           </div>
         )}
