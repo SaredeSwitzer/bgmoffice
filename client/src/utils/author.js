@@ -8,6 +8,8 @@ const SYSTEM_AUTHORS = {
   'daily-sync': 'Automatic',
   'signup':     'Sign-up form',
   'recruiting': 'Recruiting',
+  // Numbers that were already on the client record when the numbers list was introduced.
+  'migration':  'Already on file',
 }
 
 export function authorLabel(author) {

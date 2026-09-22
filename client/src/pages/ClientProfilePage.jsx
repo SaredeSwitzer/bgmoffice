@@ -1288,7 +1288,9 @@ export default function ClientProfilePage() {
                 </button>
               </div>
             </div>
-            <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
+            {/* No phone here: the numbers list sits directly below in this same card,
+                and saying the main number twice a few lines apart just reads as a mistake. */}
+            <ContactInfo email={client.email} preferred_contact={client.preferred_contact} />
             {(client.referred_by || client.gender) && (
               <p className="text-xs text-gray-500 mt-1">
                 {client.referred_by && (
