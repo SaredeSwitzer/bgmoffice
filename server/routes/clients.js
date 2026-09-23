@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { cleanPhone } = require('../lib/phoneFormat');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
 const { rejectIfAddress } = require('../lib/neighborhood');
+const { backfill: attachNameToNumber } = require('../lib/saveContact');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -113,10 +114,14 @@ async function mirrorPhoneIntoList(clientId, phone, initials) {
     await pool.query(
       `INSERT INTO client_phones (client_id, phone, is_primary, created_by) VALUES ($1,$2,true,$3)`,
       [clientId, cleaned, initials || null]);
+    await claimThreadsForNumber(clientId, cleaned);
     return;
   }
   const same = String(main.phone || '').replace(/\D/g, '').slice(-10) === cleaned.replace(/\D/g, '').slice(-10);
-  if (!same) await pool.query('UPDATE client_phones SET phone = $1 WHERE id = $2', [cleaned, main.id]);
+  if (!same) {
+    await pool.query('UPDATE client_phones SET phone = $1 WHERE id = $2', [cleaned, main.id]);
+    await claimThreadsForNumber(clientId, cleaned);
+  }
 }
 
 router.post('/', async (req, res) => {
@@ -424,6 +429,17 @@ async function syncPrimaryPhoneToClient(clientId) {
   await pool.query('UPDATE clients SET phone = $1 WHERE id = $2', [primary?.phone || null, clientId]);
 }
 
+// A number added here may already have a conversation on file under it — the inbox stamps
+// the name onto each message as it arrives, so a thread that started before we knew whose
+// number it was stays a bare "(917) 474-5938" for ever otherwise. Claim it now, the same
+// way "save contact" in the Texts inbox does.
+async function claimThreadsForNumber(clientId, phone) {
+  const { rows: [c] } = await pool.query('SELECT id, name FROM clients WHERE id = $1', [clientId]);
+  if (!c) return;
+  await attachNameToNumber(phone, { id: c.id, name: c.name, kind: 'client' })
+    .catch(e => console.error('[clients] could not name the existing texts for that number:', e.message));
+}
+
 router.get('/:id/phones', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT * FROM client_phones WHERE client_id = $1 ORDER BY is_primary DESC, sort_order, id`,
@@ -461,6 +477,7 @@ router.post('/:id/phones', async (req, res) => {
      uses.for_calls, uses.for_texts, uses.for_whatsapp, primary, count, req.user.initials]
   );
   await syncPrimaryPhoneToClient(req.params.id);
+  await claimThreadsForNumber(req.params.id, phone);
   res.status(201).json(row);
 });
 
@@ -479,6 +496,7 @@ router.put('/:id/phones/:phoneId', async (req, res) => {
   );
   if (!row) return res.status(404).json({ error: 'Number not found' });
   await syncPrimaryPhoneToClient(req.params.id);
+  await claimThreadsForNumber(req.params.id, phone);
   res.json(row);
 });
 

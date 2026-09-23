@@ -149,4 +149,6 @@ async function contactFor(phone) {
   return rows[0] || null;
 }
 
-module.exports = { saveContact, suggestMatches, whoHasNumber, contactFor, CATEGORIES };
+// Exported because putting a number on a client's profile has to do exactly what
+// "save contact" in the Texts inbox does: claim the thread that is already on file.
+module.exports = { saveContact, suggestMatches, whoHasNumber, contactFor, CATEGORIES, backfill };
