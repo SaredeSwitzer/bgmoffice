@@ -981,9 +981,15 @@ export default function ClientProfilePage() {
                 <input required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
-              {/* Numbers are edited in the Phone Numbers list on the profile — a client
-                  can have several, each for calls, texts and/or WhatsApp. One box here
-                  would be a second, quieter place to change the same thing. */}
+              {/* Numbers moved to their own list; without this line the form looks like
+                  it simply lost the phone field. */}
+              <div className="col-span-2">
+                <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <span className="font-semibold text-gray-700">Phone numbers</span> are on the client&rsquo;s
+                  profile, under <span className="font-semibold text-gray-700">Phone Numbers</span> — close this
+                  and you&rsquo;ll see them. A client can have several there, each set for calls, texts and/or WhatsApp.
+                </p>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                 <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
@@ -1288,9 +1294,11 @@ export default function ClientProfilePage() {
                 </button>
               </div>
             </div>
-            {/* No phone here: the numbers list sits directly below in this same card,
-                and saying the main number twice a few lines apart just reads as a mistake. */}
-            <ContactInfo email={client.email} preferred_contact={client.preferred_contact} />
+            {/* The main number stays here under the name, where it has always been. It
+                also appears in the numbers list below; that repetition is the price of not
+                having the number look like it vanished, and the number is the thing people
+                come to this page for. */}
+            <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
             {(client.referred_by || client.gender) && (
               <p className="text-xs text-gray-500 mt-1">
                 {client.referred_by && (
