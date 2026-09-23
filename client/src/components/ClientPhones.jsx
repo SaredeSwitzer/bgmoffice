@@ -142,7 +142,7 @@ export default function ClientPhones({ clientId, onChanged }) {
           editing?.id === p.id ? (
             <PhoneForm key={p.id} initial={p} onSave={handleEdit} onCancel={() => setEditing(null)} saving={saving} />
           ) : (
-            <div key={p.id} className="flex items-start justify-between gap-3 border border-gray-200 rounded-xl px-3 py-2 group">
+            <div key={p.id} className="flex flex-wrap items-start justify-between gap-2 border border-gray-200 rounded-xl px-3 py-2">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
                   <PhoneLink phone={p.phone} />
@@ -158,14 +158,25 @@ export default function ClientPhones({ clientId, onChanged }) {
                 </p>
                 <Byline author={p.created_by} at={p.created_at} />
               </div>
-              <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Always visible, and words rather than glyphs. These used to appear only
+                  on hover, copied from the addresses list — which means they do not exist
+                  at all on a phone or tablet, and are easy to miss on a laptop. Editing a
+                  number is the main thing anyone does here; it cannot be hidden. */}
+              <div className="flex items-center gap-2 shrink-0">
                 {!p.is_primary && (
-                  <button onClick={() => makeMain(p.id)} className="text-[11px] text-blue-600 hover:underline">
+                  <button onClick={() => makeMain(p.id)}
+                    className="text-[11px] text-blue-600 hover:underline whitespace-nowrap">
                     Make main
                   </button>
                 )}
-                <button onClick={() => setEditing(p)} className="text-xs text-gray-400 hover:text-gray-700" title="Edit">✎</button>
-                <button onClick={() => remove(p)} className="text-xs text-gray-300 hover:text-red-500" title="Remove">✕</button>
+                <button onClick={() => setEditing(p)}
+                  className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50">
+                  Edit
+                </button>
+                <button onClick={() => remove(p)}
+                  className="rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50">
+                  Remove
+                </button>
               </div>
             </div>
           )

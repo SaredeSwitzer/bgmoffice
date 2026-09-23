@@ -1294,11 +1294,17 @@ export default function ClientProfilePage() {
                 </button>
               </div>
             </div>
-            {/* The main number stays here under the name, where it has always been. It
-                also appears in the numbers list below; that repetition is the price of not
-                having the number look like it vanished, and the number is the thing people
-                come to this page for. */}
-            <ContactInfo phone={client.phone} email={client.email} preferred_contact={client.preferred_contact} />
+            {/* Numbers live in the list below — one place, where they can be edited.
+                Printing the main one here as well meant the same number twice a few lines
+                apart, which reads as a mistake. Email and how they like to be reached stay. */}
+            <ContactInfo email={client.email} preferred_contact={client.preferred_contact} />
+
+            {/* Directly under the name, where the phone has always been — people come to
+                this page for the number. People have more than one and each does a
+                different job, so it's a list, like addresses. */}
+            <div className="mt-2">
+              <ClientPhones clientId={client.id} onChanged={reloadClient} />
+            </div>
             {(client.referred_by || client.gender) && (
               <p className="text-xs text-gray-500 mt-1">
                 {client.referred_by && (
@@ -1417,13 +1423,6 @@ export default function ClientProfilePage() {
                 <ContactInfo phone={client.contact_person_phone} email={client.contact_person_email} />
               </div>
             )}
-
-            {/* Numbers, in their own list for the same reason as addresses: people have
-                more than one, and each does a different job. Reloading the client after a
-                change keeps the header's main number honest. */}
-            <div className="mt-3">
-              <ClientPhones clientId={client.id} onChanged={reloadClient} />
-            </div>
 
             {/* Addresses. The list below replaces the old single read-only block — a
                 client can be taught in more than one place, and the main one is what
