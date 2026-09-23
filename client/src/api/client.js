@@ -124,7 +124,9 @@ export const api = {
   markVoicemailHeard: (id) => request(`/voice/calls/${id}/heard`, { method: 'POST' }),
   smsThread: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}`),
   // One person's texts and calls together, in order.
-  smsTimeline: (phone) => request(`/sms/thread/${encodeURIComponent(phone)}/timeline`),
+  // peek: refresh without marking it read (the tab is in the background).
+  smsTimeline: (phone, { peek } = {}) =>
+    request(`/sms/thread/${encodeURIComponent(phone)}/timeline${peek ? '?peek=1' : ''}`),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
   getWeeklyReminders: (params) => {
     const qs = params?.start && params?.end ? `?start=${params.start}&end=${params.end}` : ''

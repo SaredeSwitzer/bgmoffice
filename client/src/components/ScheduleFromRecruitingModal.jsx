@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import DateInput from './DateInput'
 import SearchSelect from './SearchSelect'
 import { readRate } from '../utils/rates'
+import { PAYMENT_METHODS } from '../utils/payments'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -304,7 +305,7 @@ export default function ScheduleFromRecruitingModal({ entry, instructors, onClos
               <select value={form.payment_method} onChange={e => set('payment_method', e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
                 <option value="">—</option>
-                {['Credit Card', 'Invoice', 'Package', 'Cash', 'Check'].map(m => <option key={m} value={m}>{m}</option>)}
+                {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <div>

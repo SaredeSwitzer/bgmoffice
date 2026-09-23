@@ -23,13 +23,20 @@ function preview(text, max = 140) {
 async function noteReplyOnWaitingRows({ person, text, receivedAt = new Date() }) {
   if (!person?.id || !person?.kind) return [];
   try {
-    const { rows } = await pool.query(
-      `SELECT r.id
+    const { rows: all } = await pool.query(
+      `SELECT r.id, p.waiting
          FROM waiting_sheet_rows r
          JOIN waiting_sheet_people p ON p.row_id = r.id
         WHERE r.status = 'open' AND p.kind = $1 AND p.person_id = $2`,
       [person.kind, person.id]
     );
+    // A person can be on several lines but only owe a reply on some of them. Paul was
+    // listed on Leah Gottlieb's line (as the instructor she'd get) and waited on for
+    // Montessori — and every Montessori text he sent was copied onto Leah's line too.
+    // So a text goes to the lines where we're actually waiting on that person, and only
+    // falls back to every line they're on when they're not the one being waited on anywhere.
+    const waitingOn = all.filter(r => r.waiting === true || r.waiting === 1);
+    const rows = waitingOn.length ? waitingOn : all;
     if (!rows.length) return [];
 
     for (const row of rows) {

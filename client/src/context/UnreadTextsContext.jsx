@@ -75,9 +75,10 @@ export function UnreadTextsProvider({ children }) {
   const [state, setState] = useState({ unread: 0, threads: 0 })
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem(SOUND_KEY) !== 'off')
 
-  // The newest unread text we have already seen. Compared on timestamp rather than on the
-  // count, because reading one text while another arrives leaves the count unchanged —
-  // and that new text should still make a sound.
+  // The newest text we have already seen come in — read or not, since someone else's open
+  // Texts screen may have marked it read before this poll. Compared on timestamp rather
+  // than on the count, because reading one text while another arrives leaves the count
+  // unchanged — and that new text should still make a sound.
   const lastLatest = useRef(null)
   const primed = useRef(false)
   const soundRef = useRef(soundOn)

@@ -37,11 +37,14 @@ router.get('/threads', async (req, res) => {
 router.get('/unread-count', async (req, res) => {
   try {
     const { rows: [row] } = await pool.query(`
-      SELECT count(*)::int AS unread,
-             count(DISTINCT phone)::int AS threads,
+      SELECT count(*) FILTER (WHERE read_at IS NULL)::int AS unread,
+             count(DISTINCT phone) FILTER (WHERE read_at IS NULL)::int AS threads,
+             -- The newest text that came in at all, read or not. The chime keys off this.
+             -- It used to be the newest *unread* one, so a text somebody's open Texts
+             -- screen had already marked read made no sound for anybody else.
              max(created_at) AS latest
         FROM sms_messages
-       WHERE direction = 'inbound' AND read_at IS NULL`);
+       WHERE direction = 'inbound'`);
     res.json(row);
   } catch (e) {
     console.error('[sms] unread count failed:', e.message);
@@ -110,7 +113,10 @@ router.get('/thread/:phone/timeline', async (req, res) => {
       })),
     ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
-    await store.markRead(phone);
+    // ?peek=1 is the Texts screen refreshing a conversation nobody is looking at (a tab in
+    // the background). Marking it read then swallowed new texts: the bell never counted
+    // them and nobody — on any computer — heard the chime.
+    if (req.query.peek !== '1') await store.markRead(phone);
     res.json({ phone, items });
   } catch (e) {
     console.error('[sms] timeline failed:', e.message);

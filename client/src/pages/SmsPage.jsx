@@ -77,9 +77,14 @@ export default function SmsPage() {
 
   const loadThread = useCallback(async (phone) => {
     if (!phone) return
+    // Only a conversation someone can actually see counts as read. A Texts tab left open
+    // behind other windows used to mark every new text in it read within 12 seconds, so
+    // the bell and the chime never fired for them — here or on anyone else's computer.
+    const peek = document.hidden
     try {
-      const { items } = await api.smsTimeline(phone)
+      const { items } = await api.smsTimeline(phone, { peek })
       setMessages(items)
+      if (peek) return
       setThreads((prev) => prev.map((t) => (t.phone === phone ? { ...t, unread: 0 } : t)))
       // Reading a conversation marks it read on the server, so the bell in the top bar
       // should drop straight away rather than waiting out its next poll.
@@ -119,6 +124,13 @@ export default function SmsPage() {
   }, [active, loadThreads, loadThread])
 
   useEffect(() => { if (active) loadThread(active) }, [active, loadThread])
+
+  // Coming back to the tab is when the open conversation actually gets read.
+  useEffect(() => {
+    const onVisible = () => { if (!document.hidden && active) loadThread(active) }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [active, loadThread])
 
   // Normally park at the newest message. But when a search sent us to one message in
   // particular, go to that one instead — being dumped at the bottom of a two-year-old
