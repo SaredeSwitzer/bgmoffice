@@ -197,6 +197,16 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
   const [showNotes, setShowNotes] = useState(false)
   const replyRef = useRef(null)
   const [editingDate, setEditingDate] = useState(false)
+  // The line itself — "what we're waiting for" — could only be typed once. A typo or a
+  // question that changed shape meant deleting the line and losing its notes.
+  const [editingWhat, setEditingWhat] = useState(false)
+  const [whatDraft, setWhatDraft] = useState('')
+  function saveWhat() {
+    const t = whatDraft.trim()
+    setEditingWhat(false)
+    if (!t || t === row.what) return
+    act(() => api.updateWaitingRow(row.id, { what: t }))
+  }
   const overdue = row.need_by && row.need_by < today()
   const [noteText, setNoteText] = useState('')
   const notes = row.notes || []
@@ -303,13 +313,47 @@ function Row({ row, clients, instructors, onChanged, readOnly, mentionableUsers 
       </td>
 
       <td className={`align-top px-3 ${pad} text-sm text-gray-700`}>
-        <button type="button" onClick={() => setOpen(v => !v)}
-          className="text-left hover:underline decoration-gray-300">
-          {row.what}
-          {collapsed && notes.length > 0 && (
-            <span className="ml-1.5 text-[11px] text-gray-400">({notes.length})</span>
-          )}
-        </button>
+        {editingWhat ? (
+          <div className="flex flex-col gap-1">
+            <textarea
+              autoFocus
+              value={whatDraft}
+              onChange={e => setWhatDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveWhat() }
+                if (e.key === 'Escape') setEditingWhat(false)
+              }}
+              rows={2}
+              className="w-full border border-gray-200 rounded-lg px-2.5 py-1 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <div className="flex gap-2">
+              <button type="button" onClick={saveWhat} disabled={busy || !whatDraft.trim()}
+                className="px-2.5 py-1 bg-blue-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 hover:bg-blue-700">
+                Save
+              </button>
+              <button type="button" onClick={() => setEditingWhat(false)}
+                className="text-xs text-gray-500 hover:underline">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2">
+            <button type="button" onClick={() => setOpen(v => !v)}
+              className="text-left hover:underline decoration-gray-300">
+              {row.what}
+              {collapsed && notes.length > 0 && (
+                <span className="ml-1.5 text-[11px] text-gray-400">({notes.length})</span>
+              )}
+            </button>
+            {/* Always visible once the line is open — a hover-only pencil doesn't exist on a phone. */}
+            {!readOnly && !collapsed && (
+              <button type="button"
+                onClick={() => { setWhatDraft(row.what || ''); setEditingWhat(true) }}
+                className="shrink-0 text-[11px] text-blue-600 hover:underline print:hidden">
+                Edit
+              </button>
+            )}
+          </div>
+        )}
 
         {!collapsed && (<>
         {/* They texted back. The sheet used to sit there saying we were waiting while the
