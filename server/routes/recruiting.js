@@ -56,7 +56,7 @@ async function findByEmail(email) {
 }
 
 router.post('/meeting-invite/preview', requireStaff, async (req, res) => {
-  const { name, time, email } = req.body;
+  const { name, time, email, date } = req.body;
   const { rows } = await pool.query(
     "SELECT key, value FROM app_settings WHERE key IN ('meeting_link','meeting_invite_subject','meeting_invite_body')"
   );
@@ -66,9 +66,19 @@ router.post('/meeting-invite/preview', requireStaff, async (req, res) => {
   }
   const fillName = (name || '').trim() || 'there';
   const fillTime = (time || '').trim() || 'the scheduled time';
+  // The meeting used to be assumed to be today. A date picked for another day turns
+  // {day} into "on Thursday, September 24"; no date, or today's, keeps "today".
+  const todayNY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
+  const isOtherDay = /^\d{4}-\d{2}-\d{2}$/.test(date || '') && date !== todayNY;
+  const dateLabel = isOtherDay
+    ? new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    : 'today';
+  const fillDay = isOtherDay ? `on ${dateLabel}` : 'today';
   const fill = (str) => (str || '')
     .replace(/\{name\}/g, fillName)
     .replace(/\{time\}/g, fillTime)
+    .replace(/\{day\}/g, fillDay)
+    .replace(/\{date\}/g, dateLabel)
     .replace(/\{link\}/g, m.meeting_link);
   const person = await findByEmail(email).catch(() => null);
   res.json({

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
+import DateInput from './DateInput'
 
 // Step 1: who/when. Step 2: preview the filled-in email and edit it before sending —
 // same pattern as the instructor confirmation email (see ConfirmClassModal).
@@ -7,6 +8,7 @@ export default function MeetingInviteModal({ onClose }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [time, setTime] = useState('')
+  const [date, setDate] = useState('')
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [preview, setPreview] = useState(null)
   const [subject, setSubject] = useState('')
@@ -52,7 +54,7 @@ export default function MeetingInviteModal({ onClose }) {
     setLoadingPreview(true)
     setError('')
     try {
-      const p = await api.getMeetingInvitePreview({ name: name.trim(), time: time.trim(), email: email.trim() })
+      const p = await api.getMeetingInvitePreview({ name: name.trim(), time: time.trim(), email: email.trim(), date })
       setSubject(p.subject)
       setBody(p.body)
       // A number typed in by hand wins over the one on file.
@@ -148,6 +150,10 @@ export default function MeetingInviteModal({ onClose }) {
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
                 placeholder="(917) 555-1234"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Date <span className="text-gray-400 font-normal">(leave empty for today)</span></label>
+              <DateInput value={date} onChange={setDate} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
