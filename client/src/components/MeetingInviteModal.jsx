@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 
 // Step 1: who/when. Step 2: preview the filled-in email and edit it before sending —
@@ -19,6 +19,32 @@ export default function MeetingInviteModal({ onClose }) {
   const [phoneFrom, setPhoneFrom] = useState(null)
   const [alsoText, setAlsoText] = useState(false)
   const [result, setResult] = useState(null)
+  // Type a name; if it's someone we already have, pick them and their email and mobile
+  // fill themselves in. Anyone new is just typed as before.
+  const [instructors, setInstructors] = useState([])
+  const [matched, setMatched] = useState(null)
+  const [showMatches, setShowMatches] = useState(false)
+  useEffect(() => { api.getInstructors().then(setInstructors).catch(() => {}) }, [])
+  const matches = useMemo(() => {
+    const q = name.trim().toLowerCase()
+    if (q.length < 2 || matched) return []
+    return instructors.filter(i => (i.name || '').toLowerCase().includes(q)).slice(0, 6)
+  }, [name, instructors, matched])
+
+  function pick(i) {
+    setMatched(i)
+    setName(i.name)
+    if (i.email) setEmail(i.email)
+    if (i.phone) { setPhone(i.phone); setPhoneFrom('their instructor profile'); setAlsoText(true) }
+    setShowMatches(false)
+  }
+  // Typing the full name exactly counts as picking them.
+  function autoPick() {
+    setTimeout(() => setShowMatches(false), 150)
+    const q = name.trim().toLowerCase()
+    const exact = instructors.filter(i => (i.name || '').trim().toLowerCase() === q)
+    if (!matched && exact.length === 1) pick(exact[0])
+  }
 
   async function handlePreview(e) {
     e.preventDefault()
@@ -31,7 +57,7 @@ export default function MeetingInviteModal({ onClose }) {
       setBody(p.body)
       // A number typed in by hand wins over the one on file.
       if (!phone.trim() && p.phone) { setPhone(p.phone); setPhoneFrom(p.phone_from); setAlsoText(true) }
-      else { setPhoneFrom(null); setAlsoText(!!phone.trim()) }
+      else { if (!matched) setPhoneFrom(null); setAlsoText(!!phone.trim()) }
       setPreview(p)
     } catch (err) {
       setError(err.message || 'Failed to build preview.')
@@ -81,11 +107,35 @@ export default function MeetingInviteModal({ onClose }) {
           </div>
         ) : !preview ? (
           <form onSubmit={handlePreview} className="px-6 pb-6 space-y-4">
-            <div>
+            <div className="relative">
               <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
-              <input value={name} onChange={e => setName(e.target.value)}
-                placeholder="Jane Doe"
+              <input value={name}
+                onChange={e => { setName(e.target.value); setMatched(null); setShowMatches(true) }}
+                onFocus={() => setShowMatches(true)}
+                onBlur={autoPick}
+                placeholder="Start typing — instructors on file will pop up"
+                autoComplete="off"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              {showMatches && matches.length > 0 && (
+                <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                  {matches.map(i => (
+                    <li key={i.id}>
+                      <button type="button" onMouseDown={e => { e.preventDefault(); pick(i) }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">
+                        <span className="font-medium text-gray-900">{i.name}</span>
+                        <span className="block text-[11px] text-gray-400">
+                          {[i.email, i.phone].filter(Boolean).join(' · ') || 'No email or phone on file'}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {matched && (
+                <p className="text-[11px] text-emerald-700 mt-1">
+                  ✓ {matched.name} is on file — email and mobile filled in from their profile.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>
