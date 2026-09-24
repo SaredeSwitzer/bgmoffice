@@ -198,6 +198,7 @@ app.use('/api/clients',      require('./routes/clients'));
 app.use('/api/client-contract', require('./routes/clientContract'));
 app.use('/api/refunds',      require('./routes/refunds'));
 app.use('/api/instructors',  require('./routes/instructors'));
+app.use('/api/zoom-meetings', require('./routes/zoomMeetings'));
 app.use('/api/instructor-contract', require('./routes/instructorContract'));
 app.use('/api/instructor-signup', require('./routes/instructorSignup'));
 app.use('/api/cases',        require('./routes/cases'));

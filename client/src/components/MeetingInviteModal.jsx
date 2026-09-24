@@ -74,6 +74,8 @@ export default function MeetingInviteModal({ onClose }) {
     try {
       const r = await api.sendMeetingInvite({
         email: email.trim(), subject, body, phone: alsoText ? phone.trim() : '',
+        // For the Zoom Meetings schedule, which gets this meeting added automatically.
+        name: name.trim(), date, time: time.trim(), instructor_id: matched?.id || null,
       })
       setResult(r)
       setSent(true)
@@ -97,6 +99,9 @@ export default function MeetingInviteModal({ onClose }) {
             <p className="text-sm text-gray-600">The meeting invite was emailed to {email}.</p>
             {result?.texted_to && (
               <p className="text-sm text-gray-600 mt-1">And texted to {phone}.</p>
+            )}
+            {result?.logged && (
+              <p className="text-sm text-gray-600 mt-1">It's on the Zoom Meetings tab, where you can join and take notes.</p>
             )}
             {result?.text_error && (
               <p className="text-sm text-amber-700 mt-1">The text didn't go through: {result.text_error}</p>

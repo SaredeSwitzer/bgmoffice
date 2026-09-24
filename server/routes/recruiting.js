@@ -6,6 +6,7 @@ const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 const { sendMail } = require('../lib/mailer');
 const { sendSMS, toE164 } = require('../lib/telnyxSend');
 const smsStore = require('../lib/smsStore');
+const { recordInvite } = require('./zoomMeetings');
 const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync');
 const { recordIntake } = require('../lib/clientIntake');
 
@@ -90,7 +91,7 @@ router.post('/meeting-invite/preview', requireStaff, async (req, res) => {
 });
 
 router.post('/meeting-invite', requireStaff, async (req, res) => {
-  const { email, subject, body, phone } = req.body;
+  const { email, subject, body, phone, name, date, time, instructor_id } = req.body;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'A valid email is required' });
   }
@@ -127,7 +128,22 @@ router.post('/meeting-invite', requireStaff, async (req, res) => {
   } else if (phone) {
     text_error = "That doesn't look like a full phone number.";
   }
-  res.json({ ok: true, sent_to: email, texted_to, text_error });
+  // On the Zoom Meetings schedule automatically, so nobody has to write it down twice.
+  let logged = true;
+  try {
+    const person = instructor_id ? null : await findByEmail(email).catch(() => null);
+    await recordInvite({
+      name: (name || '').trim() || person?.name || null, email, phone: phone || person?.phone || null,
+      date: /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? date
+        : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date()),
+      time: (time || '').trim() || null,
+      instructor_id: instructor_id || person?.id || null, by: req.user.initials,
+    });
+  } catch (e) {
+    logged = false;
+    console.error('[recruiting] could not add the invite to Zoom Meetings:', e.message);
+  }
+  res.json({ ok: true, sent_to: email, texted_to, text_error, logged });
 });
 
 const ENTRY_JOIN = `

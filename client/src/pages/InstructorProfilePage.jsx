@@ -10,6 +10,7 @@ import SignupOptionPicker from '../components/SignupOptionPicker'
 import StylesManagerModal from '../components/StylesManagerModal'
 import { ClientLink } from '../components/NameLink'
 import { WaitingSheetForPerson } from '../components/WaitingSheet'
+import { ZoomMeetingsForInstructor } from '../components/ZoomMeetings'
 import { today } from '../utils/dates'
 import DateInput from '../components/DateInput'
 import NoteBody from '../components/NoteBody'
@@ -1136,6 +1137,9 @@ export default function InstructorProfilePage() {
 
       {/* Waiting to Hear Back From */}
       <WaitingSheetForPerson kind="instructor" personId={id} personName={instructor.name} />
+
+      {/* Zoom calls with them and the notes from each — also on the Zoom Meetings tab. */}
+      <ZoomMeetingsForInstructor instructorId={id} />
 
       {/* Case history */}
       <section>

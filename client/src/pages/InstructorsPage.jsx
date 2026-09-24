@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import MeetingInviteModal from '../components/MeetingInviteModal'
+import ZoomMeetingsTab, { JoinZoomButton } from '../components/ZoomMeetings'
 import ContractInviteModal from '../components/ContractInviteModal'
 import SignupOptionPicker from '../components/SignupOptionPicker'
 import StylesManagerModal from '../components/StylesManagerModal'
@@ -178,7 +179,8 @@ export default function InstructorsPage() {
   const [welcomeEmailFor, setWelcomeEmailFor] = useState(null) // newly-created instructor, or null
   const [signups, setSignups] = useState([])
   const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'paperwork' : 'instructors')
+  const [tab, setTab] = useState(searchParams.get('waiting') || searchParams.get('tab') === 'waiting' ? 'paperwork'
+    : searchParams.get('tab') === 'zoom' ? 'zoom' : 'instructors')
   const [mentionableUsers, setMentionableUsers] = useState([])
   const [neighborhoods, setNeighborhoods] = useState([])
   const [areasByState, setAreasByState] = useState({})
@@ -354,7 +356,8 @@ export default function InstructorsPage() {
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">Instructors</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <JoinZoomButton />
           <button
             onClick={() => setInviteOpen(true)}
             className="px-3 py-1.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
@@ -377,7 +380,7 @@ export default function InstructorsPage() {
       </div>
 
       <div className="flex gap-1 border-b border-gray-200">
-        {[['instructors', 'All Instructors'], ['paperwork', 'Contracts']].map(([key, label]) => (
+        {[['instructors', 'All Instructors'], ['zoom', 'Zoom Meetings'], ['paperwork', 'Contracts']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -386,6 +389,8 @@ export default function InstructorsPage() {
           </button>
         ))}
       </div>
+
+      {tab === 'zoom' && <ZoomMeetingsTab instructors={instructors} />}
 
       {tab === 'paperwork' && (
         <PaperworkOutstanding kind="instructor" instructors={instructors} />

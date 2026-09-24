@@ -485,6 +485,13 @@ export const api = {
   // Recruiting
   getMeetingInvitePreview: (data) => request('/recruiting/meeting-invite/preview', { method: 'POST', body: JSON.stringify(data) }),
   sendMeetingInvite: (data) => request('/recruiting/meeting-invite', { method: 'POST', body: JSON.stringify(data) }),
+  // Zoom meetings: the schedule, the room link, and notes — see server/routes/zoomMeetings.js.
+  getZoomLink: () => request('/zoom-meetings/link'),
+  getZoomMeetings: (instructorId) =>
+    request(`/zoom-meetings${instructorId ? `?instructor_id=${encodeURIComponent(instructorId)}` : ''}`),
+  addZoomMeeting: (data) => request('/zoom-meetings', { method: 'POST', body: JSON.stringify(data) }),
+  updateZoomMeeting: (id, data) => request(`/zoom-meetings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteZoomMeeting: (id) => request(`/zoom-meetings/${id}`, { method: 'DELETE' }),
 
   // Instructor contract e-signature
   getContractInvitePreview: (data) => request('/instructor-contract/invite/preview', { method: 'POST', body: JSON.stringify(data) }),
