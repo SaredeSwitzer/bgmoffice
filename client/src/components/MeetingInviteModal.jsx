@@ -14,6 +14,11 @@ export default function MeetingInviteModal({ onClose }) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
+  // Also by text: filled from their profile when their email matches one, or typed in.
+  const [phone, setPhone] = useState('')
+  const [phoneFrom, setPhoneFrom] = useState(null)
+  const [alsoText, setAlsoText] = useState(false)
+  const [result, setResult] = useState(null)
 
   async function handlePreview(e) {
     e.preventDefault()
@@ -21,9 +26,12 @@ export default function MeetingInviteModal({ onClose }) {
     setLoadingPreview(true)
     setError('')
     try {
-      const p = await api.getMeetingInvitePreview({ name: name.trim(), time: time.trim() })
+      const p = await api.getMeetingInvitePreview({ name: name.trim(), time: time.trim(), email: email.trim() })
       setSubject(p.subject)
       setBody(p.body)
+      // A number typed in by hand wins over the one on file.
+      if (!phone.trim() && p.phone) { setPhone(p.phone); setPhoneFrom(p.phone_from); setAlsoText(true) }
+      else { setPhoneFrom(null); setAlsoText(!!phone.trim()) }
       setPreview(p)
     } catch (err) {
       setError(err.message || 'Failed to build preview.')
@@ -36,7 +44,10 @@ export default function MeetingInviteModal({ onClose }) {
     setSending(true)
     setError('')
     try {
-      await api.sendMeetingInvite({ email: email.trim(), subject, body })
+      const r = await api.sendMeetingInvite({
+        email: email.trim(), subject, body, phone: alsoText ? phone.trim() : '',
+      })
+      setResult(r)
       setSent(true)
     } catch (err) {
       setError(err.message || 'Failed to send invite.')
@@ -50,12 +61,19 @@ export default function MeetingInviteModal({ onClose }) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 pt-6">
           <h3 className="font-bold text-gray-900">Invite to Meeting</h3>
-          <p className="text-xs text-gray-500 mt-1 mb-4">Emails a candidate the meeting link — no instructor record needed.</p>
+          <p className="text-xs text-gray-500 mt-1 mb-4">Emails a candidate the meeting link, and texts it too when there's a mobile number — no instructor record needed.</p>
         </div>
 
         {sent ? (
           <div className="px-6 pb-6">
-            <p className="text-sm text-gray-600 mb-4">The meeting invite was emailed to {email}.</p>
+            <p className="text-sm text-gray-600">The meeting invite was emailed to {email}.</p>
+            {result?.texted_to && (
+              <p className="text-sm text-gray-600 mt-1">And texted to {phone}.</p>
+            )}
+            {result?.text_error && (
+              <p className="text-sm text-amber-700 mt-1">The text didn't go through: {result.text_error}</p>
+            )}
+            <div className="mb-4" />
             <button onClick={onClose}
               className="w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-700">
               Done
@@ -73,6 +91,12 @@ export default function MeetingInviteModal({ onClose }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="jane@example.com"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Mobile <span className="text-gray-400 font-normal">(to text it too — filled in for you if they're on file)</span></label>
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                placeholder="(917) 555-1234"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <div>
@@ -112,11 +136,21 @@ export default function MeetingInviteModal({ onClose }) {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-gray-300" />
             </div>
             <p className="text-[11px] text-gray-400">The app filled this in from the template — edit anything before sending.</p>
+            <div className="rounded-lg border border-gray-200 px-3 py-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={alsoText} onChange={e => setAlsoText(e.target.checked)} />
+                Also text this message to
+              </label>
+              <input type="tel" value={phone} onChange={e => { setPhone(e.target.value); if (e.target.value.trim()) setAlsoText(true) }}
+                placeholder="No mobile on file — type one to text it"
+                className="mt-1.5 w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+              {phoneFrom && <p className="text-[11px] text-gray-400 mt-1">From {phoneFrom}.</p>}
+            </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={handleSend} disabled={sending}
                 className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors">
-                {sending ? 'Sending…' : 'Send Invite'}
+                {sending ? 'Sending…' : alsoText && phone.trim() ? 'Send Email + Text' : 'Send Invite'}
               </button>
               <button type="button" onClick={() => setPreview(null)}
                 className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">

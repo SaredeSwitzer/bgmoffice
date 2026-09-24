@@ -4,6 +4,8 @@ const { requireAuth, requireStaff } = require('../middleware/auth');
 const { syncMentions, deleteMentions } = require('../lib/mentions');
 const { backfillProfilesFromClass } = require('../lib/profileBackfill');
 const { sendMail } = require('../lib/mailer');
+const { sendSMS, toE164 } = require('../lib/telnyxSend');
+const smsStore = require('../lib/smsStore');
 const { generateUpcomingSessions, defaultHorizon } = require('../lib/dailySync');
 const { recordIntake } = require('../lib/clientIntake');
 
@@ -36,8 +38,25 @@ const DAYS = ['Flexible','Sunday','Monday','Tuesday','Wednesday','Thursday','Fri
 // no client_id/instructor_id needed, just a name and email typed in on the spot.
 // Two-step like the instructor confirmation email: preview (filled from the
 // editable template) then send, so staff can tweak wording before it goes out.
+// Who this email belongs to, if we know them — an instructor first, then someone who
+// applied through /join — so the Zoom link can go by text too without anyone retyping
+// the number. Matched on email because that's the one thing the invite form asks for.
+async function findByEmail(email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  const { rows: [ins] } = await pool.query(
+    `SELECT id, name, phone FROM instructors
+      WHERE lower(trim(email)) = $1 AND COALESCE(phone,'') <> '' ORDER BY id DESC LIMIT 1`, [e]);
+  if (ins) return { kind: 'instructor', id: ins.id, name: ins.name, phone: ins.phone };
+  const { rows: [su] } = await pool.query(
+    `SELECT name, phone FROM instructor_signups
+      WHERE lower(trim(email)) = $1 AND COALESCE(phone,'') <> '' ORDER BY id DESC LIMIT 1`, [e]);
+  if (su) return { kind: null, id: null, name: su.name, phone: su.phone };
+  return null;
+}
+
 router.post('/meeting-invite/preview', requireStaff, async (req, res) => {
-  const { name, time } = req.body;
+  const { name, time, email } = req.body;
   const { rows } = await pool.query(
     "SELECT key, value FROM app_settings WHERE key IN ('meeting_link','meeting_invite_subject','meeting_invite_body')"
   );
@@ -51,14 +70,17 @@ router.post('/meeting-invite/preview', requireStaff, async (req, res) => {
     .replace(/\{name\}/g, fillName)
     .replace(/\{time\}/g, fillTime)
     .replace(/\{link\}/g, m.meeting_link);
+  const person = await findByEmail(email).catch(() => null);
   res.json({
     subject: fill(m.meeting_invite_subject || 'Let\'s hop on a quick video call'),
     body: fill(m.meeting_invite_body || `Hi {name},\n\nHere's the Zoom link: {link}`),
+    phone: person?.phone || '',
+    phone_from: person ? (person.kind === 'instructor' ? 'their instructor profile' : 'their sign-up form') : null,
   });
 });
 
 router.post('/meeting-invite', requireStaff, async (req, res) => {
-  const { email, subject, body } = req.body;
+  const { email, subject, body, phone } = req.body;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'A valid email is required' });
   }
@@ -70,7 +92,32 @@ router.post('/meeting-invite', requireStaff, async (req, res) => {
   } catch (e) {
     return res.status(502).json({ error: `Could not send: ${e.message}` });
   }
-  res.json({ ok: true, sent_to: email });
+
+  // The same message by text, when a number was given. The email has already gone, so a
+  // failed text is reported back rather than turned into an error for the whole send.
+  let texted_to = null, text_error = null;
+  const to = phone ? toE164(phone) : null;
+  if (to && /^\+\d{11,}$/.test(to)) {
+    try {
+      const sent = await sendSMS({ to, text: body.trim() });
+      texted_to = to;
+      const person = await findByEmail(email).catch(() => null);
+      // Logged like any other text, so it sits in their thread and a reply lands with it.
+      await smsStore.logMessage({
+        direction: 'outbound', phone: to,
+        from_number: process.env.TELNYX_FROM_NUMBER || null, to_number: to,
+        body: body.trim(), telnyx_id: sent?.id || null,
+        status: sent?.to?.[0]?.status || 'queued',
+        person_kind: person?.kind || null, person_id: person?.id || null,
+        person_name: person?.name || null,
+      }).catch(e => console.error('[recruiting] could not log the invite text:', e.message));
+    } catch (e) {
+      text_error = e.message;
+    }
+  } else if (phone) {
+    text_error = "That doesn't look like a full phone number.";
+  }
+  res.json({ ok: true, sent_to: email, texted_to, text_error });
 });
 
 const ENTRY_JOIN = `
