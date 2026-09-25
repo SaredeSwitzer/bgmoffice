@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ClassPayersPanel from './ClassPayersPanel'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { isOwnerUser } from '../utils/ownerAccess'
@@ -359,6 +360,25 @@ export default function ClassSessionModal({ session, defaultDate, duplicate = fa
                   placeholder="e.g. 6, 8" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
             </div>
+            {/* Splitting a card class between several cards, from the calendar itself —
+                it was only on Schedule → Recurring → Edit, which is nowhere anyone looks
+                when they are looking at a class. On a weekly class it sets the split for
+                every week; on a one-off, just this class. Saves itself, like on the
+                Recurring tab, so it is not lost if this form is cancelled. */}
+            {isEdit && /credit|cc/i.test(form.payment_method || '') && (
+              <div className="space-y-1">
+                <ClassPayersPanel
+                  scheduleId={session.schedule_id || undefined}
+                  sessionId={session.schedule_id ? undefined : session.id}
+                  amount={form.charge_amount}
+                  ownerName={form.client?.name}
+                  clients={clients}
+                />
+                {session.schedule_id && (
+                  <p className="text-[11px] text-gray-500">The split applies to this class every week.</p>
+                )}
+              </div>
+            )}
             {error && <p className="text-xs text-red-600">{error}</p>}
           </div>
           <div className="px-5 py-4 border-t border-gray-100 space-y-2">

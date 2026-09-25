@@ -17,7 +17,7 @@ const pool = require('../db/pg');
 // nothing can drift out of step with them — which is the bug that has bitten the schedule
 // three times already.
 //
-// The even split itself lives in the `session_payer_shares` view (migration 033) because
+// The even split itself lives in the `session_payer_shares` view (migrations 033, 036) because
 // the weekly charge run sums it in SQL. This module is the read/write side for the UI.
 
 // The standing list for a recurring class, or the override for one session.
@@ -25,13 +25,18 @@ async function listPayers({ schedule_id, session_id }) {
   const col = schedule_id ? 'schedule_id' : 'session_id';
   const id  = schedule_id || session_id;
   if (!id) return [];
+  // The card is the one named on the share, or — when none is named — the person's
+  // default, which is the card the weekly run will actually use.
   const { rows } = await pool.query(
-    `SELECT p.id, p.client_id, c.name AS client_name,
-            c.card_brand, c.card_last4,
-            (c.card_last4 IS NOT NULL) AS has_card,
+    `SELECT p.id, p.client_id, c.name AS client_name, p.card_id,
+            COALESCE(cc.brand, c.card_brand) AS card_brand,
+            COALESCE(cc.last4, c.card_last4) AS card_last4,
+            cc.label AS card_label,
+            (COALESCE(cc.last4, c.card_last4) IS NOT NULL) AS has_card,
             p.created_by, p.created_at
        FROM class_payers p
        JOIN clients c ON c.id = p.client_id
+       LEFT JOIN client_cards cc ON cc.id = p.card_id
       WHERE p.${col} = $1
       ORDER BY p.id`, [id]);
   return rows;
@@ -41,13 +46,16 @@ async function listPayers({ schedule_id, session_id }) {
 // run will get, so the class screen can show the real split rather than a guess.
 async function resolveForSession(sessionId) {
   const { rows } = await pool.query(
-    `SELECT s.client_id, c.name AS client_name, s.amount, s.payer_count,
-            s.session_amount, c.card_brand, c.card_last4,
-            (c.card_last4 IS NOT NULL) AS has_card
+    `SELECT s.client_id, c.name AS client_name, s.amount, s.payer_count, s.card_id,
+            s.session_amount,
+            COALESCE(cc.brand, c.card_brand) AS card_brand,
+            COALESCE(cc.last4, c.card_last4) AS card_last4,
+            (COALESCE(cc.last4, c.card_last4) IS NOT NULL) AS has_card
        FROM session_payer_shares s
        JOIN clients c ON c.id = s.client_id
+       LEFT JOIN client_cards cc ON cc.id = s.card_id
       WHERE s.session_id = $1
-      ORDER BY s.client_id`, [sessionId]);
+      ORDER BY s.client_id, s.card_id NULLS FIRST`, [sessionId]);
   return rows;
 }
 
@@ -57,7 +65,7 @@ async function resolveForSession(sessionId) {
 //
 // An empty list is meaningful and allowed — it means "stop sharing this class", and the
 // fallback chain puts it straight back to the client paying for their own class.
-async function setPayers({ schedule_id, session_id, client_ids, initials }) {
+async function setPayers({ schedule_id, session_id, payers, client_ids, initials }) {
   if (!schedule_id && !session_id) {
     throw Object.assign(new Error('Which class?'), { status: 400 });
   }
@@ -65,18 +73,50 @@ async function setPayers({ schedule_id, session_id, client_ids, initials }) {
     throw Object.assign(new Error('A list belongs to the class or to one week, not both.'), { status: 400 });
   }
 
-  // De-duplicate but keep the order given: the first person on the list gets the odd
+  // Each share is a person and, optionally, one of the cards on their file — so the same
+  // person can appear twice when a second payer's card was saved onto their file. No
+  // card means their default card. `client_ids` is the older shape, still accepted.
+  const list = payers || (client_ids || []).map(client_id => ({ client_id }));
+
+  // De-duplicate but keep the order given: the first share on the list gets the odd
   // penny, so the order is not cosmetic.
   const seen = new Set();
-  const ids = (client_ids || [])
-    .map(n => Number(n))
-    .filter(n => Number.isInteger(n) && n > 0 && !seen.has(n) && seen.add(n));
+  let entries = list
+    .map(p => ({ client_id: Number(p.client_id), card_id: p.card_id ? Number(p.card_id) : null }))
+    .filter(p => Number.isInteger(p.client_id) && p.client_id > 0);
 
-  if (ids.length === 1) {
-    // One payer is not a split. Storing it as one would work, but it would put a
+  if (entries.length) {
+    const { rows: found } = await pool.query(
+      'SELECT id FROM clients WHERE id = ANY($1::bigint[])', [entries.map(p => p.client_id)]);
+    if (found.length !== new Set(entries.map(p => p.client_id)).size) {
+      throw Object.assign(new Error('One of those people is no longer on file.'), { status: 400 });
+    }
+    const cardIds = entries.map(p => p.card_id).filter(Boolean);
+    const { rows: cards } = await pool.query(
+      'SELECT id, client_id, is_default FROM client_cards WHERE id = ANY($1::bigint[])', [cardIds]);
+    const byId = Object.fromEntries(cards.map(c => [c.id, c]));
+    entries = entries.map(p => {
+      if (!p.card_id) return p;
+      const card = byId[p.card_id];
+      // A card from someone else's file would charge a stranger's card under this name.
+      if (!card || Number(card.client_id) !== p.client_id) {
+        throw Object.assign(new Error('That card is not on that person\'s file any more.'), { status: 400 });
+      }
+      // Naming the default card is the same as naming none; stored as none, so the share
+      // follows the default if it changes rather than pinning a card by accident.
+      return card.is_default ? { ...p, card_id: null } : p;
+    });
+  }
+  entries = entries.filter(p => {
+    const key = `${p.client_id}:${p.card_id || 0}`;
+    return !seen.has(key) && seen.add(key);
+  });
+
+  if (entries.length === 1) {
+    // One share is not a split. Storing it as one would work, but it would put a
     // "shared" badge on a class nobody shares and invite the question "shared with whom?".
     throw Object.assign(
-      new Error('A shared class needs at least two people. To stop sharing, remove everyone.'),
+      new Error('A split needs at least two cards. To stop splitting, remove everyone.'),
       { status: 400 });
   }
 
@@ -86,22 +126,12 @@ async function setPayers({ schedule_id, session_id, client_ids, initials }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    if (ids.length) {
-      const { rows: found } = await client.query(
-        'SELECT id FROM clients WHERE id = ANY($1::bigint[])', [ids]);
-      if (found.length !== ids.length) {
-        throw Object.assign(new Error('One of those people is no longer on file.'), { status: 400 });
-      }
-    }
-
     await client.query(`DELETE FROM class_payers WHERE ${col} = $1`, [id]);
-    for (const clientId of ids) {
+    for (const p of entries) {
       await client.query(
-        `INSERT INTO class_payers (${col}, client_id, created_by) VALUES ($1, $2, $3)`,
-        [id, clientId, initials || null]);
+        `INSERT INTO class_payers (${col}, client_id, card_id, created_by) VALUES ($1, $2, $3, $4)`,
+        [id, p.client_id, p.card_id, initials || null]);
     }
-
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');

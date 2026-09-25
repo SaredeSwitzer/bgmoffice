@@ -1872,6 +1872,7 @@ router.put('/classes/:scheduleId/payers', async (req, res) => {
   try {
     const payers = await setPayers({
       schedule_id: req.params.scheduleId,
+      payers: req.body.payers,
       client_ids: req.body.client_ids,
       initials: req.user.initials,
     });
@@ -1895,6 +1896,7 @@ router.put('/sessions/:sessionId/payers', async (req, res) => {
   try {
     await setPayers({
       session_id: req.params.sessionId,
+      payers: req.body.payers,
       client_ids: req.body.client_ids,
       initials: req.user.initials,
     });

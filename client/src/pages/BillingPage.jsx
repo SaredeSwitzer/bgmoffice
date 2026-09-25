@@ -638,6 +638,9 @@ export default function BillingPage() {
     api.getBillingWeek(ymd(weekStart)).then(({ items }) => {
       setRows((items || []).map(it => ({
         ...it,
+        // One line per card, not per client — a split class can put two shares on one
+        // client's file, each on its own card.
+        key: `${it.client_id}:${it.card_id || 0}`,
         amount: Number(it.amount) || 0,
         include: it.has_card && it.charged_status !== 'charged',
       })))
@@ -647,8 +650,8 @@ export default function BillingPage() {
   useEffect(() => { if (tab === 'charge') load() }, [tab, load])
   useEffect(() => { setSyncPreview(null); setSyncError('') }, [weekStart.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function patch(id, changes) {
-    setRows(prev => prev.map(r => r.client_id === id ? { ...r, ...changes } : r))
+  function patch(key, changes) {
+    setRows(prev => prev.map(r => r.key === key ? { ...r, ...changes } : r))
   }
 
   const selected = rows.filter(r => r.include && r.has_card && r.charged_status !== 'charged')
@@ -657,11 +660,11 @@ export default function BillingPage() {
 
   async function charge() {
     if (!selected.length) return
-    if (!confirm(`Charge ${selected.length} client${selected.length === 1 ? '' : 's'} a total of ${money(selectedTotal)}?`)) return
+    if (!confirm(`Charge ${selected.length} card${selected.length === 1 ? '' : 's'} a total of ${money(selectedTotal)}?`)) return
     setCharging(true)
     try {
       const r = await api.chargeBilling(ymd(weekStart), selected.map(s => ({
-        client_id: s.client_id, amount: Number(s.amount), session_count: s.session_count,
+        client_id: s.client_id, card_id: s.card_id || null, amount: Number(s.amount), session_count: s.session_count,
       })))
       setResults(r.results || [])
       load()
@@ -718,8 +721,11 @@ export default function BillingPage() {
             <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-1">
               <p className="text-sm font-semibold text-gray-800 mb-2">Charge results</p>
               {results.map(r => (
-                <div key={r.client_id} className="flex justify-between text-sm">
-                  <span className="text-gray-700"><ClientLink id={r.client_id} name={r.client_name} stopPropagation={false} /></span>
+                <div key={`${r.client_id}:${r.card_id || 0}`} className="flex justify-between text-sm">
+                  <span className="text-gray-700">
+                    <ClientLink id={r.client_id} name={r.client_name} stopPropagation={false} />
+                    {r.last4 && <span className="text-gray-400"> •••• {r.last4}</span>}
+                  </span>
                   <span className={r.status === 'charged' ? 'text-green-600' : r.status === 'skipped' ? 'text-gray-400' : 'text-red-600'}>
                     {r.status === 'charged' ? `charged ${money(r.amount)}` : r.status === 'skipped' ? 'skipped' : `failed — ${r.error}`}
                   </span>
@@ -745,10 +751,10 @@ export default function BillingPage() {
                 {rows.map((r, i) => {
                   const done = r.charged_status === 'charged'
                   return (
-                    <div key={r.client_id} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''} ${done ? 'bg-green-50/40' : ''}`}>
+                    <div key={r.key} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''} ${done ? 'bg-green-50/40' : ''}`}>
                       <input type="checkbox" disabled={!r.has_card || done}
                         checked={r.include && r.has_card && !done}
-                        onChange={e => patch(r.client_id, { include: e.target.checked })}
+                        onChange={e => patch(r.key, { include: e.target.checked })}
                         className="w-4 h-4 shrink-0 disabled:opacity-30" />
                       <div className="flex-1 min-w-0">
                         <Link to={`/clients/${r.client_id}`} className="text-sm font-semibold text-gray-900 hover:underline truncate block">{r.client_name}</Link>
@@ -761,7 +767,7 @@ export default function BillingPage() {
                           )}
                           {' · '}
                           {done ? <span className="text-green-600 font-medium">charged {money(r.charged_amount)}</span>
-                            : r.has_card ? <span>{r.card_brand ? `${r.card_brand} ` : ''}•••• {r.card_last4}</span>
+                            : r.has_card ? <span>{r.card_label ? `${r.card_label} · ` : ''}{r.card_brand ? `${r.card_brand} ` : ''}•••• {r.card_last4}</span>
                             : <span className="text-amber-600 font-medium">no card on file</span>}
                           {Number(r.refunded_amount) > 0 && (
                             <span className="text-red-600 font-medium"> · {money(r.refunded_amount)} refunded</span>
@@ -787,7 +793,7 @@ export default function BillingPage() {
                         )}
                         <span className="text-gray-400 text-sm">$</span>
                         <input type="number" step="1" value={r.amount} disabled={done}
-                          onChange={e => patch(r.client_id, { amount: e.target.value })}
+                          onChange={e => patch(r.key, { amount: e.target.value })}
                           className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm text-right disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300" />
                       </div>
                     </div>

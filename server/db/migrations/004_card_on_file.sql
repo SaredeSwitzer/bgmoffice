@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS recurring_charges (
   created_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS recurring_charges_client_week_uidx
-  ON recurring_charges (client_id, week_start);
+-- One charge per client per week was the rule here; 036 made it one per client, per week,
+-- per card (a split class can charge two cards on one file), and dropped this index.
 CREATE INDEX IF NOT EXISTS recurring_charges_week_idx ON recurring_charges (week_start);
 
 -- RLS on (app connects as the postgres owner, bypasses it) — keeps the table out of

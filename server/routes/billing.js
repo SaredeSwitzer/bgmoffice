@@ -331,8 +331,12 @@ router.get('/week', requireSaredeOnly, async (req, res) => {
     // session_payer_shares, not class_sessions: a class several people split shows up
     // here as one row per person for their share, and a class nobody splits shows up
     // exactly as it always did — same row, same amount. See migration 033.
+    //
+    // One row per card, not per client: a split can put two shares on one file (a second
+    // payer's card saved onto Baila's), and those are two separate charges. card_id NULL
+    // is the client's default card — every row there was before splits by card existed.
     `WITH wk AS (
-       SELECT s.client_id,
+       SELECT s.client_id, s.card_id,
               SUM(s.amount)::numeric(10,2) AS amount,
               COUNT(*) AS session_count,
               COUNT(*) FILTER (WHERE s.payer_count > 1) AS shared_count
@@ -340,7 +344,7 @@ router.get('/week', requireSaredeOnly, async (req, res) => {
         WHERE s.session_date BETWEEN $1::date AND ($1::date + 6)
           AND (s.payment_method ILIKE '%CC%' OR s.payment_method ILIKE '%credit%')
           AND s.status <> 'cancelled'
-        GROUP BY s.client_id
+        GROUP BY s.client_id, s.card_id
      ),
      ch AS (
        SELECT * FROM recurring_charges WHERE week_start = $1::date
@@ -350,11 +354,18 @@ router.get('/week', requireSaredeOnly, async (req, res) => {
      -- entirely — hiding the one case that most needs looking at, since a charge with no
      -- classes behind it is money taken for nothing. Those rows appear with 0 classes.
      SELECT COALESCE(wk.client_id, ch.client_id) AS client_id,
+            CASE WHEN wk.client_id IS NOT NULL THEN wk.card_id ELSE ch.card_id END AS card_id,
             COALESCE(wk.amount, 0)::numeric(10,2) AS amount,
             COALESCE(wk.session_count, 0)         AS session_count,
             COALESCE(wk.shared_count, 0)          AS shared_count,
-            c.name AS client_name, c.card_brand, c.card_last4,
-            (c.card_last4 IS NOT NULL) AS has_card,
+            c.name AS client_name,
+            -- A named card that has since been removed from the file has no brand or
+            -- digits, so it reads "no card on file" rather than falling back to another
+            -- card nobody chose.
+            CASE WHEN COALESCE(wk.card_id, ch.card_id) IS NULL THEN c.card_brand ELSE cc.brand END AS card_brand,
+            CASE WHEN COALESCE(wk.card_id, ch.card_id) IS NULL THEN c.card_last4 ELSE cc.last4 END AS card_last4,
+            cc.label AS card_label,
+            (CASE WHEN COALESCE(wk.card_id, ch.card_id) IS NULL THEN c.card_last4 ELSE cc.last4 END IS NOT NULL) AS has_card,
             ch.status AS charged_status, ch.amount AS charged_amount,
             -- Needed to refund it from the Billing page; a charge can only be sent back
             -- if we can point at the row that took the money.
@@ -364,8 +375,11 @@ router.get('/week', requireSaredeOnly, async (req, res) => {
                        WHERE rf.recurring_charge_id = ch.id AND rf.status = 'succeeded'), 0) AS refunded_amount
        FROM wk
        FULL OUTER JOIN ch ON ch.client_id = wk.client_id
+                         AND ch.card_id IS NOT DISTINCT FROM wk.card_id
        JOIN clients c ON c.id = COALESCE(wk.client_id, ch.client_id)
-      ORDER BY c.name`,
+       LEFT JOIN client_cards cc ON cc.id = COALESCE(wk.card_id, ch.card_id)
+                                AND cc.client_id = c.id
+      ORDER BY c.name, COALESCE(wk.card_id, ch.card_id) NULLS FIRST`,
     [start]
   );
   res.json({ week_start: start, items: rows });
@@ -411,6 +425,7 @@ router.get('/report', requireSaredeOnly, async (req, res) => {
             rc.status AS charged_status, rc.note AS charged_note
        FROM session_payer_shares s JOIN clients c ON c.id = s.client_id
        LEFT JOIN recurring_charges rc ON rc.client_id = c.id AND rc.week_start = $1::date
+                                     AND rc.card_id IS NULL
       WHERE s.session_date BETWEEN $1::date AND (${end}) AND s.status <> 'cancelled'
       GROUP BY c.id, c.name, rc.status, rc.note ORDER BY amount DESC`,
     [start]
@@ -470,7 +485,7 @@ router.get('/report', requireSaredeOnly, async (req, res) => {
 // declined card, a client who pays by other means, or "haven't gotten to it yet".
 // Upserts on (client_id, week_start) so re-marking the same week just updates it.
 router.patch('/client-status', requireSaredeOnly, async (req, res) => {
-  const { client_id, week_start, status, amount, note } = req.body;
+  const { client_id, card_id, week_start, status, amount, note } = req.body;
   if (!client_id || !/^\d{4}-\d{2}-\d{2}$/.test(week_start || '')) {
     return res.status(400).json({ error: 'client_id and week_start (YYYY-MM-DD) required' });
   }
@@ -478,10 +493,10 @@ router.patch('/client-status', requireSaredeOnly, async (req, res) => {
     return res.status(400).json({ error: 'Invalid status' });
   }
   await pool.query(
-    `INSERT INTO recurring_charges (client_id, week_start, amount, status, note, charged_by)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (client_id, week_start) DO UPDATE SET status=$4, note=$5, charged_by=$6`,
-    [client_id, week_start, amount || 0, status, note || null, req.user.initials]
+    `INSERT INTO recurring_charges (client_id, week_start, amount, status, note, charged_by, card_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (client_id, week_start, (COALESCE(card_id, 0))) DO UPDATE SET status=$4, note=$5, charged_by=$6`,
+    [client_id, week_start, amount || 0, status, note || null, req.user.initials, card_id || null]
   );
   res.json({ ok: true });
 });
@@ -520,21 +535,37 @@ router.post('/charge', requireSaredeOnly, async (req, res) => {
     );
     if (!client) { results.push({ client_id: it.client_id, status: 'failed', error: 'client not found' }); continue; }
 
-    // Never charge twice for the same week.
+    // Which card: a named one from this client's file (a split share on a second card),
+    // or the default. Looked up by client too, so a card id can never reach another
+    // client's card.
+    const cardId = it.card_id ? Number(it.card_id) : null;
+    let pmId = client.stripe_payment_method_id, last4 = client.card_last4;
+    if (cardId) {
+      const { rows: [card] } = await pool.query(
+        'SELECT stripe_payment_method_id, last4 FROM client_cards WHERE id=$1 AND client_id=$2', [cardId, client.id]
+      );
+      pmId = card?.stripe_payment_method_id || null;
+      last4 = card?.last4 || null;
+    }
+    const base = { client_id: client.id, card_id: cardId, client_name: client.name };
+
+    // Never charge twice for the same week, on the same card.
     const { rows: [already] } = await pool.query(
-      'SELECT status FROM recurring_charges WHERE client_id=$1 AND week_start=$2', [client.id, week_start]
+      `SELECT status FROM recurring_charges
+        WHERE client_id=$1 AND week_start=$2 AND card_id IS NOT DISTINCT FROM $3::bigint`,
+      [client.id, week_start, cardId]
     );
     if (already && already.status === 'charged') {
-      results.push({ client_id: client.id, client_name: client.name, status: 'skipped', error: 'already charged this week' });
+      results.push({ ...base, status: 'skipped', error: 'already charged this week' });
       continue;
     }
-    if (!client.stripe_customer_id || !client.stripe_payment_method_id) {
-      results.push({ client_id: client.id, client_name: client.name, status: 'failed', error: 'no card on file' });
+    if (!client.stripe_customer_id || !pmId) {
+      results.push({ ...base, status: 'failed', error: 'no card on file' });
       continue;
     }
     const amount = Math.round(Number(it.amount) * 100);
     if (!amount || amount < 50) {
-      results.push({ client_id: client.id, client_name: client.name, status: 'failed', error: 'invalid amount' });
+      results.push({ ...base, status: 'failed', error: 'invalid amount' });
       continue;
     }
 
@@ -542,20 +573,20 @@ router.post('/charge', requireSaredeOnly, async (req, res) => {
       const pi = await stripe.paymentIntents.create({
         amount, currency: 'usd',
         customer: client.stripe_customer_id,
-        payment_method: client.stripe_payment_method_id,
+        payment_method: pmId,
         off_session: true, confirm: true,
         description: `Weekly classes — week of ${week_start}`,
-        metadata: { client_id: String(client.id), week_start },
+        metadata: { client_id: String(client.id), week_start, ...(cardId ? { card_id: String(cardId) } : {}) },
       });
       await pool.query(
-        `INSERT INTO recurring_charges (client_id, week_start, amount, session_count, stripe_payment_intent_id, status, charged_by)
-         VALUES ($1,$2,$3,$4,$5,'charged',$6)
-         ON CONFLICT (client_id, week_start) DO UPDATE SET
+        `INSERT INTO recurring_charges (client_id, week_start, amount, session_count, stripe_payment_intent_id, status, charged_by, card_id, card_last4)
+         VALUES ($1,$2,$3,$4,$5,'charged',$6,$7,$8)
+         ON CONFLICT (client_id, week_start, (COALESCE(card_id, 0))) DO UPDATE SET
            amount=EXCLUDED.amount, stripe_payment_intent_id=EXCLUDED.stripe_payment_intent_id,
-           status='charged', error=NULL, created_at=now()`,
-        [client.id, week_start, it.amount, it.session_count || null, pi.id, req.user.initials || null]
+           card_last4=EXCLUDED.card_last4, status='charged', error=NULL, created_at=now()`,
+        [client.id, week_start, it.amount, it.session_count || null, pi.id, req.user.initials || null, cardId, last4]
       );
-      results.push({ client_id: client.id, client_name: client.name, status: 'charged', amount: it.amount, last4: client.card_last4 });
+      results.push({ ...base, status: 'charged', amount: it.amount, last4 });
       if (client.receipt_email) {
         // Awaited on purpose — Vercel can kill the function right after the response goes
         // out, which silently drops fire-and-forget sends more often than not.
@@ -573,13 +604,13 @@ router.post('/charge', requireSaredeOnly, async (req, res) => {
     } catch (err) {
       // Card declined / other Stripe error — log it as failed, keep going.
       await pool.query(
-        `INSERT INTO recurring_charges (client_id, week_start, amount, session_count, status, error, charged_by)
-         VALUES ($1,$2,$3,$4,'failed',$5,$6)
-         ON CONFLICT (client_id, week_start) DO UPDATE SET
+        `INSERT INTO recurring_charges (client_id, week_start, amount, session_count, status, error, charged_by, card_id, card_last4)
+         VALUES ($1,$2,$3,$4,'failed',$5,$6,$7,$8)
+         ON CONFLICT (client_id, week_start, (COALESCE(card_id, 0))) DO UPDATE SET
            amount=EXCLUDED.amount, status='failed', error=EXCLUDED.error, created_at=now()`,
-        [client.id, week_start, it.amount, it.session_count || null, err.message, req.user.initials || null]
+        [client.id, week_start, it.amount, it.session_count || null, err.message, req.user.initials || null, cardId, last4]
       );
-      results.push({ client_id: client.id, client_name: client.name, status: 'failed', error: err.message });
+      results.push({ ...base, status: 'failed', error: err.message });
     }
   }
   res.json({ week_start, results });

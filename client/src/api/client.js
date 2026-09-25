@@ -650,11 +650,12 @@ export const api = {
   // Who shares the cost of a class. An empty client_ids list stops the sharing and puts
   // the class back to its own client paying for it.
   getClassPayers: (scheduleId) => request(`/schedule/classes/${scheduleId}/payers`),
-  setClassPayers: (scheduleId, client_ids) =>
-    request(`/schedule/classes/${scheduleId}/payers`, { method: 'PUT', body: JSON.stringify({ client_ids }) }),
+  // payers: [{ client_id, card_id }] — card_id null means that person's main card.
+  setClassPayers: (scheduleId, payers) =>
+    request(`/schedule/classes/${scheduleId}/payers`, { method: 'PUT', body: JSON.stringify({ payers }) }),
   getSessionPayers: (sessionId) => request(`/schedule/sessions/${sessionId}/payers`),
-  setSessionPayers: (sessionId, client_ids) =>
-    request(`/schedule/sessions/${sessionId}/payers`, { method: 'PUT', body: JSON.stringify({ client_ids }) }),
+  setSessionPayers: (sessionId, payers) =>
+    request(`/schedule/sessions/${sessionId}/payers`, { method: 'PUT', body: JSON.stringify({ payers }) }),
 
   // Instructor accounts only — the caller's own classes. The server scopes this to the
   // instructor_id in the session, so there is no id to pass and none can be forged here.

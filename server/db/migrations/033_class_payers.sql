@@ -33,11 +33,8 @@ CREATE TABLE IF NOT EXISTS class_payers (
   )
 );
 
--- Naming the same person twice would halve everyone else's share for no reason.
-CREATE UNIQUE INDEX IF NOT EXISTS class_payers_schedule_client
-  ON class_payers (schedule_id, client_id) WHERE schedule_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS class_payers_session_client
-  ON class_payers (session_id, client_id)  WHERE session_id IS NOT NULL;
+-- The unique indexes (one row per person, per card) live in 036, which replaced the
+-- one-row-per-person indexes that were here: 036 lets the same person appear once per card.
 
 CREATE INDEX IF NOT EXISTS class_payers_client ON class_payers (client_id);
 
@@ -48,42 +45,7 @@ ALTER TABLE class_payers ENABLE ROW LEVEL SECURITY;
 
 -- ── Who owes what for each class ──────────────────────────────────────────────
 --
--- One row per session per payer. A class nobody shares yields exactly one row — the
--- client, the full amount — so every caller can read this view instead of class_sessions
--- and get the same answer it got before.
---
--- The odd penny goes to the first person on the list rather than being rounded away:
--- three ways on $100 is 33.34 / 33.33 / 33.33, which collects $100. Rounding each share
--- independently would collect $99.99 and quietly lose a cent a week for ever.
-CREATE OR REPLACE VIEW session_payer_shares AS
-WITH resolved AS (
-  SELECT s.id AS session_id, s.schedule_id, s.session_date, s.start_time,
-         s.instructor_id, s.style, s.payment_method, s.status,
-         COALESCE(s.charge_amount, 0) AS charge_amount,
-         s.client_id AS class_client_id,
-         COALESCE(
-           -- this week's override, if one was set
-           (SELECT array_agg(p.client_id ORDER BY p.id)
-              FROM class_payers p WHERE p.session_id = s.id),
-           -- otherwise the standing list for the recurring class
-           (SELECT array_agg(p.client_id ORDER BY p.id)
-              FROM class_payers p WHERE p.schedule_id = s.schedule_id),
-           -- otherwise it is simply their class
-           ARRAY[s.client_id]
-         ) AS payers
-    FROM class_sessions s
-)
-SELECT r.session_id, r.schedule_id, r.session_date, r.start_time,
-       r.instructor_id, r.style, r.payment_method, r.status,
-       r.class_client_id,
-       r.charge_amount AS session_amount,
-       array_length(r.payers, 1) AS payer_count,
-       u.client_id,
-       (round(r.charge_amount / array_length(r.payers, 1), 2)
-         + CASE WHEN u.ord = 1
-                THEN r.charge_amount
-                     - round(r.charge_amount / array_length(r.payers, 1), 2)
-                       * array_length(r.payers, 1)
-                ELSE 0 END)::numeric(10,2) AS amount
-  FROM resolved r,
-       unnest(r.payers) WITH ORDINALITY AS u(client_id, ord);
+-- The session_payer_shares view that was defined here now lives in 036, which added the
+-- card each share is charged on. It cannot stay here too: every migration is re-run in
+-- order, and redefining the view without its card_id column would fail ("cannot drop
+-- columns from view").
