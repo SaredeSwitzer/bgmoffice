@@ -33,6 +33,10 @@ ALTER TABLE recurring_charges
   ADD COLUMN IF NOT EXISTS card_last4 TEXT;
 
 DROP INDEX IF EXISTS recurring_charges_client_week_uidx;
+-- A second copy of the same one-per-client rule, not created by any file here (left over
+-- from the move to Supabase). Left in place it lets Stripe take the second card's money
+-- and then refuses to record it.
+DROP INDEX IF EXISTS recurring_charges_client_week_uniq;
 CREATE UNIQUE INDEX IF NOT EXISTS recurring_charges_client_week_card_uidx
   ON recurring_charges (client_id, week_start, (COALESCE(card_id, 0)));
 
