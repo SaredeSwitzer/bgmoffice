@@ -19,6 +19,7 @@ const pool = require('../db/pg');
 const { notifyCrew } = require('./notifyCrew');
 const smsStore = require('./smsStore');
 const { noteReplyOnWaitingRows } = require('./waitingFromTexts');
+const { maybeAwayReply } = require('./awayReply');
 
 // Wrap a raw 32-byte Ed25519 public key in DER/SPKI so Node's crypto can use it.
 function ed25519KeyFromBase64(b64) {
@@ -173,6 +174,9 @@ async function handleWebhook(req, res) {
       // A reply is an answer to something we're waiting on — put it on that line rather
       // than leaving the sheet to be updated by hand. See lib/waitingFromTexts.js.
       await noteReplyOnWaitingRows({ person, text });
+      // The office is closed (Yom Tov etc.): one automatic reply so they aren't left
+      // wondering. Awaited — Vercel may stop the function once the response is sent.
+      await maybeAwayReply({ from, text, person });
       await notifyCrew(buildReplyNotice({ from, text, person, sessions }));
     } else if (type === 'message.finalized' || type === 'message.sent') {
       // Outbound: reminders sent via Amber AND replies from the Texts UI both flow through this

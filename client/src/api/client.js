@@ -127,6 +127,8 @@ export const api = {
   // peek: refresh without marking it read (the tab is in the background).
   smsTimeline: (phone, { peek } = {}) =>
     request(`/sms/thread/${encodeURIComponent(phone)}/timeline${peek ? '?peek=1' : ''}`),
+  smsGetAway: () => request('/sms/away'),
+  smsSetAway: (data) => request('/sms/away', { method: 'PUT', body: JSON.stringify(data) }),
   smsSend: (to, body) => request('/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) }),
   getWeeklyReminders: (params) => {
     const qs = params?.start && params?.end ? `?start=${params.start}&end=${params.end}` : ''

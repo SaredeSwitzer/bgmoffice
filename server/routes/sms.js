@@ -19,6 +19,7 @@ const { explainSmsFailure } = require('../lib/smsFailureReason');
 const voiceStore = require('../lib/voiceStore');
 const { saveContact, suggestMatches, whoHasNumber } = require('../lib/saveContact');
 const { callOnlyNumberLookup } = require('../lib/clientTexting');
+const away = require('../lib/awayReply');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -290,6 +291,28 @@ router.get('/instructor-nudges', async (req, res) => {
     console.error('[sms] instructor nudge preview failed:', e.message);
     res.status(500).json({ error: 'Could not work out who needs a nudge' });
   }
+});
+
+// ── Away message ─────────────────────────────────────────────────────────────
+// One automatic reply per person while the office is closed. See lib/awayReply.js.
+router.get('/away', async (req, res) => {
+  const a = await away.getAway();
+  res.json({ away: a, on_now: away.isOn(a) });
+});
+
+router.put('/away', async (req, res) => {
+  const { text, starts_at, ends_at, enabled } = req.body || {};
+  if (enabled && !String(text || '').trim()) {
+    return res.status(400).json({ error: 'Write the message first.' });
+  }
+  if (starts_at && ends_at && new Date(ends_at) <= new Date(starts_at)) {
+    return res.status(400).json({ error: 'The end has to be after the start.' });
+  }
+  const saved = await away.saveAway({
+    text: String(text || '').trim(), starts_at: starts_at || null, ends_at: ends_at || null,
+    enabled: !!enabled, updated_by: req.user.initials || null, updated_at: new Date().toISOString(),
+  });
+  res.json({ away: saved, on_now: away.isOn(saved) });
 });
 
 router.post('/send', async (req, res) => {

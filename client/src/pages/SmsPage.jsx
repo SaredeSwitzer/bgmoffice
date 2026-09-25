@@ -10,6 +10,7 @@ import PhoneTabs from '../components/PhoneTabs'
 import DictateButton from '../components/DictateButton'
 import { ClientLink, InstructorLink } from '../components/NameLink'
 import SaveContactPanel from '../components/SaveContactPanel'
+import AwayMessagePanel from '../components/AwayMessagePanel'
 
 // Two-way SMS inbox for the BGM texting line (917-719-2201). Left: conversations. Right: the
 // selected thread + a reply box. "New" opens a compose panel to text one person or send an
@@ -246,6 +247,8 @@ export default function SmsPage() {
           Reminder to Login/Update Availability
         </button>
       </div>
+
+      <AwayMessagePanel />
 
       {failures.length > 0 && (
         <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
