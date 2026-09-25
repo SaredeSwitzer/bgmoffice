@@ -201,6 +201,10 @@ async function recordingNotice() {
 }
 
 async function voicemailGreeting() {
+  // A closed period (Yom Tov, Chol Hamoed…) has its own words for callers. Required
+  // lazily: awayReply pulls in the texting modules, which this file otherwise doesn't need.
+  const away = await require('./awayReply').awayVoicemailGreeting();
+  if (away) return away;
   try {
     const { rows } = await pool.query(
       "SELECT value FROM app_settings WHERE key = 'voicemail_greeting'");

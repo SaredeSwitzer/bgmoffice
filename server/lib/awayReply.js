@@ -9,9 +9,12 @@ const smsStore = require('./smsStore');
 // being ignored. One reply per person per closed period: the reply is claimed in
 // sms_away_replies before it is sent (migration 037).
 //
-// The setting is JSON in app_settings under 'sms_away_message':
-//   { "text": "...", "starts_at": ISO, "ends_at": ISO, "enabled": true }
-// and it switches itself off at ends_at — nobody has to remember to turn it off.
+// The setting is JSON in app_settings under 'sms_away_message': a LIST of closed periods,
+//   [{ "text": "...", "voice_text": "...", "starts_at": ISO, "ends_at": ISO, "enabled": true }]
+// so a run of holidays can be set up in one sitting — Yom Tov, then Chol Hamoed, then
+// Yom Tov again — each switching on and off by itself. (A single object, the first shape
+// this took, is still read as a list of one.) `voice_text`, if set, is what callers hear
+// on voicemail during that period instead of the everyday greeting.
 
 const KEY = 'sms_away_message';
 
@@ -20,10 +23,13 @@ const KEY = 'sms_away_message';
 // asked not to be texted.
 const KEYWORDS = /^(stop|stopall|unsubscribe|cancel|end|quit|help|info|start|unstop|yes)$/i;
 
-async function getAway() {
+async function listAways() {
   const { rows } = await pool.query('SELECT value FROM app_settings WHERE key = $1', [KEY]);
-  if (!rows[0]?.value) return null;
-  try { return JSON.parse(rows[0].value); } catch { return null; }
+  if (!rows[0]?.value) return [];
+  try {
+    const v = JSON.parse(rows[0].value);
+    return (Array.isArray(v) ? v : [v]).filter(Boolean);
+  } catch { return []; }
 }
 
 function isOn(away, now = new Date()) {
@@ -35,12 +41,29 @@ function isOn(away, now = new Date()) {
   return true;
 }
 
-async function saveAway(away) {
+// The period in force right now, if any.
+async function getAway() {
+  return (await listAways()).find(a => isOn(a)) || null;
+}
+
+async function saveAways(list) {
+  const clean = (list || [])
+    .filter(a => a && String(a.text || '').trim())
+    .sort((a, b) => String(a.starts_at || '').localeCompare(String(b.starts_at || '')));
   await pool.query(
     `INSERT INTO app_settings (key, value) VALUES ($1, $2)
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-    [KEY, JSON.stringify(away)]);
-  return away;
+    [KEY, JSON.stringify(clean)]);
+  return clean;
+}
+
+// What callers hear on voicemail right now: the closed period's own words, or null for
+// the everyday greeting.
+async function awayVoicemailGreeting() {
+  try {
+    const a = await getAway();
+    return a?.voice_text?.trim() || null;
+  } catch { return null; }
 }
 
 // Called for every inbound text. Never throws — a failed away reply must not stop the
@@ -78,4 +101,4 @@ async function maybeAwayReply({ from, text, person }) {
   }
 }
 
-module.exports = { getAway, saveAway, isOn, maybeAwayReply };
+module.exports = { listAways, getAway, saveAways, isOn, maybeAwayReply, awayVoicemailGreeting };

@@ -296,23 +296,28 @@ router.get('/instructor-nudges', async (req, res) => {
 // ── Away message ─────────────────────────────────────────────────────────────
 // One automatic reply per person while the office is closed. See lib/awayReply.js.
 router.get('/away', async (req, res) => {
-  const a = await away.getAway();
-  res.json({ away: a, on_now: away.isOn(a) });
+  const list = await away.listAways();
+  res.json({ periods: list.map(p => ({ ...p, on_now: away.isOn(p) })) });
 });
 
+// The whole list at once — a closed period is added, changed or removed by sending the
+// list back without it, so there is no half-saved state between two holidays.
 router.put('/away', async (req, res) => {
-  const { text, starts_at, ends_at, enabled } = req.body || {};
-  if (enabled && !String(text || '').trim()) {
-    return res.status(400).json({ error: 'Write the message first.' });
+  const periods = Array.isArray(req.body?.periods) ? req.body.periods : null;
+  if (!periods) return res.status(400).json({ error: 'periods required' });
+  for (const p of periods) {
+    if (p.starts_at && p.ends_at && new Date(p.ends_at) <= new Date(p.starts_at)) {
+      return res.status(400).json({ error: 'Each end time has to be after its start.' });
+    }
   }
-  if (starts_at && ends_at && new Date(ends_at) <= new Date(starts_at)) {
-    return res.status(400).json({ error: 'The end has to be after the start.' });
-  }
-  const saved = await away.saveAway({
-    text: String(text || '').trim(), starts_at: starts_at || null, ends_at: ends_at || null,
-    enabled: !!enabled, updated_by: req.user.initials || null, updated_at: new Date().toISOString(),
-  });
-  res.json({ away: saved, on_now: away.isOn(saved) });
+  const saved = await away.saveAways(periods.map(p => ({
+    text: String(p.text || '').trim(),
+    voice_text: String(p.voice_text || '').trim(),
+    starts_at: p.starts_at || null, ends_at: p.ends_at || null,
+    enabled: p.enabled !== false,
+    updated_by: req.user.initials || null, updated_at: new Date().toISOString(),
+  })));
+  res.json({ periods: saved.map(p => ({ ...p, on_now: away.isOn(p) })) });
 });
 
 router.post('/send', async (req, res) => {
